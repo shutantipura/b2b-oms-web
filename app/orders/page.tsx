@@ -372,120 +372,97 @@ export default function OrdersPage() {
                 </thead>
 
                 <tbody>
+  {filteredOrders.map((order) => (
+    <tr
+      key={order.id}
+      className="border-t"
+    >
+      {/* ORDER */}
+      <td className="p-4">
+        <div className="font-bold">
+          #{order.order_number}
+        </div>
 
-                  {filteredOrders.map(
-                    (order) => (
+        <div className="text-sm text-gray-500">
+          {order.customers?.customer_code ?? "—"}
+        </div>
+      </td>
 
-                      <tr
-                        key={order.id}
-                        className="border-t"
-                      >
+      {/* CUSTOMER */}
+      <td className="p-4">
+        <div className="font-medium">
+          {order.customers?.customer_name ??
+            "Unknown customer"}
+        </div>
 
-                        <td className="p-4">
+        <div className="text-sm text-gray-500">
+          {order.customers?.phone ?? ""}
+        </div>
+      </td>
 
-                          <div className="font-bold">
-                            #{order.order_number}
-                          </div>
+      {/* DELIVERY */}
+      <td className="p-4">
+        <div>
+          {order.delivery_date ?? "—"}
+        </div>
 
-                          <div className="text-sm text-gray-500">
-                            {order.customers
-                              ?.customer_code ??
-                              "—"}
-                          </div>
+        <div className="text-sm text-gray-500">
+          {order.delivery_slot ?? ""}
+        </div>
+      </td>
 
-                        </td>
+      {/* STATUS */}
+      <td className="p-4">
+        <span className="inline-block bg-gray-100 rounded-full px-3 py-1 text-sm font-medium">
+          {prettyStatus(order.status)}
+        </span>
+      </td>
 
-                        <td className="p-4">
+      {/* AMOUNT */}
+      <td className="p-4 text-right">
+        {order.final_amount !== null
+          ? `฿${Number(
+              order.final_amount
+            ).toFixed(2)}`
+          : "—"}
+      </td>
 
-                          <div className="font-medium">
-                            {order.customers
-                              ?.customer_name ??
-                              "Unknown customer"}
-                          </div>
+      {/* ACTIONS */}
+      <td className="p-4">
+        <div className="flex justify-end gap-2">
 
-                          <div className="text-sm text-gray-500">
-                            {order.customers
-                              ?.phone ??
-                              ""}
-                          </div>
+          <Link
+            href={`/orders/${order.order_number}`}
+            className="inline-block bg-white border rounded-lg px-4 py-2 font-semibold"
+          >
+            VIEW
+          </Link>
 
-                        </td>
+          {order.status ===
+            "awaiting_payment" && (
+            <Link
+              href={`/orders/${order.order_number}/payment`}
+              className="inline-block bg-black text-white rounded-lg px-4 py-2 font-semibold"
+            >
+              UPLOAD SLIP
+            </Link>
+          )}
 
-                        <td className="p-4">
+          {order.status ===
+            "payment_submitted" && (
+            <Link
+              href="/tasks"
+              className="inline-block bg-black text-white rounded-lg px-4 py-2 font-semibold"
+            >
+              PAYMENT TASK
+            </Link>
+          )}
 
-                          <div>
-                            {order.delivery_date ??
-                              "—"}
-                          </div>
-
-                          <div className="text-sm text-gray-500">
-                            {order.delivery_slot ??
-                              ""}
-                          </div>
-
-                        </td>
-
-                        <td className="p-4">
-
-                          <span className="inline-block bg-gray-100 rounded-full px-3 py-1 text-sm font-medium">
-                            {prettyStatus(
-                              order.status
-                            )}
-                          </span>
-
-                        </td>
-
-                        <td className="p-4 text-right">
-
-                          {order.final_amount !==
-                          null
-                            ? `฿${Number(
-                                order.final_amount
-                              ).toFixed(
-                                2
-                              )}`
-                            : "—"}
-
-                        </td>
-
-                        <td className="p-4 text-right">
-
-                          {order.status ===
-                          "awaiting_payment" ? (
-
-                            <Link
-                              href={`/orders/${order.order_number}/payment`}
-                              className="inline-block bg-black text-white rounded-lg px-4 py-2 font-semibold"
-                            >
-                              UPLOAD SLIP
-                            </Link>
-
-                          ) : order.status ===
-                            "payment_submitted" ? (
-
-                            <Link
-                              href="/tasks"
-                              className="inline-block bg-white border rounded-lg px-4 py-2 font-semibold"
-                            >
-                              PAYMENT TASK
-                            </Link>
-
-                          ) : (
-
-                            <span className="text-gray-400">
-                              —
-                            </span>
-
-                          )}
-
-                        </td>
-
-                      </tr>
-
-                    )
-                  )}
-
-                </tbody>
+        </div>
+      </td>
+    </tr>
+  ))}
+</tbody>
 
               </table>
 
