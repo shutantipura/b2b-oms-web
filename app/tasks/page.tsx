@@ -67,7 +67,6 @@ export default function TasksPage() {
   async function loadData() {
     setLoading(true);
 
-    // Who am I?
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -96,7 +95,6 @@ export default function TasksPage() {
 
     setCurrentStaff(staffData);
 
-    // Load active orders
     const { data: orderData, error: orderError } =
       await supabase
         .from("orders")
@@ -128,7 +126,6 @@ export default function TasksPage() {
       (orderData ?? []) as unknown as Order[]
     );
 
-    // Load active task claims
     const { data: claimData, error: claimError } =
       await supabase
         .from("task_claims")
@@ -147,7 +144,6 @@ export default function TasksPage() {
 
     const rawClaims = claimData ?? [];
 
-    // Find names of staff who own active tasks
     const staffIds = [
       ...new Set(
         rawClaims.map((claim) => claim.staff_id)
@@ -188,7 +184,6 @@ export default function TasksPage() {
       }));
 
     setClaims(formattedClaims);
-    setMessage("");
     setLoading(false);
   }
 
@@ -217,8 +212,6 @@ export default function TasksPage() {
         "Could not start work: " + error.message
       );
 
-      // Reload because another staff member may
-      // have claimed it first.
       await loadData();
       return;
     }
@@ -241,7 +234,6 @@ export default function TasksPage() {
   return (
     <main className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-6xl mx-auto">
-
         <div className="flex justify-between items-center mb-8">
           <div>
             <Link
@@ -276,23 +268,18 @@ export default function TasksPage() {
 
         <div className="space-y-6">
           {groups.map((group) => {
-
-            const groupOrders =
-              orders.filter((order) =>
-                group.statuses.includes(
-                  order.status
-                )
-              );
+            const groupOrders = orders.filter(
+              (order) =>
+                group.statuses.includes(order.status)
+            );
 
             return (
               <section
                 key={group.stage}
                 className="bg-white border rounded-2xl overflow-hidden"
               >
-
                 <div className="p-5 border-b">
                   <div className="flex justify-between items-center">
-
                     <h2 className="text-xl font-bold">
                       {group.title}
                     </h2>
@@ -300,7 +287,6 @@ export default function TasksPage() {
                     <span className="text-sm bg-gray-100 rounded-full px-3 py-1">
                       {groupOrders.length}
                     </span>
-
                   </div>
                 </div>
 
@@ -309,18 +295,13 @@ export default function TasksPage() {
                     No orders waiting.
                   </div>
                 ) : (
-
                   <div>
                     {groupOrders.map((order) => {
-
-                      const claim =
-                        claims.find(
-                          (claim) =>
-                            claim.order_id ===
-                              order.id &&
-                            claim.stage ===
-                              group.stage
-                        );
+                      const claim = claims.find(
+                        (claim) =>
+                          claim.order_id === order.id &&
+                          claim.stage === group.stage
+                      );
 
                       const isMine =
                         claim &&
@@ -333,11 +314,9 @@ export default function TasksPage() {
                           key={order.order_number}
                           className="p-5 border-b last:border-b-0 flex justify-between items-center gap-6"
                         >
-
                           <div>
                             <div className="font-semibold text-lg">
-                              Order #
-                              {order.order_number}
+                              Order #{order.order_number}
                             </div>
 
                             <div className="text-gray-600 mt-1">
@@ -361,7 +340,6 @@ export default function TasksPage() {
 
                           <div>
                             {!claim ? (
-
                               <button
                                 onClick={() =>
                                   startWork(
@@ -373,22 +351,27 @@ export default function TasksPage() {
                               >
                                 START WORK
                               </button>
-
                             ) : isMine ? (
-
                               <div className="text-right">
                                 <div className="font-semibold">
                                   IN PROGRESS
                                 </div>
 
-                                <div className="text-sm text-gray-500">
-                                  You ·{" "}
-                                  {claim.staff_name}
+                                <div className="text-sm text-gray-500 mb-3">
+                                  You · {claim.staff_name}
                                 </div>
-                              </div>
 
+                                {group.stage ===
+                                  "confirmation" && (
+                                  <Link
+                                    href={`/tasks/confirmation/${order.order_number}`}
+                                    className="inline-block bg-black text-white rounded-lg px-5 py-2 font-semibold"
+                                  >
+                                    CONTINUE
+                                  </Link>
+                                )}
+                              </div>
                             ) : (
-
                               <div className="text-right">
                                 <div className="font-semibold">
                                   IN PROGRESS
@@ -398,21 +381,17 @@ export default function TasksPage() {
                                   {claim.staff_name}
                                 </div>
                               </div>
-
                             )}
                           </div>
-
                         </div>
                       );
                     })}
                   </div>
-
                 )}
               </section>
             );
           })}
         </div>
-
       </div>
     </main>
   );
