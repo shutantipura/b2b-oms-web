@@ -485,9 +485,16 @@ export default function PricingPage() {
           <div className="flex gap-3">
 
   <Link
+  href="/pricing/import"
+  className="bg-white border rounded-lg px-5 py-2 font-semibold"
+>
+  IMPORT EXCEL
+</Link>
+
+<Link
     href="/pricing/favourites"
     className="bg-black text-white rounded-lg px-5 py-2 font-semibold"
-  >
+  >  
     MANAGE FAVOURITES
   </Link>
 
