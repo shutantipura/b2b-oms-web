@@ -217,7 +217,11 @@ export default function Home() {
 
   if (item === "Customers") {
   href = "/customers";
-}
+  }
+
+  if (item === "Pricing") {
+  href = "/pricing";
+  }
 
   if (href) {
     return (
