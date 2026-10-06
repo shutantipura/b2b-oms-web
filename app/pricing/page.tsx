@@ -482,12 +482,23 @@ export default function PricingPage() {
             </p>
           </div>
 
-          <button
-            onClick={loadPricing}
-            className="bg-white border rounded-lg px-5 py-2"
-          >
-            Refresh
-          </button>
+          <div className="flex gap-3">
+
+  <Link
+    href="/pricing/favourites"
+    className="bg-black text-white rounded-lg px-5 py-2 font-semibold"
+  >
+    MANAGE FAVOURITES
+  </Link>
+
+  <button
+    onClick={loadPricing}
+    className="bg-white border rounded-lg px-5 py-2"
+  >
+    Refresh
+  </button>
+
+</div>
 
         </div>
 
