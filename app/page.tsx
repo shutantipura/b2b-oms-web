@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "../lib/supabase";
 
 type StaffProfile = {
@@ -203,14 +204,24 @@ export default function Home() {
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {navigation.map((item) => (
-            <button
-              key={item}
-              className="bg-white border rounded-xl p-7 text-left font-semibold hover:shadow"
-            >
-              {item}
-            </button>
-          ))}
+          {navigation.map((item) =>
+  item === "Tasks" ? (
+    <Link
+      key={item}
+      href="/tasks"
+      className="bg-white border rounded-xl p-7 text-left font-semibold hover:shadow"
+    >
+      {item}
+    </Link>
+  ) : (
+    <button
+      key={item}
+      className="bg-white border rounded-xl p-7 text-left font-semibold hover:shadow"
+    >
+      {item}
+    </button>
+  )
+)}
         </div>
 
         <div className="bg-white border rounded-xl p-6 mt-8">
