@@ -1,8 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  useParams,
+  useRouter,
+} from "next/navigation";
+
 import { supabase } from "../../../lib/supabase";
+
+// ======================================================
+// TYPES
+// ======================================================
 
 type Customer = {
   id: string;
@@ -39,6 +52,10 @@ type CatalogueProduct = Product & {
 
 type Cart = Record<string, number>;
 
+// ======================================================
+// HELPERS
+// ======================================================
+
 function quantityStep(unit: string) {
   const normalized =
     unit.trim().toLowerCase();
@@ -53,60 +70,148 @@ function quantityStep(unit: string) {
   return 1;
 }
 
-function cleanQuantity(value: number) {
+function cleanQuantity(
+  value: number
+) {
   return Number(
-    Math.max(0, value).toFixed(2)
+    Math.max(
+      0,
+      value
+    ).toFixed(2)
   );
 }
 
+// ======================================================
+// PAGE
+// ======================================================
+
 export default function CustomerShopPage() {
   const params = useParams();
+  const router = useRouter();
 
   const customerCode =
-    String(params.customerCode)
+    String(
+      params.customerCode
+    )
       .trim()
       .toUpperCase();
 
-  const [customer, setCustomer] =
-    useState<Customer | null>(null);
+  // ====================================================
+  // STATE
+  // ====================================================
 
-  const [products, setProducts] =
-    useState<CatalogueProduct[]>([]);
-
-  const [cart, setCart] =
-    useState<Cart>({});
-
-const [quantityInputs, setQuantityInputs] =
-  useState<Record<string, string>>({});
-
-  const [view, setView] =
-    useState<"favourites" | "all">(
-      "favourites"
+  const [
+    customer,
+    setCustomer,
+  ] =
+    useState<Customer | null>(
+      null
     );
 
-  const [search, setSearch] =
+  const [
+    products,
+    setProducts,
+  ] =
+    useState<
+      CatalogueProduct[]
+    >([]);
+
+  const [
+    cart,
+    setCart,
+  ] =
+    useState<Cart>({});
+
+  // Temporary text while customer is typing quantity.
+  // This prevents the box disappearing when Backspace
+  // temporarily makes the value blank.
+  const [
+    quantityInputs,
+    setQuantityInputs,
+  ] =
+    useState<
+      Record<string, string>
+    >({});
+
+  const [
+    view,
+    setView,
+  ] =
+    useState<
+      "favourites" | "all"
+    >("favourites");
+
+  const [
+    search,
+    setSearch,
+  ] =
     useState("");
 
-  const [cartOpen, setCartOpen] =
+  const [
+    cartOpen,
+    setCartOpen,
+  ] =
     useState(false);
 
-  const [loading, setLoading] =
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
 
-  const [message, setMessage] =
+  const [
+    message,
+    setMessage,
+  ] =
     useState("");
+
+  // ====================================================
+  // RESTORE SAVED CART
+  // ====================================================
+
+  useEffect(() => {
+    const stored =
+      localStorage.getItem(
+        `b2b-cart-${customerCode}`
+      );
+
+    if (!stored) {
+      return;
+    }
+
+    try {
+      const savedCart =
+        JSON.parse(
+          stored
+        ) as Cart;
+
+      setCart(
+        savedCart
+      );
+    } catch {
+      localStorage.removeItem(
+        `b2b-cart-${customerCode}`
+      );
+    }
+  }, [customerCode]);
+
+  // ====================================================
+  // LOAD CATALOGUE
+  // ====================================================
 
   async function loadCatalogue() {
     setLoading(true);
     setMessage("");
 
-    // ==========================================
+    // --------------------------------------------------
     // 1. CUSTOMER
-    // ==========================================
+    // --------------------------------------------------
 
     const {
-      data: customerData,
-      error: customerError,
+      data:
+        customerData,
+      error:
+        customerError,
     } = await supabase
       .from("customers")
       .select(`
@@ -121,7 +226,10 @@ const [quantityInputs, setQuantityInputs] =
       )
       .single();
 
-    if (customerError) {
+    if (
+      customerError ||
+      !customerData
+    ) {
       setMessage(
         "Customer account could not be found."
       );
@@ -133,9 +241,13 @@ const [quantityInputs, setQuantityInputs] =
     const loadedCustomer =
       customerData as Customer;
 
-    setCustomer(loadedCustomer);
+    setCustomer(
+      loadedCustomer
+    );
 
-    if (!loadedCustomer.is_active) {
+    if (
+      !loadedCustomer.is_active
+    ) {
       setMessage(
         "This customer account is currently inactive."
       );
@@ -144,13 +256,15 @@ const [quantityInputs, setQuantityInputs] =
       return;
     }
 
-    // ==========================================
+    // --------------------------------------------------
     // 2. PRODUCTS
-    // ==========================================
+    // --------------------------------------------------
 
     const {
-      data: productData,
-      error: productError,
+      data:
+        productData,
+      error:
+        productError,
     } = await supabase
       .from("products")
       .select(`
@@ -163,7 +277,8 @@ const [quantityInputs, setQuantityInputs] =
       .order(
         "product_name",
         {
-          ascending: true,
+          ascending:
+            true,
         }
       );
 
@@ -181,15 +296,19 @@ const [quantityInputs, setQuantityInputs] =
       (productData ??
         []) as Product[];
 
-    // ==========================================
+    // --------------------------------------------------
     // 3. CUSTOMER SPECIAL PRICES
-    // ==========================================
+    // --------------------------------------------------
 
     const {
-      data: priceData,
-      error: priceError,
+      data:
+        priceData,
+      error:
+        priceError,
     } = await supabase
-      .from("customer_prices")
+      .from(
+        "customer_prices"
+      )
       .select(`
         product_id,
         agreed_price,
@@ -233,15 +352,19 @@ const [quantityInputs, setQuantityInputs] =
       }
     );
 
-    // ==========================================
+    // --------------------------------------------------
     // 4. FAVOURITES
-    // ==========================================
+    // --------------------------------------------------
 
     const {
-      data: favouriteData,
-      error: favouriteError,
+      data:
+        favouriteData,
+      error:
+        favouriteError,
     } = await supabase
-      .from("favourites")
+      .from(
+        "favourites"
+      )
       .select(`
         product_id,
         sort_order
@@ -251,7 +374,9 @@ const [quantityInputs, setQuantityInputs] =
         loadedCustomer.id
       );
 
-    if (favouriteError) {
+    if (
+      favouriteError
+    ) {
       setMessage(
         "Could not load favourites: " +
           favouriteError.message
@@ -280,9 +405,9 @@ const [quantityInputs, setQuantityInputs] =
       }
     );
 
-    // ==========================================
-    // 5. COMBINE EVERYTHING
-    // ==========================================
+    // --------------------------------------------------
+    // 5. COMBINE DATA
+    // --------------------------------------------------
 
     const catalogue =
       loadedProducts.map(
@@ -323,13 +448,16 @@ const [quantityInputs, setQuantityInputs] =
               isFavourite
                 ? favouriteMap.get(
                     product.id
-                  ) ?? null
+                  ) ??
+                  null
                 : null,
           };
         }
       );
 
-    setProducts(catalogue);
+    setProducts(
+      catalogue
+    );
 
     setLoading(false);
   }
@@ -338,9 +466,9 @@ const [quantityInputs, setQuantityInputs] =
     loadCatalogue();
   }, [customerCode]);
 
-  // ==========================================
-  // PRODUCT LIST
-  // ==========================================
+  // ====================================================
+  // DISPLAYED PRODUCTS
+  // ====================================================
 
   const displayedProducts =
     useMemo(() => {
@@ -362,10 +490,14 @@ const [quantityInputs, setQuantityInputs] =
             (product) =>
               product.product_name
                 .toLowerCase()
-                .includes(text) ||
+                .includes(
+                  text
+                ) ||
               product.sku
                 .toLowerCase()
-                .includes(text)
+                .includes(
+                  text
+                )
           );
       }
 
@@ -389,12 +521,13 @@ const [quantityInputs, setQuantityInputs] =
       view,
     ]);
 
-  // ==========================================
+  // ====================================================
   // CART FUNCTIONS
-  // ==========================================
+  // ====================================================
 
   function updateQuantity(
-    product: CatalogueProduct,
+    product:
+      CatalogueProduct,
     quantity: number
   ) {
     const cleaned =
@@ -408,15 +541,26 @@ const [quantityInputs, setQuantityInputs] =
           ...current,
         };
 
-        if (cleaned <= 0) {
+        if (
+          cleaned <= 0
+        ) {
           delete next[
             product.id
           ];
         } else {
           next[
             product.id
-          ] = cleaned;
+          ] =
+            cleaned;
         }
+
+        // Save every cart change immediately.
+        localStorage.setItem(
+          `b2b-cart-${customerCode}`,
+          JSON.stringify(
+            next
+          )
+        );
 
         return next;
       }
@@ -424,11 +568,13 @@ const [quantityInputs, setQuantityInputs] =
   }
 
   function increaseQuantity(
-    product: CatalogueProduct
+    product:
+      CatalogueProduct
   ) {
     const current =
-      cart[product.id] ??
-      0;
+      cart[
+        product.id
+      ] ?? 0;
 
     const step =
       quantityStep(
@@ -442,11 +588,13 @@ const [quantityInputs, setQuantityInputs] =
   }
 
   function decreaseQuantity(
-    product: CatalogueProduct
+    product:
+      CatalogueProduct
   ) {
     const current =
-      cart[product.id] ??
-      0;
+      cart[
+        product.id
+      ] ?? 0;
 
     const step =
       quantityStep(
@@ -459,9 +607,9 @@ const [quantityInputs, setQuantityInputs] =
     );
   }
 
-  // ==========================================
+  // ====================================================
   // CART CALCULATIONS
-  // ==========================================
+  // ====================================================
 
   const cartItems =
     products.filter(
@@ -476,7 +624,10 @@ const [quantityInputs, setQuantityInputs] =
 
   const cartTotal =
     cartItems.reduce(
-      (total, product) => {
+      (
+        total,
+        product
+      ) => {
         const quantity =
           cart[
             product.id
@@ -491,9 +642,72 @@ const [quantityInputs, setQuantityInputs] =
       0
     );
 
-  // ==========================================
-  // LOADING / ERRORS
-  // ==========================================
+  // ====================================================
+  // RESET CART
+  // ====================================================
+
+  function resetCart() {
+    if (
+      cartItemCount ===
+      0
+    ) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        "Remove all products from your cart?"
+      );
+
+    if (
+      !confirmed
+    ) {
+      return;
+    }
+
+    setCart({});
+
+    setQuantityInputs(
+      {}
+    );
+
+    localStorage.removeItem(
+      `b2b-cart-${customerCode}`
+    );
+
+    setCartOpen(
+      false
+    );
+  }
+
+  // ====================================================
+  // CHECKOUT
+  // ====================================================
+
+  function goToCheckout() {
+    if (
+      cartItemCount ===
+      0
+    ) {
+      return;
+    }
+
+    // Save once more before navigating.
+    localStorage.setItem(
+      `b2b-cart-${customerCode}`,
+      JSON.stringify(
+        cart
+      )
+    );
+
+    router.push(
+      `/shop/${customerCode}/checkout`
+    );
+  }
+
+  // ====================================================
+  // LOADING
+  // ====================================================
 
   if (loading) {
     return (
@@ -503,16 +717,28 @@ const [quantityInputs, setQuantityInputs] =
     );
   }
 
+  // ====================================================
+  // CUSTOMER NOT FOUND
+  // ====================================================
+
   if (!customer) {
     return (
       <main className="min-h-screen bg-gray-100 p-5">
+
         <div className="max-w-xl mx-auto bg-white border rounded-2xl p-6">
+
           {message ||
             "Customer not found."}
+
         </div>
+
       </main>
     );
   }
+
+  // ====================================================
+  // INACTIVE CUSTOMER
+  // ====================================================
 
   if (
     !customer.is_active
@@ -538,14 +764,16 @@ const [quantityInputs, setQuantityInputs] =
     );
   }
 
-  // ==========================================
+  // ====================================================
   // PAGE
-  // ==========================================
+  // ====================================================
 
   return (
     <main className="min-h-screen bg-gray-100 pb-28">
 
+      {/* ============================================== */}
       {/* HEADER */}
+      {/* ============================================== */}
 
       <header className="bg-white border-b sticky top-0 z-20">
 
@@ -581,7 +809,11 @@ const [quantityInputs, setQuantityInputs] =
               }
               className="bg-black text-white rounded-xl px-4 py-3 font-semibold"
             >
-              CART ({cartItemCount})
+              CART (
+              {
+                cartItemCount
+              }
+              )
             </button>
 
           </div>
@@ -589,6 +821,10 @@ const [quantityInputs, setQuantityInputs] =
         </div>
 
       </header>
+
+      {/* ============================================== */}
+      {/* MAIN CONTENT */}
+      {/* ============================================== */}
 
       <div className="max-w-3xl mx-auto p-4">
 
@@ -635,7 +871,9 @@ const [quantityInputs, setQuantityInputs] =
         <div className="mb-5">
 
           <input
-            value={search}
+            value={
+              search
+            }
             onChange={(
               event
             ) =>
@@ -649,6 +887,8 @@ const [quantityInputs, setQuantityInputs] =
           />
 
         </div>
+
+        {/* MESSAGE */}
 
         {message && (
           <div className="bg-white border rounded-xl p-4 mb-5 text-red-600">
@@ -687,7 +927,9 @@ const [quantityInputs, setQuantityInputs] =
             </div>
           )}
 
-        {/* PRODUCTS */}
+        {/* ============================================ */}
+        {/* PRODUCT LIST */}
+        {/* ============================================ */}
 
         <div className="space-y-3">
 
@@ -703,11 +945,11 @@ const [quantityInputs, setQuantityInputs] =
                   product.unit
                 );
 
-                const isEditingQuantity =
-  Object.prototype.hasOwnProperty.call(
-    quantityInputs,
-    product.id
-  );
+              const isEditingQuantity =
+                Object.prototype.hasOwnProperty.call(
+                  quantityInputs,
+                  product.id
+                );
 
               return (
                 <div
@@ -718,6 +960,8 @@ const [quantityInputs, setQuantityInputs] =
                 >
 
                   <div className="flex justify-between gap-4">
+
+                    {/* PRODUCT INFO */}
 
                     <div className="min-w-0">
 
@@ -792,8 +1036,10 @@ const [quantityInputs, setQuantityInputs] =
 
                     <div className="flex flex-col items-end justify-center">
 
-                      {quantity <= 0 &&
-                    !isEditingQuantity ? (
+                      {quantity <=
+                        0 &&
+                      !isEditingQuantity ? (
+
                         <button
                           onClick={() =>
                             increaseQuantity(
@@ -804,7 +1050,9 @@ const [quantityInputs, setQuantityInputs] =
                         >
                           + ADD
                         </button>
+
                       ) : (
+
                         <div>
 
                           <div className="flex items-center border rounded-xl overflow-hidden">
@@ -821,103 +1069,136 @@ const [quantityInputs, setQuantityInputs] =
                             </button>
 
                             <input
-  type="number"
-  min="0"
-  step={step}
-  value={
-    isEditingQuantity
-      ? quantityInputs[product.id]
-      : quantity
-  }
-  onFocus={() => {
-    setQuantityInputs(
-      (current) => ({
-        ...current,
-        [product.id]:
-          String(quantity),
-      })
-    );
-  }}
-  onChange={(event) => {
-    const raw =
-      event.target.value;
+                              type="number"
+                              min="0"
+                              step={
+                                step
+                              }
+                              value={
+                                isEditingQuantity
+                                  ? quantityInputs[
+                                      product.id
+                                    ]
+                                  : quantity
+                              }
+                              onFocus={() => {
+                                setQuantityInputs(
+                                  (
+                                    current
+                                  ) => ({
+                                    ...current,
 
-    setQuantityInputs(
-      (current) => ({
-        ...current,
-        [product.id]:
-          raw,
-      })
-    );
+                                    [product.id]:
+                                      String(
+                                        quantity
+                                      ),
+                                  })
+                                );
+                              }}
+                              onChange={(
+                                event
+                              ) => {
+                                const raw =
+                                  event
+                                    .target
+                                    .value;
 
-    // Allow temporary blank input
-    // while the customer is typing.
-    if (raw === "") {
-      return;
-    }
+                                setQuantityInputs(
+                                  (
+                                    current
+                                  ) => ({
+                                    ...current,
 
-    const parsed =
-      Number(raw);
+                                    [product.id]:
+                                      raw,
+                                  })
+                                );
 
-    if (
-      !Number.isNaN(parsed) &&
-      parsed >= 0
-    ) {
-      updateQuantity(
-        product,
-        parsed
-      );
-    }
-  }}
-  onBlur={() => {
-    const raw =
-      quantityInputs[
-        product.id
-      ];
+                                // Allow an empty input temporarily
+                                // while the customer is typing.
+                                if (
+                                  raw ===
+                                  ""
+                                ) {
+                                  return;
+                                }
 
-    if (
-      raw === undefined
-    ) {
-      return;
-    }
+                                const parsed =
+                                  Number(
+                                    raw
+                                  );
 
-    if (
-      raw.trim() === ""
-    ) {
-      updateQuantity(
-        product,
-        0
-      );
-    } else {
-      const parsed =
-        Number(raw);
+                                if (
+                                  !Number.isNaN(
+                                    parsed
+                                  ) &&
+                                  parsed >=
+                                    0
+                                ) {
+                                  updateQuantity(
+                                    product,
+                                    parsed
+                                  );
+                                }
+                              }}
+                              onBlur={() => {
+                                const raw =
+                                  quantityInputs[
+                                    product.id
+                                  ];
 
-      if (
-        !Number.isNaN(parsed)
-      ) {
-        updateQuantity(
-          product,
-          parsed
-        );
-      }
-    }
+                                if (
+                                  raw ===
+                                  undefined
+                                ) {
+                                  return;
+                                }
 
-    setQuantityInputs(
-      (current) => {
-        const next = {
-          ...current,
-        };
+                                if (
+                                  raw.trim() ===
+                                  ""
+                                ) {
+                                  updateQuantity(
+                                    product,
+                                    0
+                                  );
+                                } else {
+                                  const parsed =
+                                    Number(
+                                      raw
+                                    );
 
-        delete next[
-          product.id
-        ];
+                                  if (
+                                    !Number.isNaN(
+                                      parsed
+                                    )
+                                  ) {
+                                    updateQuantity(
+                                      product,
+                                      parsed
+                                    );
+                                  }
+                                }
 
-        return next;
-      }
-    );
-  }}
-  className="w-20 text-center py-3 outline-none"
-/>
+                                setQuantityInputs(
+                                  (
+                                    current
+                                  ) => {
+                                    const next =
+                                      {
+                                        ...current,
+                                      };
+
+                                    delete next[
+                                      product.id
+                                    ];
+
+                                    return next;
+                                  }
+                                );
+                              }}
+                              className="w-20 text-center py-3 outline-none"
+                            />
 
                             <button
                               onClick={() =>
@@ -945,7 +1226,10 @@ const [quantityInputs, setQuantityInputs] =
 
                   </div>
 
-                  {quantity > 0 && (
+                  {/* ESTIMATED LINE TOTAL */}
+
+                  {quantity >
+                    0 && (
                     <div className="border-t mt-4 pt-3 flex justify-between">
 
                       <span className="text-sm text-gray-500">
@@ -974,7 +1258,9 @@ const [quantityInputs, setQuantityInputs] =
 
       </div>
 
+      {/* ============================================== */}
       {/* BOTTOM CART BAR */}
+      {/* ============================================== */}
 
       {cartItemCount >
         0 && (
@@ -993,7 +1279,9 @@ const [quantityInputs, setQuantityInputs] =
 
               <span>
                 View Cart ·{" "}
-                {cartItemCount}{" "}
+                {
+                  cartItemCount
+                }{" "}
                 item
                 {cartItemCount ===
                 1
@@ -1015,14 +1303,18 @@ const [quantityInputs, setQuantityInputs] =
         </div>
       )}
 
+      {/* ============================================== */}
       {/* CART PANEL */}
+      {/* ============================================== */}
 
       {cartOpen && (
         <div className="fixed inset-0 bg-black/30 z-40 flex items-end md:items-center justify-center">
 
           <div className="bg-white w-full md:max-w-xl md:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
 
-            <div className="p-5 border-b flex justify-between items-center sticky top-0 bg-white">
+            {/* CART HEADER */}
+
+            <div className="p-5 border-b flex justify-between items-center sticky top-0 bg-white z-10">
 
               <div>
 
@@ -1038,26 +1330,49 @@ const [quantityInputs, setQuantityInputs] =
 
               </div>
 
-              <button
-                onClick={() =>
-                  setCartOpen(
-                    false
-                  )
-                }
-                className="border rounded-lg px-4 py-2"
-              >
-                CLOSE
-              </button>
+              <div className="flex gap-2">
+
+                {cartItemCount >
+                  0 && (
+                  <button
+                    onClick={
+                      resetCart
+                    }
+                    className="border rounded-lg px-4 py-2 text-sm font-semibold"
+                  >
+                    RESET CART
+                  </button>
+                )}
+
+                <button
+                  onClick={() =>
+                    setCartOpen(
+                      false
+                    )
+                  }
+                  className="border rounded-lg px-4 py-2"
+                >
+                  CLOSE
+                </button>
+
+              </div>
 
             </div>
 
+            {/* EMPTY CART */}
+
             {cartItems.length ===
             0 ? (
+
               <div className="p-8 text-center text-gray-500">
                 Your cart is empty.
               </div>
+
             ) : (
+
               <>
+
+                {/* CART ITEMS */}
 
                 <div>
 
@@ -1125,7 +1440,9 @@ const [quantityInputs, setQuantityInputs] =
                             </button>
 
                             <span className="min-w-20 text-center">
-                              {quantity}{" "}
+                              {
+                                quantity
+                              }{" "}
                               {
                                 product.unit
                               }
@@ -1151,6 +1468,8 @@ const [quantityInputs, setQuantityInputs] =
 
                 </div>
 
+                {/* CART TOTAL */}
+
                 <div className="p-5">
 
                   <div className="flex justify-between text-lg">
@@ -1173,10 +1492,12 @@ const [quantityInputs, setQuantityInputs] =
                   </p>
 
                   <button
-                    disabled
-                    className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-5 opacity-40"
+                    onClick={
+                      goToCheckout
+                    }
+                    className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-5"
                   >
-                    CHECKOUT — COMING NEXT
+                    CONTINUE TO CHECKOUT
                   </button>
 
                 </div>
