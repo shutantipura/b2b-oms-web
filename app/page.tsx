@@ -215,6 +215,10 @@ export default function Home() {
     href = "/orders";
   }
 
+  if (item === "Customers") {
+  href = "/customers";
+}
+
   if (href) {
     return (
       <Link
