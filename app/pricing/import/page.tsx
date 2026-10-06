@@ -5,19 +5,85 @@ import Link from "next/link";
 import * as XLSX from "xlsx";
 import { supabase } from "../../../lib/supabase";
 
-type ExcelRow = {
+// ======================================================
+// EXCEL INPUT TYPES
+// ======================================================
+
+type MasterExcelRow = {
   SKU?: string | number;
   Product?: string;
   Unit?: string;
   "Normal Price"?: string | number;
 };
 
-type PreviewRow = {
+type SpecialExcelRow = {
+  Customer?: string | number;
+  SKU?: string | number;
+  "Special Price"?: string | number;
+};
+
+// ======================================================
+// DATABASE TYPES
+// ======================================================
+
+type ExistingProduct = {
+  id: string;
+  sku: string;
+  product_name: string;
+  unit: string;
+  normal_price: number | string;
+};
+
+type ExistingCustomer = {
+  id: string;
+  customer_code: string;
+  customer_name: string;
+};
+
+type ExistingCustomerPrice = {
+  id: string;
+  customer_id: string;
+  product_id: string;
+  agreed_price: number | string;
+  is_active: boolean;
+};
+
+// ======================================================
+// PREVIEW TYPES
+// ======================================================
+
+type MasterPreviewRow = {
   sku: string;
   product_name: string;
   unit: string;
   normal_price: number;
-  action: "New" | "Update";
+
+  action:
+    | "New"
+    | "Update"
+    | "Unchanged";
+
+  valid: boolean;
+  error: string | null;
+};
+
+type SpecialPreviewRow = {
+  customer_code: string;
+  customer_name: string | null;
+
+  sku: string;
+  product_name: string | null;
+
+  special_price: number;
+
+  customer_id: string | null;
+  product_id: string | null;
+
+  action:
+    | "New"
+    | "Update"
+    | "Unchanged";
+
   valid: boolean;
   error: string | null;
 };
@@ -26,8 +92,11 @@ export default function PricingImportPage() {
   const [fileName, setFileName] =
     useState("");
 
-  const [rows, setRows] =
-    useState<PreviewRow[]>([]);
+  const [masterRows, setMasterRows] =
+    useState<MasterPreviewRow[]>([]);
+
+  const [specialRows, setSpecialRows] =
+    useState<SpecialPreviewRow[]>([]);
 
   const [loadingFile, setLoadingFile] =
     useState(false);
@@ -37,6 +106,10 @@ export default function PricingImportPage() {
 
   const [message, setMessage] =
     useState("");
+
+  // ======================================================
+  // READ EXCEL FILE
+  // ======================================================
 
   async function handleFile(
     event: ChangeEvent<HTMLInputElement>
@@ -48,7 +121,8 @@ export default function PricingImportPage() {
 
     setLoadingFile(true);
     setMessage("");
-    setRows([]);
+    setMasterRows([]);
+    setSpecialRows([]);
     setFileName(file.name);
 
     try {
@@ -60,43 +134,12 @@ export default function PricingImportPage() {
           type: "array",
         });
 
-      const sheetName =
-        "Master Price";
-
-      const worksheet =
-        workbook.Sheets[sheetName];
-
-      if (!worksheet) {
-        setMessage(
-          'The workbook does not contain a sheet called "Master Price".'
-        );
-
-        setLoadingFile(false);
-        return;
-      }
-
-      const excelRows =
-        XLSX.utils.sheet_to_json<ExcelRow>(
-          worksheet,
-          {
-            defval: "",
-          }
-        );
-
-      if (excelRows.length === 0) {
-        setMessage(
-          'The "Master Price" sheet contains no data.'
-        );
-
-        setLoadingFile(false);
-        return;
-      }
-
-      // Load current products so we know
-      // whether each Excel row is NEW or UPDATE.
+      // ==================================================
+      // LOAD DATABASE REFERENCE DATA
+      // ==================================================
 
       const {
-        data: existingProducts,
+        data: productData,
         error: productError,
       } = await supabase
         .from("products")
@@ -118,102 +161,259 @@ export default function PricingImportPage() {
         return;
       }
 
-      const existingSkuSet =
-        new Set(
-          (existingProducts ?? []).map(
-            (product) =>
-              String(product.sku).trim()
+      const existingProducts =
+        (productData ??
+          []) as ExistingProduct[];
+
+      const {
+        data: customerData,
+        error: customerError,
+      } = await supabase
+        .from("customers")
+        .select(`
+          id,
+          customer_code,
+          customer_name
+        `);
+
+      if (customerError) {
+        setMessage(
+          "Could not load customers: " +
+            customerError.message
+        );
+
+        setLoadingFile(false);
+        return;
+      }
+
+      const existingCustomers =
+        (customerData ??
+          []) as ExistingCustomer[];
+
+      const {
+        data: priceData,
+        error: priceError,
+      } = await supabase
+        .from("customer_prices")
+        .select(`
+          id,
+          customer_id,
+          product_id,
+          agreed_price,
+          is_active
+        `);
+
+      if (priceError) {
+        setMessage(
+          "Could not load existing customer prices: " +
+            priceError.message
+        );
+
+        setLoadingFile(false);
+        return;
+      }
+
+      const existingCustomerPrices =
+        (priceData ??
+          []) as ExistingCustomerPrice[];
+
+      // ==================================================
+      // LOOKUP MAPS
+      // ==================================================
+
+      const productBySku =
+        new Map(
+          existingProducts.map(
+            (product) => [
+              String(
+                product.sku
+              ).trim(),
+              product,
+            ]
           )
         );
 
-      const duplicateCounter:
+      const customerByCode =
+        new Map(
+          existingCustomers.map(
+            (customer) => [
+              customer.customer_code
+                .trim()
+                .toUpperCase(),
+              customer,
+            ]
+          )
+        );
+
+      const customerPriceMap =
+        new Map<
+          string,
+          ExistingCustomerPrice
+        >();
+
+      existingCustomerPrices.forEach(
+        (price) => {
+          customerPriceMap.set(
+            `${price.customer_id}::${price.product_id}`,
+            price
+          );
+        }
+      );
+
+      // ==================================================
+      // MASTER PRICE SHEET
+      // ==================================================
+
+      const masterWorksheet =
+        workbook.Sheets[
+          "Master Price"
+        ];
+
+      if (!masterWorksheet) {
+        setMessage(
+          'The workbook does not contain a sheet called "Master Price".'
+        );
+
+        setLoadingFile(false);
+        return;
+      }
+
+      const masterExcelRows =
+        XLSX.utils.sheet_to_json<MasterExcelRow>(
+          masterWorksheet,
+          {
+            defval: "",
+          }
+        );
+
+      const masterDuplicateCounter:
         Record<string, number> = {};
 
-      excelRows.forEach((row) => {
-        const sku =
-          String(row.SKU ?? "").trim();
+      masterExcelRows.forEach(
+        (row) => {
+          const sku =
+            String(
+              row.SKU ?? ""
+            ).trim();
 
-        if (sku) {
-          duplicateCounter[sku] =
-            (duplicateCounter[sku] ?? 0) +
-            1;
-        }
-      });
-
-      const preview:
-        PreviewRow[] =
-        excelRows
-          .map((row) => {
-            const sku =
-              String(
-                row.SKU ?? ""
-              ).trim();
-
-            const productName =
-              String(
-                row.Product ?? ""
-              ).trim();
-
-            const unit =
-              String(
-                row.Unit ?? ""
-              ).trim();
-
-            const rawPrice =
-              row["Normal Price"];
-
-            const normalPrice =
-              Number(rawPrice);
-
-            let error:
-              string | null = null;
-
-            if (!sku) {
-              error =
-                "Missing SKU";
-            } else if (!productName) {
-              error =
-                "Missing product name";
-            } else if (!unit) {
-              error =
-                "Missing unit";
-            } else if (
-              rawPrice === "" ||
-              Number.isNaN(
-                normalPrice
-              ) ||
-              normalPrice < 0
-            ) {
-              error =
-                "Invalid normal price";
-            } else if (
-              duplicateCounter[
+          if (sku) {
+            masterDuplicateCounter[
+              sku
+            ] =
+              (masterDuplicateCounter[
                 sku
-              ] > 1
-            ) {
-              error =
-                "Duplicate SKU in Excel file";
-            }
+              ] ?? 0) + 1;
+          }
+        }
+      );
 
-            return {
-              sku,
-              product_name:
-                productName,
-              unit,
-              normal_price:
-                normalPrice,
-              action:
-                existingSkuSet.has(
+      const masterPreview =
+        masterExcelRows
+          .map(
+            (
+              row
+            ): MasterPreviewRow => {
+              const sku =
+                String(
+                  row.SKU ?? ""
+                ).trim();
+
+              const productName =
+                String(
+                  row.Product ??
+                    ""
+                ).trim();
+
+              const unit =
+                String(
+                  row.Unit ?? ""
+                ).trim();
+
+              const rawPrice =
+                row[
+                  "Normal Price"
+                ];
+
+              const normalPrice =
+                Number(rawPrice);
+
+              let error:
+                string | null =
+                null;
+
+              if (!sku) {
+                error =
+                  "Missing SKU";
+              } else if (
+                !productName
+              ) {
+                error =
+                  "Missing product name";
+              } else if (!unit) {
+                error =
+                  "Missing unit";
+              } else if (
+                rawPrice === "" ||
+                Number.isNaN(
+                  normalPrice
+                ) ||
+                normalPrice < 0
+              ) {
+                error =
+                  "Invalid normal price";
+              } else if (
+                masterDuplicateCounter[
                   sku
-                )
-                  ? "Update"
-                  : "New",
-              valid:
-                error === null,
-              error,
-            } as PreviewRow;
-          })
-          // Ignore completely blank Excel rows
+                ] > 1
+              ) {
+                error =
+                  "Duplicate SKU in Master Price";
+              }
+
+              const existing =
+                productBySku.get(
+                  sku
+                );
+
+              let action:
+                | "New"
+                | "Update"
+                | "Unchanged" =
+                "New";
+
+              if (existing) {
+                const same =
+                  existing.product_name ===
+                    productName &&
+                  existing.unit ===
+                    unit &&
+                  Number(
+                    existing.normal_price
+                  ) === normalPrice;
+
+                action =
+                  same
+                    ? "Unchanged"
+                    : "Update";
+              }
+
+              return {
+                sku,
+                product_name:
+                  productName,
+                unit,
+                normal_price:
+                  normalPrice,
+
+                action,
+
+                valid:
+                  error === null,
+
+                error,
+              };
+            }
+          )
           .filter(
             (row) =>
               row.sku ||
@@ -221,10 +421,249 @@ export default function PricingImportPage() {
               row.unit
           );
 
-      setRows(preview);
+      setMasterRows(
+        masterPreview
+      );
+
+      // ==================================================
+      // CUSTOMER PRICE OVERRIDE SHEET
+      // ==================================================
+
+      const specialWorksheet =
+        workbook.Sheets[
+          "Customer Price Override"
+        ];
+
+      if (
+        specialWorksheet
+      ) {
+        const specialExcelRows =
+          XLSX.utils.sheet_to_json<SpecialExcelRow>(
+            specialWorksheet,
+            {
+              defval: "",
+            }
+          );
+
+        const duplicateCounter:
+          Record<string, number> =
+          {};
+
+        specialExcelRows.forEach(
+          (row) => {
+            const customerCode =
+              String(
+                row.Customer ??
+                  ""
+              )
+                .trim()
+                .toUpperCase();
+
+            const sku =
+              String(
+                row.SKU ?? ""
+              ).trim();
+
+            if (
+              customerCode &&
+              sku
+            ) {
+              const key =
+                `${customerCode}::${sku}`;
+
+              duplicateCounter[
+                key
+              ] =
+                (duplicateCounter[
+                  key
+                ] ?? 0) + 1;
+            }
+          }
+        );
+
+        const specialPreview =
+          specialExcelRows
+            .map(
+              (
+                row
+              ): SpecialPreviewRow => {
+                const customerCode =
+                  String(
+                    row.Customer ??
+                      ""
+                  )
+                    .trim()
+                    .toUpperCase();
+
+                const sku =
+                  String(
+                    row.SKU ?? ""
+                  ).trim();
+
+                const rawPrice =
+                  row[
+                    "Special Price"
+                  ];
+
+                const specialPrice =
+                  Number(rawPrice);
+
+                const customer =
+                  customerByCode.get(
+                    customerCode
+                  );
+
+                // Product may already
+                // exist in DB, OR be a
+                // new SKU in this same
+                // Excel Master sheet.
+                const existingProduct =
+                  productBySku.get(
+                    sku
+                  );
+
+                const masterProduct =
+                  masterPreview.find(
+                    (master) =>
+                      master.sku ===
+                      sku &&
+                      master.valid
+                  );
+
+                let error:
+                  string | null =
+                  null;
+
+                if (
+                  !customerCode
+                ) {
+                  error =
+                    "Missing customer code";
+                } else if (
+                  !customer
+                ) {
+                  error =
+                    "Customer does not exist";
+                } else if (!sku) {
+                  error =
+                    "Missing SKU";
+                } else if (
+                  !existingProduct &&
+                  !masterProduct
+                ) {
+                  error =
+                    "SKU does not exist";
+                } else if (
+                  rawPrice === "" ||
+                  Number.isNaN(
+                    specialPrice
+                  ) ||
+                  specialPrice < 0
+                ) {
+                  error =
+                    "Invalid special price";
+                } else if (
+                  duplicateCounter[
+                    `${customerCode}::${sku}`
+                  ] > 1
+                ) {
+                  error =
+                    "Duplicate Customer + SKU";
+                }
+
+                let productId:
+                  string | null =
+                  existingProduct?.id ??
+                  null;
+
+                let productName:
+                  string | null =
+                  existingProduct
+                    ?.product_name ??
+                  masterProduct
+                    ?.product_name ??
+                  null;
+
+                let action:
+                  | "New"
+                  | "Update"
+                  | "Unchanged" =
+                  "New";
+
+                if (
+                  customer &&
+                  productId
+                ) {
+                  const existingPrice =
+                    customerPriceMap.get(
+                      `${customer.id}::${productId}`
+                    );
+
+                  if (
+                    existingPrice
+                  ) {
+                    const same =
+                      existingPrice.is_active &&
+                      Number(
+                        existingPrice.agreed_price
+                      ) ===
+                        specialPrice;
+
+                    action =
+                      same
+                        ? "Unchanged"
+                        : "Update";
+                  }
+                }
+
+                return {
+                  customer_code:
+                    customerCode,
+
+                  customer_name:
+                    customer
+                      ?.customer_name ??
+                    null,
+
+                  sku,
+
+                  product_name:
+                    productName,
+
+                  special_price:
+                    specialPrice,
+
+                  customer_id:
+                    customer?.id ??
+                    null,
+
+                  product_id:
+                    productId,
+
+                  action,
+
+                  valid:
+                    error === null,
+
+                  error,
+                };
+              }
+            )
+            .filter(
+              (row) =>
+                row.customer_code ||
+                row.sku
+            );
+
+        setSpecialRows(
+          specialPreview
+        );
+      } else {
+        setSpecialRows([]);
+      }
 
       setMessage(
-        `Loaded ${preview.length} product rows from ${file.name}.`
+        `Loaded workbook ${file.name}. Review the preview before importing.`
       );
     } catch (error) {
       console.error(error);
@@ -237,21 +676,41 @@ export default function PricingImportPage() {
     setLoadingFile(false);
   }
 
-  async function importProducts() {
-    const invalidRows =
-      rows.filter(
+  // ======================================================
+  // IMPORT
+  // ======================================================
+
+  async function importWorkbook() {
+    const invalidMaster =
+      masterRows.filter(
         (row) => !row.valid
       );
 
-    if (invalidRows.length > 0) {
+    const invalidSpecial =
+      specialRows.filter(
+        (row) => !row.valid
+      );
+
+    if (
+      invalidMaster.length >
+        0 ||
+      invalidSpecial.length >
+        0
+    ) {
       setMessage(
-        `Import blocked. Fix the ${invalidRows.length} invalid row(s) in Excel first.`
+        `Import blocked. Fix ${
+          invalidMaster.length +
+          invalidSpecial.length
+        } invalid row(s) first.`
       );
 
       return;
     }
 
-    if (rows.length === 0) {
+    if (
+      masterRows.length ===
+      0
+    ) {
       setMessage(
         "There are no products to import."
       );
@@ -261,7 +720,7 @@ export default function PricingImportPage() {
 
     const confirmed =
       window.confirm(
-        `Import ${rows.length} products into the database?`
+        `Import ${masterRows.length} master product rows and ${specialRows.length} customer price rows?`
       );
 
     if (!confirmed) {
@@ -271,19 +730,29 @@ export default function PricingImportPage() {
     setImporting(true);
     setMessage("");
 
+    // ==================================================
+    // STEP 1 — PRODUCTS
+    // ==================================================
+
     const productsToImport =
-      rows.map((row) => ({
-        sku: row.sku,
-        product_name:
-          row.product_name,
-        unit: row.unit,
-        normal_price:
-          row.normal_price,
-      }));
+      masterRows.map(
+        (row) => ({
+          sku: row.sku,
+
+          product_name:
+            row.product_name,
+
+          unit:
+            row.unit,
+
+          normal_price:
+            row.normal_price,
+        })
+      );
 
     const {
-      data,
-      error,
+      error:
+        productImportError,
     } = await supabase
       .from("products")
       .upsert(
@@ -291,84 +760,214 @@ export default function PricingImportPage() {
         {
           onConflict: "sku",
         }
-      )
+      );
+
+    if (
+      productImportError
+    ) {
+      setMessage(
+        "Product import failed: " +
+          productImportError.message
+      );
+
+      setImporting(false);
+      return;
+    }
+
+    // ==================================================
+    // STEP 2 — RELOAD PRODUCTS
+    // Important because Excel may have introduced
+    // brand-new SKUs.
+    // ==================================================
+
+    const {
+      data:
+        refreshedProducts,
+      error:
+        refreshProductError,
+    } = await supabase
+      .from("products")
       .select(`
         id,
         sku
       `);
 
-    if (error) {
-      setMessage(
-        "Import failed: " +
-          error.message
-      );
-
-      setImporting(false);
-      return;
-    }
-
     if (
-      !data ||
-      data.length === 0
+      refreshProductError
     ) {
       setMessage(
-        "The database did not import any products. Check Supabase permissions."
+        "Products were imported, but customer prices could not be prepared: " +
+          refreshProductError.message
       );
 
       setImporting(false);
       return;
     }
 
-    const newCount =
-      rows.filter(
+    const refreshedProductMap =
+      new Map(
+        (
+          refreshedProducts ??
+          []
+        ).map(
+          (product) => [
+            String(
+              product.sku
+            ).trim(),
+            product.id,
+          ]
+        )
+      );
+
+    // ==================================================
+    // STEP 3 — SPECIAL PRICES
+    // ==================================================
+
+    if (
+      specialRows.length >
+      0
+    ) {
+      const pricesToImport =
+        specialRows.map(
+          (row) => {
+            const productId =
+              refreshedProductMap.get(
+                row.sku
+              );
+
+            if (
+              !productId ||
+              !row.customer_id
+            ) {
+              throw new Error(
+                `Could not resolve ${row.customer_code} / ${row.sku}.`
+              );
+            }
+
+            return {
+              customer_id:
+                row.customer_id,
+
+              product_id:
+                productId,
+
+              agreed_price:
+                row.special_price,
+
+              is_active:
+                true,
+            };
+          }
+        );
+
+      const {
+        error:
+          priceImportError,
+      } = await supabase
+        .from(
+          "customer_prices"
+        )
+        .upsert(
+          pricesToImport,
+          {
+            onConflict:
+              "customer_id,product_id",
+          }
+        );
+
+      if (
+        priceImportError
+      ) {
+        setMessage(
+          "Products were imported, but customer prices failed: " +
+            priceImportError.message
+        );
+
+        setImporting(false);
+        return;
+      }
+    }
+
+    const masterNew =
+      masterRows.filter(
         (row) =>
-          row.action === "New"
+          row.action ===
+          "New"
       ).length;
 
-    const updateCount =
-      rows.filter(
+    const masterUpdate =
+      masterRows.filter(
         (row) =>
-          row.action === "Update"
+          row.action ===
+          "Update"
+      ).length;
+
+    const masterUnchanged =
+      masterRows.filter(
+        (row) =>
+          row.action ===
+          "Unchanged"
+      ).length;
+
+    const specialNew =
+      specialRows.filter(
+        (row) =>
+          row.action ===
+          "New"
+      ).length;
+
+    const specialUpdate =
+      specialRows.filter(
+        (row) =>
+          row.action ===
+          "Update"
+      ).length;
+
+    const specialUnchanged =
+      specialRows.filter(
+        (row) =>
+          row.action ===
+          "Unchanged"
       ).length;
 
     setMessage(
-      `Import complete. ${newCount} new product(s), ${updateCount} updated product(s).`
+      `Import complete. Products: ${masterNew} new, ${masterUpdate} changed, ${masterUnchanged} unchanged. Customer prices: ${specialNew} new, ${specialUpdate} changed, ${specialUnchanged} unchanged.`
     );
 
     setImporting(false);
 
-    // Re-read the same rows conceptually as
-    // existing products after successful import.
-    setRows(
-      rows.map((row) => ({
-        ...row,
-        action: "Update",
-      }))
+    // Everything now exists in DB.
+    setMasterRows(
+      masterRows.map(
+        (row) => ({
+          ...row,
+          action:
+            "Unchanged",
+        })
+      )
+    );
+
+    setSpecialRows(
+      specialRows.map(
+        (row) => ({
+          ...row,
+          action:
+            "Unchanged",
+        })
+      )
     );
   }
 
-  const validCount =
-    rows.filter(
-      (row) => row.valid
-    ).length;
+  // ======================================================
+  // COUNTS
+  // ======================================================
 
   const invalidCount =
-    rows.filter(
+    masterRows.filter(
       (row) => !row.valid
-    ).length;
-
-  const newCount =
-    rows.filter(
-      (row) =>
-        row.valid &&
-        row.action === "New"
-    ).length;
-
-  const updateCount =
-    rows.filter(
-      (row) =>
-        row.valid &&
-        row.action === "Update"
+    ).length +
+    specialRows.filter(
+      (row) => !row.valid
     ).length;
 
   return (
@@ -386,16 +985,16 @@ export default function PricingImportPage() {
           </Link>
 
           <h1 className="text-3xl font-bold mt-3">
-            Import Product Prices
+            Import Catalogue
           </h1>
 
           <p className="text-gray-500 mt-1">
-            Upload the weekly Excel product and master price file.
+            Import master products and customer-specific prices from Excel.
           </p>
 
         </div>
 
-        {/* UPLOAD */}
+        {/* FILE */}
 
         <section className="bg-white border rounded-2xl p-6 mb-6">
 
@@ -403,19 +1002,29 @@ export default function PricingImportPage() {
             1. Choose Excel File
           </h2>
 
-          <p className="text-sm text-gray-500 mt-1 mb-5">
-            The workbook must contain a sheet called
+          <p className="text-sm text-gray-500 mt-2">
+            Required sheet:
             {" "}
-            <strong>Master Price</strong>
+            <strong>
+              Master Price
+            </strong>
+          </p>
+
+          <p className="text-sm text-gray-500">
+            Optional sheet:
             {" "}
-            with SKU, Product, Unit and Normal Price columns.
+            <strong>
+              Customer Price Override
+            </strong>
           </p>
 
           <input
             type="file"
             accept=".xlsx,.xls"
-            onChange={handleFile}
-            className="block"
+            onChange={
+              handleFile
+            }
+            className="block mt-5"
           />
 
           {fileName && (
@@ -430,7 +1039,7 @@ export default function PricingImportPage() {
 
           {loadingFile && (
             <p className="mt-4">
-              Reading Excel file...
+              Reading workbook...
             </p>
           )}
 
@@ -442,226 +1051,298 @@ export default function PricingImportPage() {
           </div>
         )}
 
-        {/* SUMMARY */}
+        {/* MASTER */}
 
-        {rows.length > 0 && (
-          <>
+        {masterRows.length >
+          0 && (
+          <section className="bg-white border rounded-2xl overflow-hidden mb-6">
 
-            <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="p-6 border-b">
 
-              <div className="bg-white border rounded-2xl p-5">
+              <h2 className="font-bold text-lg">
+                Master Price
+              </h2>
 
-                <p className="text-sm text-gray-500">
-                  Valid Rows
-                </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Products and normal prices.
+              </p>
 
-                <p className="text-3xl font-bold mt-2">
-                  {validCount}
-                </p>
+            </div>
 
-              </div>
+            <div className="overflow-x-auto">
 
-              <div className="bg-white border rounded-2xl p-5">
+              <table className="w-full">
 
-                <p className="text-sm text-gray-500">
-                  New Products
-                </p>
+                <thead className="bg-gray-50">
 
-                <p className="text-3xl font-bold mt-2">
-                  {newCount}
-                </p>
+                  <tr>
 
-              </div>
+                    <th className="p-4 text-left">
+                      SKU
+                    </th>
 
-              <div className="bg-white border rounded-2xl p-5">
+                    <th className="p-4 text-left">
+                      Product
+                    </th>
 
-                <p className="text-sm text-gray-500">
-                  Updates
-                </p>
+                    <th className="p-4 text-left">
+                      Unit
+                    </th>
 
-                <p className="text-3xl font-bold mt-2">
-                  {updateCount}
-                </p>
+                    <th className="p-4 text-right">
+                      Price
+                    </th>
 
-              </div>
+                    <th className="p-4 text-left">
+                      Action
+                    </th>
 
-              <div className="bg-white border rounded-2xl p-5">
+                    <th className="p-4 text-left">
+                      Validation
+                    </th>
 
-                <p className="text-sm text-gray-500">
-                  Invalid Rows
-                </p>
+                  </tr>
 
-                <p className="text-3xl font-bold mt-2">
-                  {invalidCount}
-                </p>
+                </thead>
 
-              </div>
+                <tbody>
 
-            </section>
+                  {masterRows.map(
+                    (
+                      row,
+                      index
+                    ) => (
 
-            {/* PREVIEW */}
+                      <tr
+                        key={`${row.sku}-${index}`}
+                        className="border-t"
+                      >
 
-            <section className="bg-white border rounded-2xl overflow-hidden mb-6">
+                        <td className="p-4 font-medium">
+                          {row.sku}
+                        </td>
 
-              <div className="p-6 border-b">
+                        <td className="p-4">
+                          {
+                            row.product_name
+                          }
+                        </td>
 
-                <h2 className="font-bold text-lg">
-                  2. Preview
-                </h2>
+                        <td className="p-4">
+                          {row.unit}
+                        </td>
 
-                <p className="text-sm text-gray-500 mt-1">
-                  Check the file before changing the database.
-                </p>
+                        <td className="p-4 text-right">
+                          ฿
+                          {row.normal_price.toFixed(
+                            2
+                          )}
+                        </td>
 
-              </div>
+                        <td className="p-4">
+                          {row.action}
+                        </td>
 
-              <div className="overflow-x-auto">
+                        <td className="p-4">
+                          {row.valid
+                            ? "✓ Valid"
+                            : row.error}
+                        </td>
 
-                <table className="w-full">
+                      </tr>
 
-                  <thead className="bg-gray-50">
-
-                    <tr>
-
-                      <th className="p-4 text-left">
-                        SKU
-                      </th>
-
-                      <th className="p-4 text-left">
-                        Product
-                      </th>
-
-                      <th className="p-4 text-left">
-                        Unit
-                      </th>
-
-                      <th className="p-4 text-right">
-                        Normal Price
-                      </th>
-
-                      <th className="p-4 text-left">
-                        Action
-                      </th>
-
-                      <th className="p-4 text-left">
-                        Validation
-                      </th>
-
-                    </tr>
-
-                  </thead>
-
-                  <tbody>
-
-                    {rows.map(
-                      (row, index) => (
-
-                        <tr
-                          key={`${row.sku}-${index}`}
-                          className="border-t"
-                        >
-
-                          <td className="p-4 font-medium">
-                            {row.sku || "—"}
-                          </td>
-
-                          <td className="p-4">
-                            {row.product_name ||
-                              "—"}
-                          </td>
-
-                          <td className="p-4">
-                            {row.unit ||
-                              "—"}
-                          </td>
-
-                          <td className="p-4 text-right">
-                            {row.valid
-                              ? `฿${row.normal_price.toFixed(
-                                  2
-                                )}`
-                              : "—"}
-                          </td>
-
-                          <td className="p-4">
-
-                            <span className="inline-block bg-gray-100 rounded-full px-3 py-1 text-sm font-medium">
-
-                              {row.action}
-
-                            </span>
-
-                          </td>
-
-                          <td className="p-4">
-
-                            {row.valid ? (
-                              <span>
-                                ✓ Valid
-                              </span>
-                            ) : (
-                              <span className="text-red-600 font-medium">
-                                {row.error}
-                              </span>
-                            )}
-
-                          </td>
-
-                        </tr>
-
-                      )
-                    )}
-
-                  </tbody>
-
-                </table>
-
-              </div>
-
-            </section>
-
-            {/* IMPORT */}
-
-            <section className="bg-white border rounded-2xl p-6">
-
-              <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-
-                <div>
-
-                  <h2 className="font-bold text-lg">
-                    3. Import
-                  </h2>
-
-                  {invalidCount > 0 ? (
-                    <p className="text-red-600 mt-1">
-                      Fix all invalid rows before importing.
-                    </p>
-                  ) : (
-                    <p className="text-gray-500 mt-1">
-                      All rows passed validation.
-                    </p>
+                    )
                   )}
 
-                </div>
+                </tbody>
 
-                <button
-                  onClick={importProducts}
-                  disabled={
-                    importing ||
-                    invalidCount > 0
-                  }
-                  className="bg-black text-white rounded-lg px-8 py-3 font-semibold disabled:opacity-30"
-                >
-                  {importing
-                    ? "IMPORTING..."
-                    : `IMPORT ${validCount} PRODUCTS`}
-                </button>
+              </table>
+
+            </div>
+
+          </section>
+        )}
+
+        {/* CUSTOMER PRICES */}
+
+        {specialRows.length >
+          0 && (
+          <section className="bg-white border rounded-2xl overflow-hidden mb-6">
+
+            <div className="p-6 border-b">
+
+              <h2 className="font-bold text-lg">
+                Customer Price Overrides
+              </h2>
+
+              <p className="text-sm text-gray-500 mt-1">
+                Customer-specific agreed prices.
+              </p>
+
+            </div>
+
+            <div className="overflow-x-auto">
+
+              <table className="w-full">
+
+                <thead className="bg-gray-50">
+
+                  <tr>
+
+                    <th className="p-4 text-left">
+                      Customer
+                    </th>
+
+                    <th className="p-4 text-left">
+                      SKU
+                    </th>
+
+                    <th className="p-4 text-left">
+                      Product
+                    </th>
+
+                    <th className="p-4 text-right">
+                      Special Price
+                    </th>
+
+                    <th className="p-4 text-left">
+                      Action
+                    </th>
+
+                    <th className="p-4 text-left">
+                      Validation
+                    </th>
+
+                  </tr>
+
+                </thead>
+
+                <tbody>
+
+                  {specialRows.map(
+                    (
+                      row,
+                      index
+                    ) => (
+
+                      <tr
+                        key={`${row.customer_code}-${row.sku}-${index}`}
+                        className="border-t"
+                      >
+
+                        <td className="p-4">
+
+                          <p className="font-semibold">
+                            {
+                              row.customer_code
+                            }
+                          </p>
+
+                          <p className="text-sm text-gray-500">
+                            {
+                              row.customer_name ??
+                              "—"
+                            }
+                          </p>
+
+                        </td>
+
+                        <td className="p-4">
+                          {row.sku}
+                        </td>
+
+                        <td className="p-4">
+                          {
+                            row.product_name ??
+                            "—"
+                          }
+                        </td>
+
+                        <td className="p-4 text-right">
+                          ฿
+                          {row.special_price.toFixed(
+                            2
+                          )}
+                        </td>
+
+                        <td className="p-4">
+                          {row.action}
+                        </td>
+
+                        <td className="p-4">
+
+                          {row.valid ? (
+                            <span>
+                              ✓ Valid
+                            </span>
+                          ) : (
+                            <span className="text-red-600 font-medium">
+                              {row.error}
+                            </span>
+                          )}
+
+                        </td>
+
+                      </tr>
+
+                    )
+                  )}
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          </section>
+        )}
+
+        {/* IMPORT */}
+
+        {masterRows.length >
+          0 && (
+          <section className="bg-white border rounded-2xl p-6">
+
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+
+              <div>
+
+                <h2 className="font-bold text-lg">
+                  Import Workbook
+                </h2>
+
+                {invalidCount >
+                0 ? (
+                  <p className="text-red-600 mt-1">
+                    Fix all {invalidCount} invalid row(s) first.
+                  </p>
+                ) : (
+                  <p className="text-gray-500 mt-1">
+                    Validation passed.
+                  </p>
+                )}
 
               </div>
 
-            </section>
+              <button
+                onClick={
+                  importWorkbook
+                }
+                disabled={
+                  importing ||
+                  invalidCount >
+                    0
+                }
+                className="bg-black text-white rounded-lg px-8 py-3 font-semibold disabled:opacity-30"
+              >
+                {importing
+                  ? "IMPORTING..."
+                  : "IMPORT WORKBOOK"}
+              </button>
 
-          </>
+            </div>
+
+          </section>
         )}
 
       </div>
