@@ -361,15 +361,23 @@ export default function TasksPage() {
                                   You · {claim.staff_name}
                                 </div>
 
-                                {group.stage ===
-                                  "confirmation" && (
-                                  <Link
-                                    href={`/tasks/confirmation/${order.order_number}`}
-                                    className="inline-block bg-black text-white rounded-lg px-5 py-2 font-semibold"
-                                  >
-                                    CONTINUE
-                                  </Link>
-                                )}
+                                {group.stage === "confirmation" && (
+  <Link
+    href={`/tasks/confirmation/${order.order_number}`}
+    className="inline-block bg-black text-white rounded-lg px-5 py-2 font-semibold"
+  >
+    CONTINUE
+  </Link>
+)}
+
+{group.stage === "picking" && (
+  <Link
+    href={`/tasks/picking/${order.order_number}`}
+    className="inline-block bg-black text-white rounded-lg px-5 py-2 font-semibold"
+  >
+    CONTINUE
+  </Link>
+)}
                               </div>
                             ) : (
                               <div className="text-right">
