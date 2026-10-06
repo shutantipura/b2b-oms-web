@@ -223,6 +223,10 @@ export default function Home() {
   href = "/pricing";
   }
 
+  if (item === "Control Tower") {
+  href = "/control-tower";
+  }
+
   if (href) {
     return (
       <Link
