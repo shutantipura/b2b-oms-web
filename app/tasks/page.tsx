@@ -387,6 +387,15 @@ export default function TasksPage() {
     CONTINUE
   </Link>
 )}
+
+{group.stage === "delivery" && (
+  <Link
+    href={`/tasks/delivery/${order.order_number}`}
+    className="inline-block bg-black text-white rounded-lg px-5 py-2 font-semibold"
+  >
+    CONTINUE
+  </Link>
+)}
                               </div>
                             ) : (
                               <div className="text-right">
