@@ -364,12 +364,22 @@ export default function MiniAppHomePage() {
           );
         }
 
-        await liff.init({
-          liffId,
+        try {
+  await liff.init({
+    liffId,
 
-          withLoginOnExternalBrowser:
-            true,
-        });
+    withLoginOnExternalBrowser:
+      true,
+  });
+} catch (error) {
+  throw new Error(
+    `LIFF init failed for ${liffId}: ${
+      error instanceof Error
+        ? error.message
+        : String(error)
+    }`
+  );
+}
 
         if (
           !liff.isLoggedIn()
