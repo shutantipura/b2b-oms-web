@@ -13,10 +13,6 @@ import {
 
 import { supabase } from "../../../lib/supabase";
 
-// ======================================================
-// TYPES
-// ======================================================
-
 type Customer = {
   id: string;
   customer_code: string;
@@ -52,10 +48,6 @@ type CatalogueProduct = Product & {
 
 type Cart = Record<string, number>;
 
-// ======================================================
-// HELPERS
-// ======================================================
-
 function quantityStep(unit: string) {
   const normalized =
     unit.trim().toLowerCase();
@@ -81,13 +73,12 @@ function cleanQuantity(
   );
 }
 
-// ======================================================
-// PAGE
-// ======================================================
-
 export default function CustomerShopPage() {
-  const params = useParams();
-  const router = useRouter();
+  const params =
+    useParams();
+
+  const router =
+    useRouter();
 
   const customerCode =
     String(
@@ -95,10 +86,6 @@ export default function CustomerShopPage() {
     )
       .trim()
       .toUpperCase();
-
-  // ====================================================
-  // STATE
-  // ====================================================
 
   const [
     customer,
@@ -122,9 +109,6 @@ export default function CustomerShopPage() {
   ] =
     useState<Cart>({});
 
-  // Temporary text while customer is typing quantity.
-  // This prevents the box disappearing when Backspace
-  // temporarily makes the value blank.
   const [
     quantityInputs,
     setQuantityInputs,
@@ -165,9 +149,9 @@ export default function CustomerShopPage() {
   ] =
     useState("");
 
-  // ====================================================
+  // =====================================================
   // RESTORE SAVED CART
-  // ====================================================
+  // =====================================================
 
   useEffect(() => {
     const stored =
@@ -180,13 +164,10 @@ export default function CustomerShopPage() {
     }
 
     try {
-      const savedCart =
+      setCart(
         JSON.parse(
           stored
-        ) as Cart;
-
-      setCart(
-        savedCart
+        )
       );
     } catch {
       localStorage.removeItem(
@@ -195,36 +176,31 @@ export default function CustomerShopPage() {
     }
   }, [customerCode]);
 
-  // ====================================================
+  // =====================================================
   // LOAD CATALOGUE
-  // ====================================================
+  // =====================================================
 
   async function loadCatalogue() {
     setLoading(true);
     setMessage("");
 
-    // --------------------------------------------------
-    // 1. CUSTOMER
-    // --------------------------------------------------
-
     const {
-      data:
-        customerData,
-      error:
-        customerError,
-    } = await supabase
-      .from("customers")
-      .select(`
-        id,
-        customer_code,
-        customer_name,
-        is_active
-      `)
-      .eq(
-        "customer_code",
-        customerCode
-      )
-      .single();
+      data: customerData,
+      error: customerError,
+    } =
+      await supabase
+        .from("customers")
+        .select(`
+          id,
+          customer_code,
+          customer_name,
+          is_active
+        `)
+        .eq(
+          "customer_code",
+          customerCode
+        )
+        .single();
 
     if (
       customerError ||
@@ -256,31 +232,25 @@ export default function CustomerShopPage() {
       return;
     }
 
-    // --------------------------------------------------
-    // 2. PRODUCTS
-    // --------------------------------------------------
-
     const {
-      data:
-        productData,
-      error:
-        productError,
-    } = await supabase
-      .from("products")
-      .select(`
-        id,
-        sku,
-        product_name,
-        unit,
-        normal_price
-      `)
-      .order(
-        "product_name",
-        {
-          ascending:
-            true,
-        }
-      );
+      data: productData,
+      error: productError,
+    } =
+      await supabase
+        .from("products")
+        .select(`
+          id,
+          sku,
+          product_name,
+          unit,
+          normal_price
+        `)
+        .order(
+          "product_name",
+          {
+            ascending: true,
+          }
+        );
 
     if (productError) {
       setMessage(
@@ -296,32 +266,27 @@ export default function CustomerShopPage() {
       (productData ??
         []) as Product[];
 
-    // --------------------------------------------------
-    // 3. CUSTOMER SPECIAL PRICES
-    // --------------------------------------------------
-
     const {
-      data:
-        priceData,
-      error:
-        priceError,
-    } = await supabase
-      .from(
-        "customer_prices"
-      )
-      .select(`
-        product_id,
-        agreed_price,
-        is_active
-      `)
-      .eq(
-        "customer_id",
-        loadedCustomer.id
-      )
-      .eq(
-        "is_active",
-        true
-      );
+      data: priceData,
+      error: priceError,
+    } =
+      await supabase
+        .from(
+          "customer_prices"
+        )
+        .select(`
+          product_id,
+          agreed_price,
+          is_active
+        `)
+        .eq(
+          "customer_id",
+          loadedCustomer.id
+        )
+        .eq(
+          "is_active",
+          true
+        );
 
     if (priceError) {
       setMessage(
@@ -333,17 +298,16 @@ export default function CustomerShopPage() {
       return;
     }
 
-    const customerPrices =
-      (priceData ??
-        []) as CustomerPrice[];
-
     const priceMap =
       new Map<
         string,
         CustomerPrice
       >();
 
-    customerPrices.forEach(
+    (
+      (priceData ??
+        []) as CustomerPrice[]
+    ).forEach(
       (price) => {
         priceMap.set(
           price.product_id,
@@ -352,27 +316,20 @@ export default function CustomerShopPage() {
       }
     );
 
-    // --------------------------------------------------
-    // 4. FAVOURITES
-    // --------------------------------------------------
-
     const {
-      data:
-        favouriteData,
-      error:
-        favouriteError,
-    } = await supabase
-      .from(
-        "favourites"
-      )
-      .select(`
-        product_id,
-        sort_order
-      `)
-      .eq(
-        "customer_id",
-        loadedCustomer.id
-      );
+      data: favouriteData,
+      error: favouriteError,
+    } =
+      await supabase
+        .from("favourites")
+        .select(`
+          product_id,
+          sort_order
+        `)
+        .eq(
+          "customer_id",
+          loadedCustomer.id
+        );
 
     if (
       favouriteError
@@ -386,17 +343,16 @@ export default function CustomerShopPage() {
       return;
     }
 
-    const favourites =
-      (favouriteData ??
-        []) as Favourite[];
-
     const favouriteMap =
       new Map<
         string,
         number | null
       >();
 
-    favourites.forEach(
+    (
+      (favouriteData ??
+        []) as Favourite[]
+    ).forEach(
       (favourite) => {
         favouriteMap.set(
           favourite.product_id,
@@ -405,21 +361,17 @@ export default function CustomerShopPage() {
       }
     );
 
-    // --------------------------------------------------
-    // 5. COMBINE DATA
-    // --------------------------------------------------
-
     const catalogue =
       loadedProducts.map(
         (
           product
         ): CatalogueProduct => {
-          const specialPrice =
+          const special =
             priceMap.get(
               product.id
             );
 
-          const isFavourite =
+          const favourite =
             favouriteMap.has(
               product.id
             );
@@ -428,9 +380,9 @@ export default function CustomerShopPage() {
             ...product,
 
             effective_price:
-              specialPrice
+              special
                 ? Number(
-                    specialPrice.agreed_price
+                    special.agreed_price
                   )
                 : Number(
                     product.normal_price
@@ -438,18 +390,17 @@ export default function CustomerShopPage() {
 
             has_special_price:
               Boolean(
-                specialPrice
+                special
               ),
 
             is_favourite:
-              isFavourite,
+              favourite,
 
             sort_order:
-              isFavourite
+              favourite
                 ? favouriteMap.get(
                     product.id
-                  ) ??
-                  null
+                  ) ?? null
                 : null,
           };
         }
@@ -466,9 +417,9 @@ export default function CustomerShopPage() {
     loadCatalogue();
   }, [customerCode]);
 
-  // ====================================================
-  // DISPLAYED PRODUCTS
-  // ====================================================
+  // =====================================================
+  // DISPLAY PRODUCTS
+  // =====================================================
 
   const displayedProducts =
     useMemo(() => {
@@ -505,13 +456,14 @@ export default function CustomerShopPage() {
         view ===
         "favourites"
       ) {
-        result.sort(
-          (a, b) =>
-            (a.sort_order ??
-              999999) -
-            (b.sort_order ??
-              999999)
-        );
+        result =
+          [...result].sort(
+            (a, b) =>
+              (a.sort_order ??
+                999999) -
+              (b.sort_order ??
+                999999)
+          );
       }
 
       return result;
@@ -521,9 +473,9 @@ export default function CustomerShopPage() {
       view,
     ]);
 
-  // ====================================================
-  // CART FUNCTIONS
-  // ====================================================
+  // =====================================================
+  // CART
+  // =====================================================
 
   function updateQuantity(
     product:
@@ -554,7 +506,6 @@ export default function CustomerShopPage() {
             cleaned;
         }
 
-        // Save every cart change immediately.
         localStorage.setItem(
           `b2b-cart-${customerCode}`,
           JSON.stringify(
@@ -571,19 +522,16 @@ export default function CustomerShopPage() {
     product:
       CatalogueProduct
   ) {
-    const current =
-      cart[
-        product.id
-      ] ?? 0;
-
-    const step =
-      quantityStep(
-        product.unit
-      );
-
     updateQuantity(
       product,
-      current + step
+      (
+        cart[
+          product.id
+        ] ?? 0
+      ) +
+        quantityStep(
+          product.unit
+        )
     );
   }
 
@@ -591,32 +539,27 @@ export default function CustomerShopPage() {
     product:
       CatalogueProduct
   ) {
-    const current =
-      cart[
-        product.id
-      ] ?? 0;
-
-    const step =
-      quantityStep(
-        product.unit
-      );
-
     updateQuantity(
       product,
-      current - step
+      (
+        cart[
+          product.id
+        ] ?? 0
+      ) -
+        quantityStep(
+          product.unit
+        )
     );
   }
-
-  // ====================================================
-  // CART CALCULATIONS
-  // ====================================================
 
   const cartItems =
     products.filter(
       (product) =>
-        (cart[
-          product.id
-        ] ?? 0) > 0
+        (
+          cart[
+            product.id
+          ] ?? 0
+        ) > 0
     );
 
   const cartItemCount =
@@ -627,24 +570,16 @@ export default function CustomerShopPage() {
       (
         total,
         product
-      ) => {
-        const quantity =
+      ) =>
+        total +
+        (
           cart[
             product.id
-          ] ?? 0;
-
-        return (
-          total +
-          quantity *
-            product.effective_price
-        );
-      },
+          ] ?? 0
+        ) *
+          product.effective_price,
       0
     );
-
-  // ====================================================
-  // RESET CART
-  // ====================================================
 
   function resetCart() {
     if (
@@ -654,19 +589,15 @@ export default function CustomerShopPage() {
       return;
     }
 
-    const confirmed =
-      window.confirm(
-        "Remove all products from your cart?"
-      );
-
     if (
-      !confirmed
+      !window.confirm(
+        "Remove all products from your cart?"
+      )
     ) {
       return;
     }
 
     setCart({});
-
     setQuantityInputs(
       {}
     );
@@ -680,10 +611,6 @@ export default function CustomerShopPage() {
     );
   }
 
-  // ====================================================
-  // CHECKOUT
-  // ====================================================
-
   function goToCheckout() {
     if (
       cartItemCount ===
@@ -692,7 +619,6 @@ export default function CustomerShopPage() {
       return;
     }
 
-    // Save once more before navigating.
     localStorage.setItem(
       `b2b-cart-${customerCode}`,
       JSON.stringify(
@@ -705,9 +631,9 @@ export default function CustomerShopPage() {
     );
   }
 
-  // ====================================================
-  // LOADING
-  // ====================================================
+  // =====================================================
+  // LOADING / ERRORS
+  // =====================================================
 
   if (loading) {
     return (
@@ -716,10 +642,6 @@ export default function CustomerShopPage() {
       </main>
     );
   }
-
-  // ====================================================
-  // CUSTOMER NOT FOUND
-  // ====================================================
 
   if (!customer) {
     return (
@@ -735,10 +657,6 @@ export default function CustomerShopPage() {
       </main>
     );
   }
-
-  // ====================================================
-  // INACTIVE CUSTOMER
-  // ====================================================
 
   if (
     !customer.is_active
@@ -764,16 +682,14 @@ export default function CustomerShopPage() {
     );
   }
 
-  // ====================================================
+  // =====================================================
   // PAGE
-  // ====================================================
+  // =====================================================
 
   return (
     <main className="min-h-screen bg-gray-100 pb-28">
 
-      {/* ============================================== */}
       {/* HEADER */}
-      {/* ============================================== */}
 
       <header className="bg-white border-b sticky top-0 z-20">
 
@@ -822,10 +738,6 @@ export default function CustomerShopPage() {
 
       </header>
 
-      {/* ============================================== */}
-      {/* MAIN CONTENT */}
-      {/* ============================================== */}
-
       <div className="max-w-3xl mx-auto p-4">
 
         {/* TABS */}
@@ -868,27 +780,21 @@ export default function CustomerShopPage() {
 
         {/* SEARCH */}
 
-        <div className="mb-5">
-
-          <input
-            value={
-              search
-            }
-            onChange={(
-              event
-            ) =>
-              setSearch(
-                event.target
-                  .value
-              )
-            }
-            placeholder="Search products or SKU"
-            className="w-full bg-white border rounded-xl px-4 py-3"
-          />
-
-        </div>
-
-        {/* MESSAGE */}
+        <input
+          value={
+            search
+          }
+          onChange={(
+            event
+          ) =>
+            setSearch(
+              event.target
+                .value
+            )
+          }
+          placeholder="Search products or SKU"
+          className="w-full bg-white border rounded-xl px-4 py-3 mb-5"
+        />
 
         {message && (
           <div className="bg-white border rounded-xl p-4 mb-5 text-red-600">
@@ -896,21 +802,16 @@ export default function CustomerShopPage() {
           </div>
         )}
 
-        {/* EMPTY FAVOURITES */}
-
         {view ===
           "favourites" &&
           displayedProducts.length ===
             0 &&
           !search && (
+
             <div className="bg-white border rounded-2xl p-8 text-center">
 
               <p className="font-semibold">
                 No favourite products yet.
-              </p>
-
-              <p className="text-gray-500 mt-2">
-                Browse all products to place an order.
               </p>
 
               <button
@@ -925,11 +826,10 @@ export default function CustomerShopPage() {
               </button>
 
             </div>
+
           )}
 
-        {/* ============================================ */}
-        {/* PRODUCT LIST */}
-        {/* ============================================ */}
+        {/* PRODUCTS */}
 
         <div className="space-y-3">
 
@@ -945,7 +845,7 @@ export default function CustomerShopPage() {
                   product.unit
                 );
 
-              const isEditingQuantity =
+              const editing =
                 Object.prototype.hasOwnProperty.call(
                   quantityInputs,
                   product.id
@@ -961,9 +861,7 @@ export default function CustomerShopPage() {
 
                   <div className="flex justify-between gap-4">
 
-                    {/* PRODUCT INFO */}
-
-                    <div className="min-w-0">
+                    <div>
 
                       <div className="flex items-center gap-2">
 
@@ -974,7 +872,7 @@ export default function CustomerShopPage() {
                         </h2>
 
                         {product.is_favourite && (
-                          <span title="Favourite">
+                          <span>
                             ★
                           </span>
                         )}
@@ -1007,7 +905,7 @@ export default function CustomerShopPage() {
                       </div>
 
                       {product.has_special_price && (
-                        <div className="mt-1">
+                        <div className="mt-2">
 
                           <span className="text-xs border rounded-full px-2 py-1">
                             Your special price
@@ -1017,6 +915,7 @@ export default function CustomerShopPage() {
                             product.normal_price
                           ) !==
                             product.effective_price && (
+
                             <span className="text-xs text-gray-400 line-through ml-2">
                               ฿
                               {Number(
@@ -1025,6 +924,7 @@ export default function CustomerShopPage() {
                                 2
                               )}
                             </span>
+
                           )}
 
                         </div>
@@ -1038,7 +938,7 @@ export default function CustomerShopPage() {
 
                       {quantity <=
                         0 &&
-                      !isEditingQuantity ? (
+                      !editing ? (
 
                         <button
                           onClick={() =>
@@ -1046,7 +946,7 @@ export default function CustomerShopPage() {
                               product
                             )
                           }
-                          className="bg-black text-white rounded-xl px-5 py-3 font-semibold whitespace-nowrap"
+                          className="bg-black text-white rounded-xl px-5 py-3 font-semibold"
                         >
                           + ADD
                         </button>
@@ -1075,13 +975,13 @@ export default function CustomerShopPage() {
                                 step
                               }
                               value={
-                                isEditingQuantity
+                                editing
                                   ? quantityInputs[
                                       product.id
                                     ]
                                   : quantity
                               }
-                              onFocus={() => {
+                              onFocus={() =>
                                 setQuantityInputs(
                                   (
                                     current
@@ -1093,8 +993,8 @@ export default function CustomerShopPage() {
                                         quantity
                                       ),
                                   })
-                                );
-                              }}
+                                )
+                              }
                               onChange={(
                                 event
                               ) => {
@@ -1114,8 +1014,6 @@ export default function CustomerShopPage() {
                                   })
                                 );
 
-                                // Allow an empty input temporarily
-                                // while the customer is typing.
                                 if (
                                   raw ===
                                   ""
@@ -1184,10 +1082,9 @@ export default function CustomerShopPage() {
                                   (
                                     current
                                   ) => {
-                                    const next =
-                                      {
-                                        ...current,
-                                      };
+                                    const next = {
+                                      ...current,
+                                    };
 
                                     delete next[
                                       product.id
@@ -1220,16 +1117,16 @@ export default function CustomerShopPage() {
                           </p>
 
                         </div>
+
                       )}
 
                     </div>
 
                   </div>
 
-                  {/* ESTIMATED LINE TOTAL */}
-
                   {quantity >
                     0 && (
+
                     <div className="border-t mt-4 pt-3 flex justify-between">
 
                       <span className="text-sm text-gray-500">
@@ -1247,6 +1144,7 @@ export default function CustomerShopPage() {
                       </span>
 
                     </div>
+
                   )}
 
                 </div>
@@ -1258,12 +1156,11 @@ export default function CustomerShopPage() {
 
       </div>
 
-      {/* ============================================== */}
-      {/* BOTTOM CART BAR */}
-      {/* ============================================== */}
+      {/* BOTTOM CART */}
 
       {cartItemCount >
         0 && (
+
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-3 z-30">
 
           <div className="max-w-3xl mx-auto">
@@ -1274,7 +1171,7 @@ export default function CustomerShopPage() {
                   true
                 )
               }
-              className="w-full bg-black text-white rounded-xl px-5 py-4 flex justify-between items-center font-semibold"
+              className="w-full bg-black text-white rounded-xl px-5 py-4 flex justify-between font-semibold"
             >
 
               <span>
@@ -1301,20 +1198,18 @@ export default function CustomerShopPage() {
           </div>
 
         </div>
+
       )}
 
-      {/* ============================================== */}
       {/* CART PANEL */}
-      {/* ============================================== */}
 
       {cartOpen && (
+
         <div className="fixed inset-0 bg-black/30 z-40 flex items-end md:items-center justify-center">
 
           <div className="bg-white w-full md:max-w-xl md:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
 
-            {/* CART HEADER */}
-
-            <div className="p-5 border-b flex justify-between items-center sticky top-0 bg-white z-10">
+            <div className="p-5 border-b flex justify-between items-center sticky top-0 bg-white">
 
               <div>
 
@@ -1334,6 +1229,7 @@ export default function CustomerShopPage() {
 
                 {cartItemCount >
                   0 && (
+
                   <button
                     onClick={
                       resetCart
@@ -1342,6 +1238,7 @@ export default function CustomerShopPage() {
                   >
                     RESET CART
                   </button>
+
                 )}
 
                 <button
@@ -1359,8 +1256,6 @@ export default function CustomerShopPage() {
 
             </div>
 
-            {/* EMPTY CART */}
-
             {cartItems.length ===
             0 ? (
 
@@ -1372,103 +1267,97 @@ export default function CustomerShopPage() {
 
               <>
 
-                {/* CART ITEMS */}
+                {cartItems.map(
+                  (
+                    product
+                  ) => {
+                    const quantity =
+                      cart[
+                        product.id
+                      ] ?? 0;
 
-                <div>
-
-                  {cartItems.map(
-                    (product) => {
-                      const quantity =
-                        cart[
+                    return (
+                      <div
+                        key={
                           product.id
-                        ] ?? 0;
+                        }
+                        className="p-5 border-b"
+                      >
 
-                      return (
-                        <div
-                          key={
-                            product.id
-                          }
-                          className="p-5 border-b"
-                        >
+                        <div className="flex justify-between gap-4">
 
-                          <div className="flex justify-between gap-4">
-
-                            <div>
-
-                              <p className="font-semibold">
-                                {
-                                  product.product_name
-                                }
-                              </p>
-
-                              <p className="text-sm text-gray-500">
-                                ฿
-                                {product.effective_price.toFixed(
-                                  2
-                                )}
-                                {" / "}
-                                {
-                                  product.unit
-                                }
-                              </p>
-
-                            </div>
+                          <div>
 
                             <p className="font-semibold">
+                              {
+                                product.product_name
+                              }
+                            </p>
+
+                            <p className="text-sm text-gray-500">
                               ฿
-                              {(
-                                quantity *
-                                product.effective_price
-                              ).toFixed(
+                              {product.effective_price.toFixed(
                                 2
                               )}
+                              {" / "}
+                              {
+                                product.unit
+                              }
                             </p>
 
                           </div>
 
-                          <div className="flex items-center mt-4 border rounded-xl w-fit overflow-hidden">
-
-                            <button
-                              onClick={() =>
-                                decreaseQuantity(
-                                  product
-                                )
-                              }
-                              className="px-4 py-2 text-xl"
-                            >
-                              −
-                            </button>
-
-                            <span className="min-w-20 text-center">
-                              {
-                                quantity
-                              }{" "}
-                              {
-                                product.unit
-                              }
-                            </span>
-
-                            <button
-                              onClick={() =>
-                                increaseQuantity(
-                                  product
-                                )
-                              }
-                              className="px-4 py-2 text-xl"
-                            >
-                              +
-                            </button>
-
-                          </div>
+                          <p className="font-semibold">
+                            ฿
+                            {(
+                              quantity *
+                              product.effective_price
+                            ).toFixed(
+                              2
+                            )}
+                          </p>
 
                         </div>
-                      );
-                    }
-                  )}
 
-                </div>
+                        <div className="flex items-center mt-4 border rounded-xl w-fit overflow-hidden">
 
-                {/* CART TOTAL */}
+                          <button
+                            onClick={() =>
+                              decreaseQuantity(
+                                product
+                              )
+                            }
+                            className="px-4 py-2 text-xl"
+                          >
+                            −
+                          </button>
+
+                          <span className="min-w-20 text-center">
+                            {
+                              quantity
+                            }{" "}
+                            {
+                              product.unit
+                            }
+                          </span>
+
+                          <button
+                            onClick={() =>
+                              increaseQuantity(
+                                product
+                              )
+                            }
+                            className="px-4 py-2 text-xl"
+                          >
+                            +
+                          </button>
+
+                        </div>
+
+                      </div>
+                    );
+                  }
+                )}
 
                 <div className="p-5">
 
@@ -1503,11 +1392,13 @@ export default function CustomerShopPage() {
                 </div>
 
               </>
+
             )}
 
           </div>
 
         </div>
+
       )}
 
     </main>

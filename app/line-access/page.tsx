@@ -1,0 +1,1103 @@
+"use client";
+
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import Link from "next/link";
+
+import {
+  supabase,
+} from "../../lib/supabase";
+
+type StaffAccess = {
+  staffCode: string;
+  staffName: string;
+  accountType: string;
+  isAuthorized: boolean;
+};
+
+type LineUser = {
+  lineUserRowId: string;
+  lineUserId: string;
+  displayName:
+    | string
+    | null;
+
+  isActive: boolean;
+  createdAt: string;
+
+  customerCodes:
+    string[];
+
+  staff:
+    | StaffAccess
+    | null;
+};
+
+type CustomerOption = {
+  customerCode: string;
+  customerName: string;
+  isActive: boolean;
+};
+
+type StaffOption = {
+  staffCode: string;
+  staffName: string;
+  accountType: string;
+  isActive: boolean;
+};
+
+type AccessData = {
+  line_users?: LineUser[];
+  customers?: CustomerOption[];
+  staff?: StaffOption[];
+};
+
+export default function LineAccessPage() {
+  const [
+    lineUsers,
+    setLineUsers,
+  ] =
+    useState<LineUser[]>(
+      []
+    );
+
+  const [
+    customers,
+    setCustomers,
+  ] =
+    useState<
+      CustomerOption[]
+    >([]);
+
+  const [
+    staffOptions,
+    setStaffOptions,
+  ] =
+    useState<
+      StaffOption[]
+    >([]);
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    working,
+    setWorking,
+  ] =
+    useState("");
+
+  const [
+    message,
+    setMessage,
+  ] =
+    useState("");
+
+  const [
+    search,
+    setSearch,
+  ] =
+    useState("");
+
+  // Each LINE user gets its own
+  // customer/staff selector.
+
+  const [
+    customerSelections,
+    setCustomerSelections,
+  ] =
+    useState<
+      Record<string, string>
+    >({});
+
+  const [
+    staffSelections,
+    setStaffSelections,
+  ] =
+    useState<
+      Record<string, string>
+    >({});
+
+  // =====================================================
+  // LOAD
+  // =====================================================
+
+  async function loadData() {
+    setLoading(
+      true
+    );
+
+    setMessage(
+      ""
+    );
+
+    const {
+      data,
+      error,
+    } =
+      await supabase.rpc(
+        "get_line_access_admin"
+      );
+
+    if (error) {
+      setMessage(
+        error.message
+      );
+
+      setLoading(
+        false
+      );
+
+      return;
+    }
+
+    const result =
+      (data ??
+        {}) as AccessData;
+
+    setLineUsers(
+      result.line_users ??
+        []
+    );
+
+    setCustomers(
+      result.customers ??
+        []
+    );
+
+    setStaffOptions(
+      result.staff ??
+        []
+    );
+
+    setLoading(
+      false
+    );
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // =====================================================
+  // CUSTOMER ACCESS
+  // =====================================================
+
+  async function addCustomer(
+    user: LineUser
+  ) {
+    const customerCode =
+      customerSelections[
+        user.lineUserRowId
+      ];
+
+    if (!customerCode) {
+      setMessage(
+        "Choose a customer first."
+      );
+
+      return;
+    }
+
+    setWorking(
+      `customer-${user.lineUserRowId}`
+    );
+
+    setMessage(
+      ""
+    );
+
+    const {
+      error,
+    } =
+      await supabase.rpc(
+        "set_line_customer_access",
+        {
+          p_line_user_row_id:
+            user.lineUserRowId,
+
+          p_customer_code:
+            customerCode,
+
+          p_enabled:
+            true,
+        }
+      );
+
+    if (error) {
+      setMessage(
+        error.message
+      );
+
+      setWorking(
+        ""
+      );
+
+      return;
+    }
+
+    setCustomerSelections(
+      (previous) => ({
+        ...previous,
+
+        [user.lineUserRowId]:
+          "",
+      })
+    );
+
+    await loadData();
+
+    setWorking(
+      ""
+    );
+  }
+
+  async function removeCustomer(
+    user: LineUser,
+    customerCode: string
+  ) {
+    const confirmed =
+      window.confirm(
+        `Remove ${customerCode} customer access from ${user.displayName ?? "this LINE user"}?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setWorking(
+      `customer-${user.lineUserRowId}`
+    );
+
+    setMessage(
+      ""
+    );
+
+    const {
+      error,
+    } =
+      await supabase.rpc(
+        "set_line_customer_access",
+        {
+          p_line_user_row_id:
+            user.lineUserRowId,
+
+          p_customer_code:
+            customerCode,
+
+          p_enabled:
+            false,
+        }
+      );
+
+    if (error) {
+      setMessage(
+        error.message
+      );
+
+      setWorking(
+        ""
+      );
+
+      return;
+    }
+
+    await loadData();
+
+    setWorking(
+      ""
+    );
+  }
+
+  // =====================================================
+  // STAFF ACCESS
+  // =====================================================
+
+  async function addStaff(
+    user: LineUser
+  ) {
+    const staffCode =
+      staffSelections[
+        user.lineUserRowId
+      ];
+
+    if (!staffCode) {
+      setMessage(
+        "Choose a staff account first."
+      );
+
+      return;
+    }
+
+    if (
+      user.staff
+        ?.isAuthorized
+    ) {
+      const confirmed =
+        window.confirm(
+          `${user.displayName ?? "This LINE user"} is already linked to ${user.staff.staffCode}. Replace it with ${staffCode}?`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setWorking(
+      `staff-${user.lineUserRowId}`
+    );
+
+    setMessage(
+      ""
+    );
+
+    const {
+      error,
+    } =
+      await supabase.rpc(
+        "set_line_staff_access",
+        {
+          p_line_user_row_id:
+            user.lineUserRowId,
+
+          p_staff_code:
+            staffCode,
+
+          p_enabled:
+            true,
+        }
+      );
+
+    if (error) {
+      setMessage(
+        error.message
+      );
+
+      setWorking(
+        ""
+      );
+
+      return;
+    }
+
+    setStaffSelections(
+      (previous) => ({
+        ...previous,
+
+        [user.lineUserRowId]:
+          "",
+      })
+    );
+
+    await loadData();
+
+    setWorking(
+      ""
+    );
+  }
+
+  async function revokeStaff(
+    user: LineUser
+  ) {
+    if (
+      !user.staff
+    ) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        `Revoke staff access for ${user.displayName ?? user.lineUserId}?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setWorking(
+      `staff-${user.lineUserRowId}`
+    );
+
+    setMessage(
+      ""
+    );
+
+    const {
+      error,
+    } =
+      await supabase.rpc(
+        "set_line_staff_access",
+        {
+          p_line_user_row_id:
+            user.lineUserRowId,
+
+          p_staff_code:
+            user.staff.staffCode,
+
+          p_enabled:
+            false,
+        }
+      );
+
+    if (error) {
+      setMessage(
+        error.message
+      );
+
+      setWorking(
+        ""
+      );
+
+      return;
+    }
+
+    await loadData();
+
+    setWorking(
+      ""
+    );
+  }
+
+  // =====================================================
+  // FILTER
+  // =====================================================
+
+  const filteredUsers =
+    useMemo(() => {
+      const term =
+        search
+          .trim()
+          .toLowerCase();
+
+      if (!term) {
+        return lineUsers;
+      }
+
+      return lineUsers.filter(
+        (user) => {
+          const customerText =
+            user.customerCodes
+              .join(" ")
+              .toLowerCase();
+
+          const staffText =
+            user.staff
+              ? `${user.staff.staffCode} ${user.staff.staffName}`
+                  .toLowerCase()
+              : "";
+
+          return (
+            (
+              user.displayName ??
+              ""
+            )
+              .toLowerCase()
+              .includes(
+                term
+              ) ||
+            user.lineUserId
+              .toLowerCase()
+              .includes(
+                term
+              ) ||
+            customerText.includes(
+              term
+            ) ||
+            staffText.includes(
+              term
+            )
+          );
+        }
+      );
+    }, [
+      lineUsers,
+      search,
+    ]);
+
+  // =====================================================
+  // LOADING
+  // =====================================================
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-gray-100 p-8">
+
+        Loading LINE access...
+
+      </main>
+    );
+  }
+
+  // =====================================================
+  // PAGE
+  // =====================================================
+
+  return (
+    <main className="min-h-screen bg-gray-100 p-6 md:p-8">
+
+      <div className="max-w-6xl mx-auto">
+
+        {/* HEADER */}
+
+        <div className="flex flex-wrap justify-between items-start gap-4 mb-8">
+
+          <div>
+
+            <Link
+              href="/"
+              className="text-sm text-gray-500"
+            >
+              ← Back to OMS
+            </Link>
+
+            <h1 className="text-3xl font-bold mt-3">
+              LINE Access Management
+            </h1>
+
+            <p className="text-gray-500 mt-2">
+              Manage customer and staff access for registered LINE users.
+            </p>
+
+          </div>
+
+          <button
+            type="button"
+            onClick={
+              loadData
+            }
+            className="bg-white border rounded-lg px-4 py-2"
+          >
+            Refresh
+          </button>
+
+        </div>
+
+        {/* MESSAGE */}
+
+        {message && (
+
+          <div className="bg-white border rounded-xl p-4 mb-6">
+
+            {
+              message
+            }
+
+          </div>
+
+        )}
+
+        {/* SEARCH */}
+
+        <div className="bg-white border rounded-xl p-5 mb-6">
+
+          <label className="block font-semibold mb-2">
+            Search LINE users
+          </label>
+
+          <input
+            value={
+              search
+            }
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
+            }
+            placeholder="Name, LINE ID, customer or staff code..."
+            className="w-full border rounded-lg px-4 py-3"
+          />
+
+        </div>
+
+        {/* SUMMARY */}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
+          <div className="bg-white border rounded-xl p-5">
+
+            <p className="text-sm text-gray-500">
+              Registered LINE Users
+            </p>
+
+            <p className="text-3xl font-bold mt-1">
+              {
+                lineUsers.length
+              }
+            </p>
+
+          </div>
+
+          <div className="bg-white border rounded-xl p-5">
+
+            <p className="text-sm text-gray-500">
+              With Customer Access
+            </p>
+
+            <p className="text-3xl font-bold mt-1">
+
+              {
+                lineUsers.filter(
+                  (user) =>
+                    user
+                      .customerCodes
+                      .length >
+                    0
+                ).length
+              }
+
+            </p>
+
+          </div>
+
+          <div className="bg-white border rounded-xl p-5">
+
+            <p className="text-sm text-gray-500">
+              With Staff Access
+            </p>
+
+            <p className="text-3xl font-bold mt-1">
+
+              {
+                lineUsers.filter(
+                  (user) =>
+                    user.staff
+                      ?.isAuthorized
+                ).length
+              }
+
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* USERS */}
+
+        <div className="space-y-5">
+
+          {filteredUsers.length ===
+          0 ? (
+
+            <div className="bg-white border rounded-xl p-8 text-center text-gray-500">
+
+              No LINE users found.
+
+            </div>
+
+          ) : (
+
+            filteredUsers.map(
+              (user) => {
+
+                const customerBusy =
+                  working ===
+                  `customer-${user.lineUserRowId}`;
+
+                const staffBusy =
+                  working ===
+                  `staff-${user.lineUserRowId}`;
+
+                return (
+                  <section
+                    key={
+                      user.lineUserRowId
+                    }
+                    className="bg-white border rounded-2xl overflow-hidden"
+                  >
+
+                    {/* IDENTITY */}
+
+                    <div className="p-5 border-b">
+
+                      <div className="flex flex-wrap justify-between gap-4">
+
+                        <div>
+
+                          <h2 className="text-xl font-bold">
+                            {
+                              user.displayName ??
+                              "Unnamed LINE User"
+                            }
+                          </h2>
+
+                          <p className="text-sm text-gray-500 mt-1 break-all">
+                            {
+                              user.lineUserId
+                            }
+                          </p>
+
+                        </div>
+
+                        <div>
+
+                          {user.isActive ? (
+                            <span className="inline-block bg-gray-100 rounded-full px-3 py-1 text-sm font-medium">
+                              Active LINE account
+                            </span>
+                          ) : (
+                            <span className="inline-block border rounded-full px-3 py-1 text-sm">
+                              Inactive
+                            </span>
+                          )}
+
+                        </div>
+
+                      </div>
+
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2">
+
+                      {/* ================================= */}
+                      {/* CUSTOMER ACCESS */}
+                      {/* ================================= */}
+
+                      <div className="p-5 lg:border-r border-b lg:border-b-0">
+
+                        <h3 className="font-bold text-lg">
+                          Customer Access
+                        </h3>
+
+                        <p className="text-sm text-gray-500 mt-1">
+                          One LINE account may access multiple customers.
+                        </p>
+
+                        <div className="mt-5 space-y-2">
+
+                          {user.customerCodes.length ===
+                          0 ? (
+
+                            <p className="text-sm text-gray-400">
+                              No customer access
+                            </p>
+
+                          ) : (
+
+                            user.customerCodes.map(
+                              (
+                                customerCode
+                              ) => {
+
+                                const customer =
+                                  customers.find(
+                                    (item) =>
+                                      item.customerCode ===
+                                      customerCode
+                                  );
+
+                                return (
+                                  <div
+                                    key={
+                                      customerCode
+                                    }
+                                    className="border rounded-lg p-3 flex justify-between items-center gap-3"
+                                  >
+
+                                    <div>
+
+                                      <p className="font-semibold">
+                                        {
+                                          customerCode
+                                        }
+                                      </p>
+
+                                      <p className="text-sm text-gray-500">
+                                        {
+                                          customer
+                                            ?.customerName ??
+                                          ""
+                                        }
+                                      </p>
+
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        customerBusy
+                                      }
+                                      onClick={() =>
+                                        removeCustomer(
+                                          user,
+                                          customerCode
+                                        )
+                                      }
+                                      className="text-sm border rounded-lg px-3 py-2 disabled:opacity-40"
+                                    >
+                                      Remove
+                                    </button>
+
+                                  </div>
+                                );
+                              }
+                            )
+
+                          )}
+
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-2 mt-5">
+
+                          <select
+                            value={
+                              customerSelections[
+                                user.lineUserRowId
+                              ] ??
+                              ""
+                            }
+                            onChange={(event) =>
+                              setCustomerSelections(
+                                (
+                                  previous
+                                ) => ({
+                                  ...previous,
+
+                                  [user.lineUserRowId]:
+                                    event
+                                      .target
+                                      .value,
+                                })
+                              )
+                            }
+                            className="flex-1 border rounded-lg px-3 py-3"
+                          >
+
+                            <option value="">
+                              Choose customer
+                            </option>
+
+                            {customers
+                              .filter(
+                                (
+                                  customer
+                                ) =>
+                                  customer.isActive &&
+                                  !user.customerCodes.includes(
+                                    customer.customerCode
+                                  )
+                              )
+                              .map(
+                                (
+                                  customer
+                                ) => (
+
+                                <option
+                                  key={
+                                    customer.customerCode
+                                  }
+                                  value={
+                                    customer.customerCode
+                                  }
+                                >
+                                  {
+                                    customer.customerCode
+                                  }
+                                  {" — "}
+                                  {
+                                    customer.customerName
+                                  }
+                                </option>
+
+                              ))}
+
+                          </select>
+
+                          <button
+                            type="button"
+                            disabled={
+                              customerBusy
+                            }
+                            onClick={() =>
+                              addCustomer(
+                                user
+                              )
+                            }
+                            className="bg-black text-white rounded-lg px-5 py-3 font-semibold disabled:opacity-40"
+                          >
+                            {customerBusy
+                              ? "SAVING..."
+                              : "ADD"}
+                          </button>
+
+                        </div>
+
+                      </div>
+
+                      {/* ================================= */}
+                      {/* STAFF ACCESS */}
+                      {/* ================================= */}
+
+                      <div className="p-5">
+
+                        <h3 className="font-bold text-lg">
+                          Staff Access
+                        </h3>
+
+                        <p className="text-sm text-gray-500 mt-1">
+                          A LINE account may be linked to one staff account.
+                        </p>
+
+                        <div className="mt-5">
+
+                          {user.staff &&
+                          user.staff
+                            .isAuthorized ? (
+
+                            <div className="border rounded-xl p-4">
+
+                              <p className="font-bold">
+                                {
+                                  user.staff.staffCode
+                                }
+                                {" — "}
+                                {
+                                  user.staff.staffName
+                                }
+                              </p>
+
+                              <p className="text-sm text-gray-500 mt-1">
+                                {
+                                  user.staff.accountType
+                                }
+                              </p>
+
+                              <button
+                                type="button"
+                                disabled={
+                                  staffBusy
+                                }
+                                onClick={() =>
+                                  revokeStaff(
+                                    user
+                                  )
+                                }
+                                className="border rounded-lg px-4 py-2 text-sm mt-4 disabled:opacity-40"
+                              >
+                                REVOKE STAFF ACCESS
+                              </button>
+
+                            </div>
+
+                          ) : (
+
+                            <p className="text-sm text-gray-400">
+                              No active staff access
+                            </p>
+
+                          )}
+
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-2 mt-5">
+
+                          <select
+                            value={
+                              staffSelections[
+                                user.lineUserRowId
+                              ] ??
+                              ""
+                            }
+                            onChange={(event) =>
+                              setStaffSelections(
+                                (
+                                  previous
+                                ) => ({
+                                  ...previous,
+
+                                  [user.lineUserRowId]:
+                                    event
+                                      .target
+                                      .value,
+                                })
+                              )
+                            }
+                            className="flex-1 border rounded-lg px-3 py-3"
+                          >
+
+                            <option value="">
+                              Choose staff
+                            </option>
+
+                            {staffOptions
+                              .filter(
+                                (
+                                  staff
+                                ) =>
+                                  staff.isActive
+                              )
+                              .map(
+                                (
+                                  staff
+                                ) => (
+
+                                <option
+                                  key={
+                                    staff.staffCode
+                                  }
+                                  value={
+                                    staff.staffCode
+                                  }
+                                >
+                                  {
+                                    staff.staffCode
+                                  }
+                                  {" — "}
+                                  {
+                                    staff.staffName
+                                  }
+                                  {" · "}
+                                  {
+                                    staff.accountType
+                                  }
+                                </option>
+
+                              ))}
+
+                          </select>
+
+                          <button
+                            type="button"
+                            disabled={
+                              staffBusy
+                            }
+                            onClick={() =>
+                              addStaff(
+                                user
+                              )
+                            }
+                            className="bg-black text-white rounded-lg px-5 py-3 font-semibold disabled:opacity-40"
+                          >
+                            {staffBusy
+                              ? "SAVING..."
+                              : user.staff
+                                  ?.isAuthorized
+                              ? "CHANGE"
+                              : "AUTHORIZE"}
+                          </button>
+
+                        </div>
+
+                      </div>
+
+                    </div>
+
+                  </section>
+                );
+              }
+            )
+
+          )}
+
+        </div>
+
+      </div>
+
+    </main>
+  );
+}

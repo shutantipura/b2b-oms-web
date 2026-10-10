@@ -1,20 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
+
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+
+import {
+  useParams,
+  useRouter,
+} from "next/navigation";
+
 import { supabase } from "../../../../lib/supabase";
 
 type OrderDetails = {
   id: string;
   order_number: number;
   status: string;
-  final_amount: number | string | null;
+  final_amount:
+    | number
+    | string
+    | null;
 
   customers: {
     customer_name: string;
-    contact_name: string | null;
-    phone: string | null;
+    contact_name:
+      | string
+      | null;
+    phone:
+      | string
+      | null;
   } | null;
 };
 
@@ -22,64 +38,120 @@ type OrderFile = {
   id: string;
   file_type: string;
   storage_path: string;
-  original_filename: string | null;
-  mime_type: string | null;
+  original_filename:
+    | string
+    | null;
+  mime_type:
+    | string
+    | null;
 };
 
 type DisplayFile = {
   url: string;
   name: string;
-  mimeType: string | null;
+  mimeType:
+    | string
+    | null;
 };
 
 export default function PaymentVerificationPage() {
-  const params = useParams();
-  const router = useRouter();
+  const params =
+    useParams();
 
-  const orderNumber = Number(params.orderNumber);
+  const router =
+    useRouter();
 
-  const [order, setOrder] =
-    useState<OrderDetails | null>(null);
+  const orderNumber =
+    Number(
+      params.orderNumber
+    );
 
-  const [bill, setBill] =
-    useState<DisplayFile | null>(null);
+  const [
+    order,
+    setOrder,
+  ] =
+    useState<OrderDetails | null>(
+      null
+    );
 
-  const [slip, setSlip] =
-    useState<DisplayFile | null>(null);
+  const [
+    bill,
+    setBill,
+  ] =
+    useState<DisplayFile | null>(
+      null
+    );
 
-  const [loading, setLoading] =
+  const [
+    slip,
+    setSlip,
+  ] =
+    useState<DisplayFile | null>(
+      null
+    );
+
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
 
-  const [submitting, setSubmitting] =
+  const [
+    submitting,
+    setSubmitting,
+  ] =
     useState(false);
 
-  const [message, setMessage] =
+  const [
+    message,
+    setMessage,
+  ] =
     useState("");
+
+  // =====================================================
+  // CREATE SIGNED FILE URL
+  // =====================================================
 
   async function getDisplayFile(
     file: OrderFile
   ): Promise<DisplayFile | null> {
-    const { data, error } =
+    const {
+      data,
+      error,
+    } =
       await supabase.storage
-        .from("order-files")
+        .from(
+          "order-files"
+        )
         .createSignedUrl(
           file.storage_path,
           60 * 60
         );
 
     if (error) {
-      console.error(error);
+      console.error(
+        error
+      );
+
       return null;
     }
 
     return {
-      url: data.signedUrl,
+      url:
+        data.signedUrl,
+
       name:
         file.original_filename ??
         file.file_type,
-      mimeType: file.mime_type,
+
+      mimeType:
+        file.mime_type,
     };
   }
+
+  // =====================================================
+  // LOAD ORDER
+  // =====================================================
 
   async function loadOrder() {
     setLoading(true);
@@ -88,26 +160,36 @@ export default function PaymentVerificationPage() {
     const {
       data: orderData,
       error: orderError,
-    } = await supabase
-      .from("orders")
-      .select(`
-        id,
-        order_number,
-        status,
-        final_amount,
-        customers (
-          customer_name,
-          contact_name,
-          phone
+    } =
+      await supabase
+        .from("orders")
+        .select(`
+          id,
+          order_number,
+          status,
+          final_amount,
+          customers (
+            customer_name,
+            contact_name,
+            phone
+          )
+        `)
+        .eq(
+          "order_number",
+          orderNumber
         )
-      `)
-      .eq("order_number", orderNumber)
-      .single();
+        .single();
 
-    if (orderError) {
+    if (
+      orderError ||
+      !orderData
+    ) {
       setMessage(
         "Could not load order: " +
-          orderError.message
+          (
+            orderError?.message ??
+            "Order not found."
+          )
       );
 
       setLoading(false);
@@ -118,24 +200,40 @@ export default function PaymentVerificationPage() {
       orderData as unknown as OrderDetails
     );
 
+    // ===================================================
+    // LOAD BILL + PAYMENT SLIP
+    // ===================================================
+
     const {
       data: fileData,
       error: fileError,
-    } = await supabase
-      .from("order_files")
-      .select(`
-        id,
-        file_type,
-        storage_path,
-        original_filename,
-        mime_type
-      `)
-      .eq("order_id", orderData.id)
-      .eq("is_current", true)
-      .in(
-        "file_type",
-        ["bill", "payment_slip"]
-      );
+    } =
+      await supabase
+        .from(
+          "order_files"
+        )
+        .select(`
+          id,
+          file_type,
+          storage_path,
+          original_filename,
+          mime_type
+        `)
+        .eq(
+          "order_id",
+          orderData.id
+        )
+        .eq(
+          "is_current",
+          true
+        )
+        .in(
+          "file_type",
+          [
+            "bill",
+            "payment_slip",
+          ]
+        );
 
     if (fileError) {
       setMessage(
@@ -148,40 +246,59 @@ export default function PaymentVerificationPage() {
     }
 
     const files =
-      (fileData ?? []) as OrderFile[];
+      (fileData ??
+        []) as OrderFile[];
 
     const billFile =
       files.find(
         (file) =>
-          file.file_type === "bill"
+          file.file_type ===
+          "bill"
       );
 
     const slipFile =
       files.find(
         (file) =>
-          file.file_type === "payment_slip"
+          file.file_type ===
+          "payment_slip"
       );
 
     if (billFile) {
       setBill(
-        await getDisplayFile(billFile)
+        await getDisplayFile(
+          billFile
+        )
       );
+    } else {
+      setBill(null);
     }
 
     if (slipFile) {
       setSlip(
-        await getDisplayFile(slipFile)
+        await getDisplayFile(
+          slipFile
+        )
       );
+    } else {
+      setSlip(null);
     }
 
     setLoading(false);
   }
 
   useEffect(() => {
-    if (!Number.isNaN(orderNumber)) {
+    if (
+      !Number.isNaN(
+        orderNumber
+      )
+    ) {
       loadOrder();
     }
   }, [orderNumber]);
+
+  // =====================================================
+  // VERIFY PAYMENT
+  // =====================================================
 
   async function verifyPayment() {
     setMessage("");
@@ -195,8 +312,9 @@ export default function PaymentVerificationPage() {
       "payment_submitted"
     ) {
       setMessage(
-        `This order is currently ${order.status}, not payment_submitted.`
+        `This order is currently ${order.status}. Payment can only be verified after a payment slip has been submitted.`
       );
+
       return;
     }
 
@@ -204,13 +322,15 @@ export default function PaymentVerificationPage() {
       setMessage(
         "A payment slip is required before payment can be verified."
       );
+
       return;
     }
 
     const confirmed =
       window.confirm(
         `Verify payment of ฿${Number(
-          order.final_amount ?? 0
+          order.final_amount ??
+            0
         ).toFixed(
           2
         )} and complete Order #${orderNumber}?`
@@ -220,15 +340,18 @@ export default function PaymentVerificationPage() {
       return;
     }
 
-    setSubmitting(true);
-
-    const { error } = await supabase.rpc(
-      "verify_my_payment",
-      {
-        p_order_number:
-          orderNumber,
-      }
+    setSubmitting(
+      true
     );
+
+    const { error } =
+      await supabase.rpc(
+        "verify_my_payment",
+        {
+          p_order_number:
+            orderNumber,
+        }
+      );
 
     if (error) {
       setMessage(
@@ -236,13 +359,23 @@ export default function PaymentVerificationPage() {
           error.message
       );
 
-      setSubmitting(false);
+      setSubmitting(
+        false
+      );
+
       return;
     }
 
-    router.push("/tasks");
+    router.push(
+      "/tasks"
+    );
+
     router.refresh();
   }
+
+  // =====================================================
+  // RELEASE VERIFICATION TASK
+  // =====================================================
 
   async function releaseTask() {
     const confirmed =
@@ -268,12 +401,20 @@ export default function PaymentVerificationPage() {
         "Could not release task: " +
           error.message
       );
+
       return;
     }
 
-    router.push("/tasks");
+    router.push(
+      "/tasks"
+    );
+
     router.refresh();
   }
+
+  // =====================================================
+  // FILE TYPE
+  // =====================================================
 
   function isImage(
     file: DisplayFile | null
@@ -285,10 +426,14 @@ export default function PaymentVerificationPage() {
     );
   }
 
+  // =====================================================
+  // LOADING
+  // =====================================================
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-100 p-8">
-        Loading payment verification...
+        Loading payment...
       </main>
     );
   }
@@ -296,13 +441,29 @@ export default function PaymentVerificationPage() {
   if (!order) {
     return (
       <main className="min-h-screen bg-gray-100 p-8">
-        Order not found.
+
+        <Link
+          href="/tasks"
+          className="text-gray-500"
+        >
+          ← Back to Tasks
+        </Link>
+
+        <p className="mt-6">
+          Order not found.
+        </p>
+
       </main>
     );
   }
 
+  // =====================================================
+  // PAGE
+  // =====================================================
+
   return (
     <main className="min-h-screen bg-gray-100 p-8">
+
       <div className="max-w-5xl mx-auto">
 
         <Link
@@ -312,30 +473,54 @@ export default function PaymentVerificationPage() {
           ← Back to Tasks
         </Link>
 
-        <div className="flex justify-between items-start mt-4 mb-8">
+        {/* HEADER */}
+
+        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mt-4 mb-8">
 
           <div>
+
             <p className="text-sm text-gray-500">
-              PAYMENT VERIFICATION
+              PAYMENT
             </p>
 
             <h1 className="text-3xl font-bold mt-1">
-              Order #{order.order_number}
+              Order #
+              {
+                order.order_number
+              }
             </h1>
 
             <p className="text-xl mt-2">
-              {order.customers?.customer_name}
+              {
+                order.customers
+                  ?.customer_name
+              }
             </p>
+
+            <p className="text-sm text-gray-500 mt-2">
+              Status:{" "}
+              {
+                order.status
+              }
+            </p>
+
           </div>
 
-          <button
-            onClick={releaseTask}
-            className="bg-white border rounded-lg px-4 py-2"
-          >
-            Release Task
-          </button>
+          {order.status ===
+            "payment_submitted" && (
+            <button
+              onClick={
+                releaseTask
+              }
+              className="bg-white border rounded-lg px-4 py-2"
+            >
+              Release Task
+            </button>
+          )}
 
         </div>
+
+        {/* SUMMARY */}
 
         <section className="bg-white border rounded-2xl p-6 mb-6">
 
@@ -346,6 +531,7 @@ export default function PaymentVerificationPage() {
           <div className="grid md:grid-cols-3 gap-6">
 
             <div>
+
               <p className="text-sm text-gray-500">
                 Expected Amount
               </p>
@@ -353,49 +539,75 @@ export default function PaymentVerificationPage() {
               <p className="text-3xl font-bold mt-1">
                 ฿
                 {Number(
-                  order.final_amount ?? 0
-                ).toFixed(2)}
+                  order.final_amount ??
+                    0
+                ).toFixed(
+                  2
+                )}
               </p>
+
             </div>
 
             <div>
+
               <p className="text-sm text-gray-500">
                 Customer
               </p>
 
               <p className="font-medium text-lg">
-                {order.customers
-                  ?.customer_name}
+                {
+                  order.customers
+                    ?.customer_name ??
+                  "—"
+                }
               </p>
 
               <p className="text-sm text-gray-500">
-                {order.customers
-                  ?.contact_name ?? ""}
+                {
+                  order.customers
+                    ?.contact_name ??
+                  ""
+                }
               </p>
+
             </div>
 
             <div>
+
               <p className="text-sm text-gray-500">
                 Customer Phone
               </p>
 
-              {order.customers?.phone ? (
+              {order.customers
+                ?.phone ? (
+
                 <a
                   href={`tel:${order.customers.phone}`}
                   className="font-medium text-lg underline"
                 >
-                  {order.customers.phone}
+                  {
+                    order.customers
+                      .phone
+                  }
                 </a>
+
               ) : (
+
                 <p>—</p>
+
               )}
+
             </div>
 
           </div>
 
         </section>
 
+        {/* FILES */}
+
         <div className="grid md:grid-cols-2 gap-6">
+
+          {/* BILL */}
 
           <section className="bg-white border rounded-2xl p-6">
 
@@ -404,42 +616,60 @@ export default function PaymentVerificationPage() {
             </h2>
 
             <p className="text-sm text-gray-500 mt-1 mb-5">
-              The bill uploaded during Billing.
+              Bill uploaded during Billing.
             </p>
 
             {!bill ? (
+
               <p className="text-red-600">
                 Bill not found.
               </p>
-            ) : isImage(bill) ? (
+
+            ) : isImage(
+                bill
+              ) ? (
+
               <>
+
                 <img
-                  src={bill.url}
+                  src={
+                    bill.url
+                  }
                   alt="Bill"
                   className="w-full max-h-96 object-contain border rounded-lg"
                 />
 
                 <a
-                  href={bill.url}
+                  href={
+                    bill.url
+                  }
                   target="_blank"
                   rel="noreferrer"
                   className="inline-block mt-4 underline"
                 >
                   Open full bill
                 </a>
+
               </>
+
             ) : (
+
               <a
-                href={bill.url}
+                href={
+                  bill.url
+                }
                 target="_blank"
                 rel="noreferrer"
                 className="inline-block bg-white border rounded-lg px-5 py-3 font-semibold"
               >
                 OPEN BILL
               </a>
+
             )}
 
           </section>
+
+          {/* PAYMENT SLIP */}
 
           <section className="bg-white border rounded-2xl p-6">
 
@@ -448,86 +678,177 @@ export default function PaymentVerificationPage() {
             </h2>
 
             <p className="text-sm text-gray-500 mt-1 mb-5">
-              Compare this slip against the expected amount before verifying payment.
+
+              {order.status ===
+              "awaiting_payment"
+                ? "No payment slip has been submitted yet."
+                : "Compare the payment slip against the expected amount."}
+
             </p>
 
             {!slip ? (
-              <p className="text-red-600">
+
+              <p className="text-gray-500">
                 Payment slip not found.
               </p>
-            ) : isImage(slip) ? (
+
+            ) : isImage(
+                slip
+              ) ? (
+
               <>
+
                 <img
-                  src={slip.url}
+                  src={
+                    slip.url
+                  }
                   alt="Payment Slip"
                   className="w-full max-h-96 object-contain border rounded-lg"
                 />
 
                 <a
-                  href={slip.url}
+                  href={
+                    slip.url
+                  }
                   target="_blank"
                   rel="noreferrer"
                   className="inline-block mt-4 underline"
                 >
                   Open full payment slip
                 </a>
+
               </>
+
             ) : (
+
               <a
-                href={slip.url}
+                href={
+                  slip.url
+                }
                 target="_blank"
                 rel="noreferrer"
                 className="inline-block bg-white border rounded-lg px-5 py-3 font-semibold"
               >
                 OPEN PAYMENT SLIP
               </a>
+
             )}
 
           </section>
 
         </div>
 
+        {/* ACTION */}
+
         <section className="bg-white border rounded-2xl p-6 mt-6">
 
-          <h2 className="font-bold text-lg">
-            Verification
-          </h2>
+          {order.status ===
+          "awaiting_payment" ? (
 
-          <p className="text-gray-500 mt-1">
-            Confirm that the payment was received for the correct amount.
-          </p>
+            <>
 
-          <div className="mt-5 flex flex-col md:flex-row gap-3">
+              <h2 className="font-bold text-lg">
+                Awaiting Payment
+              </h2>
 
-            {order.customers?.phone && (
-              <a
-                href={`tel:${order.customers.phone}`}
-                className="text-center bg-white border rounded-lg px-5 py-3 font-semibold"
-              >
-                CALL CUSTOMER
-              </a>
-            )}
+              <p className="text-gray-500 mt-1">
+                Staff may upload the customer&apos;s payment slip on their behalf.
+              </p>
 
-            <button
-              onClick={verifyPayment}
-              disabled={
-                submitting ||
-                !slip ||
-                order.status !==
-                  "payment_submitted"
-              }
-              className="bg-black text-white rounded-lg px-8 py-3 font-semibold disabled:opacity-30"
-            >
-              {submitting
-                ? "VERIFYING..."
-                : "PAYMENT VERIFIED → COMPLETE ORDER"}
-            </button>
+              <div className="mt-5 flex flex-col md:flex-row gap-3">
 
-          </div>
+                {order.customers
+                  ?.phone && (
 
-          <p className="text-sm text-gray-500 mt-4">
-            If there is a payment problem, call the customer before verifying.
-          </p>
+                  <a
+                    href={`tel:${order.customers.phone}`}
+                    className="text-center bg-white border rounded-lg px-5 py-3 font-semibold"
+                  >
+                    CALL CUSTOMER
+                  </a>
+
+                )}
+
+                <Link
+                  href={`/orders/${order.order_number}/payment`}
+                  className="text-center bg-black text-white rounded-lg px-8 py-3 font-semibold"
+                >
+                  UPLOAD PAYMENT SLIP
+                </Link>
+
+              </div>
+
+            </>
+
+          ) : order.status ===
+            "payment_submitted" ? (
+
+            <>
+
+              <h2 className="font-bold text-lg">
+                Verification
+              </h2>
+
+              <p className="text-gray-500 mt-1">
+                Confirm that the payment was received for the correct amount.
+              </p>
+
+              <div className="mt-5 flex flex-col md:flex-row gap-3">
+
+                {order.customers
+                  ?.phone && (
+
+                  <a
+                    href={`tel:${order.customers.phone}`}
+                    className="text-center bg-white border rounded-lg px-5 py-3 font-semibold"
+                  >
+                    CALL CUSTOMER
+                  </a>
+
+                )}
+
+                <button
+                  onClick={
+                    verifyPayment
+                  }
+                  disabled={
+                    submitting ||
+                    !slip
+                  }
+                  className="bg-black text-white rounded-lg px-8 py-3 font-semibold disabled:opacity-30"
+                >
+
+                  {submitting
+                    ? "VERIFYING..."
+                    : "PAYMENT VERIFIED → COMPLETE ORDER"}
+
+                </button>
+
+              </div>
+
+            </>
+
+          ) : (
+
+            <>
+
+              <h2 className="font-bold text-lg">
+                Payment Status
+              </h2>
+
+              <p className="text-gray-500 mt-1">
+                This order is currently{" "}
+                <b>
+                  {
+                    order.status
+                  }
+                </b>
+                .
+              </p>
+
+            </>
+
+          )}
 
         </section>
 
@@ -538,6 +859,7 @@ export default function PaymentVerificationPage() {
         )}
 
       </div>
+
     </main>
   );
 }
