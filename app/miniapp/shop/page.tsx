@@ -21,14 +21,20 @@ type Product = {
   id: string;
   sku: string;
   productName: string;
+
   category:
     | string
     | null;
+
   unit: string;
+
   normalPrice: number;
   effectivePrice: number;
+
   hasSpecialPrice: boolean;
+
   isFavourite: boolean;
+
   favouriteOrder:
     | number
     | null;
@@ -43,6 +49,17 @@ type Cart =
 type APIResponse = {
   customer?: Customer;
   products?: Product[];
+  error?: string;
+};
+
+type FavouriteResponse = {
+  success?: boolean;
+  isFavourite?: boolean;
+
+  favouriteOrder?:
+    | number
+    | null;
+
   error?: string;
 };
 
@@ -85,8 +102,8 @@ export default function MiniAppShopPage() {
     setTab,
   ] =
     useState<
-      "favourites" |
-      "all"
+      | "favourites"
+      | "all"
     >("favourites");
 
   const [
@@ -106,6 +123,49 @@ export default function MiniAppShopPage() {
     setMessage,
   ] =
     useState("");
+
+  const [
+    idToken,
+    setIdToken,
+  ] =
+    useState("");
+
+  const [
+    savingFavouriteIds,
+    setSavingFavouriteIds,
+  ] =
+    useState<Set<string>>(
+      new Set()
+    );
+
+  // ================================================
+  // CUSTOMER HOME
+  // ================================================
+
+  function goCustomerHome() {
+    const code =
+      customer?.customerCode ??
+      new URLSearchParams(
+        window.location.search
+      )
+        .get("customer")
+        ?.trim()
+        .toUpperCase();
+
+    if (!code) {
+      router.push(
+        "/miniapp?portal=customer"
+      );
+
+      return;
+    }
+
+    router.push(
+      `/miniapp?portal=customer&customer=${encodeURIComponent(
+        code
+      )}`
+    );
+  }
 
   // ================================================
   // INITIALIZE LINE
@@ -132,9 +192,7 @@ export default function MiniAppShopPage() {
             .trim()
             .toUpperCase();
 
-        if (
-          !customerCode
-        ) {
+        if (!customerCode) {
           throw new Error(
             "Customer was not selected."
           );
@@ -169,13 +227,14 @@ export default function MiniAppShopPage() {
           !liff.isLoggedIn()
         ) {
           liff.login();
+
           return;
         }
 
-        const idToken =
+        const token =
           liff.getIDToken();
 
-        if (!idToken) {
+        if (!token) {
           throw new Error(
             "LINE ID token was not available."
           );
@@ -195,7 +254,9 @@ export default function MiniAppShopPage() {
 
               body:
                 JSON.stringify({
-                  idToken,
+                  idToken:
+                    token,
+
                   customerCode,
                 }),
             }
@@ -221,11 +282,13 @@ export default function MiniAppShopPage() {
           );
         }
 
-        if (
-          cancelled
-        ) {
+        if (cancelled) {
           return;
         }
+
+        setIdToken(
+          token
+        );
 
         setCustomer(
           data.customer
@@ -263,15 +326,12 @@ export default function MiniAppShopPage() {
           false
         );
       } catch (error) {
-        if (
-          cancelled
-        ) {
+        if (cancelled) {
           return;
         }
 
         setMessage(
-          error instanceof
-            Error
+          error instanceof Error
             ? error.message
             : "Could not load catalogue."
         );
@@ -291,6 +351,209 @@ export default function MiniAppShopPage() {
   }, []);
 
   // ================================================
+  // FAVOURITES
+  // ================================================
+
+  async function toggleFavourite(
+    product: Product
+  ) {
+    if (
+      !customer ||
+      !idToken
+    ) {
+      return;
+    }
+
+    if (
+      savingFavouriteIds.has(
+        product.id
+      )
+    ) {
+      return;
+    }
+
+    const nextFavourite =
+      !product.isFavourite;
+
+    const previousFavourite =
+      product.isFavourite;
+
+    const previousOrder =
+      product.favouriteOrder;
+
+    const currentHighestOrder =
+      products.reduce(
+        (
+          highest,
+          item
+        ) =>
+          Math.max(
+            highest,
+            Number(
+              item.favouriteOrder ??
+                0
+            )
+          ),
+        0
+      );
+
+    const optimisticOrder =
+      nextFavourite
+        ? currentHighestOrder +
+          1
+        : null;
+
+    // --------------------------------------------
+    // Optimistic UI:
+    // star changes immediately.
+    // --------------------------------------------
+
+    setProducts(
+      (current) =>
+        current.map(
+          (item) =>
+            item.id ===
+            product.id
+              ? {
+                  ...item,
+
+                  isFavourite:
+                    nextFavourite,
+
+                  favouriteOrder:
+                    optimisticOrder,
+                }
+              : item
+        )
+    );
+
+    setSavingFavouriteIds(
+      (current) => {
+        const next =
+          new Set(
+            current
+          );
+
+        next.add(
+          product.id
+        );
+
+        return next;
+      }
+    );
+
+    setMessage(
+      ""
+    );
+
+    try {
+      const response =
+        await fetch(
+          "/api/line/favourites",
+          {
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify({
+                idToken,
+
+                customerCode:
+                  customer.customerCode,
+
+                productId:
+                  product.id,
+
+                isFavourite:
+                  nextFavourite,
+              }),
+          }
+        );
+
+      const result =
+        (await response.json()) as FavouriteResponse;
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          result.error ??
+            "Could not update favourite."
+        );
+      }
+
+      setProducts(
+        (current) =>
+          current.map(
+            (item) =>
+              item.id ===
+              product.id
+                ? {
+                    ...item,
+
+                    isFavourite:
+                      Boolean(
+                        result.isFavourite
+                      ),
+
+                    favouriteOrder:
+                      result.favouriteOrder ??
+                      null,
+                  }
+                : item
+          )
+      );
+    } catch (error) {
+      // Roll back if server update fails.
+
+      setProducts(
+        (current) =>
+          current.map(
+            (item) =>
+              item.id ===
+              product.id
+                ? {
+                    ...item,
+
+                    isFavourite:
+                      previousFavourite,
+
+                    favouriteOrder:
+                      previousOrder,
+                  }
+                : item
+          )
+      );
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not update favourite."
+      );
+    } finally {
+      setSavingFavouriteIds(
+        (current) => {
+          const next =
+            new Set(
+              current
+            );
+
+          next.delete(
+            product.id
+          );
+
+          return next;
+        }
+      );
+    }
+  }
+
+  // ================================================
   // SAVE CART
   // ================================================
 
@@ -301,9 +564,7 @@ export default function MiniAppShopPage() {
       newCart
     );
 
-    if (
-      !customer
-    ) {
+    if (!customer) {
       return;
     }
 
@@ -324,7 +585,8 @@ export default function MiniAppShopPage() {
     };
 
     if (
-      rawValue === ""
+      rawValue ===
+      ""
     ) {
       delete newCart[
         productId
@@ -519,23 +781,20 @@ export default function MiniAppShopPage() {
   // ERROR
   // ================================================
 
-  if (
-    !customer
-  ) {
+  if (!customer) {
     return (
       <main className="min-h-screen bg-gray-100 p-5">
 
         <div className="max-w-md mx-auto">
 
           <button
-            onClick={() =>
-              router.push(
-                "/miniapp"
-              )
+            type="button"
+            onClick={
+              goCustomerHome
             }
             className="text-gray-500"
           >
-            ← Home
+            ← Customer Home
           </button>
 
           <div className="bg-white border rounded-2xl p-6 mt-5">
@@ -572,14 +831,13 @@ export default function MiniAppShopPage() {
         <div className="max-w-2xl mx-auto px-4 py-4">
 
           <button
-            onClick={() =>
-              router.push(
-                "/miniapp"
-              )
+            type="button"
+            onClick={
+              goCustomerHome
             }
             className="text-sm text-gray-500"
           >
-            ← Home
+            ← Customer Home
           </button>
 
           <h1 className="text-2xl font-bold mt-3">
@@ -603,6 +861,7 @@ export default function MiniAppShopPage() {
         <div className="grid grid-cols-2 bg-white border rounded-xl overflow-hidden mb-4">
 
           <button
+            type="button"
             onClick={() =>
               setTab(
                 "favourites"
@@ -619,6 +878,7 @@ export default function MiniAppShopPage() {
           </button>
 
           <button
+            type="button"
             onClick={() =>
               setTab(
                 "all"
@@ -636,23 +896,46 @@ export default function MiniAppShopPage() {
 
         </div>
 
+        {/* MESSAGE */}
+
+        {message && (
+          <div className="bg-white border rounded-xl p-4 mb-4 text-red-600">
+            {
+              message
+            }
+          </div>
+        )}
+
         {/* SEARCH */}
 
         <input
           value={
             search
           }
-          onChange={(
-            event
-          ) =>
+          onChange={(event) =>
             setSearch(
-              event.target
-                .value
+              event.target.value
             )
           }
           placeholder="Search product, SKU or category..."
           className="w-full bg-white border rounded-xl px-4 py-3 mb-4"
         />
+
+        {/* FAVOURITES HELP */}
+
+        {tab ===
+          "favourites" && (
+          <p className="text-sm text-gray-500 mb-4">
+            Tap ★ on any favourite to remove it. Add more from All Products.
+          </p>
+        )}
+
+        {tab ===
+          "all" && (
+          <p className="text-sm text-gray-500 mb-4">
+            Tap ☆ to add products to your favourites for faster ordering.
+          </p>
+        )}
 
         {/* PRODUCTS */}
 
@@ -662,16 +945,19 @@ export default function MiniAppShopPage() {
           <div className="bg-white border rounded-2xl p-8 text-center">
 
             <p className="text-gray-500">
+
               {tab ===
               "favourites"
-                ? "No favourite products have been set for this customer."
+                ? "You do not have any favourite products yet."
                 : "No products found."}
+
             </p>
 
             {tab ===
               "favourites" && (
 
               <button
+                type="button"
                 onClick={() =>
                   setTab(
                     "all"
@@ -679,7 +965,7 @@ export default function MiniAppShopPage() {
                 }
                 className="mt-4 underline font-semibold"
               >
-                View All Products
+                Browse All Products
               </button>
 
             )}
@@ -692,7 +978,6 @@ export default function MiniAppShopPage() {
 
             {displayedProducts.map(
               (product) => {
-
                 const step =
                   product.unit
                     .toLowerCase()
@@ -702,6 +987,11 @@ export default function MiniAppShopPage() {
                     ? 0.1
                     : 1;
 
+                const favouriteBusy =
+                  savingFavouriteIds.has(
+                    product.id
+                  );
+
                 return (
                   <div
                     key={
@@ -710,34 +1000,66 @@ export default function MiniAppShopPage() {
                     className="bg-white border rounded-2xl p-4"
                   >
 
-                    <div className="flex justify-between gap-4">
+                    <div className="flex justify-between gap-3">
 
-                      <div className="min-w-0">
+                      {/* PRODUCT INFO */}
 
-                        <div className="flex items-center gap-2 flex-wrap">
+                      <div className="min-w-0 flex-1">
 
-                          <p className="font-bold">
-                            {
-                              product.productName
+                        <div className="flex items-start gap-2">
+
+                          <div className="min-w-0 flex-1">
+
+                            <p className="font-bold">
+                              {
+                                product.productName
+                              }
+                            </p>
+
+                            <p className="text-xs text-gray-400 mt-1">
+                              {
+                                product.sku
+                              }
+
+                              {product.category
+                                ? ` · ${product.category}`
+                                : ""}
+                            </p>
+
+                          </div>
+
+                          {/* FAVOURITE STAR */}
+
+                          <button
+                            type="button"
+                            disabled={
+                              favouriteBusy
                             }
-                          </p>
-
-                          {product.isFavourite && (
-                            <span className="text-sm">
-                              ★
-                            </span>
-                          )}
+                            onClick={() =>
+                              toggleFavourite(
+                                product
+                              )
+                            }
+                            aria-label={
+                              product.isFavourite
+                                ? `Remove ${product.productName} from favourites`
+                                : `Add ${product.productName} to favourites`
+                            }
+                            title={
+                              product.isFavourite
+                                ? "Remove from favourites"
+                                : "Add to favourites"
+                            }
+                            className="w-11 h-11 shrink-0 flex items-center justify-center text-3xl leading-none rounded-full disabled:opacity-40"
+                          >
+                            {favouriteBusy
+                              ? "…"
+                              : product.isFavourite
+                              ? "★"
+                              : "☆"}
+                          </button>
 
                         </div>
-
-                        <p className="text-xs text-gray-400 mt-1">
-                          {
-                            product.sku
-                          }
-                          {product.category
-                            ? ` · ${product.category}`
-                            : ""}
-                        </p>
 
                         <div className="mt-3">
 
@@ -777,6 +1099,8 @@ export default function MiniAppShopPage() {
 
                       </div>
 
+                      {/* QUANTITY */}
+
                       <div className="shrink-0">
 
                         <label className="text-xs text-gray-500">
@@ -795,9 +1119,7 @@ export default function MiniAppShopPage() {
                             ] ??
                             ""
                           }
-                          onChange={(
-                            event
-                          ) =>
+                          onChange={(event) =>
                             updateQuantity(
                               product.id,
                               event
@@ -833,6 +1155,7 @@ export default function MiniAppShopPage() {
           <div className="max-w-2xl mx-auto">
 
             <button
+              type="button"
               onClick={() =>
                 setShowCart(
                   true
@@ -891,6 +1214,7 @@ export default function MiniAppShopPage() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={() =>
                     setShowCart(
                       false
@@ -926,22 +1250,28 @@ export default function MiniAppShopPage() {
                         </p>
 
                         <p className="text-sm text-gray-500 mt-1">
+
                           {
                             product.quantity
                           }{" "}
+
                           {
                             product.unit
                           }
+
                           {" × "}
+
                           ฿
                           {product.effectivePrice.toFixed(
                             2
                           )}
+
                         </p>
 
                       </div>
 
                       <p className="font-bold">
+
                         ฿
                         {(
                           product.quantity *
@@ -949,6 +1279,7 @@ export default function MiniAppShopPage() {
                         ).toFixed(
                           2
                         )}
+
                       </p>
 
                     </div>
@@ -979,27 +1310,26 @@ export default function MiniAppShopPage() {
               </p>
 
               <button
-                onClick={() => {
-                  // Existing checkout for now.
+                type="button"
+                onClick={() =>
                   router.push(
                     `/miniapp/checkout?customer=${customer.customerCode}`
-                  );
-                }}
+                  )
+                }
                 className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-6"
               >
                 CONTINUE TO CHECKOUT
               </button>
 
               <button
+                type="button"
                 onClick={() => {
                   const confirmed =
                     window.confirm(
                       "Clear all items from your cart?"
                     );
 
-                  if (
-                    !confirmed
-                  ) {
+                  if (!confirmed) {
                     return;
                   }
 
