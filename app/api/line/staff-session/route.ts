@@ -57,9 +57,9 @@ export async function POST(
       );
     }
 
-    // ================================================
-    // VERIFY LINE USER
-    // ================================================
+    // =====================================================
+    // VERIFY LINE IDENTITY
+    // =====================================================
 
     const verifyBody =
       new URLSearchParams();
@@ -111,9 +111,9 @@ export async function POST(
       );
     }
 
-    // ================================================
-    // SERVER SUPABASE CLIENT
-    // ================================================
+    // =====================================================
+    // SERVER-SIDE SUPABASE
+    // =====================================================
 
     const supabase: any =
       createClient(
@@ -130,13 +130,13 @@ export async function POST(
         }
       );
 
-    // ================================================
-    // STAFF LINE AUTHORIZATION
-    // ================================================
+    // =====================================================
+    // FIND AUTHORIZED STAFF LINK
+    // =====================================================
 
     const {
       data: staffLink,
-      error: linkError,
+      error: staffLinkError,
     } =
       await supabase
         .from(
@@ -156,9 +156,9 @@ export async function POST(
         )
         .maybeSingle();
 
-    if (linkError) {
+    if (staffLinkError) {
       console.error(
-        linkError
+        staffLinkError
       );
 
       return NextResponse.json(
@@ -184,9 +184,9 @@ export async function POST(
       );
     }
 
-    // ================================================
-    // LOAD STAFF ACCOUNT
-    // ================================================
+    // =====================================================
+    // LOAD STAFF PROFILE
+    // =====================================================
 
     const {
       data: staff,
@@ -198,6 +198,7 @@ export async function POST(
           id,
           staff_code,
           staff_name,
+          email,
           account_type,
           is_active,
           auth_user_id
@@ -235,105 +236,207 @@ export async function POST(
       );
     }
 
-    if (!staff.auth_user_id) {
-      return NextResponse.json(
-        {
-          error:
-            "Staff account is not linked to Supabase Auth.",
-        },
-        {
-          status: 400,
+    // =====================================================
+    // AUTH EMAIL
+    //
+    // If the staff record has a real email, use it.
+    // Otherwise use an internal deterministic address.
+    // No email is actually sent.
+    // =====================================================
+
+    const authEmail =
+      (
+        staff.email ??
+        ""
+      ).trim() ||
+      `staff-${staff.id}@line-login.invalid`;
+
+    let authUserId:
+      | string
+      | null =
+      staff.auth_user_id ??
+      null;
+
+    let tokenHash:
+      | string
+      | null =
+      null;
+
+    // =====================================================
+    // EXISTING AUTH USER
+    // =====================================================
+
+    if (authUserId) {
+      const {
+        data: existingUserData,
+        error: existingUserError,
+      } =
+        await supabase.auth.admin
+          .getUserById(
+            authUserId
+          );
+
+      if (
+        !existingUserError &&
+        existingUserData?.user
+      ) {
+        const email =
+          existingUserData
+            .user
+            .email ??
+          authEmail;
+
+        const {
+          data: linkData,
+          error: linkError,
+        } =
+          await supabase.auth.admin
+            .generateLink({
+              type:
+                "magiclink",
+
+              email,
+            });
+
+        if (linkError) {
+          console.error(
+            linkError
+          );
+
+          return NextResponse.json(
+            {
+              error:
+                "Could not create staff login session.",
+            },
+            {
+              status: 500,
+            }
+          );
         }
-      );
+
+        tokenHash =
+          linkData
+            ?.properties
+            ?.hashed_token ??
+          null;
+      } else {
+        // Stale auth_user_id:
+        // create/recover a new identity below.
+        authUserId =
+          null;
+      }
     }
 
-    // ================================================
-    // GET EXISTING AUTH USER
-    // ================================================
+    // =====================================================
+    // FIRST-TIME STAFF AUTH PROVISIONING
+    // =====================================================
 
-    const {
-      data: authData,
-      error: authError,
-    } =
-      await supabase.auth.admin
-        .getUserById(
-          staff.auth_user_id
+    if (!authUserId) {
+      const {
+        data: newLinkData,
+        error: newLinkError,
+      } =
+        await supabase.auth.admin
+          .generateLink({
+            type:
+              "magiclink",
+
+            email:
+              authEmail,
+
+            options: {
+              data: {
+                staff_code:
+                  staff.staff_code,
+
+                staff_name:
+                  staff.staff_name,
+
+                account_type:
+                  staff.account_type,
+
+                source:
+                  "line_staff",
+              },
+            },
+          });
+
+      if (
+        newLinkError ||
+        !newLinkData?.user
+      ) {
+        console.error(
+          newLinkError
         );
 
-    if (
-      authError ||
-      !authData?.user
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Could not load staff authentication account.",
-        },
-        {
-          status: 500,
-        }
-      );
+        return NextResponse.json(
+          {
+            error:
+              "Could not create staff authentication account.",
+          },
+          {
+            status: 500,
+          }
+        );
+      }
+
+      authUserId =
+        newLinkData.user.id;
+
+      tokenHash =
+        newLinkData
+          ?.properties
+          ?.hashed_token ??
+        null;
+
+      // -----------------------------------------------
+      // Save the Supabase Auth identity on staff row
+      // -----------------------------------------------
+
+      const {
+        error: updateError,
+      } =
+        await supabase
+          .from("staff")
+          .update({
+            auth_user_id:
+              authUserId,
+
+            updated_at:
+              new Date()
+                .toISOString(),
+          })
+          .eq(
+            "id",
+            staff.id
+          );
+
+      if (updateError) {
+        console.error(
+          updateError
+        );
+
+        return NextResponse.json(
+          {
+            error:
+              "Authentication account was created, but staff profile linking failed.",
+          },
+          {
+            status: 500,
+          }
+        );
+      }
     }
 
-    const email =
-      authData.user.email;
-
-    if (!email) {
-      return NextResponse.json(
-        {
-          error:
-            "Staff authentication account has no email.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    // ================================================
-    // CREATE ONE-TIME SUPABASE LOGIN TOKEN
-    // ================================================
-
-    const {
-      data: linkData,
-      error: generateError,
-    } =
-      await supabase.auth.admin
-        .generateLink({
-          type:
-            "magiclink",
-
-          email,
-        });
-
-    if (
-      generateError
-    ) {
-      console.error(
-        generateError
-      );
-
-      return NextResponse.json(
-        {
-          error:
-            "Could not create staff login session.",
-        },
-        {
-          status: 500,
-        }
-      );
-    }
-
-    const tokenHash =
-      linkData
-        ?.properties
-        ?.hashed_token;
+    // =====================================================
+    // FINAL TOKEN CHECK
+    // =====================================================
 
     if (!tokenHash) {
       return NextResponse.json(
         {
           error:
-            "Login token was not generated.",
+            "Staff login token was not generated.",
         },
         {
           status: 500,
@@ -341,20 +444,28 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({
-      tokenHash,
+    return NextResponse.json(
+      {
+        tokenHash,
 
-      staff: {
-        staffCode:
-          staff.staff_code,
+        staff: {
+          staffCode:
+            staff.staff_code,
 
-        staffName:
-          staff.staff_name,
+          staffName:
+            staff.staff_name,
 
-        accountType:
-          staff.account_type,
+          accountType:
+            staff.account_type,
+        },
       },
-    });
+      {
+        headers: {
+          "Cache-Control":
+            "no-store",
+        },
+      }
+    );
   } catch (error) {
     console.error(
       "Staff session error:",
