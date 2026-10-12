@@ -10,6 +10,8 @@ import {
   useRouter,
 } from "next/navigation";
 
+import PictureImportSection from "./PictureImportSection";
+
 import {
   supabase,
 } from "../../lib/supabase";
@@ -18,7 +20,7 @@ import {
 // TYPES
 // =======================================================
 
-type PreviewResult = {
+type VisiblePreviewResult = {
   totalRows: number;
   uniqueSkus: number;
   duplicateCount: number;
@@ -27,7 +29,7 @@ type PreviewResult = {
   unmatchedSkus: string[];
 };
 
-type ApplyResult = {
+type VisibleApplyResult = {
   success: boolean;
   matchedCount: number;
   visibleProductCount: number;
@@ -46,7 +48,7 @@ type MasterPreview = {
   uniqueSkus: number;
   duplicateCount: number;
   invalidCount: number;
-  duplicateSkus: string[];
+
   invalidRows: {
     rowNumber: number;
     sku: string;
@@ -152,7 +154,7 @@ export default function CatalogPage() {
     useRouter();
 
   // =====================================================
-  // ACCESS
+  // MANAGER ACCESS
   // =====================================================
 
   const [
@@ -269,14 +271,14 @@ export default function CatalogPage() {
   // =====================================================
 
   const [
-    fileName,
-    setFileName,
+    visibleFileName,
+    setVisibleFileName,
   ] =
     useState("");
 
   const [
-    headers,
-    setHeaders,
+    visibleHeaders,
+    setVisibleHeaders,
   ] =
     useState<
       string[]
@@ -285,8 +287,8 @@ export default function CatalogPage() {
     );
 
   const [
-    rows,
-    setRows,
+    visibleRows,
+    setVisibleRows,
   ] =
     useState<
       any[][]
@@ -295,8 +297,8 @@ export default function CatalogPage() {
     );
 
   const [
-    skuColumnIndex,
-    setSkuColumnIndex,
+    visibleSkuColumnIndex,
+    setVisibleSkuColumnIndex,
   ] =
     useState<
       number | null
@@ -305,42 +307,42 @@ export default function CatalogPage() {
     );
 
   const [
-    preview,
-    setPreview,
+    visiblePreview,
+    setVisiblePreview,
   ] =
     useState<
-      PreviewResult | null
+      VisiblePreviewResult | null
     >(
       null
     );
 
   const [
-    reading,
-    setReading,
+    readingVisible,
+    setReadingVisible,
   ] =
     useState(false);
 
   const [
-    previewing,
-    setPreviewing,
+    previewingVisible,
+    setPreviewingVisible,
   ] =
     useState(false);
 
   const [
-    applying,
-    setApplying,
+    applyingVisible,
+    setApplyingVisible,
   ] =
     useState(false);
 
   const [
-    message,
-    setMessage,
+    visibleMessage,
+    setVisibleMessage,
   ] =
     useState("");
 
   const [
-    successMessage,
-    setSuccessMessage,
+    visibleSuccess,
+    setVisibleSuccess,
   ] =
     useState("");
 
@@ -402,17 +404,18 @@ export default function CatalogPage() {
           }
         );
 
-      // Prefer a sheet named "Master Price".
-      // Otherwise use the first sheet.
-
       const preferredSheet =
-        workbook.SheetNames.find(
-          (name) =>
-            name
-              .trim()
-              .toLowerCase() ===
-            "master price"
-        );
+        workbook
+          .SheetNames
+          .find(
+            (
+              name
+            ) =>
+              name
+                .trim()
+                .toLowerCase() ===
+              "master price"
+          );
 
       const selectedSheetName =
         preferredSheet ??
@@ -434,21 +437,18 @@ export default function CatalogPage() {
 
       const data =
         XLSX.utils
-          .sheet_to_json<
-            any[]
-          >(
+          .sheet_to_json<any[]>(
             sheet,
             {
               header: 1,
               defval: "",
               raw: false,
             }
-          );
+          ) as any[][];
 
       if (
         !data ||
-        data.length <
-          2
+        data.length < 2
       ) {
         throw new Error(
           "Master Price ไม่มีข้อมูลเพียงพอ"
@@ -504,8 +504,7 @@ export default function CatalogPage() {
       }
 
       if (
-        productIndex ===
-        -1
+        productIndex === -1
       ) {
         missingHeaders.push(
           "Product"
@@ -554,10 +553,6 @@ export default function CatalogPage() {
           sku: string;
           reason: string;
         }[] =
-        [];
-
-      const duplicateSkus:
-        string[] =
         [];
 
       const seen =
@@ -689,15 +684,6 @@ export default function CatalogPage() {
             duplicateCount +=
               1;
 
-            if (
-              duplicateSkus.length <
-              100
-            ) {
-              duplicateSkus.push(
-                sku
-              );
-            }
-
             return;
           }
 
@@ -708,9 +694,12 @@ export default function CatalogPage() {
           validRows.push(
             {
               sku,
+
               product_name:
                 productName,
+
               unit,
+
               normal_price:
                 price,
             }
@@ -733,14 +722,18 @@ export default function CatalogPage() {
       setMasterPreview(
         {
           totalRows,
+
           validRows:
             validRows.length,
+
           uniqueSkus:
             validRows.length,
+
           duplicateCount,
+
           invalidCount:
             invalidRows.length,
-          duplicateSkus,
+
           invalidRows:
             invalidRows.slice(
               0,
@@ -777,10 +770,10 @@ export default function CatalogPage() {
     const confirmed =
       window.confirm(
         `ยืนยันการนำเข้า Product Master?\n\n` +
-        `SKU ที่จะนำเข้า: ${masterRows.length}\n` +
-        `ข้อมูลไม่ถูกต้อง: ${masterPreview.invalidCount}\n` +
-        `SKU ซ้ำ: ${masterPreview.duplicateCount}\n\n` +
-        `สินค้าที่มีอยู่แล้วจะถูกอัปเดต และสินค้าใหม่จะถูกเพิ่ม`
+          `SKU ที่จะนำเข้า: ${masterRows.length.toLocaleString()}\n` +
+          `ข้อมูลไม่ถูกต้อง: ${masterPreview.invalidCount.toLocaleString()}\n` +
+          `SKU ซ้ำ: ${masterPreview.duplicateCount.toLocaleString()}\n\n` +
+          `สินค้าที่มีอยู่แล้วจะถูกอัปเดต และสินค้าใหม่จะถูกเพิ่ม`
       );
 
     if (
@@ -818,10 +811,6 @@ export default function CatalogPage() {
     let invalid =
       0;
 
-    // 1,000 products per request.
-    // Large enough to be reasonably fast,
-    // small enough to keep each request manageable.
-
     const batchSize =
       1000;
 
@@ -830,7 +819,8 @@ export default function CatalogPage() {
         let start = 0;
         start <
         masterRows.length;
-        start += batchSize
+        start +=
+          batchSize
       ) {
         const batch =
           masterRows.slice(
@@ -853,7 +843,7 @@ export default function CatalogPage() {
 
         if (error) {
           throw new Error(
-            `Import หยุดที่แถวประมาณ ${
+            `Import หยุดที่ประมาณ SKU ลำดับ ${
               start + 1
             }: ${
               error.message
@@ -931,24 +921,28 @@ export default function CatalogPage() {
   // VISIBLE SKU VALUES
   // =====================================================
 
-  const skuValues =
+  const visibleSkuValues =
     useMemo(() => {
       if (
-        skuColumnIndex ===
+        visibleSkuColumnIndex ===
         null
       ) {
         return [];
       }
 
-      return rows
+      return visibleRows
         .map(
-          (row) =>
+          (
+            row
+          ) =>
             row[
-              skuColumnIndex
+              visibleSkuColumnIndex
             ]
         )
         .filter(
-          (value) =>
+          (
+            value
+          ) =>
             value !==
               undefined &&
             value !==
@@ -959,18 +953,20 @@ export default function CatalogPage() {
               ""
         )
         .map(
-          (value) =>
+          (
+            value
+          ) =>
             String(
               value
             ).trim()
         );
     }, [
-      rows,
-      skuColumnIndex,
+      visibleRows,
+      visibleSkuColumnIndex,
     ]);
 
   // =====================================================
-  // AUTO-DETECT VISIBLE SKU COLUMN
+  // DETECT VISIBLE SKU COLUMN
   // =====================================================
 
   function detectSkuColumn(
@@ -1025,7 +1021,7 @@ export default function CatalogPage() {
   // READ VISIBLE SKU FILE
   // =====================================================
 
-  async function handleFile(
+  async function handleVisibleFile(
     file:
       | File
       | undefined
@@ -1034,31 +1030,31 @@ export default function CatalogPage() {
       return;
     }
 
-    setReading(
+    setReadingVisible(
       true
     );
 
-    setMessage(
+    setVisibleMessage(
       ""
     );
 
-    setSuccessMessage(
+    setVisibleSuccess(
       ""
     );
 
-    setPreview(
+    setVisiblePreview(
       null
     );
 
-    setHeaders(
+    setVisibleHeaders(
       []
     );
 
-    setRows(
+    setVisibleRows(
       []
     );
 
-    setSkuColumnIndex(
+    setVisibleSkuColumnIndex(
       null
     );
 
@@ -1098,21 +1094,18 @@ export default function CatalogPage() {
 
       const data =
         XLSX.utils
-          .sheet_to_json<
-            any[]
-          >(
+          .sheet_to_json<any[]>(
             sheet,
             {
               header: 1,
               defval: "",
               raw: false,
             }
-          );
+          ) as any[][];
 
       if (
         !data ||
-        data.length <
-          2
+        data.length < 2
       ) {
         throw new Error(
           "ไฟล์ไม่มีข้อมูลเพียงพอ"
@@ -1150,19 +1143,19 @@ export default function CatalogPage() {
           parsedHeaders
         );
 
-      setFileName(
+      setVisibleFileName(
         file.name
       );
 
-      setHeaders(
+      setVisibleHeaders(
         parsedHeaders
       );
 
-      setRows(
+      setVisibleRows(
         parsedRows
       );
 
-      setSkuColumnIndex(
+      setVisibleSkuColumnIndex(
         detectedIndex
       );
 
@@ -1170,33 +1163,33 @@ export default function CatalogPage() {
         detectedIndex ===
         null
       ) {
-        setMessage(
+        setVisibleMessage(
           "อ่านไฟล์สำเร็จ แต่ไม่พบคอลัมน์ SKU อัตโนมัติ กรุณาเลือกคอลัมน์ด้านล่าง"
         );
       }
     } catch (error) {
-      setMessage(
+      setVisibleMessage(
         error instanceof Error
           ? error.message
           : "ไม่สามารถอ่านไฟล์ได้"
       );
     } finally {
-      setReading(
+      setReadingVisible(
         false
       );
     }
   }
 
   // =====================================================
-  // PREVIEW VISIBLE SKUS
+  // PREVIEW VISIBLE SKU
   // =====================================================
 
-  async function previewImport() {
+  async function previewVisibleImport() {
     if (
-      skuColumnIndex ===
+      visibleSkuColumnIndex ===
         null
     ) {
-      setMessage(
+      setVisibleMessage(
         "กรุณาเลือกคอลัมน์ SKU"
       );
 
@@ -1204,25 +1197,25 @@ export default function CatalogPage() {
     }
 
     if (
-      skuValues.length ===
+      visibleSkuValues.length ===
         0
     ) {
-      setMessage(
+      setVisibleMessage(
         "ไม่พบ SKU ในคอลัมน์ที่เลือก"
       );
 
       return;
     }
 
-    setPreviewing(
+    setPreviewingVisible(
       true
     );
 
-    setMessage(
+    setVisibleMessage(
       ""
     );
 
-    setSuccessMessage(
+    setVisibleSuccess(
       ""
     );
 
@@ -1235,7 +1228,7 @@ export default function CatalogPage() {
           "preview_customer_visible_skus",
           {
             p_skus:
-              skuValues,
+              visibleSkuValues,
           }
         );
 
@@ -1243,40 +1236,41 @@ export default function CatalogPage() {
         throw error;
       }
 
-      setPreview(
-        data as PreviewResult
+      setVisiblePreview(
+        data as VisiblePreviewResult
       );
     } catch (error) {
-      setMessage(
+      setVisibleMessage(
         error instanceof Error
           ? error.message
           : "ไม่สามารถตรวจสอบรายการสินค้าได้"
       );
     } finally {
-      setPreviewing(
+      setPreviewingVisible(
         false
       );
     }
   }
 
   // =====================================================
-  // APPLY VISIBLE SKUS
+  // APPLY VISIBLE SKU
   // =====================================================
 
-  async function applyImport() {
+  async function applyVisibleImport() {
     if (
-      !preview ||
-      skuValues.length ===
+      !visiblePreview ||
+      visibleSkuValues.length ===
         0
     ) {
       return;
     }
 
     if (
-      preview.matchedCount ===
+      visiblePreview
+        .matchedCount ===
         0
     ) {
-      setMessage(
+      setVisibleMessage(
         "ไม่สามารถยืนยันได้ เนื่องจากไม่มี SKU ใดจับคู่กับ Product Master"
       );
 
@@ -1286,9 +1280,9 @@ export default function CatalogPage() {
     const confirmed =
       window.confirm(
         `ยืนยันการอัปเดตสินค้าที่แสดงให้ลูกค้า?\n\n` +
-        `SKU ที่จับคู่สำเร็จ: ${preview.matchedCount}\n` +
-        `SKU ที่หาไม่พบ: ${preview.unmatchedCount}\n\n` +
-        `รายการสินค้าที่แสดงอยู่เดิมจะถูกแทนที่ด้วยรายการใหม่นี้`
+          `SKU ที่จับคู่สำเร็จ: ${visiblePreview.matchedCount.toLocaleString()}\n` +
+          `SKU ที่หาไม่พบ: ${visiblePreview.unmatchedCount.toLocaleString()}\n\n` +
+          `รายการสินค้าที่แสดงอยู่เดิมจะถูกแทนที่ด้วยรายการใหม่นี้`
       );
 
     if (
@@ -1297,15 +1291,15 @@ export default function CatalogPage() {
       return;
     }
 
-    setApplying(
+    setApplyingVisible(
       true
     );
 
-    setMessage(
+    setVisibleMessage(
       ""
     );
 
-    setSuccessMessage(
+    setVisibleSuccess(
       ""
     );
 
@@ -1318,7 +1312,7 @@ export default function CatalogPage() {
           "apply_customer_visible_skus",
           {
             p_skus:
-              skuValues,
+              visibleSkuValues,
           }
         );
 
@@ -1327,26 +1321,26 @@ export default function CatalogPage() {
       }
 
       const result =
-        data as ApplyResult;
+        data as VisibleApplyResult;
 
-      setSuccessMessage(
+      setVisibleSuccess(
         `อัปเดตสำเร็จ — สินค้าที่แสดงให้ลูกค้า ${result.visibleProductCount.toLocaleString()} รายการ`
       );
     } catch (error) {
-      setMessage(
+      setVisibleMessage(
         error instanceof Error
           ? error.message
           : "ไม่สามารถอัปเดตรายการสินค้าได้"
       );
     } finally {
-      setApplying(
+      setApplyingVisible(
         false
       );
     }
   }
 
   // =====================================================
-  // ACCESS LOADING
+  // ACCESS CHECK
   // =====================================================
 
   if (
@@ -1450,10 +1444,21 @@ export default function CatalogPage() {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3 text-gray-600">
 
-                <span>SKU</span>
-                <span>Product</span>
-                <span>Unit</span>
-                <span>Normal Price</span>
+                <span>
+                  SKU
+                </span>
+
+                <span>
+                  Product
+                </span>
+
+                <span>
+                  Unit
+                </span>
+
+                <span>
+                  Normal Price
+                </span>
 
               </div>
 
@@ -1549,7 +1554,9 @@ export default function CatalogPage() {
 
                       <p className="text-2xl font-bold mt-1">
                         {
-                          masterPreview.totalRows.toLocaleString()
+                          masterPreview
+                            .totalRows
+                            .toLocaleString()
                         }
                       </p>
 
@@ -1563,7 +1570,9 @@ export default function CatalogPage() {
 
                       <p className="text-2xl font-bold mt-1">
                         {
-                          masterPreview.validRows.toLocaleString()
+                          masterPreview
+                            .validRows
+                            .toLocaleString()
                         }
                       </p>
 
@@ -1577,7 +1586,9 @@ export default function CatalogPage() {
 
                       <p className="text-2xl font-bold mt-1">
                         {
-                          masterPreview.uniqueSkus.toLocaleString()
+                          masterPreview
+                            .uniqueSkus
+                            .toLocaleString()
                         }
                       </p>
 
@@ -1591,7 +1602,9 @@ export default function CatalogPage() {
 
                       <p className="text-2xl font-bold mt-1">
                         {
-                          masterPreview.duplicateCount.toLocaleString()
+                          masterPreview
+                            .duplicateCount
+                            .toLocaleString()
                         }
                       </p>
 
@@ -1605,7 +1618,9 @@ export default function CatalogPage() {
 
                       <p className="text-2xl font-bold mt-1">
                         {
-                          masterPreview.invalidCount.toLocaleString()
+                          masterPreview
+                            .invalidCount
+                            .toLocaleString()
                         }
                       </p>
 
@@ -1691,7 +1706,9 @@ export default function CatalogPage() {
                               <td className="p-3 text-right whitespace-nowrap">
                                 ฿
                                 {
-                                  row.normal_price.toLocaleString()
+                                  row
+                                    .normal_price
+                                    .toLocaleString()
                                 }
                               </td>
 
@@ -1707,7 +1724,7 @@ export default function CatalogPage() {
 
                 </div>
 
-                {/* INVALID */}
+                {/* INVALID ROWS */}
 
                 {masterPreview
                   .invalidRows
@@ -1838,37 +1855,7 @@ export default function CatalogPage() {
         {/* 2. PICTURE MASTER */}
         {/* ================================================= */}
 
-        <section className="bg-white border rounded-2xl p-6">
-
-          <div className="flex items-start gap-4">
-
-            <div className="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold shrink-0">
-              2
-            </div>
-
-            <div className="flex-1">
-
-              <div className="flex items-center gap-3 flex-wrap">
-
-                <h2 className="text-xl font-bold">
-                  รูปสินค้า
-                </h2>
-
-                <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-3 py-1">
-                  ขั้นตอนถัดไป
-                </span>
-
-              </div>
-
-              <p className="text-sm text-gray-500 mt-1">
-                จับคู่ SKU กับรูปสินค้าจาก Picture Catalog
-              </p>
-
-            </div>
-
-          </div>
-
-        </section>
+        <PictureImportSection />
 
         {/* ================================================= */}
         {/* 3. VISIBLE SKU */}
@@ -1912,10 +1899,11 @@ export default function CatalogPage() {
                 type="file"
                 accept=".xlsx,.xls,.csv"
                 disabled={
-                  reading
+                  readingVisible ||
+                  applyingVisible
                 }
                 onChange={(event) =>
-                  handleFile(
+                  handleVisibleFile(
                     event
                       .target
                       .files?.[0]
@@ -1930,7 +1918,7 @@ export default function CatalogPage() {
               รองรับ .xlsx, .xls และ .csv
             </p>
 
-            {reading && (
+            {readingVisible && (
 
               <div className="mt-5 bg-gray-50 rounded-xl p-4">
                 กำลังอ่านไฟล์...
@@ -1938,7 +1926,7 @@ export default function CatalogPage() {
 
             )}
 
-            {fileName && (
+            {visibleFileName && (
 
               <div className="mt-6 border-t pt-6">
 
@@ -1948,14 +1936,14 @@ export default function CatalogPage() {
 
                 <p className="font-semibold mt-1">
                   {
-                    fileName
+                    visibleFileName
                   }
                 </p>
 
                 <p className="text-sm text-gray-500 mt-1">
                   พบข้อมูล{" "}
                   {
-                    rows.length
+                    visibleRows.length.toLocaleString()
                   }{" "}
                   แถว
                 </p>
@@ -1964,7 +1952,7 @@ export default function CatalogPage() {
 
             )}
 
-            {headers.length >
+            {visibleHeaders.length >
               0 && (
 
               <div className="mt-6">
@@ -1975,7 +1963,7 @@ export default function CatalogPage() {
 
                 <select
                   value={
-                    skuColumnIndex ??
+                    visibleSkuColumnIndex ??
                     ""
                   }
                   onChange={(event) => {
@@ -1984,7 +1972,7 @@ export default function CatalogPage() {
                         .target
                         .value;
 
-                    setSkuColumnIndex(
+                    setVisibleSkuColumnIndex(
                       value ===
                         ""
                         ? null
@@ -1993,11 +1981,11 @@ export default function CatalogPage() {
                           )
                     );
 
-                    setPreview(
+                    setVisiblePreview(
                       null
                     );
 
-                    setSuccessMessage(
+                    setVisibleSuccess(
                       ""
                     );
                   }}
@@ -2008,7 +1996,7 @@ export default function CatalogPage() {
                     -- เลือกคอลัมน์ --
                   </option>
 
-                  {headers.map(
+                  {visibleHeaders.map(
                     (
                       header,
                       index
@@ -2035,7 +2023,7 @@ export default function CatalogPage() {
 
             )}
 
-            {skuColumnIndex !==
+            {visibleSkuColumnIndex !==
               null && (
 
               <div className="mt-4 bg-gray-50 rounded-xl p-4">
@@ -2046,7 +2034,7 @@ export default function CatalogPage() {
 
                 <div className="flex flex-wrap gap-2 mt-2">
 
-                  {skuValues
+                  {visibleSkuValues
                     .slice(
                       0,
                       8
@@ -2072,53 +2060,61 @@ export default function CatalogPage() {
 
                 </div>
 
+                <p className="text-xs text-gray-400 mt-3">
+                  พบ SKU{" "}
+                  {
+                    visibleSkuValues.length.toLocaleString()
+                  }{" "}
+                  แถวก่อนตรวจสอบกับ Product Master
+                </p>
+
               </div>
 
             )}
 
-            {headers.length >
+            {visibleHeaders.length >
               0 && (
 
               <button
                 type="button"
                 onClick={
-                  previewImport
+                  previewVisibleImport
                 }
                 disabled={
-                  previewing ||
-                  skuColumnIndex ===
+                  previewingVisible ||
+                  visibleSkuColumnIndex ===
                     null
                 }
                 className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-6 disabled:opacity-40"
               >
-                {previewing
+                {previewingVisible
                   ? "กำลังตรวจสอบ..."
                   : "ตรวจสอบรายการสินค้า"}
               </button>
 
             )}
 
-            {message && (
+            {visibleMessage && (
 
               <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mt-5">
                 {
-                  message
+                  visibleMessage
                 }
               </div>
 
             )}
 
-            {successMessage && (
+            {visibleSuccess && (
 
               <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl p-4 mt-5 font-semibold">
                 {
-                  successMessage
+                  visibleSuccess
                 }
               </div>
 
             )}
 
-            {preview && (
+            {visiblePreview && (
 
               <div className="mt-6 border rounded-2xl overflow-hidden">
 
@@ -2137,63 +2133,88 @@ export default function CatalogPage() {
                 <div className="grid grid-cols-2 md:grid-cols-5">
 
                   <div className="p-4 border-r border-b md:border-b-0">
+
                     <p className="text-xs text-gray-500">
                       แถวทั้งหมด
                     </p>
+
                     <p className="text-2xl font-bold mt-1">
                       {
-                        preview.totalRows.toLocaleString()
+                        visiblePreview
+                          .totalRows
+                          .toLocaleString()
                       }
                     </p>
+
                   </div>
 
                   <div className="p-4 border-b md:border-r md:border-b-0">
+
                     <p className="text-xs text-gray-500">
                       SKU ไม่ซ้ำ
                     </p>
+
                     <p className="text-2xl font-bold mt-1">
                       {
-                        preview.uniqueSkus.toLocaleString()
+                        visiblePreview
+                          .uniqueSkus
+                          .toLocaleString()
                       }
                     </p>
+
                   </div>
 
                   <div className="p-4 border-r">
+
                     <p className="text-xs text-gray-500">
                       จับคู่สำเร็จ
                     </p>
+
                     <p className="text-2xl font-bold mt-1">
                       {
-                        preview.matchedCount.toLocaleString()
+                        visiblePreview
+                          .matchedCount
+                          .toLocaleString()
                       }
                     </p>
+
                   </div>
 
                   <div className="p-4 border-r">
+
                     <p className="text-xs text-gray-500">
                       หาไม่พบ
                     </p>
+
                     <p className="text-2xl font-bold mt-1">
                       {
-                        preview.unmatchedCount.toLocaleString()
+                        visiblePreview
+                          .unmatchedCount
+                          .toLocaleString()
                       }
                     </p>
+
                   </div>
 
                   <div className="p-4">
+
                     <p className="text-xs text-gray-500">
                       SKU ซ้ำ
                     </p>
+
                     <p className="text-2xl font-bold mt-1">
                       {
-                        preview.duplicateCount.toLocaleString()
+                        visiblePreview
+                          .duplicateCount
+                          .toLocaleString()
                       }
                     </p>
+
                   </div>
 
                 </div>
 
-                {preview
+                {visiblePreview
                   .unmatchedSkus
                   .length >
                   0 && (
@@ -2204,9 +2225,13 @@ export default function CatalogPage() {
                       SKU ที่หาไม่พบ
                     </p>
 
+                    <p className="text-sm text-gray-500 mt-1">
+                      SKU เหล่านี้ยังไม่มีใน Product Master
+                    </p>
+
                     <div className="flex flex-wrap gap-2 mt-3">
 
-                      {preview
+                      {visiblePreview
                         .unmatchedSkus
                         .slice(
                           0,
@@ -2241,17 +2266,17 @@ export default function CatalogPage() {
                   <button
                     type="button"
                     onClick={
-                      applyImport
+                      applyVisibleImport
                     }
                     disabled={
-                      applying ||
-                      preview
+                      applyingVisible ||
+                      visiblePreview
                         .matchedCount ===
                         0
                     }
                     className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold disabled:opacity-40"
                   >
-                    {applying
+                    {applyingVisible
                       ? "กำลังอัปเดต..."
                       : "ยืนยันการอัปเดต"}
                   </button>
