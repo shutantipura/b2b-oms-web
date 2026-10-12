@@ -314,17 +314,23 @@ export async function POST(
       await supabaseAdmin
         .from("products")
         .select(`
-          id,
-          sku,
-          product_name,
-          category,
-          unit,
-          normal_price
-        `)
-        .eq(
-          "is_active",
-          true
-        )
+  id,
+  sku,
+  product_name,
+  category,
+  unit,
+  normal_price,
+  image_url
+`)
+.eq(
+  "is_active",
+  true
+)
+.eq(
+  "is_customer_visible",
+  true
+)
+
         .order(
           "product_name",
           {
@@ -506,6 +512,10 @@ export async function POST(
 
             productName:
               product.product_name,
+
+            imageUrl:
+            product.image_url ??
+            null,
 
             category:
               product.category,
