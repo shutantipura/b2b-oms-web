@@ -1,499 +1,817 @@
 "use client";
 
 import {
+
   useEffect,
+
   useState,
+
 } from "react";
 
 import {
+
   useRouter,
+
 } from "next/navigation";
 
 type DisplayFile = {
+
   fileType: string;
+
   name: string;
+
   mimeType:
+
     | string
+
     | null;
+
   url: string;
+
 };
 
 type PaymentResponse = {
+
   customer?: {
+
     customerCode: string;
+
     customerName: string;
+
   };
 
   order?: {
+
     orderNumber: number;
+
     status: string;
 
     finalAmount:
+
       | number
+
       | null;
 
     deliveryDate:
+
       | string
+
       | null;
 
     deliverySlot:
+
       | string
+
       | null;
+
   };
 
   files?: {
+
     bill:
+
       | DisplayFile
+
       | null;
 
     paymentQr:
+
       | DisplayFile
+
       | null;
 
     deliveryProof:
+
       | DisplayFile
+
       | null;
 
     paymentSlip:
+
       | DisplayFile
+
       | null;
+
   };
 
   success?: boolean;
+
   error?: string;
+
 };
 
 function isImage(
+
   file:
+
     | DisplayFile
+
     | null
+
 ) {
+
   return Boolean(
+
     file?.mimeType?.startsWith(
+
       "image/"
+
     )
+
   );
+
 }
 
 function prettyStatus(
+
   status: string
+
 ) {
+
   const map:
+
     Record<
+
       string,
+
       string
+
     > = {
+
     awaiting_payment:
-      "Awaiting Payment",
+
+      "รอชำระเงิน",
 
     payment_submitted:
-      "Payment Submitted",
+
+      "ส่งหลักฐานการชำระเงินแล้ว",
 
     completed:
-      "Payment Verified",
+
+      "ตรวจสอบการชำระเงินแล้ว",
+
   };
 
   return (
+
     map[status] ??
+
     status
+
   );
+
 }
 
 export default function MiniAppPaymentPage() {
+
   const router =
+
     useRouter();
 
   const [
+
     customerCode,
+
     setCustomerCode,
+
   ] =
+
     useState("");
 
   const [
+
     idToken,
+
     setIdToken,
+
   ] =
+
     useState("");
 
   const [
+
     data,
+
     setData,
+
   ] =
+
     useState<PaymentResponse | null>(
+
       null
+
     );
 
   const [
+
     slipFile,
+
     setSlipFile,
+
   ] =
+
     useState<File | null>(
+
       null
+
     );
 
   const [
+
     loading,
+
     setLoading,
+
   ] =
+
     useState(true);
 
   const [
+
     submitting,
+
     setSubmitting,
+
   ] =
+
     useState(false);
 
   const [
+
     message,
+
     setMessage,
+
   ] =
+
     useState("");
 
   // =====================================================
-  // LOAD PAYMENT
+
+  // LOAD การชำระเงิน
+
   // =====================================================
 
   async function loadPayment(
+
     token: string,
+
     code: string,
+
     orderNumber: number
+
   ) {
+
     const response =
+
       await fetch(
+
         "/api/line/payment",
+
         {
+
           method:
+
             "POST",
 
           headers: {
+
             "Content-Type":
+
               "application/json",
+
           },
 
           body:
+
             JSON.stringify({
+
               idToken:
+
                 token,
 
               customerCode:
+
                 code,
 
               orderNumber,
+
             }),
+
         }
+
       );
 
     const result =
+
       (await response.json()) as PaymentResponse;
 
     if (
+
       !response.ok
+
     ) {
+
       throw new Error(
+
         result.error ??
-          "Could not load payment."
+
+          "ไม่สามารถโหลดข้อมูลการชำระเงินได้"
+
       );
+
     }
 
     setData(
+
       result
+
     );
+
   }
 
   // =====================================================
+
   // INITIALIZE LINE
+
   // =====================================================
 
   useEffect(() => {
+
     let cancelled =
+
       false;
 
     async function initialize() {
+
       try {
+
         const params =
+
           new URLSearchParams(
+
             window.location.search
+
           );
 
         const code =
+
           (
+
             params.get(
+
               "customer"
+
             ) ?? ""
+
           )
+
             .trim()
+
             .toUpperCase();
 
         const orderNumber =
+
           Number(
+
             params.get(
+
               "order"
+
             )
+
           );
 
         if (
+
           !code ||
+
           !Number.isFinite(
+
             orderNumber
+
           )
+
         ) {
+
           throw new Error(
-            "Customer or order number is missing."
+
+            "ไม่พบข้อมูลลูกค้าหรือหมายเลขคำสั่งซื้อ"
+
           );
+
         }
 
         const liffModule =
+
           await import(
+
             "@line/liff"
+
           );
 
         const liff =
+
           liffModule.default;
 
         const liffId =
+
           process.env
+
             .NEXT_PUBLIC_LINE_LIFF_ID;
 
         if (!liffId) {
+
           throw new Error(
-            "LINE LIFF ID is missing."
+
+            "ไม่พบ LINE LIFF ID"
+
           );
+
         }
 
         await liff.init({
+
           liffId,
 
           withLoginOnExternalBrowser:
+
             true,
+
         });
 
         if (
+
           !liff.isLoggedIn()
+
         ) {
+
           liff.login();
+
           return;
+
         }
 
         const token =
+
           liff.getIDToken();
 
         if (!token) {
+
           throw new Error(
-            "LINE ID token was not available."
+
+            "ไม่สามารถอ่าน LINE ID token ได้"
+
           );
+
         }
 
         if (
+
           cancelled
+
         ) {
+
           return;
+
         }
 
         setIdToken(
+
           token
+
         );
 
         setCustomerCode(
+
           code
+
         );
 
         await loadPayment(
+
           token,
+
           code,
+
           orderNumber
+
         );
 
         setLoading(
+
           false
+
         );
+
       } catch (error) {
+
         if (
+
           cancelled
+
         ) {
+
           return;
+
         }
 
         console.error(
+
           "Payment initialization:",
+
           error
+
         );
 
         setMessage(
+
           error instanceof
+
             Error
+
             ? error.message
-            : "Could not load payment."
+
+            : "ไม่สามารถโหลดข้อมูลการชำระเงินได้"
+
         );
 
         setLoading(
+
           false
+
         );
+
       }
+
     }
 
     initialize();
 
     return () => {
+
       cancelled =
+
         true;
+
     };
+
   }, []);
 
   // =====================================================
+
   // SUBMIT SLIP
+
   // =====================================================
 
   async function submitSlip() {
+
     if (
+
       !data?.order ||
+
       !slipFile ||
+
       !idToken ||
+
       !customerCode
+
     ) {
+
       setMessage(
-        "Please choose your payment slip first."
+
+        "กรุณาเลือกหลักฐานการชำระเงินก่อน"
+
       );
 
       return;
+
     }
 
     setSubmitting(
+
       true
+
     );
 
     setMessage(
+
       ""
+
     );
 
     try {
+
       const formData =
+
         new FormData();
 
       formData.append(
+
         "idToken",
+
         idToken
+
       );
 
       formData.append(
+
         "customerCode",
+
         customerCode
+
       );
 
       formData.append(
+
         "orderNumber",
+
         String(
+
           data.order
+
             .orderNumber
+
         )
+
       );
 
       formData.append(
+
         "file",
+
         slipFile
+
       );
 
       const response =
+
         await fetch(
+
           "/api/line/payment",
+
           {
+
             method:
+
               "POST",
 
             body:
+
               formData,
+
           }
+
         );
 
       const result =
+
         (await response.json()) as PaymentResponse;
 
       if (
+
         !response.ok
+
       ) {
+
         throw new Error(
+
           result.error ??
-            "Payment slip could not be submitted."
+
+            "ไม่สามารถส่งหลักฐานการชำระเงินได้"
+
         );
+
       }
 
       await loadPayment(
+
         idToken,
+
         customerCode,
+
         data.order
+
           .orderNumber
+
       );
 
       setSlipFile(
+
         null
+
       );
 
       setMessage(
-        "Payment slip submitted successfully."
+
+        "ส่งหลักฐานการชำระเงินเรียบร้อยแล้ว"
+
       );
+
     } catch (error) {
+
       setMessage(
+
         error instanceof
+
           Error
+
           ? error.message
-          : "Payment slip could not be submitted."
+
+          : "ไม่สามารถส่งหลักฐานการชำระเงินได้"
+
       );
+
     } finally {
+
       setSubmitting(
+
         false
+
       );
+
     }
+
   }
 
   if (loading) {
+
     return (
+
       <main className="min-h-screen bg-gray-100 flex items-center justify-center p-5">
 
         <div className="text-center">
 
           <p className="text-xl font-bold">
+
             LOTUS&apos;S B2B
+
           </p>
 
           <p className="text-gray-500 mt-3">
-            Loading payment...
+
+            กำลังโหลดข้อมูลการชำระเงิน...
+
           </p>
 
         </div>
 
       </main>
+
     );
+
   }
 
   if (
+
     !data?.order ||
+
     !data.customer
+
   ) {
+
     return (
+
       <main className="min-h-screen bg-gray-100 p-5">
 
         <div className="max-w-md mx-auto">
 
           <button
+
             onClick={() =>
+
               router.push(
+
                 "/miniapp"
+
               )
+
             }
+
             className="text-gray-500"
+
           >
-            ← Home
+
+            ← หน้าแรก
+
           </button>
 
           <div className="bg-white border rounded-2xl p-6 mt-5">
 
             <h1 className="text-xl font-bold">
-              Payment Unavailable
+
+              ไม่สามารถเปิดข้อมูลการชำระเงินได้
+
             </h1>
 
             <p className="text-red-600 mt-3">
+
               {
+
                 message
+
               }
+
             </p>
 
           </div>
@@ -501,20 +819,27 @@ export default function MiniAppPaymentPage() {
         </div>
 
       </main>
+
     );
+
   }
 
   const order =
+
     data.order;
 
   const files =
+
     data.files;
 
   const canSubmit =
+
     order.status ===
+
     "awaiting_payment";
 
   return (
+
     <main className="min-h-screen bg-gray-100 pb-10">
 
       <header className="bg-white border-b">
@@ -522,32 +847,53 @@ export default function MiniAppPaymentPage() {
         <div className="max-w-2xl mx-auto px-4 py-4">
 
           <button
+
             onClick={() =>
+
               router.push(
+
                 `/miniapp/orders?customer=${data.customer?.customerCode}&view=active`
+
               )
+
             }
+
             className="text-sm text-gray-500"
+
           >
-            ← Track My Order
+
+            ← ติดตามคำสั่งซื้อ
+
           </button>
 
           <p className="text-xs text-gray-400 mt-4">
-            PAYMENT
+
+            การชำระเงิน
+
           </p>
 
           <h1 className="text-2xl font-bold mt-1">
-            Order #
+
+            คำสั่งซื้อ #
+
             {
+
               order.orderNumber
+
             }
+
           </h1>
 
           <p className="text-gray-500">
+
             {
+
               data.customer
+
                 .customerName
+
             }
+
           </p>
 
         </div>
@@ -557,11 +903,17 @@ export default function MiniAppPaymentPage() {
       <div className="max-w-2xl mx-auto p-4">
 
         {message && (
+
           <div className="bg-white border rounded-xl p-4 mb-5">
+
             {
+
               message
+
             }
+
           </div>
+
         )}
 
         {/* AMOUNT */}
@@ -569,31 +921,47 @@ export default function MiniAppPaymentPage() {
         <section className="bg-white border rounded-2xl p-6 mb-5 text-center">
 
           <p className="text-sm text-gray-500">
-            Amount Due
+
+            ยอดที่ต้องชำระ
+
           </p>
 
           <p className="text-4xl font-bold mt-2">
 
             {order.finalAmount ===
+
             null
-              ? "Pending"
+
+              ? "รอยอดสุทธิ"
+
               : `฿${order.finalAmount.toLocaleString(
+
                   undefined,
+
                   {
+
                     minimumFractionDigits:
+
                       2,
 
                     maximumFractionDigits:
+
                       2,
+
                   }
+
                 )}`}
 
           </p>
 
           <span className="inline-block bg-gray-100 rounded-full px-3 py-1 text-sm font-semibold mt-4">
+
             {prettyStatus(
+
               order.status
+
             )}
+
           </span>
 
         </section>
@@ -603,17 +971,23 @@ export default function MiniAppPaymentPage() {
         <section className="bg-white border rounded-2xl p-5 mb-5">
 
           <h2 className="font-bold text-lg">
-            Bill
+
+            บิล
+
           </h2>
 
           <p className="text-sm text-gray-500 mt-1">
-            Uploaded by our staff.
+
+            อัปโหลดโดยทีมงาน
+
           </p>
 
           {!files?.bill ? (
 
             <p className="text-gray-500 mt-4">
-              Bill is not available yet.
+
+              บิล is not available yet.
+
             </p>
 
           ) : (
@@ -621,26 +995,45 @@ export default function MiniAppPaymentPage() {
             <div className="mt-4">
 
               {isImage(
+
                 files.bill
+
               ) && (
+
                 <img
+
                   src={
+
                     files.bill.url
+
                   }
+
                   alt="Final bill"
+
                   className="w-full max-h-96 object-contain border rounded-xl"
+
                 />
+
               )}
 
               <a
+
                 href={
+
                   files.bill.url
+
                 }
+
                 target="_blank"
+
                 rel="noreferrer"
+
                 className="block w-full text-center border rounded-xl px-4 py-3 font-semibold mt-3"
+
               >
-                OPEN BILL
+
+                เปิดดูบิล
+
               </a>
 
             </div>
@@ -649,22 +1042,28 @@ export default function MiniAppPaymentPage() {
 
         </section>
 
-        {/* PAYMENT QR */}
+        {/* การชำระเงิน QR */}
 
         <section className="bg-white border rounded-2xl p-5 mb-5">
 
           <h2 className="font-bold text-lg">
-            Payment QR
+
+            QR สำหรับชำระเงิน
+
           </h2>
 
           <p className="text-sm text-gray-500 mt-1">
-            Scan the QR uploaded by our staff to make payment.
+
+            สแกน QR ที่ทีมงานอัปโหลดเพื่อชำระเงิน
+
           </p>
 
           {!files?.paymentQr ? (
 
             <p className="text-gray-500 mt-4">
-              Payment QR is not available yet.
+
+              QR สำหรับชำระเงิน is not available yet.
+
             </p>
 
           ) : (
@@ -672,22 +1071,37 @@ export default function MiniAppPaymentPage() {
             <div className="mt-5 text-center">
 
               <img
+
                 src={
+
                   files.paymentQr.url
+
                 }
-                alt="Payment QR"
+
+                alt="QR สำหรับชำระเงิน"
+
                 className="w-full max-w-sm mx-auto object-contain border rounded-xl"
+
               />
 
               <a
+
                 href={
+
                   files.paymentQr.url
+
                 }
+
                 target="_blank"
+
                 rel="noreferrer"
+
                 className="inline-block underline text-sm mt-3"
+
               >
-                Open QR image
+
+                เปิดรูป QR
+
               </a>
 
             </div>
@@ -701,17 +1115,23 @@ export default function MiniAppPaymentPage() {
         <section className="bg-white border rounded-2xl p-5 mb-5">
 
           <h2 className="font-bold text-lg">
-            Proof of Delivery
+
+            หลักฐานการจัดส่ง
+
           </h2>
 
           <p className="text-sm text-gray-500 mt-1">
-            Delivery photo submitted by our delivery team.
+
+            รูปหลักฐานการจัดส่งจากทีมจัดส่ง
+
           </p>
 
           {!files?.deliveryProof ? (
 
             <p className="text-gray-500 mt-4">
-              Proof of delivery is not available.
+
+              ยังไม่มีหลักฐานการจัดส่ง
+
             </p>
 
           ) : (
@@ -719,28 +1139,45 @@ export default function MiniAppPaymentPage() {
             <div className="mt-4">
 
               {isImage(
+
                 files.deliveryProof
+
               ) ? (
 
                 <img
+
                   src={
+
                     files.deliveryProof.url
+
                   }
+
                   alt="Proof of delivery"
+
                   className="w-full max-h-96 object-contain border rounded-xl"
+
                 />
 
               ) : (
 
                 <a
+
                   href={
+
                     files.deliveryProof.url
+
                   }
+
                   target="_blank"
+
                   rel="noreferrer"
+
                   className="block border rounded-xl p-4 font-semibold"
+
                 >
-                  OPEN PROOF OF DELIVERY
+
+                  เปิดดูหลักฐานการจัดส่ง
+
                 </a>
 
               )}
@@ -751,36 +1188,52 @@ export default function MiniAppPaymentPage() {
 
         </section>
 
-        {/* PAYMENT SUBMITTED */}
+        {/* การชำระเงิน SUBMITTED */}
 
         {order.status ===
+
           "payment_submitted" && (
 
           <section className="bg-white border rounded-2xl p-6 mb-5 text-center">
 
             <div className="text-4xl">
+
               ✓
+
             </div>
 
             <h2 className="text-xl font-bold mt-3">
-              Payment Submitted
+
+              ส่งหลักฐานการชำระเงินแล้ว
+
             </h2>
 
             <p className="text-gray-500 mt-2">
-              Your payment slip has been received and is waiting for verification by our team.
+
+              เราได้รับหลักฐานการชำระเงินแล้ว และกำลังรอทีมงานตรวจสอบ
+
             </p>
 
             {files?.paymentSlip && (
 
               <a
+
                 href={
+
                   files.paymentSlip.url
+
                 }
+
                 target="_blank"
+
                 rel="noreferrer"
+
                 className="inline-block underline mt-4"
+
               >
-                View submitted slip
+
+                ดูหลักฐานที่ส่งแล้ว
+
               </a>
 
             )}
@@ -792,20 +1245,27 @@ export default function MiniAppPaymentPage() {
         {/* COMPLETED */}
 
         {order.status ===
+
           "completed" && (
 
           <section className="bg-white border rounded-2xl p-6 mb-5 text-center">
 
             <div className="text-4xl">
+
               ✓
+
             </div>
 
             <h2 className="text-xl font-bold mt-3">
-              Payment Verified
+
+              ตรวจสอบการชำระเงินแล้ว
+
             </h2>
 
             <p className="text-gray-500 mt-2">
-              This order has been completed.
+
+              คำสั่งซื้อนี้เสร็จสิ้นแล้ว
+
             </p>
 
           </section>
@@ -819,65 +1279,111 @@ export default function MiniAppPaymentPage() {
           <section className="bg-white border rounded-2xl p-5">
 
             <h2 className="font-bold text-lg">
-              Upload Payment Slip
+
+              อัปโหลดหลักฐานการชำระเงิน
+
             </h2>
 
             <p className="text-sm text-gray-500 mt-1">
-              Upload a photo or PDF after completing payment.
+
+              อัปโหลดรูปภาพหรือ PDF หลังจากชำระเงินแล้ว
+
             </p>
 
             <input
+
               type="file"
+
               accept="image/*,application/pdf"
+
               onChange={(
+
                 event
+
               ) =>
+
                 setSlipFile(
+
                   event.target
+
                     .files?.[0] ??
+
                     null
+
                 )
+
               }
+
               className="block w-full border rounded-xl p-3 mt-5"
+
             />
 
             {slipFile && (
+
               <div className="border rounded-xl p-3 mt-3">
 
                 <p className="font-semibold">
+
                   {
+
                     slipFile.name
+
                   }
+
                 </p>
 
                 <p className="text-xs text-gray-500 mt-1">
+
                   {(
+
                     slipFile.size /
+
                     1024 /
+
                     1024
+
                   ).toFixed(
+
                     2
+
                   )}{" "}
+
                   MB
+
                 </p>
 
               </div>
+
             )}
 
             <button
+
               type="button"
+
               onClick={
+
                 submitSlip
+
               }
+
               disabled={
+
                 submitting ||
+
                 !slipFile
+
               }
+
               className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-5 disabled:opacity-40"
+
             >
+
               {submitting
-                ? "SUBMITTING..."
-                : "SUBMIT PAYMENT"}
+
+                ? "กำลังส่ง..."
+
+                : "SUBMIT การชำระเงิน"}
+
             </button>
 
           </section>
@@ -887,5 +1393,7 @@ export default function MiniAppPaymentPage() {
       </div>
 
     </main>
+
   );
+
 }
