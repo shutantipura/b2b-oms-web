@@ -748,76 +748,48 @@ export default function TasksPage() {
 
 
   async function startWork(
+  orderNumber: number,
+  stage: string
+) {
+  setMessage(
+    `กำลังรับงานคำสั่งซื้อ #${orderNumber}...`
+  );
 
-    orderNumber: number,
+  const {
+    error,
+  } =
+    await supabase.rpc(
+      "claim_my_task",
+      {
+        p_order_number:
+          orderNumber,
 
-    stage: string
-
-  ) {
-
-    setMessage(
-
-      `กำลังรับงานคำสั่งซื้อ #${orderNumber}...`
-
+        p_stage:
+          stage,
+      }
     );
 
-
-
-    const { error } =
-
-      await supabase.rpc(
-
-        "claim_my_task",
-
-        {
-
-          p_order_number:
-
-            orderNumber,
-
-
-
-          p_stage:
-
-            stage,
-
-        }
-
-      );
-
-
-
-    if (error) {
-
-      setMessage(
-
-        "ไม่สามารถรับงานได้: " +
-
-          error.message
-
-      );
-
-
-
-      await loadData();
-
-      return;
-
-    }
-
-
-
+  if (error) {
     setMessage(
-
-      `รับงานคำสั่งซื้อ #${orderNumber} สำเร็จ`
-
+      "ไม่สามารถรับงานได้: " +
+        error.message
     );
-
-
 
     await loadData();
 
+    return;
   }
+
+  // รับงานสำเร็จแล้ว
+  // เปิดหน้างานทันที ไม่ต้องกลับมากด "ทำต่อ"
+
+  window.location.assign(
+    taskLink(
+      stage,
+      orderNumber
+    )
+  );
+}
 
 
 
