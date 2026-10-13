@@ -175,6 +175,12 @@ export default function SpecialPriceImportSection() {
     useState(false);
 
   const [
+    resetting,
+    setResetting,
+  ] =
+    useState(false);
+
+  const [
     progress,
     setProgress,
   ] =
@@ -644,8 +650,7 @@ export default function SpecialPriceImportSection() {
           `รายการที่จะนำเข้า: ${rows.length.toLocaleString()}\n` +
           `แถวไม่ถูกต้อง: ${invalidRows.length.toLocaleString()}\n` +
           `รายการซ้ำในไฟล์: ${duplicateCount.toLocaleString()}\n\n` +
-          `ราคาพิเศษเดิมของลูกค้า + SKU เดียวกันจะถูกอัปเดต\n` +
-          `รายการที่ไม่ได้อยู่ในไฟล์จะไม่ถูกลบ`
+          `ระบบจะเพิ่มหรืออัปเดตราคาพิเศษจากไฟล์นี้`
       );
 
     if (
@@ -821,6 +826,70 @@ export default function SpecialPriceImportSection() {
     }
   }
 
+  // =====================================================
+  // RESET ALL SPECIAL PRICES
+  // =====================================================
+
+  async function resetAllSpecialPrices() {
+    const confirmed =
+      window.confirm(
+        "รีเซ็ตราคาพิเศษทั้งหมด?\n\n" +
+          "ราคาพิเศษของลูกค้าทุกคนจะถูกล้างออกจากการใช้งาน และลูกค้าจะกลับไปใช้ราคาปกติทั้งหมด\n\n" +
+          "หลังจากรีเซ็ต กรุณาอัปโหลดไฟล์ราคาพิเศษฉบับใหม่"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setResetting(true);
+    setMessage("");
+    setSuccess("");
+
+    const {
+      data,
+      error,
+    } =
+      await supabase.rpc(
+        "reset_all_customer_prices"
+      );
+
+    if (error) {
+      setMessage(
+        "ไม่สามารถรีเซ็ตราคาพิเศษได้: " +
+          error.message
+      );
+
+      setResetting(false);
+      return;
+    }
+
+    const resetCount =
+      Number(
+        (data as {
+          resetCount?: number;
+        } | null)
+          ?.resetCount ??
+          0
+      );
+
+    // Force a fresh file after reset.
+    setFileName("");
+    setSheetName("");
+    setRows([]);
+    setTotalRows(0);
+    setDuplicateCount(0);
+    setInvalidRows([]);
+    setProgress(0);
+    setProcessed(0);
+
+    setSuccess(
+      `รีเซ็ตราคาพิเศษเรียบร้อย ${resetCount.toLocaleString()} รายการ — ขณะนี้ลูกค้าทั้งหมดใช้ราคาปกติ กรุณาอัปโหลดไฟล์ราคาพิเศษฉบับใหม่`
+    );
+
+    setResetting(false);
+  }
+
   return (
     <section className="bg-white border rounded-2xl overflow-hidden">
 
@@ -839,7 +908,7 @@ export default function SpecialPriceImportSection() {
             </h2>
 
             <p className="text-sm text-gray-500 mt-1">
-              อัปโหลด Excel เพื่อเพิ่มหรืออัปเดตราคาพิเศษของลูกค้าตาม SKU
+              รีเซ็ตราคาพิเศษเดิมทั้งหมด แล้วอัปโหลด Excel ฉบับใหม่
             </p>
 
           </div>
@@ -876,8 +945,45 @@ export default function SpecialPriceImportSection() {
           </p>
 
           <p className="text-xs text-gray-500 mt-1">
-            การนำเข้าเป็นแบบอัปเดต/เพิ่มเฉพาะรายการในไฟล์ ราคาพิเศษรายการอื่นจะไม่ถูกลบ
+            Workflow ที่แนะนำ: กดรีเซ็ตเพื่อเคลียร์ราคาพิเศษเดิมทั้งหมดก่อน แล้วจึงอัปโหลดไฟล์ฉบับใหม่
           </p>
+
+        </div>
+
+        <div className="mt-6 border border-red-200 bg-red-50 rounded-xl p-5">
+
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+            <div>
+
+              <p className="font-bold text-red-700">
+                รีเซ็ตราคาพิเศษทั้งหมด
+              </p>
+
+              <p className="text-sm text-red-700 mt-1">
+                ล้างราคาพิเศษที่ใช้งานอยู่ทั้งหมด ลูกค้าทุกคนจะกลับไปใช้ราคาปกติจนกว่าจะนำเข้าไฟล์ใหม่
+              </p>
+
+            </div>
+
+            <button
+              type="button"
+              onClick={
+                resetAllSpecialPrices
+              }
+              disabled={
+                resetting ||
+                importing ||
+                reading
+              }
+              className="shrink-0 bg-white border border-red-300 text-red-700 rounded-xl px-5 py-3 font-semibold disabled:opacity-40"
+            >
+              {resetting
+                ? "กำลังรีเซ็ต..."
+                : "รีเซ็ตราคาพิเศษทั้งหมด"}
+            </button>
+
+          </div>
 
         </div>
 
@@ -892,7 +998,8 @@ export default function SpecialPriceImportSection() {
             accept=".xlsx,.xls,.csv"
             disabled={
               reading ||
-              importing
+              importing ||
+              resetting
             }
             onChange={(
               event
@@ -1239,7 +1346,8 @@ export default function SpecialPriceImportSection() {
             }
             disabled={
               importing ||
-              reading
+              reading ||
+              resetting
             }
             className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-6 disabled:opacity-40"
           >
