@@ -23,6 +23,7 @@ import {
 
 
 import PictureImportSection from "./PictureImportSection";
+import SpecialPriceImportSection from "./SpecialPriceImportSection";
 
 
 
@@ -2788,7 +2789,7 @@ export default function CatalogPage() {
 
             <p className="text-gray-500 mt-2">
 
-              จัดการข้อมูลสินค้า ราคา รูปภาพ และรายการสินค้าที่แสดงให้ลูกค้า
+              นำเข้าและจัดการ Product Master ราคาปกติ ราคาพิเศษ รูปสินค้า และรายการสินค้าที่แสดงให้ลูกค้า
 
             </p>
 
@@ -4581,6 +4582,18 @@ export default function CatalogPage() {
 
 
         </section>
+
+
+
+        {/* ================================================= */}
+
+        {/* 4. SPECIAL CUSTOMER PRICES */}
+
+        {/* ================================================= */}
+
+
+
+        <SpecialPriceImportSection />
 
 
 

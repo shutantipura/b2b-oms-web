@@ -420,17 +420,6 @@ export default function Home() {
 
       {
         name:
-          "ราคา",
-
-        href:
-          "/pricing",
-
-        description:
-          "จัดการราคาสินค้าและราคาลูกค้า",
-      },
-
-      {
-        name:
           "สิทธิ์ LINE",
 
         href:
@@ -442,13 +431,13 @@ export default function Home() {
 
       {
         name:
-          "นำเข้าข้อมูลสินค้า",
+          "ข้อมูลสินค้าและราคา",
 
         href:
           "/catalog",
 
         description:
-          "นำเข้า Product Master รูปสินค้า และรายการ SKU ที่แสดงให้ลูกค้า",
+          "นำเข้า Product Master ราคาปกติ ราคาพิเศษ รูปสินค้า และรายการ SKU ที่แสดงให้ลูกค้า",
       },
     ];
 
