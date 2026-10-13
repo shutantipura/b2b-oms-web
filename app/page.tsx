@@ -225,24 +225,8 @@ export default function Home() {
   async function handleSignOut() {
     await supabase.auth.signOut();
 
-    setStaff(
-      null
-    );
-
-    setActiveOrderCount(
-      0
-    );
-
-    setEmail(
-      ""
-    );
-
-    setPassword(
-      ""
-    );
-
-    setMessage(
-      ""
+    window.location.assign(
+      "/miniapp?portal=access"
     );
   }
 
