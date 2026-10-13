@@ -10,6 +10,10 @@ import {
   useRouter,
 } from "next/navigation";
 
+// =======================================================
+// TYPES
+// =======================================================
+
 type Customer = {
   id: string;
   customerCode: string;
@@ -21,6 +25,10 @@ type Product = {
   id: string;
   sku: string;
   productName: string;
+
+  imageUrl:
+    | string
+    | null;
 
   category:
     | string
@@ -54,6 +62,7 @@ type APIResponse = {
 
 type FavouriteResponse = {
   success?: boolean;
+
   isFavourite?: boolean;
 
   favouriteOrder?:
@@ -63,6 +72,78 @@ type FavouriteResponse = {
   error?: string;
 };
 
+// =======================================================
+// HELPERS
+// =======================================================
+
+function getQuantityStep(
+  unit: string
+) {
+  const normalized =
+    unit
+      .trim()
+      .toLowerCase();
+
+  if (
+    normalized.includes(
+      "kg"
+    ) ||
+    normalized.includes(
+      "กก"
+    ) ||
+    normalized.includes(
+      "กิโล"
+    )
+  ) {
+    return 0.1;
+  }
+
+  return 1;
+}
+
+function roundQuantity(
+  value: number
+) {
+  return Math.round(
+    value * 1000
+  ) / 1000;
+}
+
+function formatQuantity(
+  value: number
+) {
+  return new Intl.NumberFormat(
+    "th-TH",
+    {
+      maximumFractionDigits:
+        3,
+    }
+  ).format(
+    value
+  );
+}
+
+function formatPrice(
+  value: number
+) {
+  return new Intl.NumberFormat(
+    "th-TH",
+    {
+      minimumFractionDigits:
+        0,
+
+      maximumFractionDigits:
+        2,
+    }
+  ).format(
+    value
+  );
+}
+
+// =======================================================
+// PAGE
+// =======================================================
+
 export default function MiniAppShopPage() {
   const router =
     useRouter();
@@ -71,7 +152,9 @@ export default function MiniAppShopPage() {
     customer,
     setCustomer,
   ] =
-    useState<Customer | null>(
+    useState<
+      Customer | null
+    >(
       null
     );
 
@@ -79,7 +162,9 @@ export default function MiniAppShopPage() {
     products,
     setProducts,
   ] =
-    useState<Product[]>(
+    useState<
+      Product[]
+    >(
       []
     );
 
@@ -104,7 +189,15 @@ export default function MiniAppShopPage() {
     useState<
       | "favourites"
       | "all"
-    >("favourites");
+    >(
+      "favourites"
+    );
+
+  const [
+    selectedCategory,
+    setSelectedCategory,
+  ] =
+    useState("all");
 
   const [
     showCart,
@@ -134,13 +227,15 @@ export default function MiniAppShopPage() {
     savingFavouriteIds,
     setSavingFavouriteIds,
   ] =
-    useState<Set<string>>(
+    useState<
+      Set<string>
+    >(
       new Set()
     );
 
-  // ================================================
+  // =====================================================
   // CUSTOMER HOME
-  // ================================================
+  // =====================================================
 
   function goCustomerHome() {
     const code =
@@ -148,7 +243,9 @@ export default function MiniAppShopPage() {
       new URLSearchParams(
         window.location.search
       )
-        .get("customer")
+        .get(
+          "customer"
+        )
         ?.trim()
         .toUpperCase();
 
@@ -167,9 +264,9 @@ export default function MiniAppShopPage() {
     );
   }
 
-  // ================================================
+  // =====================================================
   // INITIALIZE LINE
-  // ================================================
+  // =====================================================
 
   useEffect(() => {
     let cancelled =
@@ -192,9 +289,11 @@ export default function MiniAppShopPage() {
             .trim()
             .toUpperCase();
 
-        if (!customerCode) {
+        if (
+          !customerCode
+        ) {
           throw new Error(
-            "Customer was not selected."
+            "ไม่ได้เลือกลูกค้า"
           );
         }
 
@@ -212,7 +311,7 @@ export default function MiniAppShopPage() {
 
         if (!liffId) {
           throw new Error(
-            "LINE LIFF ID is missing."
+            "ไม่พบ LINE LIFF ID"
           );
         }
 
@@ -236,7 +335,7 @@ export default function MiniAppShopPage() {
 
         if (!token) {
           throw new Error(
-            "LINE ID token was not available."
+            "ไม่สามารถอ่าน LINE ID token ได้"
           );
         }
 
@@ -253,12 +352,14 @@ export default function MiniAppShopPage() {
               },
 
               body:
-                JSON.stringify({
-                  idToken:
-                    token,
+                JSON.stringify(
+                  {
+                    idToken:
+                      token,
 
-                  customerCode,
-                }),
+                    customerCode,
+                  }
+                ),
             }
           );
 
@@ -270,7 +371,7 @@ export default function MiniAppShopPage() {
         ) {
           throw new Error(
             data.error ??
-              "Could not load catalogue."
+              "ไม่สามารถโหลดสินค้าได้"
           );
         }
 
@@ -278,11 +379,13 @@ export default function MiniAppShopPage() {
           !data.customer
         ) {
           throw new Error(
-            "Customer could not be loaded."
+            "ไม่พบข้อมูลลูกค้า"
           );
         }
 
-        if (cancelled) {
+        if (
+          cancelled
+        ) {
           return;
         }
 
@@ -299,9 +402,9 @@ export default function MiniAppShopPage() {
             []
         );
 
-        // ----------------------------
-        // Load existing local cart
-        // ----------------------------
+        // ---------------------------------------------
+        // LOAD CART
+        // ---------------------------------------------
 
         const stored =
           localStorage.getItem(
@@ -326,14 +429,16 @@ export default function MiniAppShopPage() {
           false
         );
       } catch (error) {
-        if (cancelled) {
+        if (
+          cancelled
+        ) {
           return;
         }
 
         setMessage(
           error instanceof Error
             ? error.message
-            : "Could not load catalogue."
+            : "ไม่สามารถโหลดสินค้าได้"
         );
 
         setLoading(
@@ -350,9 +455,9 @@ export default function MiniAppShopPage() {
     };
   }, []);
 
-  // ================================================
+  // =====================================================
   // FAVOURITES
-  // ================================================
+  // =====================================================
 
   async function toggleFavourite(
     product: Product
@@ -403,15 +508,18 @@ export default function MiniAppShopPage() {
           1
         : null;
 
-    // --------------------------------------------
-    // Optimistic UI:
-    // star changes immediately.
-    // --------------------------------------------
+    // ---------------------------------------------
+    // OPTIMISTIC UI
+    // ---------------------------------------------
 
     setProducts(
-      (current) =>
+      (
+        current
+      ) =>
         current.map(
-          (item) =>
+          (
+            item
+          ) =>
             item.id ===
             product.id
               ? {
@@ -428,7 +536,9 @@ export default function MiniAppShopPage() {
     );
 
     setSavingFavouriteIds(
-      (current) => {
+      (
+        current
+      ) => {
         const next =
           new Set(
             current
@@ -460,18 +570,20 @@ export default function MiniAppShopPage() {
             },
 
             body:
-              JSON.stringify({
-                idToken,
+              JSON.stringify(
+                {
+                  idToken,
 
-                customerCode:
-                  customer.customerCode,
+                  customerCode:
+                    customer.customerCode,
 
-                productId:
-                  product.id,
+                  productId:
+                    product.id,
 
-                isFavourite:
-                  nextFavourite,
-              }),
+                  isFavourite:
+                    nextFavourite,
+                }
+              ),
           }
         );
 
@@ -483,14 +595,18 @@ export default function MiniAppShopPage() {
       ) {
         throw new Error(
           result.error ??
-            "Could not update favourite."
+            "ไม่สามารถอัปเดตรายการโปรดได้"
         );
       }
 
       setProducts(
-        (current) =>
+        (
+          current
+        ) =>
           current.map(
-            (item) =>
+            (
+              item
+            ) =>
               item.id ===
               product.id
                 ? {
@@ -509,12 +625,16 @@ export default function MiniAppShopPage() {
           )
       );
     } catch (error) {
-      // Roll back if server update fails.
+      // Roll back
 
       setProducts(
-        (current) =>
+        (
+          current
+        ) =>
           current.map(
-            (item) =>
+            (
+              item
+            ) =>
               item.id ===
               product.id
                 ? {
@@ -533,11 +653,13 @@ export default function MiniAppShopPage() {
       setMessage(
         error instanceof Error
           ? error.message
-          : "Could not update favourite."
+          : "ไม่สามารถอัปเดตรายการโปรดได้"
       );
     } finally {
       setSavingFavouriteIds(
-        (current) => {
+        (
+          current
+        ) => {
           const next =
             new Set(
               current
@@ -553,9 +675,9 @@ export default function MiniAppShopPage() {
     }
   }
 
-  // ================================================
-  // SAVE CART
-  // ================================================
+  // =====================================================
+  // CART
+  // =====================================================
 
   function saveCart(
     newCart: Cart
@@ -564,7 +686,9 @@ export default function MiniAppShopPage() {
       newCart
     );
 
-    if (!customer) {
+    if (
+      !customer
+    ) {
       return;
     }
 
@@ -620,7 +744,9 @@ export default function MiniAppShopPage() {
       newCart[
         productId
       ] =
-        quantity;
+        roundQuantity(
+          quantity
+        );
     }
 
     saveCart(
@@ -628,9 +754,105 @@ export default function MiniAppShopPage() {
     );
   }
 
-  // ================================================
+  function changeQuantity(
+    product: Product,
+    direction:
+      | 1
+      | -1
+  ) {
+    const step =
+      getQuantityStep(
+        product.unit
+      );
+
+    const current =
+      Number(
+        cart[
+          product.id
+        ] ??
+          0
+      );
+
+    const next =
+      roundQuantity(
+        Math.max(
+          0,
+          current +
+            direction *
+              step
+        )
+      );
+
+    const nextCart = {
+      ...cart,
+    };
+
+    if (
+      next <= 0
+    ) {
+      delete nextCart[
+        product.id
+      ];
+    } else {
+      nextCart[
+        product.id
+      ] =
+        next;
+    }
+
+    saveCart(
+      nextCart
+    );
+  }
+
+  // =====================================================
+  // CATEGORIES
+  // =====================================================
+
+  const categories =
+    useMemo(
+      () => {
+        const values =
+          products
+            .map(
+              (
+                product
+              ) =>
+                product.category
+                  ?.trim()
+            )
+            .filter(
+              (
+                value
+              ): value is string =>
+                Boolean(
+                  value
+                )
+            );
+
+        return Array.from(
+          new Set(
+            values
+          )
+        ).sort(
+          (
+            a,
+            b
+          ) =>
+            a.localeCompare(
+              b,
+              "th"
+            )
+        );
+      },
+      [
+        products,
+      ]
+    );
+
+  // =====================================================
   // FILTER PRODUCTS
-  // ================================================
+  // =====================================================
 
   const displayedProducts =
     useMemo(() => {
@@ -641,11 +863,22 @@ export default function MiniAppShopPage() {
 
       let list =
         products.filter(
-          (product) => {
+          (
+            product
+          ) => {
             if (
               tab ===
                 "favourites" &&
               !product.isFavourite
+            ) {
+              return false;
+            }
+
+            if (
+              selectedCategory !==
+                "all" &&
+              product.category !==
+                selectedCategory
             ) {
               return false;
             }
@@ -684,7 +917,10 @@ export default function MiniAppShopPage() {
         list = [
           ...list,
         ].sort(
-          (a, b) =>
+          (
+            a,
+            b
+          ) =>
             (
               a.favouriteOrder ??
               999999
@@ -694,6 +930,19 @@ export default function MiniAppShopPage() {
               999999
             )
         );
+      } else {
+        list = [
+          ...list,
+        ].sort(
+          (
+            a,
+            b
+          ) =>
+            a.productName.localeCompare(
+              b.productName,
+              "th"
+            )
+        );
       }
 
       return list;
@@ -701,27 +950,33 @@ export default function MiniAppShopPage() {
       products,
       search,
       tab,
+      selectedCategory,
     ]);
 
-  // ================================================
+  // =====================================================
   // CART DETAILS
-  // ================================================
+  // =====================================================
 
   const cartProducts =
     useMemo(
       () =>
         products
           .filter(
-            (product) =>
+            (
+              product
+            ) =>
               Number(
                 cart[
                   product.id
                 ] ??
                   0
-              ) > 0
+              ) >
+              0
           )
           .map(
-            (product) => ({
+            (
+              product
+            ) => ({
               ...product,
 
               quantity:
@@ -753,22 +1008,26 @@ export default function MiniAppShopPage() {
       0
     );
 
-  // ================================================
+  // =====================================================
   // LOADING
-  // ================================================
+  // =====================================================
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
-      <main className="min-h-screen bg-gray-100 flex items-center justify-center p-5">
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center p-5">
 
         <div className="text-center">
 
-          <p className="text-xl font-bold">
+          <div className="w-12 h-12 rounded-full border-4 border-gray-200 border-t-black animate-spin mx-auto" />
+
+          <p className="font-bold text-lg mt-5">
             LOTUS&apos;S B2B
           </p>
 
-          <p className="text-gray-500 mt-3">
-            Loading products...
+          <p className="text-gray-500 mt-2">
+            กำลังโหลดสินค้า...
           </p>
 
         </div>
@@ -777,13 +1036,15 @@ export default function MiniAppShopPage() {
     );
   }
 
-  // ================================================
+  // =====================================================
   // ERROR
-  // ================================================
+  // =====================================================
 
-  if (!customer) {
+  if (
+    !customer
+  ) {
     return (
-      <main className="min-h-screen bg-gray-100 p-5">
+      <main className="min-h-screen bg-gray-50 p-5">
 
         <div className="max-w-md mx-auto">
 
@@ -794,13 +1055,13 @@ export default function MiniAppShopPage() {
             }
             className="text-gray-500"
           >
-            ← Customer Home
+            ← กลับหน้าหลัก
           </button>
 
           <div className="bg-white border rounded-2xl p-6 mt-5">
 
             <h1 className="text-xl font-bold">
-              Could Not Load Catalogue
+              ไม่สามารถโหลดสินค้าได้
             </h1>
 
             <p className="text-red-600 mt-3">
@@ -817,340 +1078,544 @@ export default function MiniAppShopPage() {
     );
   }
 
-  // ================================================
+  // =====================================================
   // PAGE
-  // ================================================
+  // =====================================================
 
   return (
-    <main className="min-h-screen bg-gray-100 pb-28">
+    <main className="min-h-screen bg-gray-50 pb-28">
 
+      {/* ================================================= */}
       {/* HEADER */}
+      {/* ================================================= */}
 
-      <header className="bg-white border-b sticky top-0 z-20">
+      <header className="bg-white border-b sticky top-0 z-30">
 
-        <div className="max-w-2xl mx-auto px-4 py-4">
+        <div className="max-w-2xl mx-auto px-4 pt-3 pb-4">
 
-          <button
-            type="button"
-            onClick={
-              goCustomerHome
-            }
-            className="text-sm text-gray-500"
-          >
-            ← Customer Home
-          </button>
+          <div className="flex justify-between items-center gap-3">
 
-          <h1 className="text-2xl font-bold mt-3">
-            Order Products
-          </h1>
+            <button
+              type="button"
+              onClick={
+                goCustomerHome
+              }
+              className="text-sm text-gray-500"
+            >
+              ← หน้าแรก
+            </button>
 
-          <p className="text-gray-500">
-            {
-              customer.customerName
-            }
-          </p>
-
-        </div>
-
-      </header>
-
-      <div className="max-w-2xl mx-auto p-4">
-
-        {/* TABS */}
-
-        <div className="grid grid-cols-2 bg-white border rounded-xl overflow-hidden mb-4">
-
-          <button
-            type="button"
-            onClick={() =>
-              setTab(
-                "favourites"
-              )
-            }
-            className={
-              tab ===
-              "favourites"
-                ? "bg-black text-white px-4 py-3 font-semibold"
-                : "px-4 py-3 font-semibold"
-            }
-          >
-            ★ Favourites
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setTab(
-                "all"
-              )
-            }
-            className={
-              tab ===
-              "all"
-                ? "bg-black text-white px-4 py-3 font-semibold"
-                : "px-4 py-3 font-semibold"
-            }
-          >
-            All Products
-          </button>
-
-        </div>
-
-        {/* MESSAGE */}
-
-        {message && (
-          <div className="bg-white border rounded-xl p-4 mb-4 text-red-600">
-            {
-              message
-            }
-          </div>
-        )}
-
-        {/* SEARCH */}
-
-        <input
-          value={
-            search
-          }
-          onChange={(event) =>
-            setSearch(
-              event.target.value
-            )
-          }
-          placeholder="Search product, SKU or category..."
-          className="w-full bg-white border rounded-xl px-4 py-3 mb-4"
-        />
-
-        {/* FAVOURITES HELP */}
-
-        {tab ===
-          "favourites" && (
-          <p className="text-sm text-gray-500 mb-4">
-            Tap ★ on any favourite to remove it. Add more from All Products.
-          </p>
-        )}
-
-        {tab ===
-          "all" && (
-          <p className="text-sm text-gray-500 mb-4">
-            Tap ☆ to add products to your favourites for faster ordering.
-          </p>
-        )}
-
-        {/* PRODUCTS */}
-
-        {displayedProducts.length ===
-        0 ? (
-
-          <div className="bg-white border rounded-2xl p-8 text-center">
-
-            <p className="text-gray-500">
-
-              {tab ===
-              "favourites"
-                ? "You do not have any favourite products yet."
-                : "No products found."}
-
-            </p>
-
-            {tab ===
-              "favourites" && (
+            {cartItemCount >
+              0 && (
 
               <button
                 type="button"
                 onClick={() =>
-                  setTab(
-                    "all"
+                  setShowCart(
+                    true
                   )
                 }
-                className="mt-4 underline font-semibold"
+                className="relative border rounded-full w-10 h-10 flex items-center justify-center bg-white"
+                aria-label="เปิดตะกร้า"
               >
-                Browse All Products
+                🛒
+
+                <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-black text-white text-[11px] flex items-center justify-center">
+                  {
+                    cartItemCount
+                  }
+                </span>
+
               </button>
 
             )}
 
           </div>
 
-        ) : (
+          <div className="mt-3">
 
-          <div className="space-y-3">
+            <h1 className="text-2xl font-bold">
+              สั่งสินค้า
+            </h1>
 
-            {displayedProducts.map(
-              (product) => {
-                const step =
-                  product.unit
-                    .toLowerCase()
-                    .includes(
-                      "kg"
+            <p className="text-sm text-gray-500 mt-1">
+              {
+                customer.customerName
+              }
+            </p>
+
+          </div>
+
+          {/* SEARCH */}
+
+          <div className="relative mt-4">
+
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+              🔍
+            </span>
+
+            <input
+              value={
+                search
+              }
+              onChange={(event) =>
+                setSearch(
+                  event.target
+                    .value
+                )
+              }
+              placeholder="ค้นหาสินค้า หรือ SKU"
+              className="w-full bg-gray-100 rounded-xl pl-11 pr-4 py-3 outline-none focus:ring-2 focus:ring-gray-300"
+            />
+
+          </div>
+
+        </div>
+
+      </header>
+
+      {/* ================================================= */}
+      {/* CONTENT */}
+      {/* ================================================= */}
+
+      <div className="max-w-2xl mx-auto">
+
+        {/* TABS */}
+
+        <div className="bg-white px-4 pt-4">
+
+          <div className="grid grid-cols-2 bg-gray-100 rounded-xl p-1">
+
+            <button
+              type="button"
+              onClick={() =>
+                setTab(
+                  "favourites"
+                )
+              }
+              className={
+                tab ===
+                "favourites"
+                  ? "bg-white rounded-lg px-3 py-2.5 font-semibold shadow-sm"
+                  : "px-3 py-2.5 font-semibold text-gray-500"
+              }
+            >
+              ★ ซื้อประจำ
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setTab(
+                  "all"
+                )
+              }
+              className={
+                tab ===
+                "all"
+                  ? "bg-white rounded-lg px-3 py-2.5 font-semibold shadow-sm"
+                  : "px-3 py-2.5 font-semibold text-gray-500"
+              }
+            >
+              สินค้าทั้งหมด
+            </button>
+
+          </div>
+
+        </div>
+
+        {/* CATEGORY FILTER */}
+
+        {categories.length >
+          0 && (
+
+          <div className="bg-white px-4 py-4 border-b">
+
+            <div className="flex gap-2 overflow-x-auto pb-1">
+
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedCategory(
+                    "all"
+                  )
+                }
+                className={
+                  selectedCategory ===
+                  "all"
+                    ? "whitespace-nowrap bg-black text-white rounded-full px-4 py-2 text-sm font-semibold"
+                    : "whitespace-nowrap bg-gray-100 rounded-full px-4 py-2 text-sm"
+                }
+              >
+                ทั้งหมด
+              </button>
+
+              {categories.map(
+                (
+                  category
+                ) => (
+
+                <button
+                  type="button"
+                  key={
+                    category
+                  }
+                  onClick={() =>
+                    setSelectedCategory(
+                      category
                     )
-                    ? 0.1
-                    : 1;
+                  }
+                  className={
+                    selectedCategory ===
+                    category
+                      ? "whitespace-nowrap bg-black text-white rounded-full px-4 py-2 text-sm font-semibold"
+                      : "whitespace-nowrap bg-gray-100 rounded-full px-4 py-2 text-sm"
+                  }
+                >
+                  {
+                    category
+                  }
+                </button>
 
-                const favouriteBusy =
-                  savingFavouriteIds.has(
-                    product.id
-                  );
+              ))}
 
-                return (
-                  <div
-                    key={
+            </div>
+
+          </div>
+
+        )}
+
+        {/* MESSAGE */}
+
+        {message && (
+
+          <div className="mx-4 mt-4 bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
+            {
+              message
+            }
+          </div>
+
+        )}
+
+        {/* TAB HELP */}
+
+        <div className="px-4 pt-4">
+
+          <p className="text-xs text-gray-500">
+
+            {tab ===
+            "favourites"
+              ? "สินค้าที่คุณซื้อประจำ กด ★ เพื่อเอาออกจากรายการ"
+              : "กด ☆ ที่รูปสินค้าเพื่อเพิ่มไว้ในรายการซื้อประจำ"}
+
+          </p>
+
+        </div>
+
+        {/* ================================================= */}
+        {/* PRODUCTS */}
+        {/* ================================================= */}
+
+        <div className="p-4">
+
+          {displayedProducts.length ===
+          0 ? (
+
+            <div className="bg-white border rounded-2xl p-8 text-center">
+
+              <p className="font-semibold">
+                {tab ===
+                "favourites"
+                  ? "ยังไม่มีสินค้าซื้อประจำ"
+                  : "ไม่พบสินค้า"}
+              </p>
+
+              <p className="text-sm text-gray-500 mt-2">
+                {tab ===
+                "favourites"
+                  ? "เลือกสินค้าจากหน้าสินค้าทั้งหมดแล้วกด ☆ เพื่อเพิ่มรายการโปรด"
+                  : "ลองค้นหาด้วยชื่อสินค้า หรือ SKU อื่น"}
+              </p>
+
+              {tab ===
+                "favourites" && (
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTab(
+                      "all"
+                    )
+                  }
+                  className="mt-5 bg-black text-white rounded-xl px-5 py-3 font-semibold"
+                >
+                  ดูสินค้าทั้งหมด
+                </button>
+
+              )}
+
+            </div>
+
+          ) : (
+
+            <div className="grid grid-cols-2 gap-3">
+
+              {displayedProducts.map(
+                (
+                  product
+                ) => {
+                  const step =
+                    getQuantityStep(
+                      product.unit
+                    );
+
+                  const quantity =
+                    Number(
+                      cart[
+                        product.id
+                      ] ??
+                        0
+                    );
+
+                  const favouriteBusy =
+                    savingFavouriteIds.has(
                       product.id
-                    }
-                    className="bg-white border rounded-2xl p-4"
-                  >
+                    );
 
-                    <div className="flex justify-between gap-3">
+                  return (
+                    <article
+                      key={
+                        product.id
+                      }
+                      className="bg-white border rounded-2xl overflow-hidden flex flex-col"
+                    >
 
-                      {/* PRODUCT INFO */}
+                      {/* IMAGE */}
 
-                      <div className="min-w-0 flex-1">
+                      <div className="relative aspect-square bg-gray-50">
 
-                        <div className="flex items-start gap-2">
+                        {product.imageUrl ? (
 
-                          <div className="min-w-0 flex-1">
+                          <img
+                            src={
+                              product.imageUrl
+                            }
+                            alt={
+                              product.productName
+                            }
+                            className="w-full h-full object-contain p-2"
+                            loading="lazy"
+                            onError={(event) => {
+                              event.currentTarget.style.display =
+                                "none";
+                            }}
+                          />
 
-                            <p className="font-bold">
-                              {
-                                product.productName
-                              }
-                            </p>
+                        ) : (
 
-                            <p className="text-xs text-gray-400 mt-1">
-                              {
-                                product.sku
-                              }
+                          <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 p-4">
 
-                              {product.category
-                                ? ` · ${product.category}`
-                                : ""}
-                            </p>
+                            <span className="text-4xl">
+                              📦
+                            </span>
+
+                            <span className="text-xs mt-2">
+                              ไม่มีรูปสินค้า
+                            </span>
 
                           </div>
 
-                          {/* FAVOURITE STAR */}
+                        )}
 
-                          <button
-                            type="button"
-                            disabled={
-                              favouriteBusy
-                            }
-                            onClick={() =>
-                              toggleFavourite(
-                                product
-                              )
-                            }
-                            aria-label={
-                              product.isFavourite
-                                ? `Remove ${product.productName} from favourites`
-                                : `Add ${product.productName} to favourites`
-                            }
-                            title={
-                              product.isFavourite
-                                ? "Remove from favourites"
-                                : "Add to favourites"
-                            }
-                            className="w-11 h-11 shrink-0 flex items-center justify-center text-3xl leading-none rounded-full disabled:opacity-40"
-                          >
-                            {favouriteBusy
-                              ? "…"
-                              : product.isFavourite
-                              ? "★"
-                              : "☆"}
-                          </button>
+                        {/* FAVOURITE */}
 
-                        </div>
+                        <button
+                          type="button"
+                          disabled={
+                            favouriteBusy
+                          }
+                          onClick={() =>
+                            toggleFavourite(
+                              product
+                            )
+                          }
+                          aria-label={
+                            product.isFavourite
+                              ? `นำ ${product.productName} ออกจากรายการโปรด`
+                              : `เพิ่ม ${product.productName} ในรายการโปรด`
+                          }
+                          className="absolute top-2 right-2 w-10 h-10 rounded-full bg-white/95 shadow flex items-center justify-center text-2xl disabled:opacity-50"
+                        >
+                          {favouriteBusy
+                            ? "…"
+                            : product.isFavourite
+                            ? "★"
+                            : "☆"}
+                        </button>
+
+                        {/* SPECIAL PRICE */}
+
+                        {product.hasSpecialPrice && (
+
+                          <span className="absolute left-2 top-2 bg-black text-white rounded-full px-2.5 py-1 text-[10px] font-semibold">
+                            ราคาพิเศษ
+                          </span>
+
+                        )}
+
+                      </div>
+
+                      {/* INFO */}
+
+                      <div className="p-3 flex flex-col flex-1">
+
+                        <p className="font-semibold text-sm leading-5 line-clamp-2 min-h-10">
+                          {
+                            product.productName
+                          }
+                        </p>
+
+                        <p className="text-[11px] text-gray-400 mt-1 truncate">
+                          SKU{" "}
+                          {
+                            product.sku
+                          }
+                        </p>
+
+                        {/* PRICE */}
 
                         <div className="mt-3">
 
-                          <span className="font-bold text-lg">
-                            ฿
-                            {product.effectivePrice.toFixed(
-                              2
-                            )}
-                          </span>
+                          <div className="flex items-end gap-1 flex-wrap">
 
-                          <span className="text-gray-500 text-sm">
-                            {" "}
-                            /{" "}
-                            {
-                              product.unit
-                            }
-                          </span>
+                            <span className="font-bold text-lg leading-none">
+                              ฿
+                              {formatPrice(
+                                product.effectivePrice
+                              )}
+                            </span>
+
+                            <span className="text-xs text-gray-500">
+                              /{" "}
+                              {
+                                product.unit
+                              }
+                            </span>
+
+                          </div>
 
                           {product.hasSpecialPrice && (
-                            <>
 
-                              <p className="text-xs font-semibold mt-1">
-                                Your special price
-                              </p>
+                            <p className="text-xs text-gray-400 line-through mt-1">
+                              ปกติ ฿
+                              {formatPrice(
+                                product.normalPrice
+                              )}
+                            </p>
 
-                              <p className="text-xs text-gray-400 line-through">
-                                Normal ฿
-                                {product.normalPrice.toFixed(
-                                  2
-                                )}
-                              </p>
+                          )}
 
-                            </>
+                        </div>
+
+                        {/* QUANTITY */}
+
+                        <div className="mt-auto pt-4">
+
+                          {quantity >
+                          0 ? (
+
+                            <div className="flex items-center border rounded-xl overflow-hidden">
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  changeQuantity(
+                                    product,
+                                    -1
+                                  )
+                                }
+                                className="w-9 h-10 flex items-center justify-center text-lg font-bold bg-gray-50"
+                              >
+                                −
+                              </button>
+
+                              <input
+                                type="number"
+                                min="0"
+                                step={
+                                  step
+                                }
+                                value={
+                                  quantity
+                                }
+                                onChange={(event) =>
+                                  updateQuantity(
+                                    product.id,
+                                    event
+                                      .target
+                                      .value
+                                  )
+                                }
+                                className="min-w-0 flex-1 w-full h-10 text-center text-sm font-semibold outline-none"
+                              />
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  changeQuantity(
+                                    product,
+                                    1
+                                  )
+                                }
+                                className="w-9 h-10 flex items-center justify-center text-lg font-bold bg-emerald-600 text-white"
+                              >
+                                +
+                              </button>
+
+                            </div>
+
+                          ) : (
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                changeQuantity(
+                                  product,
+                                  1
+                                )
+                              }
+                              className="w-full bg-emerald-600 text-white rounded-xl py-2.5 text-sm font-semibold"
+                            >
+                              + เพิ่ม
+                            </button>
+
                           )}
 
                         </div>
 
                       </div>
 
-                      {/* QUANTITY */}
+                    </article>
+                  );
+                }
+              )}
 
-                      <div className="shrink-0">
+            </div>
 
-                        <label className="text-xs text-gray-500">
-                          Qty
-                        </label>
+          )}
 
-                        <input
-                          type="number"
-                          min="0"
-                          step={
-                            step
-                          }
-                          value={
-                            cart[
-                              product.id
-                            ] ??
-                            ""
-                          }
-                          onChange={(event) =>
-                            updateQuantity(
-                              product.id,
-                              event
-                                .target
-                                .value
-                            )
-                          }
-                          className="block w-24 border rounded-lg px-3 py-2 mt-1 text-right"
-                        />
-
-                      </div>
-
-                    </div>
-
-                  </div>
-                );
-              }
-            )}
-
-          </div>
-
-        )}
+        </div>
 
       </div>
 
+      {/* ================================================= */}
       {/* CART BAR */}
+      {/* ================================================= */}
 
       {cartItemCount >
         0 && (
 
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-3 z-30">
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-3 z-40">
 
           <div className="max-w-2xl mx-auto">
 
@@ -1161,21 +1626,29 @@ export default function MiniAppShopPage() {
                   true
                 )
               }
-              className="w-full bg-black text-white rounded-xl px-5 py-4 flex justify-between items-center"
+              className="w-full bg-black text-white rounded-2xl px-5 py-4 flex justify-between items-center"
             >
 
-              <span className="font-semibold">
-                View Cart (
-                {
-                  cartItemCount
-                }
-                )
-              </span>
+              <div className="text-left">
 
-              <span className="font-bold">
+                <p className="font-semibold">
+                  ดูตะกร้า{" "}
+                  {
+                    cartItemCount
+                  }{" "}
+                  รายการ
+                </p>
+
+                <p className="text-xs text-white/60 mt-0.5">
+                  แตะเพื่อตรวจสอบรายการ
+                </p>
+
+              </div>
+
+              <span className="font-bold text-lg">
                 ~฿
-                {estimatedTotal.toFixed(
-                  2
+                {formatPrice(
+                  estimatedTotal
                 )}
               </span>
 
@@ -1187,25 +1660,38 @@ export default function MiniAppShopPage() {
 
       )}
 
+      {/* ================================================= */}
       {/* CART MODAL */}
+      {/* ================================================= */}
 
       {showCart && (
 
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end">
 
-          <div className="bg-white w-full max-h-[85vh] rounded-t-3xl overflow-y-auto">
+          <button
+            type="button"
+            aria-label="ปิดตะกร้า"
+            className="absolute inset-0 w-full h-full"
+            onClick={() =>
+              setShowCart(
+                false
+              )
+            }
+          />
+
+          <div className="relative bg-white w-full max-h-[88vh] rounded-t-3xl overflow-y-auto">
 
             <div className="max-w-2xl mx-auto p-5">
 
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-start gap-4">
 
                 <div>
 
                   <h2 className="text-2xl font-bold">
-                    Your Cart
+                    ตะกร้าสินค้า
                   </h2>
 
-                  <p className="text-gray-500">
+                  <p className="text-sm text-gray-500 mt-1">
                     {
                       customer.customerName
                     }
@@ -1220,17 +1706,21 @@ export default function MiniAppShopPage() {
                       false
                     )
                   }
-                  className="text-2xl"
+                  className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xl"
                 >
                   ×
                 </button>
 
               </div>
 
+              {/* ITEMS */}
+
               <div className="mt-5 divide-y">
 
                 {cartProducts.map(
-                  (product) => (
+                  (
+                    product
+                  ) => (
 
                   <div
                     key={
@@ -1239,47 +1729,62 @@ export default function MiniAppShopPage() {
                     className="py-4"
                   >
 
-                    <div className="flex justify-between gap-4">
+                    <div className="flex gap-3">
 
-                      <div>
+                      <div className="w-16 h-16 rounded-xl bg-gray-50 overflow-hidden shrink-0">
 
-                        <p className="font-semibold">
+                        {product.imageUrl ? (
+
+                          <img
+                            src={
+                              product.imageUrl
+                            }
+                            alt={
+                              product.productName
+                            }
+                            className="w-full h-full object-contain p-1"
+                            loading="lazy"
+                          />
+
+                        ) : (
+
+                          <div className="w-full h-full flex items-center justify-center">
+                            📦
+                          </div>
+
+                        )}
+
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+
+                        <p className="font-semibold text-sm">
                           {
                             product.productName
                           }
                         </p>
 
                         <p className="text-sm text-gray-500 mt-1">
-
-                          {
+                          {formatQuantity(
                             product.quantity
-                          }{" "}
-
+                          )}{" "}
                           {
                             product.unit
-                          }
-
-                          {" × "}
-
-                          ฿
-                          {product.effectivePrice.toFixed(
-                            2
+                          }{" "}
+                          × ฿
+                          {formatPrice(
+                            product.effectivePrice
                           )}
-
                         </p>
 
                       </div>
 
-                      <p className="font-bold">
-
+                      <p className="font-bold whitespace-nowrap">
                         ฿
-                        {(
+                        {formatPrice(
                           product.quantity *
-                          product.effectivePrice
-                        ).toFixed(
-                          2
+                            product.effectivePrice
                         )}
-
                       </p>
 
                     </div>
@@ -1290,46 +1795,60 @@ export default function MiniAppShopPage() {
 
               </div>
 
-              <div className="flex justify-between items-center border-t pt-5 mt-2">
+              {/* TOTAL */}
 
-                <span className="text-gray-500">
-                  Estimated Total
-                </span>
+              <div className="flex justify-between items-end border-t pt-5 mt-2">
+
+                <div>
+
+                  <p className="text-sm text-gray-500">
+                    ยอดประมาณการ
+                  </p>
+
+                  <p className="text-xs text-gray-400 mt-1">
+                    จำนวนจริงอาจเปลี่ยนหลังหยิบสินค้า
+                  </p>
+
+                </div>
 
                 <span className="text-2xl font-bold">
                   ฿
-                  {estimatedTotal.toFixed(
-                    2
+                  {formatPrice(
+                    estimatedTotal
                   )}
                 </span>
 
               </div>
 
-              <p className="text-xs text-gray-500 mt-2">
-                Final quantity and amount may change after confirmation and picking.
-              </p>
+              {/* CHECKOUT */}
 
               <button
                 type="button"
                 onClick={() =>
                   router.push(
-                    `/miniapp/checkout?customer=${customer.customerCode}`
+                    `/miniapp/checkout?customer=${encodeURIComponent(
+                      customer.customerCode
+                    )}`
                   )
                 }
                 className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-6"
               >
-                CONTINUE TO CHECKOUT
+                ดำเนินการสั่งซื้อ
               </button>
+
+              {/* CLEAR */}
 
               <button
                 type="button"
                 onClick={() => {
                   const confirmed =
                     window.confirm(
-                      "Clear all items from your cart?"
+                      "ต้องการล้างสินค้าทั้งหมดในตะกร้าหรือไม่?"
                     );
 
-                  if (!confirmed) {
+                  if (
+                    !confirmed
+                  ) {
                     return;
                   }
 
@@ -1341,9 +1860,9 @@ export default function MiniAppShopPage() {
                     false
                   );
                 }}
-                className="w-full border rounded-xl px-5 py-3 mt-3"
+                className="w-full border rounded-xl px-5 py-3 mt-3 text-gray-600"
               >
-                Reset Cart
+                ล้างตะกร้า
               </button>
 
             </div>
