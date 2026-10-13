@@ -1,15 +1,14 @@
 "use client";
 
 import {
+  FormEvent,
   useEffect,
   useState,
 } from "react";
 
 import Link from "next/link";
 
-import {
-  supabase,
-} from "../lib/supabase";
+import { supabase } from "../lib/supabase";
 
 type StaffProfile = {
   staff_code: string;
@@ -24,6 +23,18 @@ type NavigationItem = {
 };
 
 export default function Home() {
+  const [
+    email,
+    setEmail,
+  ] =
+    useState("");
+
+  const [
+    password,
+    setPassword,
+  ] =
+    useState("");
+
   const [
     staff,
     setStaff,
@@ -100,22 +111,23 @@ export default function Home() {
   // =====================================================
 
   async function loadStaff() {
-    setLoading(
-      true
-    );
+    setLoading(true);
 
     const {
       data: { user },
     } =
       await supabase.auth.getUser();
 
-    // No Supabase staff session:
-    // send user back to LINE entry point.
     if (!user) {
-      window.location.replace(
-        "/miniapp?portal=access"
+      setStaff(
+        null
       );
 
+      setActiveOrderCount(
+        0
+      );
+
+      setLoading(false);
       return;
     }
 
@@ -136,22 +148,21 @@ export default function Home() {
         )
         .single();
 
-    if (
-      error ||
-      !data
-    ) {
+    if (error) {
       console.error(
         error
       );
 
       setMessage(
-        "Your authenticated account is not linked to an active OMS staff profile."
+        "เข้าสู่ระบบสำเร็จ แต่ไม่สามารถโหลดข้อมูลพนักงานได้: " +
+          error.message
       );
 
-      setLoading(
-        false
+      setStaff(
+        null
       );
 
+      setLoading(false);
       return;
     }
 
@@ -165,14 +176,47 @@ export default function Home() {
 
     await loadActiveOrderCount();
 
-    setLoading(
-      false
-    );
+    setLoading(false);
   }
 
   useEffect(() => {
     loadStaff();
   }, []);
+
+  // =====================================================
+  // SIGN IN
+  // =====================================================
+
+  async function handleSignIn(
+    event:
+      FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    setMessage(
+      "กำลังเข้าสู่ระบบ..."
+    );
+
+    const {
+      error,
+    } =
+      await supabase.auth.signInWithPassword(
+        {
+          email,
+          password,
+        }
+      );
+
+    if (error) {
+      setMessage(
+        error.message
+      );
+
+      return;
+    }
+
+    await loadStaff();
+  }
 
   // =====================================================
   // SIGN OUT
@@ -181,8 +225,24 @@ export default function Home() {
   async function handleSignOut() {
     await supabase.auth.signOut();
 
-    window.location.assign(
-      "/miniapp?portal=access"
+    setStaff(
+      null
+    );
+
+    setActiveOrderCount(
+      0
+    );
+
+    setEmail(
+      ""
+    );
+
+    setPassword(
+      ""
+    );
+
+    setMessage(
+      ""
     );
   }
 
@@ -193,56 +253,102 @@ export default function Home() {
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-100 flex items-center justify-center">
-
-        <div className="text-center">
-
-          <p className="text-xl font-bold">
-            B2B OMS
-          </p>
-
-          <p className="text-gray-500 mt-2">
-            Loading...
-          </p>
-
-        </div>
-
+        <p className="text-xl">
+          กำลังโหลด B2B OMS...
+        </p>
       </main>
     );
   }
 
   // =====================================================
-  // INVALID STAFF PROFILE
+  // LOGIN
   // =====================================================
 
-  if (
-    message ||
-    !staff
-  ) {
+  if (!staff) {
     return (
       <main className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
 
-        <div className="w-full max-w-md bg-white border rounded-2xl p-8">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow p-8">
 
-          <h1 className="text-2xl font-bold">
-            Staff Access Error
+          <h1 className="text-3xl font-bold mb-2">
+            B2B OMS
           </h1>
 
-          <p className="text-red-600 mt-4">
-            {
-              message ||
-              "Staff profile could not be loaded."
-            }
+          <p className="text-gray-500 mb-8">
+            เข้าสู่ระบบสำหรับพนักงานและผู้จัดการ
           </p>
 
-          <button
-            type="button"
-            onClick={
-              handleSignOut
+          <form
+            onSubmit={
+              handleSignIn
             }
-            className="w-full bg-black text-white rounded-lg py-3 font-semibold mt-6"
+            className="space-y-5"
           >
-            RETURN TO LINE
-          </button>
+
+            <div>
+
+              <label className="block mb-2 font-medium">
+                อีเมล
+              </label>
+
+              <input
+                type="email"
+                value={
+                  email
+                }
+                onChange={(
+                  event
+                ) =>
+                  setEmail(
+                    event.target
+                      .value
+                  )
+                }
+                className="w-full border rounded-lg px-4 py-3"
+                required
+              />
+
+            </div>
+
+            <div>
+
+              <label className="block mb-2 font-medium">
+                รหัสผ่าน
+              </label>
+
+              <input
+                type="password"
+                value={
+                  password
+                }
+                onChange={(
+                  event
+                ) =>
+                  setPassword(
+                    event.target
+                      .value
+                  )
+                }
+                className="w-full border rounded-lg px-4 py-3"
+                required
+              />
+
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-black text-white rounded-lg py-3 font-semibold"
+            >
+              เข้าสู่ระบบ
+            </button>
+
+          </form>
+
+          {message && (
+            <p className="mt-5 text-sm text-red-600">
+              {message}
+            </p>
+          )}
 
         </div>
 
@@ -259,35 +365,35 @@ export default function Home() {
     [
       {
         name:
-          "Tasks",
+          "งาน",
 
         href:
           "/tasks",
 
         description:
-          "Operational work queue",
+          "คิวงานปฏิบัติการ",
       },
 
       {
         name:
-          "Orders",
+          "คำสั่งซื้อ",
 
         href:
           "/orders",
 
         description:
-          "All B2B orders",
+          "ดูคำสั่งซื้อ B2B ทั้งหมด",
       },
 
       {
         name:
-          "Control Tower",
+          "ศูนย์ควบคุม",
 
         href:
           "/control-tower",
 
         description:
-          "Today's operation",
+          "ติดตามภาพรวมการปฏิบัติงานวันนี้",
       },
 
       {
@@ -303,35 +409,46 @@ export default function Home() {
 
       {
         name:
-          "Customers",
+          "ลูกค้า",
 
         href:
           "/customers",
 
         description:
-          "Customer management",
+          "จัดการข้อมูลลูกค้า B2B",
       },
 
       {
         name:
-          "Pricing",
+          "ราคา",
 
         href:
           "/pricing",
 
         description:
-          "Products & customer prices",
+          "จัดการราคาสินค้าและราคาลูกค้า",
       },
 
       {
         name:
-          "LINE Access",
+          "สิทธิ์ LINE",
 
         href:
           "/line-access",
 
         description:
-          "Manage customer & staff LINE authorization",
+          "จัดการสิทธิ์ LINE ของลูกค้าและพนักงาน",
+      },
+
+      {
+        name:
+          "นำเข้าข้อมูลสินค้า",
+
+        href:
+          "/catalog",
+
+        description:
+          "นำเข้า Product Master รูปสินค้า และรายการ SKU ที่แสดงให้ลูกค้า",
       },
     ];
 
@@ -340,35 +457,35 @@ export default function Home() {
     [
       {
         name:
-          "Tasks",
+          "งาน",
 
         href:
           "/tasks",
 
         description:
-          "Operational work queue",
+          "คิวงานปฏิบัติการ",
       },
 
       {
         name:
-          "Orders",
+          "คำสั่งซื้อ",
 
         href:
           "/orders",
 
         description:
-          "B2B orders",
+          "ดูคำสั่งซื้อ B2B",
       },
 
       {
         name:
-          "Control Tower",
+          "ศูนย์ควบคุม",
 
         href:
           "/control-tower",
 
         description:
-          "Today's operation",
+          "ติดตามภาพรวมการปฏิบัติงานวันนี้",
       },
     ];
 
@@ -379,29 +496,25 @@ export default function Home() {
       : staffNavigation;
 
   // =====================================================
-  // OMS HOME
+  // HOME
   // =====================================================
 
   return (
-    <main className="min-h-screen bg-gray-100 p-6 md:p-8">
+    <main className="min-h-screen bg-gray-100 p-4 md:p-8">
 
       <div className="max-w-6xl mx-auto">
 
         {/* HEADER */}
 
-        <div className="flex justify-between items-start gap-4 mb-10">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-10">
 
           <div>
 
-            <p className="text-sm text-gray-500">
-              B2B OMS
-            </p>
-
-            <h1 className="text-3xl font-bold mt-1">
-              Hello,{" "}
+            <h1 className="text-3xl font-bold">
+              สวัสดี{" "}
               {
                 staff.staff_name
-              }
+              }{" "}
               👋
             </h1>
 
@@ -423,16 +536,19 @@ export default function Home() {
           </div>
 
           <button
-            type="button"
             onClick={
               handleSignOut
             }
             className="bg-white border rounded-lg px-4 py-2"
           >
-            Sign Out
+            ออกจากระบบ
           </button>
 
         </div>
+
+        <h2 className="text-xl font-semibold mb-5">
+          B2B OMS
+        </h2>
 
         {/* NAVIGATION */}
 
@@ -441,14 +557,18 @@ export default function Home() {
           {navigation.map(
             (item) => {
 
+              // =========================================
+              // TASK CARD
+              // =========================================
+
               if (
-                item.name ===
-                "Tasks"
+                item.href ===
+                "/tasks"
               ) {
                 return (
                   <Link
                     key={
-                      item.name
+                      item.href
                     }
                     href={
                       item.href
@@ -461,47 +581,44 @@ export default function Home() {
                       <div>
 
                         <p className="font-semibold text-lg">
-                          Tasks
+                          งาน
                         </p>
 
                         <p className="text-sm text-gray-500 mt-2">
 
                           {activeOrderCount ===
                           0
-                            ? "No active orders"
-                            : `${activeOrderCount} active ${
-                                activeOrderCount ===
-                                1
-                                  ? "order"
-                                  : "orders"
-                              }`}
+                            ? "ไม่มีคำสั่งซื้อที่กำลังดำเนินการ"
+                            : `${activeOrderCount} คำสั่งซื้อที่กำลังดำเนินการ`}
 
                         </p>
 
                       </div>
 
                       <div className="min-w-12 h-12 px-3 bg-black text-white rounded-full flex items-center justify-center font-bold text-lg">
-
                         {
                           activeOrderCount
                         }
-
                       </div>
 
                     </div>
 
                     <p className="text-sm font-medium mt-6">
-                      View task queue →
+                      ดูคิวงาน →
                     </p>
 
                   </Link>
                 );
               }
 
+              // =========================================
+              // NORMAL CARD
+              // =========================================
+
               return (
                 <Link
                   key={
-                    item.name
+                    item.href
                   }
                   href={
                     item.href
@@ -527,6 +644,20 @@ export default function Home() {
               );
             }
           )}
+
+        </div>
+
+        {/* CONNECTION */}
+
+        <div className="bg-white border rounded-xl p-6 mt-8">
+
+          <p className="font-semibold">
+            เชื่อมต่อระบบ OMS สำเร็จ
+          </p>
+
+          <p className="text-gray-500 mt-2">
+            บัญชีของคุณเชื่อมต่อกับฐานข้อมูลพนักงานของ OMS แล้ว
+          </p>
 
         </div>
 
