@@ -45,6 +45,21 @@ type OrderDetails = {
 };
 
 
+type OrderFile = {
+  id: string;
+  file_type: string;
+  storage_path: string;
+  original_filename: string | null;
+  mime_type: string | null;
+};
+
+type DisplayFile = {
+  url: string;
+  name: string;
+  mimeType: string | null;
+};
+
+
 
 export default function DeliveryPage() {
 
@@ -73,6 +88,24 @@ export default function DeliveryPage() {
   const [photoUploaded, setPhotoUploaded] =
 
     useState(false);
+
+
+
+  const [cartPhoto, setCartPhoto] =
+
+    useState<DisplayFile | null>(null);
+
+
+
+  const [bill, setBill] =
+
+    useState<DisplayFile | null>(null);
+
+
+
+  const [paymentQr, setPaymentQr] =
+
+    useState<DisplayFile | null>(null);
 
 
 
@@ -182,31 +215,227 @@ export default function DeliveryPage() {
 
     const {
 
-      data: existingProof,
+      data: fileData,
 
-      error: proofError,
+      error: fileError,
 
     } = await supabase
 
       .from("order_files")
 
-      .select("id")
+      .select(`
+
+        id,
+
+        file_type,
+
+        storage_path,
+
+        original_filename,
+
+        mime_type
+
+      `)
 
       .eq("order_id", orderData.id)
 
-      .eq("file_type", "delivery_proof")
-
       .eq("is_current", true)
 
-      .maybeSingle();
+      .in(
+
+        "file_type",
+
+        [
+
+          "cart_photo",
+
+          "bill",
+
+          "payment_qr",
+
+          "delivery_proof",
+
+        ]
+
+      );
 
 
 
-    if (!proofError && existingProof) {
+    if (fileError) {
 
-      setPhotoUploaded(true);
+      setMessage(
+
+        "ไม่สามารถโหลดไฟล์ประกอบคำสั่งซื้อได้: " +
+
+          fileError.message
+
+      );
+
+      setLoading(false);
+
+      return;
 
     }
+
+
+
+    const files =
+
+      (fileData ?? []) as OrderFile[];
+
+
+
+    setPhotoUploaded(
+
+      files.some(
+
+        (file) =>
+
+          file.file_type ===
+
+          "delivery_proof"
+
+      )
+
+    );
+
+
+
+    async function getDisplayFile(
+
+      fileType: string
+
+    ): Promise<DisplayFile | null> {
+
+      const file =
+
+        files.find(
+
+          (item) =>
+
+            item.file_type ===
+
+            fileType
+
+        );
+
+
+
+      if (!file) {
+
+        return null;
+
+      }
+
+
+
+      const {
+
+        data,
+
+        error,
+
+      } = await supabase.storage
+
+        .from("order-files")
+
+        .createSignedUrl(
+
+          file.storage_path,
+
+          60 * 60
+
+        );
+
+
+
+      if (
+
+        error ||
+
+        !data
+
+      ) {
+
+        return null;
+
+      }
+
+
+
+      return {
+
+        url: data.signedUrl,
+
+        name:
+
+          file.original_filename ??
+
+          file.file_type,
+
+        mimeType:
+
+          file.mime_type,
+
+      };
+
+    }
+
+
+
+    const [
+
+      loadedCartPhoto,
+
+      loadedBill,
+
+      loadedPaymentQr,
+
+    ] = await Promise.all([
+
+      getDisplayFile(
+
+        "cart_photo"
+
+      ),
+
+      getDisplayFile(
+
+        "bill"
+
+      ),
+
+      getDisplayFile(
+
+        "payment_qr"
+
+      ),
+
+    ]);
+
+
+
+    setCartPhoto(
+
+      loadedCartPhoto
+
+    );
+
+
+
+    setBill(
+
+      loadedBill
+
+    );
+
+
+
+    setPaymentQr(
+
+      loadedPaymentQr
+
+    );
 
 
 
@@ -504,6 +733,26 @@ export default function DeliveryPage() {
 
 
 
+  function isImage(
+
+    file: DisplayFile | null
+
+  ) {
+
+    return Boolean(
+
+      file?.mimeType?.startsWith(
+
+        "image/"
+
+      )
+
+    );
+
+  }
+
+
+
   if (loading) {
 
     return (
@@ -777,6 +1026,114 @@ export default function DeliveryPage() {
           )}
 
 
+
+        </section>
+
+
+
+        <section className="bg-white border rounded-2xl p-6 mb-6">
+
+          <h2 className="font-bold text-lg">
+            เอกสารสำหรับการจัดส่ง
+          </h2>
+
+          <p className="text-sm text-gray-500 mt-1 mb-5">
+            ตรวจสอบรูปรถเข็น บิล และ QR ชำระเงินก่อนออกจัดส่ง
+          </p>
+
+          <div className="grid md:grid-cols-3 gap-5">
+
+            <div className="border rounded-2xl p-4">
+              <p className="font-semibold mb-3">
+                รูปรถเข็นสินค้า
+              </p>
+
+              {!cartPhoto ? (
+                <p className="text-sm text-gray-500">
+                  ยังไม่มีรูปรถเข็นสินค้า
+                </p>
+              ) : isImage(cartPhoto) ? (
+                <a
+                  href={cartPhoto.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <img
+                    src={cartPhoto.url}
+                    alt="รูปรถเข็นสินค้า"
+                    className="w-full h-56 object-contain border rounded-xl bg-gray-50"
+                  />
+                </a>
+              ) : (
+                <a
+                  href={cartPhoto.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline text-sm"
+                >
+                  เปิดไฟล์รูปรถเข็นสินค้า
+                </a>
+              )}
+            </div>
+
+            <div className="border rounded-2xl p-4">
+              <p className="font-semibold mb-3">
+                บิล
+              </p>
+
+              {!bill ? (
+                <p className="text-sm text-gray-500">
+                  ยังไม่มีบิล
+                </p>
+              ) : isImage(bill) ? (
+                <a
+                  href={bill.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <img
+                    src={bill.url}
+                    alt="บิล"
+                    className="w-full h-56 object-contain border rounded-xl bg-gray-50"
+                  />
+                </a>
+              ) : (
+                <a
+                  href={bill.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline text-sm"
+                >
+                  เปิดไฟล์บิล
+                </a>
+              )}
+            </div>
+
+            <div className="border rounded-2xl p-4">
+              <p className="font-semibold mb-3">
+                QR ชำระเงิน
+              </p>
+
+              {!paymentQr ? (
+                <p className="text-sm text-gray-500">
+                  ยังไม่มี QR ชำระเงิน
+                </p>
+              ) : (
+                <a
+                  href={paymentQr.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <img
+                    src={paymentQr.url}
+                    alt="QR ชำระเงิน"
+                    className="w-full h-56 object-contain border rounded-xl bg-gray-50"
+                  />
+                </a>
+              )}
+            </div>
+
+          </div>
 
         </section>
 
