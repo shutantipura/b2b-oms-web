@@ -13,6 +13,73 @@ type LineVerifyResponse = {
   error?: string;
 };
 
+type CatalogueProduct = {
+  id: string;
+  sku: string;
+  productName: string;
+  imageUrl: string | null;
+  category: string | null;
+  unit: string;
+  normalPrice: number;
+  effectivePrice: number;
+  hasSpecialPrice: boolean;
+  isFavourite: boolean;
+  favouriteOrder: number | null;
+};
+
+const PAGE_SIZE = 30;
+const MAX_CART_PRODUCT_IDS = 200;
+
+function clampOffset(value: unknown) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+
+  return Math.floor(parsed);
+}
+
+function sanitizeSearch(value: unknown) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value
+    .trim()
+    .replace(/[,%()*]/g, " ")
+    .replace(/\s+/g, " ")
+    .slice(0, 100);
+}
+
+function cleanProductIds(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as string[];
+  }
+
+  const unique = new Set<string>();
+
+  for (const raw of value) {
+    if (typeof raw !== "string") {
+      continue;
+    }
+
+    const id = raw.trim();
+
+    if (!id) {
+      continue;
+    }
+
+    unique.add(id);
+
+    if (unique.size >= MAX_CART_PRODUCT_IDS) {
+      break;
+    }
+  }
+
+  return [...unique];
+}
+
 export async function POST(
   request: NextRequest
 ) {
@@ -29,6 +96,24 @@ export async function POST(
             .trim()
             .toUpperCase()
         : "";
+
+    const search =
+      sanitizeSearch(
+        body.search
+      );
+
+    const offset =
+      clampOffset(
+        body.offset
+      );
+
+    const includeContext =
+      body.includeContext !== false;
+
+    const cartProductIds =
+      cleanProductIds(
+        body.cartProductIds
+      );
 
     if (
       !idToken ||
@@ -94,15 +179,12 @@ export async function POST(
         "https://api.line.me/oauth2/v2.1/verify",
         {
           method: "POST",
-
           headers: {
             "Content-Type":
               "application/x-www-form-urlencoded",
           },
-
           body:
             verifyBody.toString(),
-
           cache:
             "no-store",
         }
@@ -253,13 +335,10 @@ export async function POST(
           return {
             id:
               customer.id,
-
             customerCode:
               customer.customer_code,
-
             customerName:
               customer.customer_name,
-
             deliveryAddress:
               customer.delivery_address ??
               "",
@@ -290,7 +369,6 @@ export async function POST(
 
     // URL does NOT grant access.
     // LINE authorization must match it.
-
     if (!selectedCustomer) {
       return NextResponse.json(
         {
@@ -304,38 +382,65 @@ export async function POST(
     }
 
     // ================================================
-    // LOAD ACTIVE PRODUCTS
+    // LOAD ONE PAGE OF ACTIVE + VISIBLE PRODUCTS
     // ================================================
 
-    const {
-      data: productData,
-      error: productError,
-    } =
-      await supabaseAdmin
+    let productQuery =
+      supabaseAdmin
         .from("products")
-        .select(`
-  id,
-  sku,
-  product_name,
-  category,
-  unit,
-  normal_price,
-  image_url
-`)
-.eq(
-  "is_active",
-  true
-)
-.eq(
-  "is_customer_visible",
-  true
-)
+        .select(
+          `
+            id,
+            sku,
+            product_name,
+            category,
+            unit,
+            normal_price,
+            image_url
+          `,
+          {
+            count: "exact",
+          }
+        )
+        .eq(
+          "is_active",
+          true
+        )
+        .eq(
+          "is_customer_visible",
+          true
+        );
 
+    if (search) {
+      productQuery =
+        productQuery.or(
+          `product_name.ilike.*${search}*,sku.ilike.*${search}*`
+        );
+    }
+
+    const {
+      data: pageProductData,
+      error: productError,
+      count: productCount,
+    } =
+      await productQuery
         .order(
           "product_name",
           {
             ascending: true,
           }
+        )
+        .order(
+          "sku",
+          {
+            ascending: true,
+          }
+        )
+        .range(
+          offset,
+          offset +
+            PAGE_SIZE -
+            1
         );
 
     if (productError) {
@@ -351,25 +456,209 @@ export async function POST(
       );
     }
 
-    const products =
-      productData ?? [];
+    const pageProducts =
+      pageProductData ?? [];
 
-    const productIds =
-      products.map(
+    const pageProductIds =
+      pageProducts.map(
         (product) =>
           product.id
       );
 
     // ================================================
-    // SPECIAL PRICES
+    // FAVOURITES
     // ================================================
+
+    let favouriteData: any[] =
+      [];
+
+    if (includeContext) {
+      const {
+        data,
+        error,
+      } =
+        await supabaseAdmin
+          .from("favourites")
+          .select(`
+            product_id,
+            sort_order
+          `)
+          .eq(
+            "customer_id",
+            selectedCustomer.id
+          )
+          .order(
+            "sort_order",
+            {
+              ascending: true,
+            }
+          );
+
+      if (error) {
+        return NextResponse.json(
+          {
+            error:
+              "Could not load favourites: " +
+              error.message,
+          },
+          {
+            status: 500,
+          }
+        );
+      }
+
+      favouriteData =
+        data ?? [];
+    } else if (
+      pageProductIds.length > 0
+    ) {
+      const {
+        data,
+        error,
+      } =
+        await supabaseAdmin
+          .from("favourites")
+          .select(`
+            product_id,
+            sort_order
+          `)
+          .eq(
+            "customer_id",
+            selectedCustomer.id
+          )
+          .in(
+            "product_id",
+            pageProductIds
+          );
+
+      if (error) {
+        return NextResponse.json(
+          {
+            error:
+              "Could not check favourites: " +
+              error.message,
+          },
+          {
+            status: 500,
+          }
+        );
+      }
+
+      favouriteData =
+        data ?? [];
+    }
+
+    const favouriteMap =
+      new Map<string, number>();
+
+    favouriteData.forEach(
+      (favourite) => {
+        favouriteMap.set(
+          favourite.product_id,
+          favourite.sort_order ??
+          999999
+        );
+      }
+    );
+
+    // ================================================
+    // INITIAL CONTEXT: FAVOURITES + CART PRODUCT DETAILS
+    // ================================================
+
+    let contextProducts: any[] =
+      [];
+
+    if (includeContext) {
+      const contextIds =
+        Array.from(
+          new Set([
+            ...favouriteData.map(
+              (favourite) =>
+                favourite.product_id
+            ),
+            ...cartProductIds,
+          ])
+        ).filter(
+          (id) =>
+            !pageProductIds.includes(
+              id
+            )
+        );
+
+      if (
+        contextIds.length > 0
+      ) {
+        const {
+          data,
+          error,
+        } =
+          await supabaseAdmin
+            .from("products")
+            .select(`
+              id,
+              sku,
+              product_name,
+              category,
+              unit,
+              normal_price,
+              image_url
+            `)
+            .eq(
+              "is_active",
+              true
+            )
+            .eq(
+              "is_customer_visible",
+              true
+            )
+            .in(
+              "id",
+              contextIds
+            );
+
+        if (error) {
+          return NextResponse.json(
+            {
+              error:
+                "Could not load catalogue context: " +
+                error.message,
+            },
+            {
+              status: 500,
+            }
+          );
+        }
+
+        contextProducts =
+          data ?? [];
+      }
+    }
+
+    // ================================================
+    // SPECIAL PRICES FOR ONLY THE PRODUCTS IN THIS RESPONSE
+    // ================================================
+
+    const allBaseProducts =
+      [
+        ...pageProducts,
+        ...contextProducts,
+      ];
+
+    const allProductIds =
+      Array.from(
+        new Set(
+          allBaseProducts.map(
+            (product) =>
+              product.id
+          )
+        )
+      );
 
     let priceData: any[] =
       [];
 
     if (
-      productIds.length >
-      0
+      allProductIds.length > 0
     ) {
       const {
         data,
@@ -393,7 +682,7 @@ export async function POST(
           )
           .in(
             "product_id",
-            productIds
+            allProductIds
           );
 
       if (error) {
@@ -414,10 +703,7 @@ export async function POST(
     }
 
     const priceMap =
-      new Map<
-        string,
-        number
-      >();
+      new Map<string, number>();
 
     priceData.forEach(
       (price) => {
@@ -430,131 +716,143 @@ export async function POST(
       }
     );
 
-    // ================================================
-    // FAVOURITES
-    // ================================================
-
-    const {
-      data: favouriteData,
-      error: favouriteError,
-    } =
-      await supabaseAdmin
-        .from("favourites")
-        .select(`
-          product_id,
-          sort_order
-        `)
-        .eq(
-          "customer_id",
-          selectedCustomer.id
-        )
-        .order(
-          "sort_order",
-          {
-            ascending: true,
-          }
+    function toCatalogueProduct(
+      product: any
+    ): CatalogueProduct {
+      const specialPrice =
+        priceMap.get(
+          product.id
         );
 
-    if (favouriteError) {
-      return NextResponse.json(
-        {
-          error:
-            "Could not load favourites: " +
-            favouriteError.message,
-        },
-        {
-          status: 500,
-        }
-      );
+      const favouriteOrder =
+        favouriteMap.get(
+          product.id
+        );
+
+      return {
+        id:
+          product.id,
+        sku:
+          product.sku,
+        productName:
+          product.product_name,
+        imageUrl:
+          product.image_url ??
+          null,
+        category:
+          product.category,
+        unit:
+          product.unit,
+        normalPrice:
+          Number(
+            product.normal_price
+          ),
+        effectivePrice:
+          specialPrice ??
+          Number(
+            product.normal_price
+          ),
+        hasSpecialPrice:
+          specialPrice !==
+          undefined,
+        isFavourite:
+          favouriteOrder !==
+          undefined,
+        favouriteOrder:
+          favouriteOrder ??
+          null,
+      };
     }
 
-    const favouriteMap =
+    const catalogueById =
       new Map<
         string,
-        number
+        CatalogueProduct
       >();
 
-    (
-      favouriteData ?? []
-    ).forEach(
-      (favourite) => {
-        favouriteMap.set(
-          favourite.product_id,
-          favourite.sort_order ??
-            999999
+    allBaseProducts.forEach(
+      (product) => {
+        catalogueById.set(
+          product.id,
+          toCatalogueProduct(
+            product
+          )
         );
       }
     );
 
-    // ================================================
-    // FINAL CATALOGUE
-    // ================================================
-
     const catalogue =
-      products.map(
-        (product) => {
-          const specialPrice =
-            priceMap.get(
-              product.id
-            );
+      pageProductIds
+        .map(
+          (id) =>
+            catalogueById.get(
+              id
+            )
+        )
+        .filter(
+          (
+            product
+          ): product is CatalogueProduct =>
+            Boolean(product)
+        );
 
-          const favouriteOrder =
-            favouriteMap.get(
-              product.id
-            );
+    const favourites =
+      includeContext
+        ? favouriteData
+            .map(
+              (favourite) =>
+                catalogueById.get(
+                  favourite.product_id
+                )
+            )
+            .filter(
+              (
+                product
+              ): product is CatalogueProduct =>
+                Boolean(product)
+            )
+        : undefined;
 
-          return {
-            id:
-              product.id,
+    const cartProducts =
+      includeContext
+        ? cartProductIds
+            .map(
+              (id) =>
+                catalogueById.get(
+                  id
+                )
+            )
+            .filter(
+              (
+                product
+              ): product is CatalogueProduct =>
+                Boolean(product)
+            )
+        : undefined;
 
-            sku:
-              product.sku,
+    const total =
+      productCount ??
+      0;
 
-            productName:
-              product.product_name,
-
-            imageUrl:
-            product.image_url ??
-            null,
-
-            category:
-              product.category,
-
-            unit:
-              product.unit,
-
-            normalPrice:
-              Number(
-                product.normal_price
-              ),
-
-            effectivePrice:
-              specialPrice ??
-              Number(
-                product.normal_price
-              ),
-
-            hasSpecialPrice:
-              specialPrice !==
-              undefined,
-
-            isFavourite:
-              favouriteOrder !==
-              undefined,
-
-            favouriteOrder:
-              favouriteOrder ??
-              null,
-          };
-        }
-      );
+    const nextOffset =
+      offset +
+      catalogue.length;
 
     return NextResponse.json({
       customer:
         selectedCustomer,
-
       products:
         catalogue,
+      favourites,
+      cartProducts,
+      total,
+      nextOffset,
+      hasMore:
+        nextOffset <
+        total,
+      pageSize:
+        PAGE_SIZE,
+      search,
     });
   } catch (error) {
     console.error(
