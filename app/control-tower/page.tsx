@@ -38,6 +38,8 @@ type Order = {
 
   status: string;
 
+  created_at: string;
+
 
 
   final_amount:
@@ -217,6 +219,34 @@ type ActiveClaim = {
   stage: string;
 
   staff_id: string;
+
+};
+
+
+
+type OrderHistoryEntry = {
+
+  order_id: string;
+
+  to_status:
+
+    | string
+
+    | null;
+
+  created_at: string;
+
+};
+
+
+
+type StuckOrder = {
+
+  order: KPIOrder;
+
+  minutesInStage: number;
+
+  thresholdMinutes: number;
 
 };
 
@@ -583,6 +613,147 @@ function timeRemainingText(
 
 // ======================================================
 
+// STUCK-ORDER HELPERS
+
+// ======================================================
+
+
+
+const STUCK_STAGE_THRESHOLDS:
+
+  Record<string, number> = {
+
+  // Confirmation already has its own 30-minute KPI,
+  // so it is intentionally excluded here.
+
+  awaiting_picking: 45,
+
+  picking: 60,
+
+  awaiting_billing: 30,
+
+  payment_submitted: 20,
+
+};
+
+
+
+function minutesSince(
+
+  iso:
+
+    | string
+
+    | null
+
+    | undefined
+
+) {
+
+  if (!iso) {
+
+    return null;
+
+  }
+
+
+
+  const startedAt =
+
+    new Date(
+
+      iso
+
+    ).getTime();
+
+
+
+  if (
+
+    Number.isNaN(
+
+      startedAt
+
+    )
+
+  ) {
+
+    return null;
+
+  }
+
+
+
+  return Math.max(
+
+    0,
+
+    Math.floor(
+
+      (
+
+        Date.now() -
+
+        startedAt
+
+      ) /
+
+        (1000 * 60)
+
+    )
+
+  );
+
+}
+
+
+
+function elapsedText(
+
+  minutes: number
+
+) {
+
+  if (minutes < 60) {
+
+    return `${minutes} นาที`;
+
+  }
+
+
+
+  const hours =
+
+    Math.floor(
+
+      minutes / 60
+
+    );
+
+
+
+  const mins =
+
+    minutes % 60;
+
+
+
+  if (mins === 0) {
+
+    return `${hours} ชม.`;
+
+  }
+
+
+
+  return `${hours} ชม. ${mins} นาที`;
+
+}
+
+
+
+// ======================================================
+
 // PAGE
 
 // ======================================================
@@ -655,6 +826,22 @@ export default function ControlTowerPage() {
 
   const [
 
+    stageEnteredAt,
+
+    setStageEnteredAt,
+
+  ] =
+
+    useState<
+
+      Record<string, string>
+
+    >({});
+
+
+
+  const [
+
     loading,
 
     setLoading,
@@ -720,6 +907,8 @@ export default function ControlTowerPage() {
           order_number,
 
           status,
+
+          created_at,
 
           final_amount,
 
@@ -792,6 +981,192 @@ export default function ControlTowerPage() {
     setOrders(
 
       loadedOrders
+
+    );
+
+
+
+    // --------------------------------------------------
+
+    // CURRENT-STAGE START TIMES
+
+    // --------------------------------------------------
+
+
+
+    // Start with the order creation time as a safe
+
+    // fallback. Then replace it with the latest history
+
+    // row that moved the order into its current status.
+
+    const enteredAtMap:
+
+      Record<string, string> =
+
+      Object.fromEntries(
+
+        loadedOrders.map(
+
+          (order) => [
+
+            order.id,
+
+            order.created_at,
+
+          ]
+
+        )
+
+      );
+
+
+
+    const orderIds =
+
+      loadedOrders.map(
+
+        (order) =>
+
+          order.id
+
+      );
+
+
+
+    if (orderIds.length > 0) {
+
+      const {
+
+        data: historyData,
+
+        error: historyError,
+
+      } =
+
+        await supabase
+
+          .from(
+
+            "order_history"
+
+          )
+
+          .select(`
+
+            order_id,
+
+            to_status,
+
+            created_at
+
+          `)
+
+          .in(
+
+            "order_id",
+
+            orderIds
+
+          )
+
+          .order(
+
+            "created_at",
+
+            {
+
+              ascending: true,
+
+            }
+
+          );
+
+
+
+      if (historyError) {
+
+        console.error(
+
+          "Could not load stage timing history:",
+
+          historyError
+
+        );
+
+      } else {
+
+        const currentStatusById =
+
+          Object.fromEntries(
+
+            loadedOrders.map(
+
+              (order) => [
+
+                order.id,
+
+                order.status,
+
+              ]
+
+            )
+
+          );
+
+
+
+        (
+
+          (historyData ?? []) as
+
+            OrderHistoryEntry[]
+
+        ).forEach(
+
+          (entry) => {
+
+            if (
+
+              entry.to_status &&
+
+              entry.to_status ===
+
+                currentStatusById[
+
+                  entry.order_id
+
+                ]
+
+            ) {
+
+              // Rows are ordered oldest -> newest,
+
+              // so the latest matching transition wins.
+
+              enteredAtMap[
+
+                entry.order_id
+
+              ] =
+
+                entry.created_at;
+
+            }
+
+          }
+
+        );
+
+      }
+
+    }
+
+
+
+    setStageEnteredAt(
+
+      enteredAtMap
 
     );
 
@@ -1349,6 +1724,132 @@ export default function ControlTowerPage() {
 
   // ====================================================
 
+  // STUCK ORDERS
+
+  // ====================================================
+
+
+
+  const stuckOrders =
+
+    useMemo(() => {
+
+      const results:
+
+        StuckOrder[] =
+
+        [];
+
+
+
+      kpiOrders.forEach(
+
+        (order) => {
+
+          if (
+
+            order.status ===
+
+              "completed" ||
+
+            order.status ===
+
+              "cancelled"
+
+          ) {
+
+            return;
+
+          }
+
+
+
+          const threshold =
+
+            STUCK_STAGE_THRESHOLDS[
+
+              order.status
+
+            ];
+
+
+
+          if (!threshold) {
+
+            return;
+
+          }
+
+
+
+          const elapsed =
+
+            minutesSince(
+
+              stageEnteredAt[
+
+                order.order_id
+
+              ]
+
+            );
+
+
+
+          if (
+
+            elapsed !== null &&
+
+            elapsed >=
+
+              threshold
+
+          ) {
+
+            results.push({
+
+              order,
+
+              minutesInStage:
+
+                elapsed,
+
+              thresholdMinutes:
+
+                threshold,
+
+            });
+
+          }
+
+        }
+
+      );
+
+
+
+      return results.sort(
+
+        (a, b) =>
+
+          b.minutesInStage -
+
+          a.minutesInStage
+
+      );
+
+    }, [
+
+      kpiOrders,
+
+      stageEnteredAt,
+
+    ]);
+
+
+
+  // ====================================================
+
   // ORDERS NEEDING ATTENTION
 
   // ====================================================
@@ -1404,6 +1905,48 @@ export default function ControlTowerPage() {
             | "warning" =
 
             "warning";
+
+
+
+          // Stuck in current internal stage
+
+          const stuckInfo =
+
+            stuckOrders.find(
+
+              (item) =>
+
+                item.order
+
+                  .order_id ===
+
+                order.order_id
+
+            );
+
+
+
+          if (stuckInfo) {
+
+            issues.push(
+
+              `งานค้างในขั้นตอน ${elapsedText(
+
+                stuckInfo
+
+                  .minutesInStage
+
+              )}`
+
+            );
+
+
+
+            severity =
+
+              "urgent";
+
+          }
 
 
 
@@ -1655,7 +2198,13 @@ export default function ControlTowerPage() {
 
       );
 
-    }, [kpiOrders]);
+    }, [
+
+      kpiOrders,
+
+      stuckOrders,
+
+    ]);
 
 
 
@@ -2075,7 +2624,7 @@ export default function ControlTowerPage() {
 
 
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
 
 
 
@@ -2229,6 +2778,42 @@ export default function ControlTowerPage() {
 
               <p className="text-sm text-gray-500">
 
+                งานค้างในขั้นตอน
+
+              </p>
+
+
+
+              <p className="text-3xl font-bold mt-2">
+
+                {
+
+                  stuckOrders.length
+
+                }
+
+              </p>
+
+
+
+              <p className="text-xs text-gray-400 mt-2">
+
+                Picking / Billing / Payment Verification
+
+              </p>
+
+
+
+            </div>
+
+
+
+            <div className="bg-white border rounded-2xl p-5">
+
+
+
+              <p className="text-sm text-gray-500">
+
                 รอชำระเงิน
 
               </p>
@@ -2305,7 +2890,7 @@ export default function ControlTowerPage() {
 
             <p className="text-sm text-gray-500 mt-1">
 
-              แสดงเฉพาะคำสั่งซื้อที่มีข้อยกเว้นหรือใกล้ถึงเวลาที่ต้องดำเนินการ
+              แสดงคำสั่งซื้อที่มีข้อยกเว้น ใกล้ถึงกำหนด หรือค้างอยู่ในขั้นตอนภายในนานเกินไป
 
             </p>
 
