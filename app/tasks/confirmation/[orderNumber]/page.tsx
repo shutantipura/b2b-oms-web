@@ -1,7 +1,5 @@
 "use client";
 
-
-
 import { useEffect, useState } from "react";
 
 import Link from "next/link";
@@ -9,8 +7,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 import { supabase } from "../../../../lib/supabase";
-
-
 
 type OrderDetails = {
 
@@ -26,8 +22,6 @@ type OrderDetails = {
 
   customer_notes: string | null;
 
-
-
   customers: {
 
     customer_name: string;
@@ -39,8 +33,6 @@ type OrderDetails = {
   } | null;
 
 };
-
-
 
 type OrderItem = {
 
@@ -54,17 +46,43 @@ type OrderItem = {
 
   unit_snapshot: string;
 
-
-
   products: {
 
     sku: string;
+    image_url: string | null;
 
   } | null;
 
 };
 
+function ProductThumbnail({
+  imageUrl,
+  alt,
+}: {
+  imageUrl: string | null | undefined;
+  alt: string;
+}) {
+  return (
+    <div className="relative w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0 border">
+      <div className="absolute inset-0 flex items-center justify-center text-xl text-gray-400">
+        📦
+      </div>
 
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 w-full h-full object-contain bg-white p-1"
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
 
 export default function ConfirmationPage() {
 
@@ -72,55 +90,37 @@ export default function ConfirmationPage() {
 
   const router = useRouter();
 
-
-
   const orderNumber = Number(params.orderNumber);
-
-
 
   const [order, setOrder] =
 
     useState<OrderDetails | null>(null);
 
-
-
   const [items, setItems] =
 
     useState<OrderItem[]>([]);
-
-
 
   const [confirmed, setConfirmed] =
 
     useState<Record<string, string>>({});
 
-
-
   const [loading, setLoading] =
 
     useState(true);
-
-
 
   const [submitting, setSubmitting] =
 
     useState(false);
 
-
-
   const [message, setMessage] =
 
     useState("");
-
-
 
   async function loadOrder() {
 
     setLoading(true);
 
     setMessage("");
-
-
 
     const {
 
@@ -162,8 +162,6 @@ export default function ConfirmationPage() {
 
       .single();
 
-
-
     if (orderError) {
 
       setMessage(
@@ -180,15 +178,11 @@ export default function ConfirmationPage() {
 
     }
 
-
-
     setOrder(
 
       orderData as unknown as OrderDetails
 
     );
-
-
 
     const {
 
@@ -214,7 +208,8 @@ export default function ConfirmationPage() {
 
         products (
 
-          sku
+          sku,
+          image_url
 
         )
 
@@ -229,8 +224,6 @@ export default function ConfirmationPage() {
         { ascending: true }
 
       );
-
-
 
     if (itemError) {
 
@@ -248,23 +241,15 @@ export default function ConfirmationPage() {
 
     }
 
-
-
     const loadedItems =
 
       (itemData ?? []) as unknown as OrderItem[];
 
-
-
     setItems(loadedItems);
-
-
 
     const initialConfirmed:
 
       Record<string, string> = {};
-
-
 
     loadedItems.forEach((item) => {
 
@@ -280,17 +265,11 @@ export default function ConfirmationPage() {
 
     });
 
-
-
     setConfirmed(initialConfirmed);
-
-
 
     setLoading(false);
 
   }
-
-
 
   useEffect(() => {
 
@@ -302,13 +281,9 @@ export default function ConfirmationPage() {
 
   }, [orderNumber]);
 
-
-
   async function completeConfirmation() {
 
     setMessage("");
-
-
 
     const invalidItem =
 
@@ -318,13 +293,9 @@ export default function ConfirmationPage() {
 
           Number(item.requested_qty);
 
-
-
         const value =
 
           Number(confirmed[item.id]);
-
-
 
         return (
 
@@ -338,8 +309,6 @@ export default function ConfirmationPage() {
 
       });
 
-
-
     if (invalidItem) {
 
       setMessage(
@@ -352,8 +321,6 @@ export default function ConfirmationPage() {
 
     }
 
-
-
     const missingSku =
 
       items.find(
@@ -361,8 +328,6 @@ export default function ConfirmationPage() {
         (item) => !item.products?.sku
 
       );
-
-
 
     if (missingSku) {
 
@@ -375,8 +340,6 @@ export default function ConfirmationPage() {
       return;
 
     }
-
-
 
     const payload = items.map(
 
@@ -392,11 +355,7 @@ export default function ConfirmationPage() {
 
     );
 
-
-
     setSubmitting(true);
-
-
 
     const { error } = await supabase.rpc(
 
@@ -412,8 +371,6 @@ export default function ConfirmationPage() {
 
     );
 
-
-
     if (error) {
 
       setMessage(
@@ -424,23 +381,17 @@ export default function ConfirmationPage() {
 
       );
 
-
-
       setSubmitting(false);
 
       return;
 
     }
 
-
-
     router.push("/tasks");
 
     router.refresh();
 
   }
-
-
 
   async function releaseTask() {
 
@@ -452,15 +403,11 @@ export default function ConfirmationPage() {
 
       );
 
-
-
     if (!confirmedRelease) {
 
       return;
 
     }
-
-
 
     const { error } = await supabase.rpc(
 
@@ -473,8 +420,6 @@ export default function ConfirmationPage() {
       }
 
     );
-
-
 
     if (error) {
 
@@ -490,15 +435,11 @@ export default function ConfirmationPage() {
 
     }
 
-
-
     router.push("/tasks");
 
     router.refresh();
 
   }
-
-
 
   if (loading) {
 
@@ -514,8 +455,6 @@ export default function ConfirmationPage() {
 
   }
 
-
-
   if (!order) {
 
     return (
@@ -523,8 +462,6 @@ export default function ConfirmationPage() {
       <main className="min-h-screen bg-gray-100 p-8">
 
         <p>ไม่พบคำสั่งซื้อ</p>
-
-
 
         <Link href="/tasks">
 
@@ -538,15 +475,11 @@ export default function ConfirmationPage() {
 
   }
 
-
-
   return (
 
     <main className="min-h-screen bg-gray-100 p-8">
 
       <div className="max-w-5xl mx-auto">
-
-
 
         <Link
 
@@ -560,11 +493,7 @@ export default function ConfirmationPage() {
 
         </Link>
 
-
-
         <div className="flex justify-between items-start mt-4 mb-8">
-
-
 
           <div>
 
@@ -574,15 +503,11 @@ export default function ConfirmationPage() {
 
             </p>
 
-
-
             <h1 className="text-3xl font-bold mt-1">
 
               คำสั่งซื้อ #{order.order_number}
 
             </h1>
-
-
 
             <p className="text-xl mt-2">
 
@@ -591,8 +516,6 @@ export default function ConfirmationPage() {
             </p>
 
           </div>
-
-
 
           <button
 
@@ -606,15 +529,9 @@ export default function ConfirmationPage() {
 
           </button>
 
-
-
         </div>
 
-
-
         <section className="bg-white border rounded-2xl p-6 mb-6">
-
-
 
           <h2 className="text-lg font-bold mb-4">
 
@@ -622,11 +539,7 @@ export default function ConfirmationPage() {
 
           </h2>
 
-
-
           <div className="grid md:grid-cols-2 gap-4">
-
-
 
             <div>
 
@@ -635,8 +548,6 @@ export default function ConfirmationPage() {
                 ผู้ติดต่อ
 
               </p>
-
-
 
               <p className="font-medium">
 
@@ -648,8 +559,6 @@ export default function ConfirmationPage() {
 
             </div>
 
-
-
             <div>
 
               <p className="text-sm text-gray-500">
@@ -657,8 +566,6 @@ export default function ConfirmationPage() {
                 เบอร์โทรศัพท์
 
               </p>
-
-
 
               {order.customers?.phone ? (
 
@@ -682,8 +589,6 @@ export default function ConfirmationPage() {
 
             </div>
 
-
-
             <div>
 
               <p className="text-sm text-gray-500">
@@ -691,8 +596,6 @@ export default function ConfirmationPage() {
                 การจัดส่ง
 
               </p>
-
-
 
               <p className="font-medium">
 
@@ -706,8 +609,6 @@ export default function ConfirmationPage() {
 
             </div>
 
-
-
             <div>
 
               <p className="text-sm text-gray-500">
@@ -715,8 +616,6 @@ export default function ConfirmationPage() {
                 ที่อยู่จัดส่ง
 
               </p>
-
-
 
               <p className="font-medium">
 
@@ -726,11 +625,7 @@ export default function ConfirmationPage() {
 
             </div>
 
-
-
           </div>
-
-
 
           {order.customer_notes && (
 
@@ -742,8 +637,6 @@ export default function ConfirmationPage() {
 
               </p>
 
-
-
               <p className="mt-1">
 
                 {order.customer_notes}
@@ -754,27 +647,17 @@ export default function ConfirmationPage() {
 
           )}
 
-
-
         </section>
-
-
 
         <section className="bg-white border rounded-2xl overflow-hidden">
 
-
-
           <div className="p-6 border-b">
-
-
 
             <h2 className="text-lg font-bold">
 
               ยืนยันจำนวนสินค้า
 
             </h2>
-
-
 
             <p className="text-gray-500 text-sm mt-1">
 
@@ -784,23 +667,13 @@ export default function ConfirmationPage() {
 
             </p>
 
-
-
           </div>
-
-
 
           <div className="overflow-x-auto">
 
-
-
             <table className="w-full">
 
-
-
               <thead className="bg-gray-50">
-
-
 
                 <tr>
 
@@ -810,23 +683,17 @@ export default function ConfirmationPage() {
 
                   </th>
 
-
-
                   <th className="text-left p-4">
 
                     SKU
 
                   </th>
 
-
-
                   <th className="text-right p-4">
 
                     จำนวนที่สั่ง
 
                   </th>
-
-
 
                   <th className="text-right p-4">
 
@@ -836,23 +703,15 @@ export default function ConfirmationPage() {
 
                 </tr>
 
-
-
               </thead>
 
-
-
               <tbody>
-
-
 
                 {items.map((item) => {
 
                   const requested =
 
                     Number(item.requested_qty);
-
-
 
                   const confirmedValue =
 
@@ -862,15 +721,11 @@ export default function ConfirmationPage() {
 
                     );
 
-
-
                   const reduced =
 
                     confirmedValue <
 
                     requested;
-
-
 
                   return (
 
@@ -882,35 +737,26 @@ export default function ConfirmationPage() {
 
                     >
 
+                      <td className="p-4 min-w-[260px]">
+                        <div className="flex items-center gap-3">
+                          <ProductThumbnail
+                            imageUrl={item.products?.image_url}
+                            alt={item.product_name_snapshot}
+                          />
 
+                          <div className="min-w-0">
+                            <div className="font-medium">
+                              {item.product_name_snapshot}
+                            </div>
 
-                      <td className="p-4">
-
-                        <div className="font-medium">
-
-                          {
-
-                            item.product_name_snapshot
-
-                          }
-
-                        </div>
-
-
-
-                        {reduced && (
-
-                          <div className="text-sm text-red-600 mt-1">
-
-                            ลดจากจำนวนที่ลูกค้าสั่ง
-
+                            {reduced && (
+                              <div className="text-sm text-red-600 mt-1">
+                                ลดจากจำนวนที่ลูกค้าสั่ง
+                              </div>
+                            )}
                           </div>
-
-                        )}
-
+                        </div>
                       </td>
-
-
 
                       <td className="p-4">
 
@@ -920,8 +766,6 @@ export default function ConfirmationPage() {
 
                       </td>
 
-
-
                       <td className="p-4 text-right">
 
                         {requested}{" "}
@@ -930,15 +774,9 @@ export default function ConfirmationPage() {
 
                       </td>
 
-
-
                       <td className="p-4">
 
-
-
                         <div className="flex justify-end items-center gap-2">
-
-
 
                           <input
 
@@ -978,8 +816,6 @@ export default function ConfirmationPage() {
 
                           />
 
-
-
                           <span className="text-gray-500 w-10">
 
                             {
@@ -990,15 +826,9 @@ export default function ConfirmationPage() {
 
                           </span>
 
-
-
                         </div>
 
-
-
                       </td>
-
-
 
                     </tr>
 
@@ -1006,23 +836,13 @@ export default function ConfirmationPage() {
 
                 })}
 
-
-
               </tbody>
-
-
 
             </table>
 
-
-
           </div>
 
-
-
         </section>
-
-
 
         {message && (
 
@@ -1034,11 +854,7 @@ export default function ConfirmationPage() {
 
         )}
 
-
-
         <div className="flex justify-end mt-6">
-
-
 
           <button
 
@@ -1058,11 +874,7 @@ export default function ConfirmationPage() {
 
           </button>
 
-
-
         </div>
-
-
 
       </div>
 

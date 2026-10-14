@@ -27,8 +27,38 @@ type OrderItem = {
   unit_snapshot: string;
   products: {
     sku: string;
+    image_url: string | null;
   } | null;
 };
+
+function ProductThumbnail({
+  imageUrl,
+  alt,
+}: {
+  imageUrl: string | null | undefined;
+  alt: string;
+}) {
+  return (
+    <div className="relative w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0 border">
+      <div className="absolute inset-0 flex items-center justify-center text-xl text-gray-400">
+        📦
+      </div>
+
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 w-full h-full object-contain bg-white p-1"
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
 
 export default function PickingPage() {
   const params = useParams();
@@ -95,7 +125,8 @@ export default function PickingPage() {
         actual_qty,
         unit_snapshot,
         products (
-          sku
+          sku,
+          image_url
         )
       `)
       .eq("order_id", orderData.id)
@@ -458,8 +489,17 @@ export default function PickingPage() {
                     key={item.id}
                     className="border-t"
                   >
-                    <td className="p-4 font-medium">
-                      {item.product_name_snapshot}
+                    <td className="p-4 min-w-[260px]">
+                      <div className="flex items-center gap-3">
+                        <ProductThumbnail
+                          imageUrl={item.products?.image_url}
+                          alt={item.product_name_snapshot}
+                        />
+
+                        <div className="font-medium min-w-0">
+                          {item.product_name_snapshot}
+                        </div>
+                      </div>
                     </td>
 
                     <td className="p-4">
