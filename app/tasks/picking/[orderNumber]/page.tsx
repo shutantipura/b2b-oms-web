@@ -239,36 +239,17 @@ export default function PickingPage() {
         const value =
           Number(actual[item.id]);
 
-        const confirmedQty =
-          Number(item.confirmed_qty);
-
         return (
           Number.isNaN(value) ||
           !Number.isFinite(value) ||
-          value < 0 ||
-          value > confirmedQty
+          value < 0
         );
       });
 
     if (invalidItem) {
-      const entered =
-        Number(actual[invalidItem.id]);
-
-      const confirmedQty =
-        Number(invalidItem.confirmed_qty);
-
-      if (
-        Number.isFinite(entered) &&
-        entered > confirmedQty
-      ) {
-        setMessage(
-          `${invalidItem.product_name_snapshot}: จำนวนที่หยิบจริงต้องไม่เกินจำนวนที่ยืนยัน (${confirmedQty} ${invalidItem.unit_snapshot})`
-        );
-      } else {
-        setMessage(
-          `${invalidItem.product_name_snapshot}: กรุณากรอกจำนวนที่หยิบจริงให้ถูกต้อง`
-        );
-      }
+      setMessage(
+        `${invalidItem.product_name_snapshot}: กรุณากรอกจำนวนที่หยิบจริงให้ถูกต้อง`
+      );
 
       return;
     }
@@ -444,7 +425,7 @@ export default function PickingPage() {
             </h2>
 
             <p className="text-sm text-gray-500 mt-1">
-              กรอกจำนวนสินค้าที่หยิบได้จริง โดยต้องไม่เกินจำนวนที่ยืนยัน
+              กรอกจำนวนสินค้าที่หยิบได้จริง
             </p>
           </div>
 
@@ -472,78 +453,52 @@ export default function PickingPage() {
               </thead>
 
               <tbody>
-                {items.map((item) => {
-                  const confirmedQty =
-                    Number(item.confirmed_qty);
+                {items.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="border-t"
+                  >
+                    <td className="p-4 font-medium">
+                      {item.product_name_snapshot}
+                    </td>
 
-                  const enteredValue =
-                    actual[item.id] ?? "";
+                    <td className="p-4">
+                      {item.products?.sku ?? "—"}
+                    </td>
 
-                  const enteredNumber =
-                    Number(enteredValue);
+                    <td className="p-4 text-right">
+                      {Number(item.confirmed_qty)}{" "}
+                      {item.unit_snapshot}
+                    </td>
 
-                  const isOverConfirmed =
-                    enteredValue !== "" &&
-                    Number.isFinite(enteredNumber) &&
-                    enteredNumber > confirmedQty;
+                    <td className="p-4">
+                      <div className="flex justify-end items-center gap-2">
 
-                  return (
-                    <tr
-                      key={item.id}
-                      className="border-t"
-                    >
-                      <td className="p-4 font-medium">
-                        {item.product_name_snapshot}
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          value={
+                            actual[item.id] ?? ""
+                          }
+                          onChange={(event) =>
+                            setActual({
+                              ...actual,
+                              [item.id]:
+                                event.target.value,
+                            })
+                          }
+                          className="w-32 border rounded-lg px-3 py-2 text-right"
+                        />
 
-                        {isOverConfirmed && (
-                          <p className="text-xs text-red-600 mt-1">
-                            จำนวนที่หยิบจริงต้องไม่เกิน {confirmedQty}{" "}
-                            {item.unit_snapshot}
-                          </p>
-                        )}
-                      </td>
+                        <span className="text-gray-500 w-10">
+                          {item.unit_snapshot}
+                        </span>
 
-                      <td className="p-4">
-                        {item.products?.sku ?? "—"}
-                      </td>
-
-                      <td className="p-4 text-right">
-                        {confirmedQty}{" "}
-                        {item.unit_snapshot}
-                      </td>
-
-                      <td className="p-4">
-                        <div className="flex justify-end items-center gap-2">
-
-                          <input
-                            type="number"
-                            min="0"
-                            max={confirmedQty}
-                            step="0.001"
-                            value={enteredValue}
-                            onChange={(event) =>
-                              setActual({
-                                ...actual,
-                                [item.id]:
-                                  event.target.value,
-                              })
-                            }
-                            className={`w-32 border rounded-lg px-3 py-2 text-right ${
-                              isOverConfirmed
-                                ? "border-red-500"
-                                : ""
-                            }`}
-                          />
-
-                          <span className="text-gray-500 w-10">
-                            {item.unit_snapshot}
-                          </span>
-
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
 
             </table>
