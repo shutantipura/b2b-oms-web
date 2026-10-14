@@ -489,6 +489,66 @@ export default function CatalogPage() {
 
   const [
 
+    resettingProducts,
+
+    setResettingProducts,
+
+  ] =
+
+    useState(false);
+
+
+
+  const [
+
+    resettingPictures,
+
+    setResettingPictures,
+
+  ] =
+
+    useState(false);
+
+
+
+  const [
+
+    pictureResetKey,
+
+    setPictureResetKey,
+
+  ] =
+
+    useState(0);
+
+
+
+  const [
+
+    pictureResetMessage,
+
+    setPictureResetMessage,
+
+  ] =
+
+    useState("");
+
+
+
+  const [
+
+    pictureResetSuccess,
+
+    setPictureResetSuccess,
+
+  ] =
+
+    useState("");
+
+
+
+  const [
+
     masterProgress,
 
     setMasterProgress,
@@ -1851,6 +1911,190 @@ export default function CatalogPage() {
 
   // =====================================================
 
+  // RESET PRODUCT MASTER
+
+  // =====================================================
+
+
+
+  async function resetAllProducts() {
+
+    const confirmed =
+
+      window.confirm(
+
+        "รีเซ็ต Product Master ทั้งหมด?\n\n" +
+
+          "สินค้าทั้งหมดจะถูกปิดใช้งานและซ่อนจาก B2B Ordering\n" +
+
+          "ข้อมูลออเดอร์เก่าและประวัติจะไม่ถูกลบ\n\n" +
+
+          "หลังจากรีเซ็ต กรุณาอัปโหลด Master Price ฉบับใหม่"
+
+      );
+
+
+
+    if (!confirmed) {
+
+      return;
+
+    }
+
+
+
+    setResettingProducts(
+
+      true
+
+    );
+
+
+
+    setMasterMessage(
+
+      ""
+
+    );
+
+
+
+    setMasterSuccess(
+
+      ""
+
+    );
+
+
+
+    try {
+
+      const {
+
+        data,
+
+        error,
+
+      } =
+
+        await supabase.rpc(
+
+          "reset_all_products"
+
+        );
+
+
+
+      if (error) {
+
+        throw error;
+
+      }
+
+
+
+      const resetCount =
+
+        Number(
+
+          (data as {
+
+            resetCount?: number;
+
+          } | null)
+
+            ?.resetCount ??
+
+            0
+
+        );
+
+
+
+      setMasterFileName(
+
+        ""
+
+      );
+
+
+
+      setMasterSheetName(
+
+        ""
+
+      );
+
+
+
+      setMasterRows(
+
+        []
+
+      );
+
+
+
+      setMasterPreview(
+
+        null
+
+      );
+
+
+
+      setMasterProgress(
+
+        0
+
+      );
+
+
+
+      setMasterProcessed(
+
+        0
+
+      );
+
+
+
+      setMasterSuccess(
+
+        `รีเซ็ต Product Master เรียบร้อย ${resetCount.toLocaleString()} รายการ — กรุณาอัปโหลด Master Price ฉบับใหม่`
+
+      );
+
+    } catch (error) {
+
+      setMasterMessage(
+
+        error instanceof Error
+
+          ? "ไม่สามารถรีเซ็ต Product Master ได้: " +
+
+            error.message
+
+          : "ไม่สามารถรีเซ็ต Product Master ได้"
+
+      );
+
+    } finally {
+
+      setResettingProducts(
+
+        false
+
+      );
+
+    }
+
+  }
+
+
+
+  // =====================================================
+
   // VISIBLE SKU VALUES
 
   // =====================================================
@@ -2871,6 +3115,155 @@ export default function CatalogPage() {
 
   // =====================================================
 
+  // RESET PRODUCT PICTURES
+
+  // =====================================================
+
+
+
+  async function resetAllPictures() {
+
+    const confirmed =
+
+      window.confirm(
+
+        "รีเซ็ตรูปสินค้าทั้งหมด?\n\n" +
+
+          "URL รูปสินค้าทั้งหมดจะถูกล้างออกจาก Product Master\n" +
+
+          "ข้อมูลสินค้า ราคา และรายการสินค้าที่แสดงจะไม่ถูกลบ\n\n" +
+
+          "หลังจากรีเซ็ต กรุณาอัปโหลด Picture Catalog ฉบับใหม่"
+
+      );
+
+
+
+    if (!confirmed) {
+
+      return;
+
+    }
+
+
+
+    setResettingPictures(
+
+      true
+
+    );
+
+
+
+    setPictureResetMessage(
+
+      ""
+
+    );
+
+
+
+    setPictureResetSuccess(
+
+      ""
+
+    );
+
+
+
+    try {
+
+      const {
+
+        data,
+
+        error,
+
+      } =
+
+        await supabase.rpc(
+
+          "reset_all_product_pictures"
+
+        );
+
+
+
+      if (error) {
+
+        throw error;
+
+      }
+
+
+
+      const resetCount =
+
+        Number(
+
+          (data as {
+
+            resetCount?: number;
+
+          } | null)
+
+            ?.resetCount ??
+
+            0
+
+        );
+
+
+
+      // Remount PictureImportSection so any previously selected
+      // file/preview is cleared after reset.
+
+      setPictureResetKey(
+
+        (current) =>
+
+          current + 1
+
+      );
+
+
+
+      setPictureResetSuccess(
+
+        `รีเซ็ตรูปสินค้าเรียบร้อย ${resetCount.toLocaleString()} รายการ — กรุณาอัปโหลด Picture Catalog ฉบับใหม่`
+
+      );
+
+    } catch (error) {
+
+      setPictureResetMessage(
+
+        error instanceof Error
+
+          ? "ไม่สามารถรีเซ็ตรูปสินค้าได้: " +
+
+            error.message
+
+          : "ไม่สามารถรีเซ็ตรูปสินค้าได้"
+
+      );
+
+    } finally {
+
+      setResettingPictures(
+
+        false
+
+      );
+
+    }
+
+  }
+
+
+
+  // =====================================================
+
   // ACCESS CHECK
 
   // =====================================================
@@ -3063,6 +3456,64 @@ export default function CatalogPage() {
 
 
 
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+                <div>
+
+                  <p className="font-semibold text-red-800">
+
+                    รีเซ็ต Product Master
+
+                  </p>
+
+                  <p className="text-sm text-red-700 mt-1">
+
+                    ปิดใช้งานสินค้าทั้งหมดและซ่อนจาก B2B Ordering โดยไม่ลบออเดอร์เก่าหรือประวัติ
+
+                  </p>
+
+                </div>
+
+                <button
+
+                  type="button"
+
+                  onClick={
+
+                    resetAllProducts
+
+                  }
+
+                  disabled={
+
+                    resettingProducts ||
+
+                    readingMaster ||
+
+                    importingMaster
+
+                  }
+
+                  className="shrink-0 bg-white border border-red-300 text-red-700 rounded-xl px-5 py-3 font-semibold disabled:opacity-40"
+
+                >
+
+                  {resettingProducts
+
+                    ? "กำลังรีเซ็ต..."
+
+                    : "รีเซ็ต Product Master ทั้งหมด"}
+
+                </button>
+
+              </div>
+
+            </div>
+
+
+
             <div className="bg-gray-50 rounded-xl p-4 text-sm">
 
 
@@ -3149,7 +3600,9 @@ export default function CatalogPage() {
 
                   readingMaster ||
 
-                  importingMaster
+                  importingMaster ||
+
+                  resettingProducts
 
                 }
 
@@ -3857,6 +4310,8 @@ export default function CatalogPage() {
 
                     importingMaster ||
 
+                    resettingProducts ||
+
                     masterRows.length ===
 
                       0
@@ -3901,7 +4356,95 @@ export default function CatalogPage() {
 
 
 
-        <PictureImportSection />
+        <div className="space-y-4">
+
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+              <div>
+
+                <p className="font-semibold text-red-800">
+
+                  รีเซ็ตรูปสินค้าทั้งหมด
+
+                </p>
+
+                <p className="text-sm text-red-700 mt-1">
+
+                  ล้างเฉพาะ URL รูปสินค้า โดยไม่ลบ Product Master ราคา หรือรายการสินค้าที่แสดง
+
+                </p>
+
+              </div>
+
+              <button
+
+                type="button"
+
+                onClick={
+
+                  resetAllPictures
+
+                }
+
+                disabled={
+
+                  resettingPictures
+
+                }
+
+                className="shrink-0 bg-white border border-red-300 text-red-700 rounded-xl px-5 py-3 font-semibold disabled:opacity-40"
+
+              >
+
+                {resettingPictures
+
+                  ? "กำลังรีเซ็ต..."
+
+                  : "รีเซ็ตรูปสินค้าทั้งหมด"}
+
+              </button>
+
+            </div>
+
+            {pictureResetMessage && (
+
+              <div className="mt-4 bg-white border border-red-200 text-red-700 rounded-xl p-4">
+
+                {pictureResetMessage}
+
+              </div>
+
+            )}
+
+            {pictureResetSuccess && (
+
+              <div className="mt-4 bg-white border border-green-200 text-green-700 rounded-xl p-4">
+
+                {pictureResetSuccess}
+
+              </div>
+
+            )}
+
+          </div>
+
+
+
+          <PictureImportSection
+
+            key={
+
+              pictureResetKey
+
+            }
+
+          />
+
+
+
+        </div>
 
 
 
