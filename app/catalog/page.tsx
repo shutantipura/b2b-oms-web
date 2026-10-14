@@ -673,6 +673,18 @@ export default function CatalogPage() {
 
   const [
 
+    resettingVisible,
+
+    setResettingVisible,
+
+  ] =
+
+    useState(false);
+
+
+
+  const [
+
     visibleMessage,
 
     setVisibleMessage,
@@ -2683,6 +2695,182 @@ export default function CatalogPage() {
 
   // =====================================================
 
+  // RESET VISIBLE PRODUCTS
+
+  // =====================================================
+
+
+
+  async function resetVisibleProducts() {
+
+    const confirmed =
+
+      window.confirm(
+
+        "รีเซ็ตรายการสินค้าที่แสดงให้ลูกค้าทั้งหมด?\n\n" +
+
+          "สินค้าทุกตัวจะถูกซ่อนจากหน้า B2B Ordering จนกว่าจะอัปโหลดรายการ SKU ใหม่\n\n" +
+
+          "Product Master และราคาสินค้าจะไม่ถูกลบ"
+
+      );
+
+
+
+    if (!confirmed) {
+
+      return;
+
+    }
+
+
+
+    setResettingVisible(
+
+      true
+
+    );
+
+
+
+    setVisibleMessage(
+
+      ""
+
+    );
+
+
+
+    setVisibleSuccess(
+
+      ""
+
+    );
+
+
+
+    try {
+
+      const {
+
+        data,
+
+        error,
+
+      } =
+
+        await supabase.rpc(
+
+          "reset_all_customer_visible_products"
+
+        );
+
+
+
+      if (error) {
+
+        throw error;
+
+      }
+
+
+
+      const resetCount =
+
+        Number(
+
+          (data as {
+
+            resetCount?: number;
+
+          } | null)
+
+            ?.resetCount ??
+
+            0
+
+        );
+
+
+
+      // Force a fresh file after reset, same idea as special prices.
+
+      setVisibleFileName(
+
+        ""
+
+      );
+
+
+
+      setVisibleHeaders(
+
+        []
+
+      );
+
+
+
+      setVisibleRows(
+
+        []
+
+      );
+
+
+
+      setVisibleSkuColumnIndex(
+
+        null
+
+      );
+
+
+
+      setVisiblePreview(
+
+        null
+
+      );
+
+
+
+      setVisibleSuccess(
+
+        `รีเซ็ตรายการสินค้าที่แสดงเรียบร้อย ${resetCount.toLocaleString()} รายการ — ขณะนี้ยังไม่มีสินค้าแสดงให้ลูกค้า กรุณาอัปโหลดรายการ SKU ใหม่`
+
+      );
+
+    } catch (error) {
+
+      setVisibleMessage(
+
+        error instanceof Error
+
+          ? "ไม่สามารถรีเซ็ตรายการสินค้าได้: " +
+
+            error.message
+
+          : "ไม่สามารถรีเซ็ตรายการสินค้าได้"
+
+      );
+
+    } finally {
+
+      setResettingVisible(
+
+        false
+
+      );
+
+    }
+
+  }
+
+
+
+  // =====================================================
+
   // ACCESS CHECK
 
   // =====================================================
@@ -3781,6 +3969,46 @@ export default function CatalogPage() {
 
 
 
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+                <div>
+
+                  <p className="font-semibold text-red-800">
+                    รีเซ็ตรายการสินค้าที่แสดง
+                  </p>
+
+                  <p className="text-sm text-red-700 mt-1">
+                    ซ่อนสินค้าที่กำลังแสดงให้ลูกค้าทั้งหมด โดยไม่ลบ Product Master ราคา หรือรูปสินค้า
+                  </p>
+
+                </div>
+
+                <button
+                  type="button"
+                  onClick={
+                    resetVisibleProducts
+                  }
+                  disabled={
+                    resettingVisible ||
+                    readingVisible ||
+                    previewingVisible ||
+                    applyingVisible
+                  }
+                  className="shrink-0 bg-white border border-red-300 text-red-700 rounded-xl px-5 py-3 font-semibold disabled:opacity-40"
+                >
+                  {resettingVisible
+                    ? "กำลังรีเซ็ต..."
+                    : "รีเซ็ตรายการที่แสดงทั้งหมด"}
+                </button>
+
+              </div>
+
+            </div>
+
+
+
             <label className="block">
 
 
@@ -3803,7 +4031,9 @@ export default function CatalogPage() {
 
                   readingVisible ||
 
-                  applyingVisible
+                  applyingVisible ||
+
+                  resettingVisible
 
                 }
 
@@ -4166,6 +4396,8 @@ export default function CatalogPage() {
                 disabled={
 
                   previewingVisible ||
+
+                  resettingVisible ||
 
                   visibleSkuColumnIndex ===
 
@@ -4542,6 +4774,8 @@ export default function CatalogPage() {
                     disabled={
 
                       applyingVisible ||
+
+                      resettingVisible ||
 
                       visiblePreview
 
