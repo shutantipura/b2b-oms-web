@@ -28,6 +28,32 @@ type OrderFile = {
   mime_type: string | null;
 };
 
+function formatStatus(status: string) {
+  const labels: Record<string, string> = {
+    awaiting_confirmation: "รอยืนยันคำสั่งซื้อ",
+    awaiting_picking: "รอจัดสินค้า",
+    picking: "กำลังจัดสินค้า",
+    awaiting_billing: "รอออกบิล",
+    ready_for_delivery: "พร้อมจัดส่ง",
+    out_for_delivery: "กำลังจัดส่ง",
+    awaiting_payment: "รอการชำระเงิน",
+    payment_submitted: "ส่งหลักฐานการชำระเงินแล้ว",
+    completed: "เสร็จสิ้น",
+    cancelled: "ยกเลิก",
+  };
+
+  return labels[status] ?? status;
+}
+
+function formatAmount(value: number | string | null) {
+  const number = Number(value ?? 0);
+
+  return new Intl.NumberFormat("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(number) ? number : 0);
+}
+
 export default function StaffPaymentPage() {
   const params = useParams();
   const router = useRouter();
@@ -109,7 +135,7 @@ export default function StaffPaymentPage() {
 
     if (orderError) {
       setMessage(
-        "Could not load order: " +
+        "ไม่สามารถโหลดคำสั่งซื้อได้: " +
           orderError.message
       );
 
@@ -146,7 +172,7 @@ export default function StaffPaymentPage() {
 
     if (fileError) {
       setMessage(
-        "Could not load payment files: " +
+        "ไม่สามารถโหลดไฟล์การชำระเงินได้: " +
           fileError.message
       );
 
@@ -175,7 +201,7 @@ export default function StaffPaymentPage() {
     if (bill) {
       setBillName(
         bill.original_filename ??
-          "Bill"
+          "ใบเสร็จ"
       );
 
       const url =
@@ -195,14 +221,20 @@ export default function StaffPaymentPage() {
       setQrUrl(url);
     }
 
-    setExistingSlip(Boolean(slip));
+    setExistingSlip(
+      Boolean(slip)
+    );
 
     setLoading(false);
   }
 
   useEffect(() => {
-    if (!Number.isNaN(orderNumber)) {
-      loadOrder();
+    if (
+      !Number.isNaN(
+        orderNumber
+      )
+    ) {
+      void loadOrder();
     }
   }, [orderNumber]);
 
@@ -218,21 +250,26 @@ export default function StaffPaymentPage() {
       "awaiting_payment"
     ) {
       setMessage(
-        `This order is currently ${order.status}. A new payment slip can only be submitted while the order is awaiting payment.`
+        `คำสั่งซื้อนี้อยู่ในสถานะ "${formatStatus(
+          order.status
+        )}" จึงไม่สามารถอัปโหลดสลิปใหม่ได้ สามารถอัปโหลดได้เฉพาะเมื่ออยู่ในสถานะรอการชำระเงินเท่านั้น`
       );
+
       return;
     }
 
     if (!slipFile) {
       setMessage(
-        "Please choose a payment slip first."
+        "กรุณาเลือกไฟล์สลิปการชำระเงินก่อน"
       );
+
       return;
     }
 
     setSubmitting(true);
+
     setMessage(
-      "Uploading payment slip..."
+      "กำลังอัปโหลดสลิปการชำระเงิน..."
     );
 
     const extension =
@@ -261,22 +298,13 @@ export default function StaffPaymentPage() {
 
     if (uploadError) {
       setMessage(
-        "Payment slip upload failed: " +
+        "อัปโหลดสลิปการชำระเงินไม่สำเร็จ: " +
           uploadError.message
       );
 
       setSubmitting(false);
       return;
     }
-
-    /*
-      This existing Supabase function:
-      - identifies the logged-in staff member
-      - registers payment_slip in order_files
-      - records who uploaded it
-      - changes awaiting_payment → payment_submitted
-      - writes the action to order_history
-    */
 
     const {
       error: submitError,
@@ -302,10 +330,12 @@ export default function StaffPaymentPage() {
       // Avoid leaving an unused file in Storage
       await supabase.storage
         .from("order-files")
-        .remove([storagePath]);
+        .remove([
+          storagePath,
+        ]);
 
       setMessage(
-        "The file uploaded, but payment submission failed: " +
+        "อัปโหลดไฟล์สำเร็จ แต่ไม่สามารถบันทึกการส่งหลักฐานการชำระเงินได้: " +
           submitError.message
       );
 
@@ -314,17 +344,20 @@ export default function StaffPaymentPage() {
     }
 
     setMessage(
-      "Payment slip submitted successfully."
+      "ส่งสลิปการชำระเงินเรียบร้อยแล้ว"
     );
 
-    router.push("/tasks");
+    router.push(
+      "/tasks"
+    );
+
     router.refresh();
   }
 
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-100 p-8">
-        Loading payment...
+        กำลังโหลดข้อมูลการชำระเงิน...
       </main>
     );
   }
@@ -332,172 +365,203 @@ export default function StaffPaymentPage() {
   if (!order) {
     return (
       <main className="min-h-screen bg-gray-100 p-8">
-        <p>Order not found.</p>
+        <p>
+          ไม่พบคำสั่งซื้อ
+        </p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 p-8">
+    <main className="min-h-screen bg-gray-100 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
-
         <Link
           href="/"
           className="text-gray-500"
         >
-          ← Back
+          ← กลับ
         </Link>
 
         <div className="mt-4 mb-8">
-
           <p className="text-sm text-gray-500">
-            PAYMENT
+            การชำระเงิน
           </p>
 
-          <h1 className="text-3xl font-bold mt-1">
-            Order #{order.order_number}
+          <h1 className="text-2xl md:text-3xl font-bold mt-1">
+            คำสั่งซื้อ #
+            {order.order_number}
           </h1>
 
-          <p className="text-xl mt-2">
-            {order.customers?.customer_name}
+          <p className="text-lg md:text-xl mt-2">
+            {
+              order.customers
+                ?.customer_name
+            }
           </p>
 
           <p className="text-sm text-gray-500 mt-2">
-            Status: {order.status}
+            สถานะ:{" "}
+            {formatStatus(
+              order.status
+            )}
           </p>
-
         </div>
 
         <section className="bg-white border rounded-2xl p-6 mb-6">
-
           <div className="grid md:grid-cols-2 gap-6">
-
             <div>
               <p className="text-sm text-gray-500">
-                Expected Payment
+                ยอดที่ต้องชำระ
               </p>
 
               <p className="text-3xl font-bold mt-1">
                 ฿
-                {Number(
-                  order.final_amount ?? 0
-                ).toFixed(2)}
+                {formatAmount(
+                  order.final_amount
+                )}
               </p>
             </div>
 
             <div>
               <p className="text-sm text-gray-500">
-                Customer Phone
+                เบอร์โทรศัพท์ลูกค้า
               </p>
 
-              {order.customers?.phone ? (
+              {order.customers
+                ?.phone ? (
                 <a
                   href={`tel:${order.customers.phone}`}
                   className="text-lg font-medium underline"
                 >
-                  {order.customers.phone}
+                  {
+                    order.customers
+                      .phone
+                  }
                 </a>
               ) : (
-                <p>—</p>
+                <p>
+                  —
+                </p>
               )}
             </div>
-
           </div>
-
         </section>
 
         <div className="grid md:grid-cols-2 gap-6 mb-6">
-
           <section className="bg-white border rounded-2xl p-6">
-
             <h2 className="font-bold text-lg">
-              Bill
+              ใบเสร็จ / ใบแจ้งหนี้
             </h2>
 
             <p className="text-sm text-gray-500 mt-1 mb-4">
-              Bill uploaded during Billing.
+              ไฟล์ที่อัปโหลดในขั้นตอนออกบิล
             </p>
 
             {billUrl ? (
               <a
-                href={billUrl}
+                href={
+                  billUrl
+                }
                 target="_blank"
                 rel="noreferrer"
                 className="inline-block bg-white border rounded-lg px-5 py-3 font-semibold"
               >
-                OPEN {billName ?? "BILL"}
+                เปิด{" "}
+                {billName ??
+                  "ใบเสร็จ"}
               </a>
             ) : (
               <p className="text-red-600">
-                Bill not found.
+                ไม่พบไฟล์ใบเสร็จ
               </p>
             )}
-
           </section>
 
           <section className="bg-white border rounded-2xl p-6">
-
             <h2 className="font-bold text-lg">
-              Payment QR
+              QR สำหรับชำระเงิน
             </h2>
 
             <p className="text-sm text-gray-500 mt-1 mb-4">
-              QR uploaded during Billing.
+              QR ที่อัปโหลดในขั้นตอนออกบิล
             </p>
 
             {qrUrl ? (
               <img
-                src={qrUrl}
-                alt="Payment QR"
+                src={
+                  qrUrl
+                }
+                alt="QR สำหรับชำระเงิน"
                 className="max-w-full max-h-80 object-contain border rounded-lg"
               />
             ) : (
               <p className="text-red-600">
-                Payment QR not found.
+                ไม่พบ QR สำหรับชำระเงิน
               </p>
             )}
-
           </section>
-
         </div>
 
         <section className="bg-white border rounded-2xl p-6">
-
           <h2 className="font-bold text-lg">
-            Payment Slip
+            สลิปการชำระเงิน
           </h2>
 
           <p className="text-sm text-gray-500 mt-1 mb-5">
-            Staff may upload the customer&apos;s payment slip on their behalf.
+            พนักงานสามารถอัปโหลดสลิปแทนลูกค้าได้
           </p>
 
           {existingSlip ? (
             <div className="font-semibold">
-              ✓ Payment slip already submitted
+              ✓ ส่งสลิปการชำระเงินแล้ว
             </div>
           ) : (
             <>
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                onChange={(event) =>
-                  setSlipFile(
-                    event.target
-                      .files?.[0] ??
-                      null
-                  )
-                }
-              />
+              <label className="inline-flex cursor-pointer items-center bg-white border rounded-lg px-5 py-3 font-semibold">
+                เลือกไฟล์สลิป
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(
+                    event
+                  ) =>
+                    setSlipFile(
+                      event.target
+                        .files?.[0] ??
+                        null
+                    )
+                  }
+                  className="hidden"
+                />
+              </label>
 
               {slipFile && (
-                <p className="text-sm text-gray-500 mt-3">
-                  Selected:{" "}
-                  {slipFile.name}
-                </p>
+                <div className="mt-4 bg-gray-50 border rounded-xl p-4">
+                  <p className="text-sm text-gray-500">
+                    ไฟล์ที่เลือก
+                  </p>
+
+                  <p className="font-semibold mt-1 break-all">
+                    {
+                      slipFile.name
+                    }
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSlipFile(
+                        null
+                      )
+                    }
+                    className="text-sm text-red-600 mt-3"
+                  >
+                    เลือกไฟล์ใหม่
+                  </button>
+                </div>
               )}
             </>
           )}
-
         </section>
 
         {message && (
@@ -508,8 +572,8 @@ export default function StaffPaymentPage() {
 
         {!existingSlip && (
           <div className="flex justify-end mt-6">
-
             <button
+              type="button"
               onClick={
                 submitPaymentSlip
               }
@@ -522,13 +586,11 @@ export default function StaffPaymentPage() {
               className="bg-black text-white rounded-lg px-8 py-4 font-semibold disabled:opacity-30"
             >
               {submitting
-                ? "SUBMITTING..."
-                : "SUBMIT PAYMENT SLIP"}
+                ? "กำลังส่ง..."
+                : "ยืนยันอัปโหลดสลิป"}
             </button>
-
           </div>
         )}
-
       </div>
     </main>
   );
