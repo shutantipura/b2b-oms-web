@@ -72,6 +72,22 @@ const MAX_CART_PRODUCT_IDS = 200;
 
 
 
+const EXCLUDED_CUSTOMER_CATEGORIES = new Set([
+  "0",
+  "DUMMY DIVISION",
+  "RAW MATERIAL",
+]);
+
+function isExcludedCustomerCategory(value: unknown) {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  return EXCLUDED_CUSTOMER_CATEGORIES.has(
+    value.trim().toUpperCase()
+  );
+}
+
 function clampOffset(value: unknown) {
 
   const parsed = Number(value);
@@ -236,13 +252,27 @@ export async function POST(
 
 
 
-    const category =
+    const requestedCategory =
 
       sanitizeCategory(
 
         body.category
 
       );
+
+
+
+    const category =
+
+      isExcludedCustomerCategory(
+
+        requestedCategory
+
+      )
+
+        ? ""
+
+        : requestedCategory;
 
 
 
@@ -1085,7 +1115,13 @@ export async function POST(
 
               row.category.trim() !==
 
-                ""
+                "" &&
+
+              !isExcludedCustomerCategory(
+
+                row.category
+
+              )
 
           )
 
