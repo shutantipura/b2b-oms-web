@@ -55,6 +55,8 @@ type VisiblePreviewResult = {
 
   unmatchedCount: number;
 
+  invalidSalesCount: number;
+
   unmatchedSkus: string[];
 
 };
@@ -66,6 +68,8 @@ type VisibleApplyResult = {
   success: boolean;
 
   matchedCount: number;
+
+  unmatchedCount: number;
 
   visibleProductCount: number;
 
@@ -82,6 +86,18 @@ type MasterProduct = {
   unit: string;
 
   normal_price: number;
+
+  category: string;
+
+};
+
+
+
+type VisibleUploadRow = {
+
+  sku: string;
+
+  sales_score: string;
 
 };
 
@@ -677,6 +693,26 @@ export default function CatalogPage() {
 
   const [
 
+    visibleSalesColumnIndex,
+
+    setVisibleSalesColumnIndex,
+
+  ] =
+
+    useState<
+
+      number | null
+
+    >(
+
+      null
+
+    );
+
+
+
+  const [
+
     visiblePreview,
 
     setVisiblePreview,
@@ -1057,6 +1093,16 @@ export default function CatalogPage() {
 
 
 
+      const categoryIndex =
+
+        normalizedHeaders.indexOf(
+
+          "category"
+
+        );
+
+
+
       const missingHeaders:
 
         string[] =
@@ -1122,6 +1168,22 @@ export default function CatalogPage() {
         missingHeaders.push(
 
           "Normal Price"
+
+        );
+
+      }
+
+
+
+      if (
+
+        categoryIndex === -1
+
+      ) {
+
+        missingHeaders.push(
+
+          "Category"
 
         );
 
@@ -1272,6 +1334,22 @@ export default function CatalogPage() {
               priceIndex
 
             ];
+
+
+
+          const category =
+
+            String(
+
+              row[
+
+                categoryIndex
+
+              ] ??
+
+                ""
+
+            ).trim();
 
 
 
@@ -1478,6 +1556,8 @@ export default function CatalogPage() {
               normal_price:
 
                 price,
+
+              category,
 
             }
 
@@ -1743,7 +1823,7 @@ export default function CatalogPage() {
 
           await supabase.rpc(
 
-            "import_product_master_batch",
+            "import_product_master_with_category_batch",
 
             {
 
@@ -2095,21 +2175,25 @@ export default function CatalogPage() {
 
   // =====================================================
 
-  // VISIBLE SKU VALUES
+  // VISIBLE PRODUCT VALUES
 
   // =====================================================
 
 
 
-  const visibleSkuValues =
+  const visibleImportRows =
 
-    useMemo(() => {
+    useMemo<VisibleUploadRow[]>(() => {
 
       if (
 
         visibleSkuColumnIndex ===
 
-        null
+          null ||
+
+        visibleSalesColumnIndex ===
+
+          null
 
       ) {
 
@@ -2127,13 +2211,37 @@ export default function CatalogPage() {
 
             row
 
-          ) =>
+          ) => ({
 
-            row[
+            sku:
 
-              visibleSkuColumnIndex
+              String(
 
-            ]
+                row[
+
+                  visibleSkuColumnIndex
+
+                ] ??
+
+                  ""
+
+              ).trim(),
+
+            sales_score:
+
+              String(
+
+                row[
+
+                  visibleSalesColumnIndex
+
+                ] ??
+
+                  ""
+
+              ).trim(),
+
+          })
 
         )
 
@@ -2141,41 +2249,13 @@ export default function CatalogPage() {
 
           (
 
-            value
+            row
 
           ) =>
 
-            value !==
+            row.sku !==
 
-              undefined &&
-
-            value !==
-
-              null &&
-
-            String(
-
-              value
-
-            ).trim() !==
-
-              ""
-
-        )
-
-        .map(
-
-          (
-
-            value
-
-          ) =>
-
-            String(
-
-              value
-
-            ).trim()
+            ""
 
         );
 
@@ -2185,7 +2265,37 @@ export default function CatalogPage() {
 
       visibleSkuColumnIndex,
 
+      visibleSalesColumnIndex,
+
     ]);
+
+
+
+  const visibleSkuValues =
+
+    useMemo(
+
+      () =>
+
+        visibleImportRows.map(
+
+          (
+
+            row
+
+          ) =>
+
+            row.sku
+
+        ),
+
+      [
+
+        visibleImportRows,
+
+      ]
+
+    );
 
 
 
@@ -2232,6 +2342,100 @@ export default function CatalogPage() {
         "รหัส sku",
 
         "รหัสสินค้า sku",
+
+      ];
+
+
+
+    const normalized =
+
+      columnHeaders.map(
+
+        (
+
+          header
+
+        ) =>
+
+          header
+
+            .trim()
+
+            .toLowerCase()
+
+      );
+
+
+
+    for (
+
+      const candidate of candidates
+
+    ) {
+
+      const index =
+
+        normalized.indexOf(
+
+          candidate
+
+        );
+
+
+
+      if (
+
+        index !== -1
+
+      ) {
+
+        return index;
+
+      }
+
+    }
+
+
+
+    return null;
+
+  }
+
+
+
+  // =====================================================
+
+  // DETECT SALES COLUMN
+
+  // =====================================================
+
+
+
+  function detectSalesColumn(
+
+    columnHeaders:
+
+      string[]
+
+  ) {
+
+    const candidates =
+
+      [
+
+        "sales",
+
+        "sales score",
+
+        "sales_score",
+
+        "sales value",
+
+        "sales_value",
+
+        "ยอดขาย",
+
+        "ยอดขายสินค้า",
 
       ];
 
@@ -2368,6 +2572,14 @@ export default function CatalogPage() {
 
 
     setVisibleSkuColumnIndex(
+
+      null
+
+    );
+
+
+
+    setVisibleSalesColumnIndex(
 
       null
 
@@ -2545,6 +2757,16 @@ export default function CatalogPage() {
 
 
 
+      const detectedSalesIndex =
+
+        detectSalesColumn(
+
+          parsedHeaders
+
+        );
+
+
+
       setVisibleFileName(
 
         file.name
@@ -2577,9 +2799,21 @@ export default function CatalogPage() {
 
 
 
+      setVisibleSalesColumnIndex(
+
+        detectedSalesIndex
+
+      );
+
+
+
       if (
 
         detectedIndex ===
+
+        null ||
+
+        detectedSalesIndex ===
 
         null
 
@@ -2587,7 +2821,7 @@ export default function CatalogPage() {
 
         setVisibleMessage(
 
-          "อ่านไฟล์สำเร็จ แต่ไม่พบคอลัมน์ SKU อัตโนมัติ กรุณาเลือกคอลัมน์ด้านล่าง"
+          "อ่านไฟล์สำเร็จ แต่ไม่พบคอลัมน์ SKU หรือ Sales อัตโนมัติ กรุณาเลือกคอลัมน์ด้านล่าง"
 
         );
 
@@ -2633,13 +2867,17 @@ export default function CatalogPage() {
 
       visibleSkuColumnIndex ===
 
+        null ||
+
+      visibleSalesColumnIndex ===
+
         null
 
     ) {
 
       setVisibleMessage(
 
-        "กรุณาเลือกคอลัมน์ SKU"
+        "กรุณาเลือกคอลัมน์ SKU และ Sales"
 
       );
 
@@ -2653,7 +2891,7 @@ export default function CatalogPage() {
 
     if (
 
-      visibleSkuValues.length ===
+      visibleImportRows.length ===
 
         0
 
@@ -2709,13 +2947,13 @@ export default function CatalogPage() {
 
         await supabase.rpc(
 
-          "preview_customer_visible_skus",
+          "preview_customer_visible_products",
 
           {
 
-            p_skus:
+            p_rows:
 
-              visibleSkuValues,
+              visibleImportRows,
 
           }
 
@@ -2777,7 +3015,7 @@ export default function CatalogPage() {
 
       !visiblePreview ||
 
-      visibleSkuValues.length ===
+      visibleImportRows.length ===
 
         0
 
@@ -2813,6 +3051,30 @@ export default function CatalogPage() {
 
 
 
+    if (
+
+      visiblePreview
+
+        .invalidSalesCount >
+
+        0
+
+    ) {
+
+      setVisibleMessage(
+
+        "ไม่สามารถยืนยันได้ เนื่องจากมีค่า Sales ที่ไม่ถูกต้อง กรุณาแก้ไขไฟล์ก่อน"
+
+      );
+
+
+
+      return;
+
+    }
+
+
+
     const confirmed =
 
       window.confirm(
@@ -2821,7 +3083,9 @@ export default function CatalogPage() {
 
           `SKU ที่จับคู่สำเร็จ: ${visiblePreview.matchedCount.toLocaleString()}\n` +
 
-          `SKU ที่หาไม่พบ: ${visiblePreview.unmatchedCount.toLocaleString()}\n\n` +
+          `SKU ที่หาไม่พบ: ${visiblePreview.unmatchedCount.toLocaleString()}\n` +
+
+          `ค่า Sales ไม่ถูกต้อง: ${visiblePreview.invalidSalesCount.toLocaleString()}\n\n` +
 
           `รายการสินค้าที่แสดงอยู่เดิมจะถูกแทนที่ด้วยรายการใหม่นี้`
 
@@ -2877,13 +3141,13 @@ export default function CatalogPage() {
 
         await supabase.rpc(
 
-          "apply_customer_visible_skus",
+          "apply_customer_visible_products",
 
           {
 
-            p_skus:
+            p_rows:
 
-              visibleSkuValues,
+              visibleImportRows,
 
           }
 
@@ -3064,6 +3328,14 @@ export default function CatalogPage() {
 
 
       setVisibleSkuColumnIndex(
+
+        null
+
+      );
+
+
+
+      setVisibleSalesColumnIndex(
 
         null
 
@@ -3526,7 +3798,7 @@ export default function CatalogPage() {
 
 
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3 text-gray-600">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3 text-gray-600">
 
 
 
@@ -3557,6 +3829,14 @@ export default function CatalogPage() {
                 <span>
 
                   Normal Price
+
+                </span>
+
+
+
+                <span>
+
+                  Category
 
                 </span>
 
@@ -3968,6 +4248,14 @@ export default function CatalogPage() {
 
 
 
+                          <th className="text-left p-3">
+
+                            Category
+
+                          </th>
+
+
+
                         </tr>
 
 
@@ -4061,6 +4349,20 @@ export default function CatalogPage() {
                                     .normal_price
 
                                     .toLocaleString()
+
+                                }
+
+                              </td>
+
+
+
+                              <td className="p-3 whitespace-nowrap">
+
+                                {
+
+                                  row.category ||
+
+                                  "—"
 
                                 }
 
@@ -4490,7 +4792,7 @@ export default function CatalogPage() {
 
                 <p className="text-sm text-gray-500 mt-1">
 
-                  อัปโหลด Excel หรือ CSV ที่มีรายการ SKU ที่ต้องการแสดงบน B2B Ordering
+                  อัปโหลด Excel หรือ CSV ที่มี SKU และ Sales เพื่อกำหนดสินค้าที่แสดงและลำดับสินค้าขายดี
 
                 </p>
 
@@ -4822,9 +5124,155 @@ export default function CatalogPage() {
 
 
 
+            {visibleHeaders.length >
+
+              0 && (
+
+
+
+              <div className="mt-4">
+
+
+
+                <label className="block text-sm font-semibold">
+
+                  เลือกคอลัมน์ Sales
+
+                </label>
+
+
+
+                <select
+
+                  value={
+
+                    visibleSalesColumnIndex ??
+
+                    ""
+
+                  }
+
+                  onChange={(event) => {
+
+                    const value =
+
+                      event
+
+                        .target
+
+                        .value;
+
+
+
+                    setVisibleSalesColumnIndex(
+
+                      value ===
+
+                        ""
+
+                        ? null
+
+                        : Number(
+
+                            value
+
+                          )
+
+                    );
+
+
+
+                    setVisiblePreview(
+
+                      null
+
+                    );
+
+
+
+                    setVisibleSuccess(
+
+                      ""
+
+                    );
+
+                  }}
+
+                  className="w-full border rounded-xl px-4 py-3 mt-2 bg-white"
+
+                >
+
+
+
+                  <option value="">
+
+                    -- เลือกคอลัมน์ --
+
+                  </option>
+
+
+
+                  {visibleHeaders.map(
+
+                    (
+
+                      header,
+
+                      index
+
+                    ) => (
+
+
+
+                    <option
+
+                      key={
+
+                        index
+
+                      }
+
+                      value={
+
+                        index
+
+                      }
+
+                    >
+
+                      {
+
+                        header
+
+                      }
+
+                    </option>
+
+
+
+                  ))}
+
+
+
+                </select>
+
+
+
+              </div>
+
+
+
+            )}
+
+
+
             {visibleSkuColumnIndex !==
 
-              null && (
+              null &&
+
+              visibleSalesColumnIndex !==
+
+                null && (
 
 
 
@@ -4834,61 +5282,131 @@ export default function CatalogPage() {
 
                 <p className="text-sm text-gray-500">
 
-                  ตัวอย่าง SKU ที่อ่านได้
+                  ตัวอย่างข้อมูลที่อ่านได้
 
                 </p>
 
 
 
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="overflow-x-auto border rounded-xl mt-3 bg-white">
 
 
 
-                  {visibleSkuValues
-
-                    .slice(
-
-                      0,
-
-                      8
-
-                    )
-
-                    .map(
-
-                      (
-
-                        sku,
-
-                        index
-
-                      ) => (
+                  <table className="w-full text-sm">
 
 
 
-                      <span
-
-                        key={
-
-                          `${sku}-${index}`
-
-                        }
-
-                        className="bg-white border rounded-lg px-3 py-1 text-sm"
-
-                      >
-
-                        {
-
-                          sku
-
-                        }
-
-                      </span>
+                    <thead className="bg-gray-50">
 
 
 
-                    ))}
+                      <tr>
+
+
+
+                        <th className="text-left p-3">
+
+                          SKU
+
+                        </th>
+
+
+
+                        <th className="text-right p-3">
+
+                          Sales
+
+                        </th>
+
+
+
+                      </tr>
+
+
+
+                    </thead>
+
+
+
+                    <tbody>
+
+
+
+                      {visibleImportRows
+
+                        .slice(
+
+                          0,
+
+                          8
+
+                        )
+
+                        .map(
+
+                          (
+
+                            row,
+
+                            index
+
+                          ) => (
+
+
+
+                          <tr
+
+                            key={
+
+                              `${row.sku}-${index}`
+
+                            }
+
+                            className="border-t"
+
+                          >
+
+
+
+                            <td className="p-3">
+
+                              {
+
+                                row.sku
+
+                              }
+
+                            </td>
+
+
+
+                            <td className="p-3 text-right">
+
+                              {
+
+                                row.sales_score ||
+
+                                "0"
+
+                              }
+
+                            </td>
+
+
+
+                          </tr>
+
+
+
+                        ))}
+
+
+
+                    </tbody>
+
+
+
+                  </table>
 
 
 
@@ -4902,7 +5420,7 @@ export default function CatalogPage() {
 
                   {
 
-                    visibleSkuValues.length.toLocaleString()
+                    visibleImportRows.length.toLocaleString()
 
                   }{" "}
 
@@ -4943,6 +5461,10 @@ export default function CatalogPage() {
                   resettingVisible ||
 
                   visibleSkuColumnIndex ===
+
+                    null ||
+
+                  visibleSalesColumnIndex ===
 
                     null
 
@@ -5038,7 +5560,7 @@ export default function CatalogPage() {
 
 
 
-                <div className="grid grid-cols-2 md:grid-cols-5">
+                <div className="grid grid-cols-2 md:grid-cols-6">
 
 
 
@@ -5170,7 +5692,7 @@ export default function CatalogPage() {
 
 
 
-                  <div className="p-4">
+                  <div className="p-4 border-r">
 
 
 
@@ -5189,6 +5711,38 @@ export default function CatalogPage() {
                         visiblePreview
 
                           .duplicateCount
+
+                          .toLocaleString()
+
+                      }
+
+                    </p>
+
+
+
+                  </div>
+
+
+
+                  <div className="p-4">
+
+
+
+                    <p className="text-xs text-gray-500">
+
+                      Sales ไม่ถูกต้อง
+
+                    </p>
+
+
+
+                    <p className="text-2xl font-bold mt-1">
+
+                      {
+
+                        visiblePreview
+
+                          .invalidSalesCount
 
                           .toLocaleString()
 
@@ -5323,6 +5877,12 @@ export default function CatalogPage() {
                       visiblePreview
 
                         .matchedCount ===
+
+                        0 ||
+
+                      visiblePreview
+
+                        .invalidSalesCount >
 
                         0
 
