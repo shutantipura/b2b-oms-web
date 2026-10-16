@@ -1,4 +1,8 @@
 import {
+  randomBytes,
+} from "crypto";
+
+import {
   NextRequest,
   NextResponse,
 } from "next/server";
@@ -6,6 +10,9 @@ import {
 import {
   createClient,
 } from "@supabase/supabase-js";
+
+export const runtime =
+  "nodejs";
 
 type AccountType =
   | "staff"
@@ -27,7 +34,7 @@ function getAdminClient() {
     !supabaseSecret
   ) {
     throw new Error(
-      "Server configuration is incomplete. Add SUPABASE_SERVICE_ROLE_KEY to Vercel."
+      "Server configuration is incomplete. Add SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY to Vercel."
     );
   }
 
@@ -160,7 +167,8 @@ function errorResponse(
 
   return NextResponse.json(
     {
-      error: message,
+      error:
+        message,
     },
     {
       status: 500,
@@ -175,14 +183,6 @@ function normalizeText(
     "string"
     ? value.trim()
     : "";
-}
-
-function normalizeEmail(
-  value: unknown
-) {
-  return normalizeText(
-    value
-  ).toLowerCase();
 }
 
 function normalizeAccountType(
@@ -239,6 +239,26 @@ function buildNextStaffCode(
   )}`;
 }
 
+function buildInternalEmail(
+  staffCode: string
+) {
+  const suffix =
+    randomBytes(6)
+      .toString("hex");
+
+  return `${staffCode.toLowerCase()}.${suffix}@staff.b2boms.invalid`;
+}
+
+function buildInternalPassword() {
+  return (
+    randomBytes(32)
+      .toString(
+        "base64url"
+      ) +
+    "Aa1!"
+  );
+}
+
 // =====================================================
 // GET — LIST STAFF
 // =====================================================
@@ -272,8 +292,7 @@ export async function GET(
         .order(
           "staff_code",
           {
-            ascending:
-              true,
+            ascending: true,
           }
         );
 
@@ -284,17 +303,11 @@ export async function GET(
       );
     }
 
-    const authMap =
+    // Keep Auth details internal. We only expose last sign-in time.
+    const lastSignInMap =
       new Map<
         string,
-        {
-          email:
-            | string
-            | null;
-          lastSignInAt:
-            | string
-            | null;
-        }
+        string | null
       >();
 
     let page = 1;
@@ -308,14 +321,13 @@ export async function GET(
           .admin.listUsers(
             {
               page,
-              perPage:
-                1000,
+              perPage: 1000,
             }
           );
 
       if (error) {
         throw new Error(
-          "ไม่สามารถโหลดบัญชีเข้าสู่ระบบได้: " +
+          "ไม่สามารถโหลดข้อมูลการเข้าสู่ระบบได้: " +
             error.message
         );
       }
@@ -324,16 +336,10 @@ export async function GET(
         const user of
         data.users
       ) {
-        authMap.set(
+        lastSignInMap.set(
           user.id,
-          {
-            email:
-              user.email ??
-              null,
-            lastSignInAt:
-              user.last_sign_in_at ??
-              null,
-          }
+          user.last_sign_in_at ??
+            null
         );
       }
 
@@ -350,40 +356,32 @@ export async function GET(
     const staff =
       (staffRows ??
         []).map(
-        (row) => {
-          const authUser =
+        (row) => ({
+          id:
+            row.id,
+          staffCode:
+            row.staff_code,
+          staffName:
+            row.staff_name,
+          accountType:
+            row.account_type,
+          authUserId:
+            row.auth_user_id,
+          isActive:
+            row.is_active,
+          lastSignInAt:
             row.auth_user_id
-              ? authMap.get(
-                  row.auth_user_id
+              ? (
+                  lastSignInMap.get(
+                    row.auth_user_id
+                  ) ??
+                  null
                 )
-              : undefined;
-
-          return {
-            id:
-              row.id,
-            staffCode:
-              row.staff_code,
-            staffName:
-              row.staff_name,
-            accountType:
-              row.account_type,
-            authUserId:
-              row.auth_user_id,
-            isActive:
-              row.is_active,
-            email:
-              authUser
-                ?.email ??
-              null,
-            lastSignInAt:
-              authUser
-                ?.lastSignInAt ??
-              null,
-            isCurrentUser:
-              row.auth_user_id ===
-              currentUserId,
-          };
-        }
+              : null,
+          isCurrentUser:
+            row.auth_user_id ===
+            currentUserId,
+        })
       );
 
     return NextResponse.json(
@@ -399,7 +397,7 @@ export async function GET(
 }
 
 // =====================================================
-// POST — CREATE STAFF + AUTH USER
+// POST — CREATE STAFF + HIDDEN AUTH IDENTITY
 // =====================================================
 
 export async function POST(
@@ -421,16 +419,6 @@ export async function POST(
         body.staffName
       );
 
-    const email =
-      normalizeEmail(
-        body.email
-      );
-
-    const password =
-      normalizeText(
-        body.password
-      );
-
     const accountType =
       normalizeAccountType(
         body.accountType
@@ -441,36 +429,6 @@ export async function POST(
         {
           error:
             "กรุณากรอกชื่อพนักงาน",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (
-      !email ||
-      !email.includes("@")
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "กรุณากรอกอีเมลให้ถูกต้อง",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (
-      password.length <
-      8
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "รหัสผ่านชั่วคราวต้องมีอย่างน้อย 8 ตัวอักษร",
         },
         {
           status: 400,
@@ -513,22 +471,34 @@ export async function POST(
           []
       );
 
+    const internalEmail =
+      buildInternalEmail(
+        staffCode
+      );
+
+    const internalPassword =
+      buildInternalPassword();
+
     const {
-      data:
-        authCreate,
-      error:
-        authCreateError,
+      data: authCreate,
+      error: authCreateError,
     } =
       await admin.auth
         .admin.createUser(
           {
-            email,
-            password,
+            email:
+              internalEmail,
+            password:
+              internalPassword,
             email_confirm:
               true,
             user_metadata: {
+              staff_code:
+                staffCode,
               staff_name:
                 staffName,
+              auth_mode:
+                "line",
             },
           }
         );
@@ -540,7 +510,7 @@ export async function POST(
       return NextResponse.json(
         {
           error:
-            "ไม่สามารถสร้างบัญชีเข้าสู่ระบบได้: " +
+            "ไม่สามารถสร้างบัญชีระบบภายในได้: " +
             (
               authCreateError
                 ?.message ??
@@ -557,10 +527,8 @@ export async function POST(
       authCreate.user.id;
 
     const {
-      data:
-        createdStaff,
-      error:
-        insertError,
+      data: createdStaff,
+      error: insertError,
     } =
       await admin
         .from("staff")
@@ -595,7 +563,7 @@ export async function POST(
       return NextResponse.json(
         {
           error:
-            "สร้างบัญชี Auth แล้ว แต่สร้างข้อมูลพนักงานไม่สำเร็จ: " +
+            "สร้างบัญชีระบบภายในแล้ว แต่สร้างข้อมูลพนักงานไม่สำเร็จ: " +
             insertError.message,
         },
         {
@@ -621,7 +589,10 @@ export async function POST(
             createdStaff.auth_user_id,
           isActive:
             createdStaff.is_active,
-          email,
+          lastSignInAt:
+            null,
+          isCurrentUser:
+            false,
         },
       },
       {
@@ -894,7 +865,7 @@ export async function PATCH(
         return NextResponse.json(
           {
             error:
-              "ไม่สามารถอัปเดตสถานะบัญชีเข้าสู่ระบบได้: " +
+              "ไม่สามารถอัปเดตสถานะบัญชีระบบได้: " +
               authUpdateError.message,
           },
           {

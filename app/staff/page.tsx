@@ -24,9 +24,6 @@ type StaffRow = {
     | string
     | null;
   isActive: boolean;
-  email:
-    | string
-    | null;
   lastSignInAt:
     | string
     | null;
@@ -82,27 +79,6 @@ function formatDateTime(
         "short",
     }
   ).format(date);
-}
-
-function makeTemporaryPassword() {
-  const alphabet =
-    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$";
-
-  const values =
-    new Uint32Array(14);
-
-  window.crypto.getRandomValues(
-    values
-  );
-
-  return Array.from(
-    values,
-    (value) =>
-      alphabet[
-        value %
-          alphabet.length
-      ]
-  ).join("");
 }
 
 export default function StaffManagementPage() {
@@ -167,18 +143,6 @@ export default function StaffManagementPage() {
     useState("");
 
   const [
-    createEmail,
-    setCreateEmail,
-  ] =
-    useState("");
-
-  const [
-    createPassword,
-    setCreatePassword,
-  ] =
-    useState("");
-
-  const [
     createRole,
     setCreateRole,
   ] =
@@ -223,11 +187,9 @@ export default function StaffManagementPage() {
   // =====================================================
 
   async function authorizedFetch(
-    input:
-      RequestInfo,
+    input: RequestInfo,
     init:
-      RequestInit =
-        {}
+      RequestInit = {}
   ) {
     const {
       data: {
@@ -252,10 +214,8 @@ export default function StaffManagementPage() {
             "application/json",
           Authorization:
             `Bearer ${session.access_token}`,
-          ...(
-            init.headers ??
-            {}
-          ),
+          ...(init.headers ??
+            {}),
         },
       }
     );
@@ -266,21 +226,15 @@ export default function StaffManagementPage() {
   // =====================================================
 
   async function loadStaff() {
-    setLoading(
-      true
-    );
-
-    setMessage(
-      ""
-    );
+    setLoading(true);
+    setMessage("");
 
     try {
       const response =
         await authorizedFetch(
           "/api/admin/staff",
           {
-            method:
-              "GET",
+            method: "GET",
           }
         );
 
@@ -305,9 +259,7 @@ export default function StaffManagementPage() {
           : "ไม่สามารถโหลดข้อมูลพนักงานได้"
       );
     } finally {
-      setLoading(
-        false
-      );
+      setLoading(false);
     }
   }
 
@@ -352,8 +304,6 @@ export default function StaffManagementPage() {
             return [
               item.staffCode,
               item.staffName,
-              item.email ??
-                "",
             ].some(
               (value) =>
                 value
@@ -391,33 +341,11 @@ export default function StaffManagementPage() {
   // =====================================================
 
   function openCreateForm() {
-    setShowCreate(
-      true
-    );
-
-    setCreateName(
-      ""
-    );
-
-    setCreateEmail(
-      ""
-    );
-
-    setCreateRole(
-      "staff"
-    );
-
-    setCreatePassword(
-      makeTemporaryPassword()
-    );
-
-    setMessage(
-      ""
-    );
-
-    setSuccess(
-      ""
-    );
+    setShowCreate(true);
+    setCreateName("");
+    setCreateRole("staff");
+    setMessage("");
+    setSuccess("");
   }
 
   async function createStaff(
@@ -426,28 +354,19 @@ export default function StaffManagementPage() {
   ) {
     event.preventDefault();
 
-    setMessage(
-      ""
-    );
-
-    setSuccess(
-      ""
-    );
+    setMessage("");
+    setSuccess("");
 
     if (
-      createPassword.length <
-      8
+      !createName.trim()
     ) {
       setMessage(
-        "รหัสผ่านชั่วคราวต้องมีอย่างน้อย 8 ตัวอักษร"
+        "กรุณากรอกชื่อพนักงาน"
       );
-
       return;
     }
 
-    setCreating(
-      true
-    );
+    setCreating(true);
 
     try {
       const response =
@@ -461,10 +380,6 @@ export default function StaffManagementPage() {
                 {
                   staffName:
                     createName,
-                  email:
-                    createEmail,
-                  password:
-                    createPassword,
                   accountType:
                     createRole,
                 }
@@ -493,28 +408,12 @@ export default function StaffManagementPage() {
         createName;
 
       setSuccess(
-        `สร้าง ${createdCode} ${createdName} เรียบร้อยแล้ว — ใช้อีเมล ${createEmail.trim().toLowerCase()} และรหัสผ่านชั่วคราวที่กำหนดเพื่อเข้าสู่ระบบ`
+        `สร้าง ${createdCode} ${createdName} เรียบร้อยแล้ว — ขั้นตอนถัดไปให้ไปที่ “สิทธิ์ LINE” แล้วเชื่อมบัญชี LINE ของพนักงานกับ ${createdCode}`
       );
 
-      setShowCreate(
-        false
-      );
-
-      setCreateName(
-        ""
-      );
-
-      setCreateEmail(
-        ""
-      );
-
-      setCreatePassword(
-        ""
-      );
-
-      setCreateRole(
-        "staff"
-      );
+      setShowCreate(false);
+      setCreateName("");
+      setCreateRole("staff");
 
       await loadStaff();
     } catch (error) {
@@ -524,9 +423,7 @@ export default function StaffManagementPage() {
           : "ไม่สามารถสร้างพนักงานได้"
       );
     } finally {
-      setCreating(
-        false
-      );
+      setCreating(false);
     }
   }
 
@@ -549,13 +446,8 @@ export default function StaffManagementPage() {
       item.accountType
     );
 
-    setMessage(
-      ""
-    );
-
-    setSuccess(
-      ""
-    );
+    setMessage("");
+    setSuccess("");
   }
 
   async function saveEdit(
@@ -567,7 +459,6 @@ export default function StaffManagementPage() {
       setMessage(
         "กรุณากรอกชื่อพนักงาน"
       );
-
       return;
     }
 
@@ -575,13 +466,8 @@ export default function StaffManagementPage() {
       item.id
     );
 
-    setMessage(
-      ""
-    );
-
-    setSuccess(
-      ""
-    );
+    setMessage("");
+    setSuccess("");
 
     try {
       const response =
@@ -652,7 +538,7 @@ export default function StaffManagementPage() {
       window.confirm(
         nextActive
           ? `เปิดใช้งาน ${item.staffCode} ${item.staffName} อีกครั้ง?`
-          : `ปิดใช้งาน ${item.staffCode} ${item.staffName}?\n\nพนักงานคนนี้จะไม่สามารถเข้าสู่ระบบ OMS ได้ แต่ประวัติงานเดิมจะยังคงอยู่`
+          : `ปิดใช้งาน ${item.staffCode} ${item.staffName}?\n\nพนักงานคนนี้จะไม่สามารถเข้าสู่ OMS ผ่าน LINE ได้ แต่ประวัติงานเดิมจะยังคงอยู่`
       );
 
     if (!confirmed) {
@@ -663,13 +549,8 @@ export default function StaffManagementPage() {
       item.id
     );
 
-    setMessage(
-      ""
-    );
-
-    setSuccess(
-      ""
-    );
+    setMessage("");
+    setSuccess("");
 
     try {
       const response =
@@ -724,10 +605,6 @@ export default function StaffManagementPage() {
     }
   }
 
-  // =====================================================
-  // LOADING
-  // =====================================================
-
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
@@ -737,10 +614,6 @@ export default function StaffManagementPage() {
       </main>
     );
   }
-
-  // =====================================================
-  // PAGE
-  // =====================================================
 
   return (
     <main className="min-h-screen bg-gray-100">
@@ -794,7 +667,6 @@ export default function StaffManagementPage() {
             <p className="text-sm text-gray-500">
               พนักงานทั้งหมด
             </p>
-
             <p className="text-2xl font-bold mt-1">
               {staff.length}
             </p>
@@ -804,7 +676,6 @@ export default function StaffManagementPage() {
             <p className="text-sm text-gray-500">
               ใช้งานอยู่
             </p>
-
             <p className="text-2xl font-bold mt-1">
               {activeCount}
             </p>
@@ -814,7 +685,6 @@ export default function StaffManagementPage() {
             <p className="text-sm text-gray-500">
               Manager ที่ใช้งานอยู่
             </p>
-
             <p className="text-2xl font-bold mt-1">
               {activeManagerCount}
             </p>
@@ -828,7 +698,7 @@ export default function StaffManagementPage() {
             </h2>
 
             <p className="text-sm text-gray-500 mt-1">
-              ระบบจะสร้างรหัส S00x ถัดไปให้อัตโนมัติ พร้อมสร้างบัญชีเข้าสู่ระบบ
+              ระบบจะสร้างรหัส S00x และบัญชีระบบภายในให้อัตโนมัติ พนักงานไม่ต้องใช้อีเมลหรือรหัสผ่านในการเข้าสู่ระบบ
             </p>
 
             <form
@@ -889,69 +759,22 @@ export default function StaffManagementPage() {
                 </select>
               </label>
 
-              <label>
-                <span className="block text-sm font-semibold mb-2">
-                  อีเมลสำหรับเข้าสู่ระบบ
-                </span>
-
-                <input
-                  type="email"
-                  value={
-                    createEmail
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setCreateEmail(
-                      event.target.value
-                    )
-                  }
-                  className="w-full border rounded-xl px-4 py-3"
-                  placeholder="staff@example.com"
-                  required
-                />
-              </label>
-
-              <label>
-                <span className="block text-sm font-semibold mb-2">
-                  รหัสผ่านชั่วคราว
-                </span>
-
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={
-                      createPassword
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      setCreatePassword(
-                        event.target.value
-                      )
-                    }
-                    className="min-w-0 flex-1 border rounded-xl px-4 py-3"
-                    minLength={8}
-                    required
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCreatePassword(
-                        makeTemporaryPassword()
-                      )
-                    }
-                    className="border rounded-xl px-4 py-3 text-sm font-semibold"
-                  >
-                    สุ่มใหม่
-                  </button>
-                </div>
-
-                <p className="text-xs text-gray-500 mt-2">
-                  อย่างน้อย 8 ตัวอักษร กรุณาส่งอีเมลและรหัสผ่านนี้ให้พนักงานโดยตรง
+              <div className="md:col-span-2 bg-gray-50 border rounded-xl p-4">
+                <p className="font-semibold">
+                  การเข้าสู่ระบบ
                 </p>
-              </label>
+
+                <p className="text-sm text-gray-600 mt-1">
+                  หลังสร้างพนักงานแล้ว ไปที่หน้า “สิทธิ์ LINE” เพื่อเชื่อมบัญชี LINE จริงของพนักงานกับรหัส S00x นี้ จากนั้นพนักงานจะเข้า OMS ผ่าน LINE เท่านั้น
+                </p>
+
+                <Link
+                  href="/line-access"
+                  className="inline-block mt-3 text-sm font-semibold underline"
+                >
+                  ไปที่สิทธิ์ LINE →
+                </Link>
+              </div>
 
               <div className="md:col-span-2 flex justify-end">
                 <button
@@ -979,6 +802,15 @@ export default function StaffManagementPage() {
         {success && (
           <div className="bg-green-50 border border-green-200 text-green-800 rounded-xl p-4">
             {success}
+
+            <div className="mt-3">
+              <Link
+                href="/line-access"
+                className="font-semibold underline"
+              >
+                ไปเชื่อมสิทธิ์ LINE →
+              </Link>
+            </div>
           </div>
         )}
 
@@ -1007,7 +839,7 @@ export default function StaffManagementPage() {
                   )
                 }
                 className="border rounded-xl px-4 py-2.5 md:w-72"
-                placeholder="ค้นหาชื่อ รหัส หรืออีเมล"
+                placeholder="ค้นหาชื่อหรือรหัสพนักงาน"
               />
             </div>
 
@@ -1206,8 +1038,7 @@ export default function StaffManagementPage() {
                             </div>
 
                             <p className="text-sm text-gray-600 mt-2">
-                              {item.email ??
-                                "ยังไม่มีบัญชี Auth เชื่อมอยู่"}
+                              เข้าสู่ระบบผ่าน LINE
                             </p>
 
                             <p className="text-xs text-gray-400 mt-1">
@@ -1219,6 +1050,13 @@ export default function StaffManagementPage() {
                           </div>
 
                           <div className="flex gap-2 flex-wrap">
+                            <Link
+                              href="/line-access"
+                              className="border rounded-xl px-4 py-2.5 font-semibold"
+                            >
+                              สิทธิ์ LINE
+                            </Link>
+
                             <button
                               type="button"
                               onClick={() =>
