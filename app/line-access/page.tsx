@@ -54,6 +54,14 @@ type LineUser = {
 
 
 
+  internalName:
+
+    | string
+
+    | null;
+
+
+
   isActive: boolean;
 
   createdAt: string;
@@ -250,6 +258,22 @@ export default function LineAccessPage() {
 
 
 
+  const [
+
+    nameSelections,
+
+    setNameSelections,
+
+  ] =
+
+    useState<
+
+      Record<string, string>
+
+    >({});
+
+
+
   // =====================================================
 
   // LOAD
@@ -324,11 +348,119 @@ export default function LineAccessPage() {
 
 
 
+    const {
+
+      data: nameData,
+
+      error: nameError,
+
+    } =
+
+      await supabase.rpc(
+
+        "get_line_user_internal_names"
+
+      );
+
+
+
+    if (nameError) {
+
+      setMessage(
+
+        nameError.message
+
+      );
+
+
+
+      setLoading(
+
+        false
+
+      );
+
+
+
+      return;
+
+    }
+
+
+
+    const internalNameMap =
+
+      new Map<string, string | null>(
+
+        ((nameData ?? []) as {
+
+          lineUserRowId: string;
+
+          internalName: string | null;
+
+        }[]).map(
+
+          (item) => [
+
+            item.lineUserRowId,
+
+            item.internalName,
+
+          ]
+
+        )
+
+      );
+
+
+
+    const loadedLineUsers =
+
+      (result.line_users ?? []).map(
+
+        (user) => ({
+
+          ...user,
+
+          internalName:
+
+            internalNameMap.get(
+
+              user.lineUserRowId
+
+            ) ?? null,
+
+        })
+
+      );
+
+
+
     setLineUsers(
 
-      result.line_users ??
+      loadedLineUsers
 
-        []
+    );
+
+
+
+    setNameSelections(
+
+      Object.fromEntries(
+
+        loadedLineUsers.map(
+
+          (user) => [
+
+            user.lineUserRowId,
+
+            user.internalName ?? "",
+
+          ]
+
+        )
+
+      )
 
     );
 
@@ -369,6 +501,110 @@ export default function LineAccessPage() {
     loadData();
 
   }, []);
+
+
+
+  // =====================================================
+
+  // OMS PERSON NAME
+
+  // =====================================================
+
+
+
+  async function saveInternalName(
+
+    user: LineUser
+
+  ) {
+
+    const value =
+
+      nameSelections[
+
+        user.lineUserRowId
+
+      ] ?? "";
+
+
+
+    setWorking(
+
+      `name-${user.lineUserRowId}`
+
+    );
+
+
+
+    setMessage(
+
+      ""
+
+    );
+
+
+
+    const {
+
+      error,
+
+    } =
+
+      await supabase.rpc(
+
+        "set_line_user_internal_name",
+
+        {
+
+          p_line_user_row_id:
+
+            user.lineUserRowId,
+
+          p_internal_name:
+
+            value.trim() || null,
+
+        }
+
+      );
+
+
+
+    if (error) {
+
+      setMessage(
+
+        error.message
+
+      );
+
+
+
+      setWorking(
+
+        ""
+
+      );
+
+
+
+      return;
+
+    }
+
+
+
+    await loadData();
+
+
+
+    setWorking(
+
+      ""
+
+    );
+
+  }
 
 
 
@@ -990,6 +1226,22 @@ export default function LineAccessPage() {
 
             (
 
+              user.internalName ??
+
+              ""
+
+            )
+
+              .toLowerCase()
+
+              .includes(
+
+                term
+
+              ) ||
+
+            (
+
               user.displayName ??
 
               ""
@@ -1220,7 +1472,7 @@ export default function LineAccessPage() {
 
             }
 
-            placeholder="ชื่อ LINE ID รหัสลูกค้า หรือรหัสพนักงาน..."
+            placeholder="ชื่อบุคคล ชื่อ LINE, LINE ID, รหัสลูกค้า หรือรหัสพนักงาน..."
 
             className="w-full border rounded-lg px-4 py-3"
 
@@ -1408,6 +1660,14 @@ export default function LineAccessPage() {
 
 
 
+                const nameBusy =
+
+                  working ===
+
+                  `name-${user.lineUserRowId}`;
+
+
+
                 return (
 
                   <section
@@ -1436,13 +1696,15 @@ export default function LineAccessPage() {
 
 
 
-                        <div>
+                        <div className="flex-1 min-w-[260px]">
 
 
 
                           <h2 className="text-xl font-bold">
 
                             {
+
+                              user.internalName ??
 
                               user.displayName ??
 
@@ -1451,6 +1713,18 @@ export default function LineAccessPage() {
                             }
 
                           </h2>
+
+
+
+                          {user.internalName && (
+
+                            <p className="text-sm text-gray-500 mt-1">
+
+                              ชื่อ LINE: {user.displayName ?? "—"}
+
+                            </p>
+
+                          )}
 
 
 
@@ -1463,6 +1737,102 @@ export default function LineAccessPage() {
                             }
 
                           </p>
+
+
+
+                          <div className="mt-4 max-w-xl">
+
+                            <label className="block text-sm font-semibold mb-2">
+
+                              ชื่อบุคคลใน OMS
+
+                            </label>
+
+
+
+                            <div className="flex flex-col sm:flex-row gap-2">
+
+                              <input
+
+                                value={
+
+                                  nameSelections[
+
+                                    user.lineUserRowId
+
+                                  ] ?? ""
+
+                                }
+
+                                onChange={(event) =>
+
+                                  setNameSelections(
+
+                                    (previous) => ({
+
+                                      ...previous,
+
+                                      [user.lineUserRowId]:
+
+                                        event.target.value,
+
+                                    })
+
+                                  )
+
+                                }
+
+                                placeholder="เช่น สมชาย ใจดี / คุณแอน"
+
+                                className="flex-1 border rounded-lg px-3 py-2.5"
+
+                              />
+
+
+
+                              <button
+
+                                type="button"
+
+                                onClick={() =>
+
+                                  saveInternalName(
+
+                                    user
+
+                                  )
+
+                                }
+
+                                disabled={
+
+                                  nameBusy
+
+                                }
+
+                                className="bg-black text-white rounded-lg px-4 py-2.5 font-semibold disabled:opacity-40"
+
+                              >
+
+                                {nameBusy
+
+                                  ? "กำลังบันทึก..."
+
+                                  : "บันทึกชื่อ"}
+
+                              </button>
+
+                            </div>
+
+
+
+                            <p className="text-xs text-gray-500 mt-2">
+
+                              ชื่อนี้ใช้ภายใน OMS เท่านั้น และไม่เปลี่ยนชื่อที่ผู้ใช้ตั้งไว้ใน LINE
+
+                            </p>
+
+                          </div>
 
 
 
