@@ -220,6 +220,26 @@ export default function LineAccessPage() {
 
 
 
+  const [
+
+    statusFilter,
+
+    setStatusFilter,
+
+  ] =
+
+    useState<
+
+      "active" |
+
+      "removed" |
+
+      "all"
+
+    >("active");
+
+
+
   // Each LINE user gets its own
 
   // customer/staff selector.
@@ -1168,6 +1188,160 @@ export default function LineAccessPage() {
 
   // =====================================================
 
+  // REMOVE / RESTORE LINE ACCOUNT FROM ACTIVE LIST
+
+  // =====================================================
+
+
+
+  async function setLineUserActive(
+
+    user: LineUser,
+
+    nextActive: boolean
+
+  ) {
+
+    if (
+
+      !nextActive &&
+
+      (
+
+        user.customerCodes.length > 0 ||
+
+        user.staff?.isAuthorized
+
+      )
+
+    ) {
+
+      setMessage(
+
+        "กรุณายกเลิกสิทธิ์ลูกค้าและสิทธิ์พนักงานทั้งหมดก่อนนำบัญชี LINE ออกจากรายการ"
+
+      );
+
+      return;
+
+    }
+
+
+
+    const personName =
+
+      user.internalName ??
+
+      user.displayName ??
+
+      user.lineUserId;
+
+
+
+    const confirmed =
+
+      window.confirm(
+
+        nextActive
+
+          ? `เปิดใช้งานบัญชี LINE ของ ${personName} อีกครั้งหรือไม่?`
+
+          : `นำบัญชี LINE ของ ${personName} ออกจากรายการใช้งานหรือไม่?\n\nบัญชีจะถูกปิดใช้งานและซ่อนจากรายการปกติ แต่ประวัติเดิมจะยังคงอยู่`
+
+      );
+
+
+
+    if (!confirmed) {
+
+      return;
+
+    }
+
+
+
+    setWorking(
+
+      `status-${user.lineUserRowId}`
+
+    );
+
+
+
+    setMessage(
+
+      ""
+
+    );
+
+
+
+    const {
+
+      error,
+
+    } =
+
+      await supabase.rpc(
+
+        "set_line_user_active_status",
+
+        {
+
+          p_line_user_row_id:
+
+            user.lineUserRowId,
+
+          p_active:
+
+            nextActive,
+
+        }
+
+      );
+
+
+
+    if (error) {
+
+      setMessage(
+
+        error.message
+
+      );
+
+
+
+      setWorking(
+
+        ""
+
+      );
+
+
+
+      return;
+
+    }
+
+
+
+    await loadData();
+
+
+
+    setWorking(
+
+      ""
+
+    );
+
+  }
+
+
+
+  // =====================================================
+
   // FILTER
 
   // =====================================================
@@ -1188,17 +1362,45 @@ export default function LineAccessPage() {
 
 
 
-      if (!term) {
-
-        return lineUsers;
-
-      }
-
-
-
       return lineUsers.filter(
 
         (user) => {
+
+          if (
+
+            statusFilter === "active" &&
+
+            !user.isActive
+
+          ) {
+
+            return false;
+
+          }
+
+
+
+          if (
+
+            statusFilter === "removed" &&
+
+            user.isActive
+
+          ) {
+
+            return false;
+
+          }
+
+
+
+          if (!term) {
+
+            return true;
+
+          }
+
+
 
           const customerText =
 
@@ -1289,6 +1491,8 @@ export default function LineAccessPage() {
       lineUsers,
 
       search,
+
+      statusFilter,
 
     ]);
 
@@ -1480,6 +1684,60 @@ export default function LineAccessPage() {
 
 
 
+          <div className="flex flex-wrap gap-2 mt-4">
+
+            {([
+
+              ["active", "ใช้งานอยู่"],
+
+              ["removed", "นำออกแล้ว"],
+
+              ["all", "ทั้งหมด"],
+
+            ] as const).map(
+
+              ([value, label]) => (
+
+                <button
+
+                  key={value}
+
+                  type="button"
+
+                  onClick={() =>
+
+                    setStatusFilter(
+
+                      value
+
+                    )
+
+                  }
+
+                  className={`rounded-full px-4 py-2 text-sm font-semibold border ${
+
+                    statusFilter === value
+
+                      ? "bg-black text-white border-black"
+
+                      : "bg-white"
+
+                  }`}
+
+                >
+
+                  {label}
+
+                </button>
+
+              )
+
+            )}
+
+          </div>
+
+
+
         </div>
 
 
@@ -1498,7 +1756,7 @@ export default function LineAccessPage() {
 
             <p className="text-sm text-gray-500">
 
-              ผู้ใช้ LINE ที่ลงทะเบียน
+              บัญชี LINE ที่ใช้งานอยู่
 
             </p>
 
@@ -1508,7 +1766,13 @@ export default function LineAccessPage() {
 
               {
 
-                lineUsers.length
+                lineUsers.filter(
+
+                  (user) =>
+
+                    user.isActive
+
+                ).length
 
               }
 
@@ -1668,6 +1932,22 @@ export default function LineAccessPage() {
 
 
 
+                const statusBusy =
+
+                  working ===
+
+                  `status-${user.lineUserRowId}`;
+
+
+
+                const canRemove =
+
+                  user.customerCodes.length === 0 &&
+
+                  !user.staff?.isAuthorized;
+
+
+
                 return (
 
                   <section
@@ -1784,7 +2064,9 @@ export default function LineAccessPage() {
 
                                 placeholder="เช่น สมชาย ใจดี / คุณแอน"
 
-                                className="flex-1 border rounded-lg px-3 py-2.5"
+                                disabled={!user.isActive}
+
+                                className="flex-1 border rounded-lg px-3 py-2.5 disabled:bg-gray-100"
 
                               />
 
@@ -1806,7 +2088,9 @@ export default function LineAccessPage() {
 
                                 disabled={
 
-                                  nameBusy
+                                  nameBusy ||
+
+                                  !user.isActive
 
                                 }
 
@@ -1840,7 +2124,7 @@ export default function LineAccessPage() {
 
 
 
-                        <div>
+                        <div className="flex flex-col items-start sm:items-end gap-3">
 
 
 
@@ -1856,9 +2140,109 @@ export default function LineAccessPage() {
 
                             <span className="inline-block border rounded-full px-3 py-1 text-sm">
 
-                              ไม่ใช้งาน
+                              นำออกจากรายการแล้ว
 
                             </span>
+
+                          )}
+
+
+
+                          {user.isActive ? (
+
+                            <button
+
+                              type="button"
+
+                              onClick={() =>
+
+                                setLineUserActive(
+
+                                  user,
+
+                                  false
+
+                                )
+
+                              }
+
+                              disabled={
+
+                                statusBusy ||
+
+                                !canRemove
+
+                              }
+
+                              title={
+
+                                canRemove
+
+                                  ? "นำบัญชี LINE ออกจากรายการใช้งาน"
+
+                                  : "ต้องยกเลิกสิทธิ์ลูกค้าและสิทธิ์พนักงานทั้งหมดก่อน"
+
+                              }
+
+                              className="border border-red-300 text-red-700 rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+
+                            >
+
+                              {statusBusy
+
+                                ? "กำลังนำออก..."
+
+                                : "นำบัญชีออก"}
+
+                            </button>
+
+                          ) : (
+
+                            <button
+
+                              type="button"
+
+                              onClick={() =>
+
+                                setLineUserActive(
+
+                                  user,
+
+                                  true
+
+                                )
+
+                              }
+
+                              disabled={
+
+                                statusBusy
+
+                              }
+
+                              className="border border-green-300 text-green-700 rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-40"
+
+                            >
+
+                              {statusBusy
+
+                                ? "กำลังเปิดใช้งาน..."
+
+                                : "เปิดใช้งานอีกครั้ง"}
+
+                            </button>
+
+                          )}
+
+
+
+                          {user.isActive && !canRemove && (
+
+                            <p className="text-xs text-gray-400 max-w-[220px] sm:text-right">
+
+                              ยกเลิกสิทธิ์ลูกค้าและสิทธิ์พนักงานทั้งหมดก่อน จึงจะนำบัญชีออกได้
+
+                            </p>
 
                           )}
 
@@ -2012,7 +2396,9 @@ export default function LineAccessPage() {
 
                                       disabled={
 
-                                        customerBusy
+                                        customerBusy ||
+
+                                        !user.isActive
 
                                       }
 
@@ -2102,7 +2488,9 @@ export default function LineAccessPage() {
 
                             }
 
-                            className="flex-1 border rounded-lg px-3 py-3"
+                            disabled={!user.isActive}
+
+                            className="flex-1 border rounded-lg px-3 py-3 disabled:bg-gray-100"
 
                           >
 
@@ -2194,7 +2582,9 @@ export default function LineAccessPage() {
 
                             disabled={
 
-                              customerBusy
+                              customerBusy ||
+
+                              !user.isActive
 
                             }
 
@@ -2312,7 +2702,9 @@ export default function LineAccessPage() {
 
                                 disabled={
 
-                                  staffBusy
+                                  staffBusy ||
+
+                                  !user.isActive
 
                                 }
 
@@ -2406,7 +2798,9 @@ export default function LineAccessPage() {
 
                             }
 
-                            className="flex-1 border rounded-lg px-3 py-3"
+                            disabled={!user.isActive}
+
+                            className="flex-1 border rounded-lg px-3 py-3 disabled:bg-gray-100"
 
                           >
 
@@ -2500,7 +2894,9 @@ export default function LineAccessPage() {
 
                             disabled={
 
-                              staffBusy
+                              staffBusy ||
+
+                              !user.isActive
 
                             }
 
