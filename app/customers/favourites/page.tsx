@@ -142,78 +142,34 @@ export default function CustomerFavouritesPage() {
       return;
     }
 
-    const [
-      customerResult,
-      productResult,
-    ] =
-      await Promise.all([
-        supabase
-          .from(
-            "customers"
-          )
-          .select(`
-            id,
-            customer_code,
-            customer_name,
-            is_active
-          `)
-          .order(
-            "customer_name",
-            {
-              ascending:
-                true,
-            }
-          ),
-
-        supabase
-          .from(
-            "products"
-          )
-          .select(`
-            id,
-            sku,
-            product_name,
-            category,
-            unit,
-            normal_price
-          `)
-          .eq(
-            "is_active",
-            true
-          )
-          .eq(
-            "is_customer_visible",
-            true
-          )
-          .order(
-            "product_name",
-            {
-              ascending:
-                true,
-            }
-          ),
-      ]);
+    const {
+      data: customerData,
+      error: customerError,
+    } =
+      await supabase
+        .from(
+          "customers"
+        )
+        .select(`
+          id,
+          customer_code,
+          customer_name,
+          is_active
+        `)
+        .order(
+          "customer_name",
+          {
+            ascending:
+              true,
+          }
+        );
 
     if (
-      customerResult.error
+      customerError
     ) {
       setMessage(
         "ไม่สามารถโหลดลูกค้าได้: " +
-          customerResult
-            .error.message
-      );
-
-      setLoading(false);
-      return;
-    }
-
-    if (
-      productResult.error
-    ) {
-      setMessage(
-        "ไม่สามารถโหลดสินค้าได้: " +
-          productResult
-            .error.message
+          customerError.message
       );
 
       setLoading(false);
@@ -221,16 +177,11 @@ export default function CustomerFavouritesPage() {
     }
 
     const loadedCustomers =
-      (customerResult.data ??
+      (customerData ??
         []) as Customer[];
 
     setCustomers(
       loadedCustomers
-    );
-
-    setProducts(
-      (productResult.data ??
-        []) as Product[]
     );
 
     if (
@@ -270,6 +221,10 @@ export default function CustomerFavouritesPage() {
         new Set()
       );
 
+      setProducts(
+        []
+      );
+
       return;
     }
 
@@ -301,6 +256,10 @@ export default function CustomerFavouritesPage() {
         new Set()
       );
 
+      setProducts(
+        []
+      );
+
       setLoadingFavourites(
         false
       );
@@ -312,15 +271,121 @@ export default function CustomerFavouritesPage() {
       (data ??
         []) as unknown as FavouriteRow[];
 
+    const productIds =
+      rows.map(
+        (
+          row
+        ) =>
+          row.product_id
+      );
+
     setFavouriteIds(
       new Set(
+        productIds
+      )
+    );
+
+    if (
+      productIds.length === 0
+    ) {
+      setProducts(
+        []
+      );
+
+      setLoadingFavourites(
+        false
+      );
+
+      return;
+    }
+
+    const {
+      data: productData,
+      error: productError,
+    } =
+      await supabase
+        .from(
+          "products"
+        )
+        .select(`
+          id,
+          sku,
+          product_name,
+          category,
+          unit,
+          normal_price
+        `)
+        .eq(
+          "is_active",
+          true
+        )
+        .eq(
+          "is_customer_visible",
+          true
+        )
+        .in(
+          "id",
+          productIds
+        );
+
+    if (
+      productError
+    ) {
+      setMessage(
+        "ไม่สามารถโหลดรายละเอียดสินค้าซื้อประจำได้: " +
+          productError.message
+      );
+
+      setProducts(
+        []
+      );
+
+      setLoadingFavourites(
+        false
+      );
+
+      return;
+    }
+
+    const orderMap =
+      new Map(
         rows.map(
           (
-            row
-          ) =>
-            row.product_id
+            row,
+            index
+          ) => [
+            row.product_id,
+            row.sort_order ??
+              index,
+          ]
         )
-      )
+      );
+
+    const loadedProducts =
+      (
+        (productData ??
+          []) as Product[]
+      ).sort(
+        (
+          a,
+          b
+        ) =>
+          (
+            orderMap.get(
+              a.id
+            ) ??
+            999999
+          ) -
+          (
+            orderMap.get(
+              b.id
+            ) ??
+            999999
+          )
+      );
+
+    setProducts(
+      loadedProducts
     );
 
     setLoadingFavourites(
@@ -481,16 +546,26 @@ export default function CustomerFavouritesPage() {
 
   const filteredProducts =
     useMemo(() => {
+      const favouriteProducts =
+        products.filter(
+          (
+            product
+          ) =>
+            favouriteIds.has(
+              product.id
+            )
+        );
+
       const text =
         search
           .trim()
           .toLowerCase();
 
       if (!text) {
-        return products;
+        return favouriteProducts;
       }
 
-      return products.filter(
+      return favouriteProducts.filter(
         (
           product
         ) =>
@@ -515,6 +590,7 @@ export default function CustomerFavouritesPage() {
       );
     }, [
       products,
+      favouriteIds,
       search,
     ]);
 
@@ -556,7 +632,7 @@ export default function CustomerFavouritesPage() {
             </h1>
 
             <p className="text-gray-500 mt-1">
-              เลือกสินค้าที่จะแสดงในหน้า Favourites ของลูกค้าแต่ละราย
+              แสดงเฉพาะสินค้าที่ถูกตั้งเป็น Favourites ของลูกค้าแต่ละราย
             </p>
 
           </div>
@@ -685,11 +761,11 @@ export default function CustomerFavouritesPage() {
             <div>
 
               <h2 className="font-bold text-lg">
-                สินค้าที่ลูกค้าเห็นได้
+                สินค้าซื้อประจำของลูกค้า
               </h2>
 
               <p className="text-sm text-gray-500 mt-1">
-                กด ☆ เพื่อเพิ่ม หรือ ★ เพื่อลบออกจากสินค้าซื้อประจำ
+                แสดงเฉพาะสินค้าที่ติด ★ อยู่แล้ว กด ★ เพื่อลบออกจากสินค้าซื้อประจำ
               </p>
 
             </div>
@@ -713,7 +789,7 @@ export default function CustomerFavouritesPage() {
             0 ? (
 
             <div className="p-8 text-gray-500">
-              ไม่พบสินค้า
+              ลูกค้ารายนี้ยังไม่มีสินค้าซื้อประจำ
             </div>
 
           ) : (
@@ -788,11 +864,7 @@ export default function CustomerFavouritesPage() {
                                 )
                               }
                               className="w-11 h-11 rounded-full border flex items-center justify-center text-2xl disabled:opacity-40"
-                              title={
-                                isFavourite
-                                  ? "ลบออกจากสินค้าซื้อประจำ"
-                                  : "เพิ่มเป็นสินค้าซื้อประจำ"
-                              }
+                              title="ลบออกจากสินค้าซื้อประจำ"
                             >
                               {busy
                                 ? "…"
