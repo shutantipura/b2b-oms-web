@@ -88,24 +88,77 @@ function prettyText(value: string | null) {
 
 
 
-  return value
+  const names: Record<string, string> = {
 
-    .split("_")
+    restaurant: "ร้านอาหาร",
 
-    .map(
+    grocery: "ร้านโชห่วย",
 
-      (word) =>
+    hotel: "โรงแรม",
 
-        word.charAt(0).toUpperCase() +
+    cafe: "คาเฟ่",
 
-        word.slice(1)
+    other: "อื่น ๆ",
 
-    )
 
-    .join(" ");
+
+    customer: "ลูกค้า",
+
+    staff: "พนักงาน",
+
+    manager: "ผู้จัดการ",
+
+    salesman: "ฝ่ายขาย",
+
+
+
+    awaiting_confirmation: "รอยืนยันคำสั่งซื้อ",
+
+    awaiting_picking: "รอจัดสินค้า",
+
+    picking: "กำลังจัดสินค้า",
+
+    awaiting_billing: "รอออกบิล",
+
+    ready_for_delivery: "พร้อมจัดส่ง",
+
+    out_for_delivery: "กำลังจัดส่ง",
+
+    awaiting_payment: "รอชำระเงิน",
+
+    payment_submitted: "ส่งหลักฐานการชำระเงินแล้ว",
+
+    completed: "เสร็จสิ้น",
+
+    cancelled: "ยกเลิก",
+
+  };
+
+
+
+  return (
+
+    names[value] ??
+
+    value
+
+      .split("_")
+
+      .map(
+
+        (word) =>
+
+          word.charAt(0).toUpperCase() +
+
+          word.slice(1)
+
+      )
+
+      .join(" ")
+
+  );
 
 }
-
 
 
 export default function CustomerDetailPage() {
@@ -176,7 +229,7 @@ export default function CustomerDetailPage() {
 
 
 
-  const [phone, setPhone] =
+  const [phone, setเบอร์โทรศัพท์] =
 
     useState("");
 
@@ -268,7 +321,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Could not load customer: " +
+        "ไม่สามารถโหลดข้อมูลลูกค้าได้: " +
 
           customerError.message
 
@@ -318,7 +371,7 @@ export default function CustomerDetailPage() {
 
 
 
-    setPhone(
+    setเบอร์โทรศัพท์(
 
       loadedCustomer.phone ?? ""
 
@@ -384,7 +437,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Could not load LINE accounts: " +
+        "ไม่สามารถโหลดบัญชี LINE ได้: " +
 
           linkError.message
 
@@ -448,7 +501,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Could not load LINE users: " +
+        "ไม่สามารถโหลดผู้ใช้ LINE ได้: " +
 
           lineError.message
 
@@ -526,7 +579,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Could not load orders: " +
+        "ไม่สามารถโหลดคำสั่งซื้อได้: " +
 
           orderError.message
 
@@ -626,7 +679,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "CV Number is required."
+        "กรุณากรอกเลขลูกค้า (CV)"
 
       );
 
@@ -638,7 +691,7 @@ export default function CustomerDetailPage() {
 
     // The legacy ABC test account may remain C001.
 
-    // Any changed / real customer CV Number must be exactly 10 digits.
+    // Any changed / real customer เลขลูกค้า (CV) must be exactly 10 digits.
 
     if (
 
@@ -654,7 +707,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "CV Number must contain exactly 10 digits."
+        "เลขลูกค้า (CV) ต้องเป็นตัวเลข 10 หลัก"
 
       );
 
@@ -668,7 +721,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Customer name is required."
+        "กรุณากรอกชื่อลูกค้า"
 
       );
 
@@ -682,7 +735,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Phone number is required."
+        "กรุณากรอกเบอร์โทรศัพท์"
 
       );
 
@@ -696,7 +749,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Delivery address is required."
+        "กรุณากรอกที่อยู่จัดส่ง"
 
       );
 
@@ -752,7 +805,7 @@ export default function CustomerDetailPage() {
 
         setMessage(
 
-          "Could not validate CV Number: " +
+          "ไม่สามารถตรวจสอบเลขลูกค้า (CV) ได้: " +
 
             duplicateError.message
 
@@ -770,7 +823,7 @@ export default function CustomerDetailPage() {
 
         setMessage(
 
-          "This CV Number is already used by another customer."
+          "เลขลูกค้า (CV) นี้ถูกใช้โดยลูกค้ารายอื่นแล้ว"
 
         );
 
@@ -842,7 +895,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Could not update customer: " +
+        "ไม่สามารถอัปเดตข้อมูลลูกค้าได้: " +
 
           error.message
 
@@ -898,9 +951,9 @@ export default function CustomerDetailPage() {
 
       nextActive
 
-        ? "reactivate"
+        ? "เปิดใช้งานอีกครั้ง"
 
-        : "deactivate";
+        : "ปิดใช้งาน";
 
 
 
@@ -908,7 +961,7 @@ export default function CustomerDetailPage() {
 
       window.confirm(
 
-        `Are you sure you want to ${action} ${customer.customer_name}?`
+        `ยืนยันที่จะ${action}ลูกค้า ${customer.customer_name} หรือไม่?`
 
       );
 
@@ -950,7 +1003,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Could not change customer status: " +
+        "ไม่สามารถเปลี่ยนสถานะลูกค้าได้: " +
 
           error.message
 
@@ -982,7 +1035,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Please select a LINE account."
+        "กรุณาเลือกบัญชี LINE"
 
       );
 
@@ -1026,7 +1079,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Could not authorize LINE account: " +
+        "ไม่สามารถอนุญาตบัญชี LINE ได้: " +
 
           error.message
 
@@ -1098,7 +1151,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Could not update LINE authorization: " +
+        "ไม่สามารถอัปเดตสิทธิ์ LINE ได้: " +
 
           error.message
 
@@ -1134,7 +1187,7 @@ export default function CustomerDetailPage() {
 
       window.confirm(
 
-        `Remove ${displayName} from this customer account?`
+        `นำ ${displayName} ออกจากบัญชีลูกค้านี้หรือไม่?`
 
       );
 
@@ -1178,7 +1231,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "Could not remove LINE account: " +
+        "ไม่สามารถนำบัญชี LINE ออกได้: " +
 
           error.message
 
@@ -1204,7 +1257,7 @@ export default function CustomerDetailPage() {
 
       <main className="min-h-screen bg-gray-100 p-8">
 
-        Loading customer...
+        กำลังโหลดข้อมูลลูกค้า...
 
       </main>
 
@@ -1220,7 +1273,7 @@ export default function CustomerDetailPage() {
 
       <main className="min-h-screen bg-gray-100 p-8">
 
-        Customer not found.
+        ไม่พบข้อมูลลูกค้า
 
       </main>
 
@@ -1248,7 +1301,7 @@ export default function CustomerDetailPage() {
 
         >
 
-          ← Back to Customers
+          ← กลับไปหน้าลูกค้า
 
         </Link>
 
@@ -1264,7 +1317,7 @@ export default function CustomerDetailPage() {
 
             <p className="text-sm text-gray-500">
 
-              CUSTOMER
+              ลูกค้า
 
             </p>
 
@@ -1298,9 +1351,9 @@ export default function CustomerDetailPage() {
 
               {customer.is_active
 
-                ? "Active"
+                ? "ใช้งานอยู่"
 
-                : "Inactive"}
+                : "ปิดใช้งาน"}
 
             </span>
 
@@ -1326,7 +1379,7 @@ export default function CustomerDetailPage() {
 
 
 
-        {/* CUSTOMER DETAILS */}
+        {/* ลูกค้า DETAILS */}
 
 
 
@@ -1340,7 +1393,7 @@ export default function CustomerDetailPage() {
 
             <h2 className="font-bold text-lg">
 
-              Customer Details
+              ข้อมูลลูกค้า
 
             </h2>
 
@@ -1360,7 +1413,7 @@ export default function CustomerDetailPage() {
 
               >
 
-                EDIT CUSTOMER
+                EDIT ลูกค้า
 
               </button>
 
@@ -1382,7 +1435,7 @@ export default function CustomerDetailPage() {
 
                 <label className="block text-sm font-medium mb-2">
 
-                  CV Number
+                  เลขลูกค้า (CV)
 
                 </label>
 
@@ -1412,7 +1465,7 @@ export default function CustomerDetailPage() {
 
                   className="w-full border rounded-lg px-4 py-3"
 
-                  placeholder="10-digit CV Number"
+                  placeholder="10-digit เลขลูกค้า (CV)"
 
                 />
 
@@ -1420,7 +1473,7 @@ export default function CustomerDetailPage() {
 
                 <p className="text-xs text-gray-500 mt-2">
 
-                  Real customer CV Numbers must contain exactly 10 digits. ABC Restaurant may remain C001 as the test account.
+                  Real customer เลขลูกค้า (CV)s must contain exactly 10 digits. ABC Restaurant may remain C001 as the test account.
 
                 </p>
 
@@ -1432,7 +1485,7 @@ export default function CustomerDetailPage() {
 
                 <label className="block text-sm font-medium mb-2">
 
-                  Customer Name
+                  ชื่อลูกค้า
 
                 </label>
 
@@ -1464,7 +1517,7 @@ export default function CustomerDetailPage() {
 
                 <label className="block text-sm font-medium mb-2">
 
-                  Customer Type
+                  ประเภทลูกค้า
 
                 </label>
 
@@ -1490,7 +1543,7 @@ export default function CustomerDetailPage() {
 
                   <option value="">
 
-                    Select type
+                    เลือกประเภท
 
                   </option>
 
@@ -1498,7 +1551,7 @@ export default function CustomerDetailPage() {
 
                   <option value="restaurant">
 
-                    Restaurant
+                    ร้านอาหาร
 
                   </option>
 
@@ -1506,7 +1559,7 @@ export default function CustomerDetailPage() {
 
                   <option value="grocery">
 
-                    Grocery / โชห่วย
+                    ร้านโชห่วย
 
                   </option>
 
@@ -1514,7 +1567,7 @@ export default function CustomerDetailPage() {
 
                   <option value="hotel">
 
-                    Hotel
+                    โรงแรม
 
                   </option>
 
@@ -1522,7 +1575,7 @@ export default function CustomerDetailPage() {
 
                   <option value="cafe">
 
-                    Cafe
+                    คาเฟ่
 
                   </option>
 
@@ -1530,7 +1583,7 @@ export default function CustomerDetailPage() {
 
                   <option value="other">
 
-                    Other
+                    อื่น ๆ
 
                   </option>
 
@@ -1544,7 +1597,7 @@ export default function CustomerDetailPage() {
 
                 <label className="block text-sm font-medium mb-2">
 
-                  Contact Person
+                  ผู้ติดต่อ
 
                 </label>
 
@@ -1576,7 +1629,7 @@ export default function CustomerDetailPage() {
 
                 <label className="block text-sm font-medium mb-2">
 
-                  Phone
+                  เบอร์โทรศัพท์
 
                 </label>
 
@@ -1588,7 +1641,7 @@ export default function CustomerDetailPage() {
 
                   onChange={(event) =>
 
-                    setPhone(
+                    setเบอร์โทรศัพท์(
 
                       event.target.value
 
@@ -1610,7 +1663,7 @@ export default function CustomerDetailPage() {
 
                 <label className="block text-sm font-medium mb-2">
 
-                  Delivery Address
+                  ที่อยู่จัดส่ง
 
                 </label>
 
@@ -1690,7 +1743,7 @@ export default function CustomerDetailPage() {
 
 
 
-                    setPhone(
+                    setเบอร์โทรศัพท์(
 
                       customer.phone ??
 
@@ -1714,7 +1767,7 @@ export default function CustomerDetailPage() {
 
                 >
 
-                  CANCEL
+                  ยกเลิก
 
                 </button>
 
@@ -1732,9 +1785,9 @@ export default function CustomerDetailPage() {
 
                   {saving
 
-                    ? "SAVING..."
+                    ? "กำลังบันทึก..."
 
-                    : "SAVE CHANGES"}
+                    : "บันทึกการเปลี่ยนแปลง"}
 
                 </button>
 
@@ -1760,7 +1813,7 @@ export default function CustomerDetailPage() {
 
                 <p className="text-sm text-gray-500">
 
-                  CV Number
+                  เลขลูกค้า (CV)
 
                 </p>
 
@@ -1780,7 +1833,7 @@ export default function CustomerDetailPage() {
 
                 <p className="text-sm text-gray-500">
 
-                  Customer Type
+                  ประเภทลูกค้า
 
                 </p>
 
@@ -1804,7 +1857,7 @@ export default function CustomerDetailPage() {
 
                 <p className="text-sm text-gray-500">
 
-                  Contact Person
+                  ผู้ติดต่อ
 
                 </p>
 
@@ -1826,7 +1879,7 @@ export default function CustomerDetailPage() {
 
                 <p className="text-sm text-gray-500">
 
-                  Phone
+                  เบอร์โทรศัพท์
 
                 </p>
 
@@ -1860,7 +1913,7 @@ export default function CustomerDetailPage() {
 
                 <p className="text-sm text-gray-500">
 
-                  Delivery Address
+                  ที่อยู่จัดส่ง
 
                 </p>
 
@@ -1900,7 +1953,7 @@ export default function CustomerDetailPage() {
 
           <h2 className="font-bold text-lg">
 
-            Authorized LINE Accounts
+            บัญชี LINE ที่ได้รับอนุญาต
 
           </h2>
 
@@ -1908,7 +1961,7 @@ export default function CustomerDetailPage() {
 
           <p className="text-sm text-gray-500 mt-1 mb-5">
 
-            Multiple LINE users can be linked to one customer account.
+            ลูกค้าหนึ่งรายสามารถเชื่อมกับบัญชี LINE ได้หลายบัญชี
 
           </p>
 
@@ -1920,7 +1973,7 @@ export default function CustomerDetailPage() {
 
             <p className="text-gray-500 mb-6">
 
-              No LINE accounts linked.
+              ยังไม่มีบัญชี LINE ที่เชื่อมกับลูกค้านี้
 
             </p>
 
@@ -1966,7 +2019,7 @@ export default function CustomerDetailPage() {
 
                           {line?.display_name ??
 
-                            "Unknown LINE user"}
+                            "ผู้ใช้ LINE ที่ไม่ทราบชื่อ"}
 
                         </p>
 
@@ -1990,9 +2043,9 @@ export default function CustomerDetailPage() {
 
                           {link.can_order
 
-                            ? "✓ Can order"
+                            ? "✓ สามารถสั่งซื้อได้"
 
-                            : "Cannot order"}
+                            : "ไม่สามารถสั่งซื้อได้"}
 
                         </p>
 
@@ -2026,9 +2079,9 @@ export default function CustomerDetailPage() {
 
                           {link.can_order
 
-                            ? "DEAUTHORIZE"
+                            ? "ยกเลิกสิทธิ์"
 
-                            : "AUTHORIZE"}
+                            : "อนุญาต"}
 
                         </button>
 
@@ -2044,7 +2097,7 @@ export default function CustomerDetailPage() {
 
                               line?.display_name ??
 
-                                "this LINE user"
+                                "ผู้ใช้ LINE นี้"
 
                             )
 
@@ -2088,7 +2141,7 @@ export default function CustomerDetailPage() {
 
             <p className="font-medium mb-3">
 
-              Add LINE Account
+              เพิ่มบัญชี LINE
 
             </p>
 
@@ -2120,7 +2173,7 @@ export default function CustomerDetailPage() {
 
                 <option value="">
 
-                  Select LINE account
+                  เลือกบัญชี LINE
 
                 </option>
 
@@ -2170,7 +2223,7 @@ export default function CustomerDetailPage() {
 
               >
 
-                AUTHORIZE LINE ACCOUNT
+                อนุญาต LINE ACCOUNT
 
               </button>
 
@@ -2202,7 +2255,7 @@ export default function CustomerDetailPage() {
 
             <h2 className="font-bold text-lg">
 
-              Recent Orders
+              คำสั่งซื้อล่าสุด
 
             </h2>
 
@@ -2218,7 +2271,7 @@ export default function CustomerDetailPage() {
 
             <div className="p-6 text-gray-500">
 
-              No orders for this customer yet.
+              ลูกค้ารายนี้ยังไม่มีคำสั่งซื้อ
 
             </div>
 
@@ -2258,7 +2311,7 @@ export default function CustomerDetailPage() {
 
                     >
 
-                      Order #{order.order_number}
+                      ออเดอร์ #{order.order_number}
 
                     </Link>
 
@@ -2268,7 +2321,7 @@ export default function CustomerDetailPage() {
 
                       {order.delivery_date ??
 
-                        "No delivery date"}
+                        "ยังไม่ระบุวันจัดส่ง"}
 
                       {" · "}
 
@@ -2338,7 +2391,7 @@ export default function CustomerDetailPage() {
 
           <h2 className="font-bold text-lg">
 
-            Account Status
+            สถานะบัญชี
 
           </h2>
 
@@ -2346,7 +2399,7 @@ export default function CustomerDetailPage() {
 
           <p className="text-gray-500 mt-1">
 
-            Inactive customers cannot place new orders, but historical data is retained.
+            ลูกค้าที่ถูกปิดใช้งานจะไม่สามารถสร้างคำสั่งซื้อใหม่ได้ แต่ข้อมูลย้อนหลังจะยังคงอยู่
 
           </p>
 
@@ -2362,7 +2415,7 @@ export default function CustomerDetailPage() {
 
               <p className="font-semibold">
 
-                Current status
+                สถานะปัจจุบัน
 
               </p>
 
@@ -2372,9 +2425,9 @@ export default function CustomerDetailPage() {
 
                 {customer.is_active
 
-                  ? "Active"
+                  ? "ใช้งานอยู่"
 
-                  : "Inactive"}
+                  : "ปิดใช้งาน"}
 
               </p>
 
@@ -2394,9 +2447,9 @@ export default function CustomerDetailPage() {
 
               {customer.is_active
 
-                ? "DEACTIVATE CUSTOMER"
+                ? "ปิดใช้งานลูกค้า"
 
-                : "REACTIVATE CUSTOMER"}
+                : "เปิดใช้งานลูกค้าอีกครั้ง"}
 
             </button>
 
