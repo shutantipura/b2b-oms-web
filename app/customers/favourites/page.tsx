@@ -67,6 +67,40 @@ export default function CustomerFavouritesPage() {
     useState("");
 
   const [
+    showAddProduct,
+    setShowAddProduct,
+  ] =
+    useState(false);
+
+  const [
+    addSearch,
+    setAddSearch,
+  ] =
+    useState("");
+
+  const [
+    addResults,
+    setAddResults,
+  ] =
+    useState<Product[]>(
+      []
+    );
+
+  const [
+    searchingProducts,
+    setSearchingProducts,
+  ] =
+    useState(false);
+
+  const [
+    addingProductId,
+    setAddingProductId,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  const [
     loading,
     setLoading,
   ] =
@@ -406,6 +440,221 @@ export default function CustomerFavouritesPage() {
   ]);
 
   // =====================================================
+  // SEARCH PRODUCTS TO ADD
+  // =====================================================
+
+  async function searchProductsToAdd(
+    rawSearch: string
+  ) {
+    const term =
+      rawSearch
+        .trim();
+
+    if (
+      !showAddProduct ||
+      !selectedCustomer ||
+      term.length === 0
+    ) {
+      setAddResults(
+        []
+      );
+
+      setSearchingProducts(
+        false
+      );
+
+      return;
+    }
+
+    setSearchingProducts(
+      true
+    );
+
+    const safeTerm =
+      term
+        .replace(
+          /[,%()]/g,
+          " "
+        )
+        .trim();
+
+    let query =
+      supabase
+        .from(
+          "products"
+        )
+        .select(`
+          id,
+          sku,
+          product_name,
+          category,
+          unit,
+          normal_price
+        `)
+        .eq(
+          "is_active",
+          true
+        )
+        .eq(
+          "is_customer_visible",
+          true
+        )
+        .or(
+          `sku.ilike.%${safeTerm}%,product_name.ilike.%${safeTerm}%,category.ilike.%${safeTerm}%`
+        )
+        .order(
+          "product_name",
+          {
+            ascending:
+              true,
+          }
+        )
+        .limit(
+          30
+        );
+
+    const {
+      data,
+      error,
+    } =
+      await query;
+
+    if (error) {
+      setMessage(
+        "ไม่สามารถค้นหาสินค้าได้: " +
+          error.message
+      );
+
+      setAddResults(
+        []
+      );
+
+      setSearchingProducts(
+        false
+      );
+
+      return;
+    }
+
+    const available =
+      (
+        (data ??
+          []) as Product[]
+      ).filter(
+        (
+          product
+        ) =>
+          !favouriteIds.has(
+            product.id
+          )
+      );
+
+    setAddResults(
+      available
+    );
+
+    setSearchingProducts(
+      false
+    );
+  }
+
+  useEffect(() => {
+    if (
+      !showAddProduct
+    ) {
+      return;
+    }
+
+    const timer =
+      window.setTimeout(
+        () => {
+          void searchProductsToAdd(
+            addSearch
+          );
+        },
+        300
+      );
+
+    return () =>
+      window.clearTimeout(
+        timer
+      );
+  }, [
+    addSearch,
+    showAddProduct,
+    selectedCustomer,
+    favouriteIds,
+  ]);
+
+  async function addFavourite(
+    product: Product
+  ) {
+    if (
+      !selectedCustomer ||
+      addingProductId
+    ) {
+      return;
+    }
+
+    setAddingProductId(
+      product.id
+    );
+
+    setMessage("");
+
+    const {
+      error,
+    } =
+      await supabase.rpc(
+        "set_customer_favourite",
+        {
+          p_customer_id:
+            selectedCustomer,
+
+          p_product_id:
+            product.id,
+
+          p_is_favourite:
+            true,
+        }
+      );
+
+    if (error) {
+      setMessage(
+        "ไม่สามารถเพิ่มสินค้าซื้อประจำได้: " +
+          error.message
+      );
+
+      setAddingProductId(
+        null
+      );
+
+      return;
+    }
+
+    await loadFavourites(
+      selectedCustomer
+    );
+
+    setAddResults(
+      (
+        current
+      ) =>
+        current.filter(
+          (
+            item
+          ) =>
+            item.id !==
+            product.id
+        )
+    );
+
+    setAddingProductId(
+      null
+    );
+  }
+
+  // =====================================================
   // TOGGLE FAVOURITE
   // =====================================================
 
@@ -637,18 +886,50 @@ export default function CustomerFavouritesPage() {
 
           </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              selectedCustomer &&
-              loadFavourites(
-                selectedCustomer
-              )
-            }
-            className="bg-white border rounded-lg px-5 py-2"
-          >
-            รีเฟรช
-          </button>
+          <div className="flex gap-2">
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddProduct(
+                  (
+                    current
+                  ) =>
+                    !current
+                );
+
+                setAddSearch(
+                  ""
+                );
+
+                setAddResults(
+                  []
+                );
+              }}
+              disabled={
+                !selectedCustomer
+              }
+              className="bg-black text-white rounded-lg px-5 py-2 font-semibold disabled:opacity-40"
+            >
+              {showAddProduct
+                ? "ปิด"
+                : "+ เพิ่มสินค้า"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                selectedCustomer &&
+                loadFavourites(
+                  selectedCustomer
+                )
+              }
+              className="bg-white border rounded-lg px-5 py-2"
+            >
+              รีเฟรช
+            </button>
+
+          </div>
 
         </div>
 
@@ -754,6 +1035,152 @@ export default function CustomerFavouritesPage() {
 
         </section>
 
+        {showAddProduct && (
+          <section className="bg-white border rounded-2xl p-5 mb-6">
+
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+
+              <div>
+                <h2 className="font-bold text-lg">
+                  เพิ่มสินค้าซื้อประจำ
+                </h2>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  ค้นหาจาก SKU ชื่อสินค้า หรือหมวดสินค้า แล้วกด + เพื่อเพิ่มให้ลูกค้าที่เลือก
+                </p>
+              </div>
+
+              <div className="text-sm text-gray-500">
+                แสดงสูงสุด 30 รายการต่อการค้นหา
+              </div>
+
+            </div>
+
+            <input
+              type="text"
+              value={
+                addSearch
+              }
+              onChange={(event) =>
+                setAddSearch(
+                  event.target.value
+                )
+              }
+              placeholder="พิมพ์ SKU หรือชื่อสินค้า..."
+              autoFocus
+              className="w-full border rounded-xl px-4 py-3 mt-5"
+            />
+
+            {searchingProducts ? (
+
+              <div className="py-8 text-gray-500">
+                กำลังค้นหาสินค้า...
+              </div>
+
+            ) : addSearch.trim().length ===
+              0 ? (
+
+              <div className="py-8 text-gray-500">
+                พิมพ์คำค้นหาเพื่อค้นหาสินค้าที่ต้องการเพิ่ม
+              </div>
+
+            ) : addResults.length ===
+              0 ? (
+
+              <div className="py-8 text-gray-500">
+                ไม่พบสินค้าที่สามารถเพิ่มได้
+              </div>
+
+            ) : (
+
+              <div className="mt-4 border rounded-xl overflow-hidden">
+
+                {addResults.map(
+                  (
+                    product
+                  ) => {
+
+                    const busy =
+                      addingProductId ===
+                      product.id;
+
+                    return (
+                      <div
+                        key={
+                          product.id
+                        }
+                        className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 border-b last:border-b-0"
+                      >
+
+                        <div className="min-w-0">
+
+                          <div className="font-semibold">
+                            {
+                              product.product_name
+                            }
+                          </div>
+
+                          <div className="text-sm text-gray-500 mt-1">
+                            SKU{" "}
+                            {
+                              product.sku
+                            }
+                            {" · "}
+                            {
+                              product.unit
+                            }
+                            {" · "}
+                            {
+                              product.category ??
+                              "ไม่ระบุหมวด"
+                            }
+                          </div>
+
+                          <div className="text-sm mt-1">
+                            ฿
+                            {Number(
+                              product.normal_price
+                            ).toLocaleString(
+                              "th-TH",
+                              {
+                                minimumFractionDigits:
+                                  2,
+                                maximumFractionDigits:
+                                  2,
+                              }
+                            )}
+                          </div>
+
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void addFavourite(
+                              product
+                            )
+                          }
+                          disabled={
+                            busy
+                          }
+                          className="shrink-0 bg-black text-white rounded-xl px-5 py-2.5 font-semibold disabled:opacity-40"
+                        >
+                          {busy
+                            ? "กำลังเพิ่ม..."
+                            : "+ เพิ่ม"}
+                        </button>
+
+                      </div>
+                    );
+                  }
+                )}
+
+              </div>
+            )}
+
+          </section>
+        )}
+
         <section className="bg-white border rounded-2xl overflow-hidden">
 
           <div className="p-5 border-b flex justify-between items-center">
@@ -789,7 +1216,7 @@ export default function CustomerFavouritesPage() {
             0 ? (
 
             <div className="p-8 text-gray-500">
-              ลูกค้ารายนี้ยังไม่มีสินค้าซื้อประจำ
+              ลูกค้ารายนี้ยังไม่มีสินค้าซื้อประจำ — กด “+ เพิ่มสินค้า” เพื่อเริ่มเพิ่ม
             </div>
 
           ) : (
