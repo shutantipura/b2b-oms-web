@@ -2862,142 +2862,108 @@ export default function CatalogPage() {
 
 
   async function previewVisibleImport() {
-
-    if (
-
-      visibleSkuColumnIndex ===
-
-        null ||
-
-      visibleSalesColumnIndex ===
-
-        null
-
-    ) {
-
-      setVisibleMessage(
-
-        "กรุณาเลือกคอลัมน์ SKU และ Sales"
-
-      );
-
-
-
-      return;
-
-    }
-
-
-
-    if (
-
-      visibleImportRows.length ===
-
-        0
-
-    ) {
-
-      setVisibleMessage(
-
-        "ไม่พบ SKU ในคอลัมน์ที่เลือก"
-
-      );
-
-
-
-      return;
-
-    }
-
-
-
-    setPreviewingVisible(
-
-      true
-
-    );
-
-
-
+  if (
+    visibleSkuColumnIndex === null ||
+    visibleSalesColumnIndex === null
+  ) {
     setVisibleMessage(
-
-      ""
-
+      "กรุณาเลือกคอลัมน์ SKU และ Sales"
     );
 
+    return;
+  }
 
-
-    setVisibleSuccess(
-
-      ""
-
+  if (
+    visibleImportRows.length === 0
+  ) {
+    setVisibleMessage(
+      "ไม่พบ SKU ในคอลัมน์ที่เลือก"
     );
 
+    return;
+  }
 
+  setPreviewingVisible(
+    true
+  );
 
-    try {
+  setVisibleMessage(
+    ""
+  );
 
-      const {
+  setVisibleSuccess(
+    ""
+  );
 
-        data,
-
-        error,
-
-      } =
-
-        await supabase.rpc(
-
-          "preview_customer_visible_products",
-
-          {
-
-            p_rows:
-
-              visibleImportRows,
-
-          }
-
-        );
-
-
-
-      if (error) {
-
-        throw error;
-
-      }
-
-
-
-      setVisiblePreview(
-
-        data as VisiblePreviewResult
-
+  try {
+    const {
+      data,
+      error,
+    } =
+      await supabase.rpc(
+        "preview_customer_visible_products",
+        {
+          p_rows:
+            visibleImportRows,
+        }
       );
 
-    } catch (error) {
-
-      setVisibleMessage(
-
-        error instanceof Error
-
-          ? error.message
-
-          : "ไม่สามารถตรวจสอบรายการสินค้าได้"
-
+    if (error) {
+      console.error(
+        "Visible product preview failed:",
+        error
       );
 
-    } finally {
-
-      setPreviewingVisible(
-
-        false
-
+      throw new Error(
+        error.message ??
+          "ไม่สามารถตรวจสอบรายการสินค้าได้"
       );
-
     }
 
+    setVisiblePreview(
+      data as VisiblePreviewResult
+    );
+  } catch (
+    error: unknown
+  ) {
+    console.error(
+      "Visible product preview failed:",
+      error
+    );
+
+    if (
+      error instanceof Error
+    ) {
+      setVisibleMessage(
+        error.message
+      );
+    } else if (
+      error &&
+      typeof error ===
+        "object" &&
+      "message" in error
+    ) {
+      setVisibleMessage(
+        String(
+          (
+            error as {
+              message?: unknown;
+            }
+          ).message ??
+            "ไม่สามารถตรวจสอบรายการสินค้าได้"
+        )
+      );
+    } else {
+      setVisibleMessage(
+        "ไม่สามารถตรวจสอบรายการสินค้าได้"
+      );
+    }
+  } finally {
+    setPreviewingVisible(
+      false
+    );
   }
+}
 
 
 
