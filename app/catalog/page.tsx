@@ -57,6 +57,8 @@ type VisiblePreviewResult = {
 
   invalidSalesCount: number;
 
+  invalidCategoryCount: number;
+
   unmatchedSkus: string[];
 
 };
@@ -98,6 +100,8 @@ type VisibleUploadRow = {
   sku: string;
 
   sales_score: string;
+
+  category: string;
 
 };
 
@@ -696,6 +700,26 @@ export default function CatalogPage() {
     visibleSalesColumnIndex,
 
     setVisibleSalesColumnIndex,
+
+  ] =
+
+    useState<
+
+      number | null
+
+    >(
+
+      null
+
+    );
+
+
+
+  const [
+
+    visibleCategoryColumnIndex,
+
+    setVisibleCategoryColumnIndex,
 
   ] =
 
@@ -2193,6 +2217,10 @@ export default function CatalogPage() {
 
         visibleSalesColumnIndex ===
 
+          null ||
+
+        visibleCategoryColumnIndex ===
+
           null
 
       ) {
@@ -2241,6 +2269,20 @@ export default function CatalogPage() {
 
               ).trim(),
 
+            category:
+
+              String(
+
+                row[
+
+                  visibleCategoryColumnIndex
+
+                ] ??
+
+                  ""
+
+              ).trim(),
+
           })
 
         )
@@ -2267,9 +2309,9 @@ export default function CatalogPage() {
 
       visibleSalesColumnIndex,
 
+      visibleCategoryColumnIndex,
+
     ]);
-
-
 
   const visibleSkuValues =
 
@@ -2499,6 +2541,102 @@ export default function CatalogPage() {
 
   // =====================================================
 
+  // DETECT THAI DEPARTMENT / CATEGORY COLUMN
+
+  // =====================================================
+
+
+
+  function detectCategoryColumn(
+
+    columnHeaders:
+
+      string[]
+
+  ) {
+
+    const candidates =
+
+      [
+
+        "category",
+
+        "department",
+
+        "department name",
+
+        "department_name",
+
+        "หมวดหมู่",
+
+        "แผนก",
+
+        "แผนกสินค้า",
+
+        "ชื่อแผนก",
+
+      ];
+
+
+
+    const normalized =
+
+      columnHeaders.map(
+
+        (
+
+          header
+
+        ) =>
+
+          header
+
+            .trim()
+
+            .toLowerCase()
+
+      );
+
+
+
+    for (
+
+      const candidate of candidates
+
+    ) {
+
+      const index =
+
+        normalized.indexOf(
+
+          candidate
+
+        );
+
+
+
+      if (
+
+        index !== -1
+
+      ) {
+
+        return index;
+
+      }
+
+    }
+
+
+
+    return null;
+
+  }
+
+
+
+  // =====================================================
+
   // READ VISIBLE SKU FILE
 
   // =====================================================
@@ -2580,6 +2718,14 @@ export default function CatalogPage() {
 
 
     setVisibleSalesColumnIndex(
+
+      null
+
+    );
+
+
+
+    setVisibleCategoryColumnIndex(
 
       null
 
@@ -2767,6 +2913,16 @@ export default function CatalogPage() {
 
 
 
+      const detectedCategoryIndex =
+
+        detectCategoryColumn(
+
+          parsedHeaders
+
+        );
+
+
+
       setVisibleFileName(
 
         file.name
@@ -2807,6 +2963,14 @@ export default function CatalogPage() {
 
 
 
+      setVisibleCategoryColumnIndex(
+
+        detectedCategoryIndex
+
+      );
+
+
+
       if (
 
         detectedIndex ===
@@ -2815,13 +2979,17 @@ export default function CatalogPage() {
 
         detectedSalesIndex ===
 
+        null ||
+
+        detectedCategoryIndex ===
+
         null
 
       ) {
 
         setVisibleMessage(
 
-          "อ่านไฟล์สำเร็จ แต่ไม่พบคอลัมน์ SKU หรือ Sales อัตโนมัติ กรุณาเลือกคอลัมน์ด้านล่าง"
+          "อ่านไฟล์สำเร็จ แต่ไม่พบคอลัมน์ SKU, Sales หรือแผนกสินค้าอัตโนมัติ กรุณาเลือกคอลัมน์ด้านล่าง"
 
         );
 
@@ -2862,110 +3030,220 @@ export default function CatalogPage() {
 
 
   async function previewVisibleImport() {
-  if (
-    visibleSkuColumnIndex === null ||
-    visibleSalesColumnIndex === null
-  ) {
-    setVisibleMessage(
-      "กรุณาเลือกคอลัมน์ SKU และ Sales"
-    );
-
-    return;
-  }
-
-  if (
-    visibleImportRows.length === 0
-  ) {
-    setVisibleMessage(
-      "ไม่พบ SKU ในคอลัมน์ที่เลือก"
-    );
-
-    return;
-  }
-
-  setPreviewingVisible(
-    true
-  );
-
-  setVisibleMessage(
-    ""
-  );
-
-  setVisibleSuccess(
-    ""
-  );
-
-  try {
-    const {
-      data,
-      error,
-    } =
-      await supabase.rpc(
-        "preview_customer_visible_products",
-        {
-          p_rows:
-            visibleImportRows,
-        }
-      );
-
-    if (error) {
-      console.error(
-        "Visible product preview failed:",
-        error
-      );
-
-      throw new Error(
-        error.message ??
-          "ไม่สามารถตรวจสอบรายการสินค้าได้"
-      );
-    }
-
-    setVisiblePreview(
-      data as VisiblePreviewResult
-    );
-  } catch (
-    error: unknown
-  ) {
-    console.error(
-      "Visible product preview failed:",
-      error
-    );
 
     if (
-      error instanceof Error
+
+      visibleSkuColumnIndex ===
+
+        null ||
+
+      visibleSalesColumnIndex ===
+
+        null ||
+
+      visibleCategoryColumnIndex ===
+
+        null
+
     ) {
+
       setVisibleMessage(
-        error.message
+
+        "กรุณาเลือกคอลัมน์ SKU, Sales และแผนกสินค้า"
+
       );
-    } else if (
-      error &&
-      typeof error ===
-        "object" &&
-      "message" in error
-    ) {
-      setVisibleMessage(
-        String(
-          (
-            error as {
-              message?: unknown;
-            }
-          ).message ??
-            "ไม่สามารถตรวจสอบรายการสินค้าได้"
-        )
-      );
-    } else {
-      setVisibleMessage(
-        "ไม่สามารถตรวจสอบรายการสินค้าได้"
-      );
+
+
+
+      return;
+
     }
-  } finally {
+
+
+
+    if (
+
+      visibleImportRows.length ===
+
+        0
+
+    ) {
+
+      setVisibleMessage(
+
+        "ไม่พบ SKU ในคอลัมน์ที่เลือก"
+
+      );
+
+
+
+      return;
+
+    }
+
+
+
     setPreviewingVisible(
-      false
+
+      true
+
     );
+
+
+
+    setVisibleMessage(
+
+      ""
+
+    );
+
+
+
+    setVisibleSuccess(
+
+      ""
+
+    );
+
+
+
+    try {
+
+      const {
+
+        data,
+
+        error,
+
+      } =
+
+        await supabase.rpc(
+
+          "preview_customer_visible_products",
+
+          {
+
+            p_rows:
+
+              visibleImportRows,
+
+          }
+
+        );
+
+
+
+      if (error) {
+
+        console.error(
+
+          "Visible product preview failed:",
+
+          error
+
+        );
+
+
+
+        throw new Error(
+
+          error.message ??
+
+            "ไม่สามารถตรวจสอบรายการสินค้าได้"
+
+        );
+
+      }
+
+
+
+      setVisiblePreview(
+
+        data as VisiblePreviewResult
+
+      );
+
+    } catch (
+
+      error: unknown
+
+    ) {
+
+      console.error(
+
+        "Visible product preview failed:",
+
+        error
+
+      );
+
+
+
+      if (
+
+        error instanceof Error
+
+      ) {
+
+        setVisibleMessage(
+
+          error.message
+
+        );
+
+      } else if (
+
+        error &&
+
+        typeof error ===
+
+          "object" &&
+
+        "message" in error
+
+      ) {
+
+        setVisibleMessage(
+
+          String(
+
+            (
+
+              error as {
+
+                message?: unknown;
+
+              }
+
+            ).message ??
+
+              "ไม่สามารถตรวจสอบรายการสินค้าได้"
+
+          )
+
+        );
+
+      } else {
+
+        setVisibleMessage(
+
+          "ไม่สามารถตรวจสอบรายการสินค้าได้"
+
+        );
+
+      }
+
+    } finally {
+
+      setPreviewingVisible(
+
+        false
+
+      );
+
+    }
+
   }
-}
-
-
 
   // =====================================================
 
@@ -3041,6 +3319,30 @@ export default function CatalogPage() {
 
 
 
+    if (
+
+      visiblePreview
+
+        .invalidCategoryCount >
+
+        0
+
+    ) {
+
+      setVisibleMessage(
+
+        "ไม่สามารถยืนยันได้ เนื่องจากมี SKU ที่ไม่มีชื่อแผนกภาษาไทย กรุณาแก้ไขไฟล์ก่อน"
+
+      );
+
+
+
+      return;
+
+    }
+
+
+
     const confirmed =
 
       window.confirm(
@@ -3051,7 +3353,9 @@ export default function CatalogPage() {
 
           `SKU ที่หาไม่พบ: ${visiblePreview.unmatchedCount.toLocaleString()}\n` +
 
-          `ค่า Sales ไม่ถูกต้อง: ${visiblePreview.invalidSalesCount.toLocaleString()}\n\n` +
+          `ค่า Sales ไม่ถูกต้อง: ${visiblePreview.invalidSalesCount.toLocaleString()}\n` +
+
+          `แผนกว่าง: ${visiblePreview.invalidCategoryCount.toLocaleString()}\n\n` +
 
           `รายการสินค้าที่แสดงอยู่เดิมจะถูกแทนที่ด้วยรายการใหม่นี้`
 
@@ -3302,6 +3606,14 @@ export default function CatalogPage() {
 
 
       setVisibleSalesColumnIndex(
+
+        null
+
+      );
+
+
+
+      setVisibleCategoryColumnIndex(
 
         null
 
@@ -4758,7 +5070,7 @@ export default function CatalogPage() {
 
                 <p className="text-sm text-gray-500 mt-1">
 
-                  อัปโหลด Excel หรือ CSV ที่มี SKU และ Sales เพื่อกำหนดสินค้าที่แสดงและลำดับสินค้าขายดี
+                  อัปโหลด Excel หรือ CSV ที่มี SKU, Sales และชื่อแผนกภาษาไทย ระบบจะเก็บชื่อแผนกตามไฟล์โดยตรงโดยไม่แปลอีกครั้ง
 
                 </p>
 
@@ -4815,6 +5127,34 @@ export default function CatalogPage() {
                 </button>
 
               </div>
+
+            </div>
+
+
+
+            <div className="bg-gray-50 rounded-xl p-4 mb-6 text-sm">
+
+              <p className="font-semibold">
+
+                รูปแบบที่ต้องการ
+
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3 text-gray-600">
+
+                <span>SKU</span>
+
+                <span>Sales</span>
+
+                <span>Department / แผนกสินค้า (ภาษาไทย)</span>
+
+              </div>
+
+              <p className="text-xs text-gray-400 mt-3">
+
+                ตัวอย่างชื่อแผนก: ผักและผลไม้, เนื้อสัตว์และอาหารทะเล, อาหารแช่แข็ง, ของใช้ส่วนบุคคล
+
+              </p>
 
             </div>
 
@@ -5232,11 +5572,159 @@ export default function CatalogPage() {
 
 
 
+            {visibleHeaders.length >
+
+              0 && (
+
+
+
+              <div className="mt-4">
+
+
+
+                <label className="block text-sm font-semibold">
+
+                  เลือกคอลัมน์แผนกสินค้า (ภาษาไทย)
+
+                </label>
+
+
+
+                <select
+
+                  value={
+
+                    visibleCategoryColumnIndex ??
+
+                    ""
+
+                  }
+
+                  onChange={(event) => {
+
+                    const value =
+
+                      event
+
+                        .target
+
+                        .value;
+
+
+
+                    setVisibleCategoryColumnIndex(
+
+                      value ===
+
+                        ""
+
+                        ? null
+
+                        : Number(
+
+                            value
+
+                          )
+
+                    );
+
+
+
+                    setVisiblePreview(
+
+                      null
+
+                    );
+
+
+
+                    setVisibleSuccess(
+
+                      ""
+
+                    );
+
+                  }}
+
+                  className="w-full border rounded-xl px-4 py-3 mt-2 bg-white"
+
+                >
+
+
+
+                  <option value="">
+
+                    -- เลือกคอลัมน์ --
+
+                  </option>
+
+
+
+                  {visibleHeaders.map(
+
+                    (
+
+                      header,
+
+                      index
+
+                    ) => (
+
+
+
+                    <option
+
+                      key={
+
+                        index
+
+                      }
+
+                      value={
+
+                        index
+
+                      }
+
+                    >
+
+                      {
+
+                        header
+
+                      }
+
+                    </option>
+
+
+
+                  ))}
+
+
+
+                </select>
+
+
+
+              </div>
+
+
+
+            )}
+
+
+
+
+
             {visibleSkuColumnIndex !==
 
               null &&
 
               visibleSalesColumnIndex !==
+
+                null &&
+
+              visibleCategoryColumnIndex !==
 
                 null && (
 
@@ -5281,6 +5769,14 @@ export default function CatalogPage() {
                         <th className="text-right p-3">
 
                           Sales
+
+                        </th>
+
+
+
+                        <th className="text-left p-3">
+
+                          แผนกสินค้า
 
                         </th>
 
@@ -5360,6 +5856,20 @@ export default function CatalogPage() {
 
 
 
+                            <td className="p-3">
+
+                              {
+
+                                row.category ||
+
+                                "—"
+
+                              }
+
+                            </td>
+
+
+
                           </tr>
 
 
@@ -5431,6 +5941,10 @@ export default function CatalogPage() {
                     null ||
 
                   visibleSalesColumnIndex ===
+
+                    null ||
+
+                  visibleCategoryColumnIndex ===
 
                     null
 
@@ -5526,7 +6040,7 @@ export default function CatalogPage() {
 
 
 
-                <div className="grid grid-cols-2 md:grid-cols-6">
+                <div className="grid grid-cols-2 md:grid-cols-7">
 
 
 
@@ -5690,7 +6204,7 @@ export default function CatalogPage() {
 
 
 
-                  <div className="p-4">
+                  <div className="p-4 border-r">
 
 
 
@@ -5709,6 +6223,38 @@ export default function CatalogPage() {
                         visiblePreview
 
                           .invalidSalesCount
+
+                          .toLocaleString()
+
+                      }
+
+                    </p>
+
+
+
+                  </div>
+
+
+
+                  <div className="p-4">
+
+
+
+                    <p className="text-xs text-gray-500">
+
+                      แผนกว่าง
+
+                    </p>
+
+
+
+                    <p className="text-2xl font-bold mt-1">
+
+                      {
+
+                        visiblePreview
+
+                          .invalidCategoryCount
 
                           .toLocaleString()
 
@@ -5849,6 +6395,12 @@ export default function CatalogPage() {
                       visiblePreview
 
                         .invalidSalesCount >
+
+                        0 ||
+
+                      visiblePreview
+
+                        .invalidCategoryCount >
 
                         0
 

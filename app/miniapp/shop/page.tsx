@@ -134,42 +134,12 @@ const SEARCH_DEBOUNCE_MS = 350;
 
 
 
-const CATEGORY_LABELS: Record<string, string> = {
-  HOUSEHOLD: "ของใช้ในครัวเรือน",
-  IMPULSE: "ขนมและสินค้าทานเล่น",
-  "STORE SUPPLY": "อุปกรณ์ร้านค้า",
-  "HBA BEAUTY": "ความงาม",
-  "HBA TOILETRIES": "ของใช้ส่วนบุคคล",
-  FROZEN: "อาหารแช่แข็ง",
-  DAIRY: "นมและผลิตภัณฑ์นม",
-  "BASIC FOOD": "อาหารและวัตถุดิบพื้นฐาน",
-  "MEAL SOLUTIONS": "อาหารพร้อมปรุง",
-  BAKERY: "เบเกอรี่",
-  "HOME HARD": "เครื่องใช้และอุปกรณ์ภายในบ้าน",
-  "HOME SOFT": "สิ่งทอและของใช้ภายในบ้าน",
-  LEISURE: "สินค้าไลฟ์สไตล์และสันทนาการ",
-  "MEAT+SEAFOOD": "เนื้อสัตว์และอาหารทะเล",
-  "B2B-MEAT+SEAFOOD": "เนื้อสัตว์และอาหารทะเล B2B",
-  PRECOOKED: "อาหารปรุงสำเร็จ",
-  PRODUCE: "ผักและผลไม้",
-  "FOOD COURT": "ศูนย์อาหาร",
-  APPLIANCE: "เครื่องใช้ไฟฟ้า",
-  "BABY WORLD": "สินค้าแม่และเด็ก",
-  "LIQUOR +TOBACCO": "สุราและยาสูบ",
-  "WS DG FOOD": "สินค้าอาหารค้าส่ง",
-  "HBA PHARMACY": "สุขภาพและยา",
-  "DIY+GARDENING": "อุปกรณ์ช่างและสวน",
-  "ELECTRICAL ACCESSORIES": "อุปกรณ์ไฟฟ้า",
-  SHOES: "รองเท้า",
-  ELECTRONICS: "อิเล็กทรอนิกส์",
-  NEWTECHNOLOGY: "เทคโนโลยีใหม่",
-  "TRUEMOVE H": "ทรูมูฟ เอช",
-  "WS DG NON FOOD": "สินค้าอุปโภคค้าส่ง",
-};
-
 function categoryLabel(category: string) {
-  const normalized = category.trim().toUpperCase();
-  return CATEGORY_LABELS[normalized] ?? "อื่นๆ";
+  const label = category.trim();
+
+  // Category values are now supplied directly in Thai by the
+  // Visible Products import. Do not translate or reinterpret them.
+  return label || "อื่นๆ";
 }
 
 function getQuantityStep(
