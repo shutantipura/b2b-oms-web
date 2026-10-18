@@ -530,7 +530,7 @@ export default function MiniAppShopPage() {
 
       | "all"
 
-    >("favourites");
+    >("all");
 
 
 
