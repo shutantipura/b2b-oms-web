@@ -128,6 +128,24 @@ type FavouriteResponse = {
 
 
 
+function isLiquorTobaccoCategory(
+
+  category: string | null
+
+) {
+
+  return (
+
+    category?.trim() ===
+
+    "สุราและยาสูบ"
+
+  );
+
+}
+
+
+
 const PAGE_SIZE = 30;
 
 const SEARCH_DEBOUNCE_MS = 350;
@@ -3506,7 +3524,74 @@ export default function MiniAppShopPage() {
 
                         <div className="relative aspect-square bg-gray-50">
 
-                          {product.imageUrl ? (
+                          {/* FALLBACK IMAGE AREA */}
+
+                          <div className="absolute inset-0 flex items-center justify-center">
+
+                            {isLiquorTobaccoCategory(
+
+                              product.category
+
+                            ) ? (
+
+                              <div className="w-full h-full flex flex-col items-center justify-center text-center px-5">
+
+                                <div className="w-12 h-12 rounded-full border-2 border-gray-300 flex items-center justify-center text-xl font-bold text-gray-500">
+
+                                  i
+
+                                </div>
+
+                                <p className="text-sm font-bold text-gray-700 mt-3">
+
+                                  สุราและยาสูบ
+
+                                </p>
+
+                                <p className="text-xs text-gray-500 mt-1">
+
+                                  ภาพสินค้าไม่แสดงสำหรับหมวดนี้
+
+                                </p>
+
+                                <p className="text-[11px] leading-4 text-gray-400 mt-2">
+
+                                  โปรดตรวจสอบชื่อสินค้าและขนาดก่อนสั่งซื้อ
+
+                                </p>
+
+                              </div>
+
+                            ) : (
+
+                              <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 p-4">
+
+                                <span className="text-4xl">
+
+                                  📦
+
+                                </span>
+
+                                <span className="text-xs mt-2">
+
+                                  ไม่มีรูปสินค้า
+
+                                </span>
+
+                              </div>
+
+                            )}
+
+                          </div>
+
+
+
+                          {/* PRODUCT IMAGE, WHEN AVAILABLE */}
+
+                          {product.imageUrl &&
+                            !isLiquorTobaccoCategory(
+                              product.category
+                            ) && (
 
                             <img
 
@@ -3522,7 +3607,7 @@ export default function MiniAppShopPage() {
 
                               }
 
-                              className="w-full h-full object-contain p-2"
+                              className="absolute inset-0 w-full h-full object-contain p-2 bg-white"
 
                               loading="lazy"
 
@@ -3537,24 +3622,6 @@ export default function MiniAppShopPage() {
                               }}
 
                             />
-
-                          ) : (
-
-                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 p-4">
-
-                              <span className="text-4xl">
-
-                                📦
-
-                              </span>
-
-                              <span className="text-xs mt-2">
-
-                                ไม่มีรูปสินค้า
-
-                              </span>
-
-                            </div>
 
                           )}
 
@@ -4116,9 +4183,50 @@ export default function MiniAppShopPage() {
 
                       <div className="flex gap-3">
 
-                        <div className="w-16 h-16 rounded-xl bg-gray-50 overflow-hidden shrink-0">
+                        <div className="relative w-16 h-16 rounded-xl bg-gray-50 overflow-hidden shrink-0">
 
-                          {product.imageUrl ? (
+                          <div className="absolute inset-0 flex items-center justify-center">
+
+                            {isLiquorTobaccoCategory(
+
+                              product.category
+
+                            ) ? (
+
+                              <div className="text-center px-1">
+
+                                <div className="mx-auto w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-xs font-bold text-gray-500">
+
+                                  i
+
+                                </div>
+
+                                <p className="text-[9px] leading-3 font-semibold text-gray-500 mt-1">
+
+                                  สุราและยาสูบ
+
+                                </p>
+
+                              </div>
+
+                            ) : (
+
+                              <span>
+
+                                📦
+
+                              </span>
+
+                            )}
+
+                          </div>
+
+
+
+                          {product.imageUrl &&
+                            !isLiquorTobaccoCategory(
+                              product.category
+                            ) && (
 
                             <img
 
@@ -4134,21 +4242,21 @@ export default function MiniAppShopPage() {
 
                               }
 
-                              className="w-full h-full object-contain p-1"
+                              className="absolute inset-0 w-full h-full object-contain p-1 bg-white"
 
                               loading="lazy"
 
                               decoding="async"
 
+                              onError={(event) => {
+
+                                event.currentTarget.style.display =
+
+                                  "none";
+
+                              }}
+
                             />
-
-                          ) : (
-
-                            <div className="w-full h-full flex items-center justify-center">
-
-                              📦
-
-                            </div>
 
                           )}
 
