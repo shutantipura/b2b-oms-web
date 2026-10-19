@@ -864,6 +864,18 @@ export default function ControlTowerPage() {
 
 
 
+  const [
+
+    accessDenied,
+
+    setAccessDenied,
+
+  ] =
+
+    useState(false);
+
+
+
   // ====================================================
 
   // LOAD DASHBOARD
@@ -877,6 +889,106 @@ export default function ControlTowerPage() {
     setLoading(true);
 
     setMessage("");
+
+    setAccessDenied(false);
+
+
+
+    // --------------------------------------------------
+
+    // MANAGER ACCESS ONLY
+
+    // --------------------------------------------------
+
+
+
+    const {
+
+      data: { user },
+
+    } =
+
+      await supabase.auth.getUser();
+
+
+
+    if (!user) {
+
+      setAccessDenied(true);
+
+      setMessage(
+
+        "กรุณาเข้าสู่ระบบ OMS ก่อน"
+
+      );
+
+      setLoading(false);
+
+      return;
+
+    }
+
+
+
+    const {
+
+      data: profile,
+
+      error: profileError,
+
+    } =
+
+      await supabase
+
+        .from("staff")
+
+        .select(`
+
+          account_type,
+
+          is_active
+
+        `)
+
+        .eq(
+
+          "auth_user_id",
+
+          user.id
+
+        )
+
+        .maybeSingle();
+
+
+
+    if (
+
+      profileError ||
+
+      !profile ||
+
+      profile.is_active !== true ||
+
+      profile.account_type !==
+
+        "manager"
+
+    ) {
+
+      setAccessDenied(true);
+
+      setMessage(
+
+        "ศูนย์ควบคุมสำหรับ Manager เท่านั้น"
+
+      );
+
+      setLoading(false);
+
+      return;
+
+    }
 
 
 
@@ -2321,6 +2433,50 @@ export default function ControlTowerPage() {
       <main className="min-h-screen bg-gray-100 p-8">
 
         กำลังโหลดศูนย์ควบคุม...
+
+      </main>
+
+    );
+
+  }
+
+
+
+  if (accessDenied) {
+
+    return (
+
+      <main className="min-h-screen bg-gray-100 p-8">
+
+        <div className="max-w-xl mx-auto bg-white border rounded-2xl p-8">
+
+          <h1 className="text-2xl font-bold">
+
+            ไม่มีสิทธิ์เข้าถึง
+
+          </h1>
+
+          <p className="text-gray-500 mt-2">
+
+            {message ||
+
+              "ศูนย์ควบคุมสำหรับ Manager เท่านั้น"}
+
+          </p>
+
+          <Link
+
+            href="/"
+
+            className="inline-block mt-6 underline font-semibold"
+
+          >
+
+            ← กลับหน้าหลัก
+
+          </Link>
+
+        </div>
 
       </main>
 

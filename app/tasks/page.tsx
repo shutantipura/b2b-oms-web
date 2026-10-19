@@ -64,6 +64,8 @@ type CurrentStaff = {
 
   staff_name: string;
 
+  account_type: string;
+
 };
 
 
@@ -237,6 +239,16 @@ export default function TasksPage() {
 
   const [
 
+    allowedStages,
+
+    setAllowedStages,
+
+  ] = useState<string[]>([]);
+
+
+
+  const [
+
     loading,
 
     setLoading,
@@ -331,7 +343,9 @@ export default function TasksPage() {
 
           id,
 
-          staff_name
+          staff_name,
+
+          account_type
 
         `)
 
@@ -377,7 +391,121 @@ export default function TasksPage() {
 
     // ---------------------------------------------------
 
-    // ALL ACTIVE ORDERS
+    // TASK PERMISSIONS
+
+    // ---------------------------------------------------
+
+
+
+    const {
+
+      data: permissionData,
+
+      error: permissionError,
+
+    } =
+
+      await supabase.rpc(
+
+        "get_my_task_permissions"
+
+      );
+
+
+
+    if (permissionError) {
+
+      setMessage(
+
+        "ไม่สามารถโหลดสิทธิ์งานได้: " +
+
+          permissionError.message
+
+      );
+
+
+
+      setLoading(false);
+
+      return;
+
+    }
+
+
+
+    const permissionStages =
+
+      (permissionData ?? [])
+
+        .map(
+
+          (row: { stage?: string }) =>
+
+            row.stage ?? ""
+
+        )
+
+        .filter(Boolean);
+
+
+
+    setAllowedStages(
+
+      permissionStages
+
+    );
+
+
+
+    if (
+
+      permissionStages.length ===
+
+      0
+
+    ) {
+
+      setOrders([]);
+
+      setClaims([]);
+
+      setLoading(false);
+
+      return;
+
+    }
+
+
+
+    const allowedStatuses =
+
+      groups
+
+        .filter(
+
+          (group) =>
+
+            permissionStages.includes(
+
+              group.stage
+
+            )
+
+        )
+
+        .flatMap(
+
+          (group) =>
+
+            group.statuses
+
+        );
+
+
+
+    // ---------------------------------------------------
+
+    // ACTIVE ORDERS FOR ALLOWED TASKS ONLY
 
     // ---------------------------------------------------
 
@@ -415,13 +543,11 @@ export default function TasksPage() {
 
         `)
 
-        .not(
+        .in(
 
           "status",
 
-          "in",
-
-          '("completed","cancelled")'
+          allowedStatuses
 
         )
 
@@ -522,6 +648,14 @@ export default function TasksPage() {
           "claim_status",
 
           "active"
+
+        )
+
+        .in(
+
+          "stage",
+
+          permissionStages
 
         );
 
@@ -1017,11 +1151,45 @@ export default function TasksPage() {
 
 
 
+        {allowedStages.length === 0 ? (
+
+          <div className="bg-white border rounded-2xl p-8 text-center">
+
+            <h2 className="text-xl font-bold">
+
+              ยังไม่มีสิทธิ์งาน
+
+            </h2>
+
+            <p className="text-gray-500 mt-2">
+
+              Manager ยังไม่ได้กำหนดประเภทงานให้บัญชีนี้
+
+            </p>
+
+          </div>
+
+        ) : (
+
         <div className="space-y-6">
 
 
 
-          {groups.map(
+          {groups
+
+            .filter(
+
+              (group) =>
+
+                allowedStages.includes(
+
+                  group.stage
+
+                )
+
+            )
+
+            .map(
 
             (group) => {
 
@@ -1508,6 +1676,8 @@ export default function TasksPage() {
 
 
         </div>
+
+        )}
 
 
 

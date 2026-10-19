@@ -18,6 +18,21 @@ type AccountType =
   | "staff"
   | "manager";
 
+type TaskStage =
+  | "confirmation"
+  | "picking"
+  | "billing"
+  | "delivery"
+  | "payment_verification";
+
+const ALL_TASK_STAGES: TaskStage[] = [
+  "confirmation",
+  "picking",
+  "billing",
+  "delivery",
+  "payment_verification",
+];
+
 function getAdminClient() {
   const supabaseUrl =
     process.env
@@ -124,6 +139,8 @@ async function requireManager(
     admin,
     currentUserId:
       authData.user.id,
+    managerStaffId:
+      manager.id as string,
   };
 }
 
@@ -198,6 +215,36 @@ function normalizeAccountType(
   return null;
 }
 
+function normalizeTaskPermissions(
+  value: unknown,
+  fallback:
+    TaskStage[] = []
+): TaskStage[] {
+  if (!Array.isArray(value)) {
+    return [...fallback];
+  }
+
+  const valid =
+    new Set<TaskStage>(
+      ALL_TASK_STAGES
+    );
+
+  return Array.from(
+    new Set(
+      value.filter(
+        (
+          stage
+        ): stage is TaskStage =>
+          typeof stage ===
+            "string" &&
+          valid.has(
+            stage as TaskStage
+          )
+      )
+    )
+  );
+}
+
 function buildNextStaffCode(
   rows: Array<{
     staff_code:
@@ -259,6 +306,294 @@ function buildInternalPassword() {
   );
 }
 
+function queueStatusForStage(
+  stage: TaskStage
+) {
+  const map:
+    Record<TaskStage, string> = {
+      confirmation:
+        "awaiting_confirmation",
+      picking:
+        "awaiting_picking",
+      billing:
+        "awaiting_billing",
+      delivery:
+        "ready_for_delivery",
+      payment_verification:
+        "payment_submitted",
+    };
+
+  return map[stage];
+}
+
+async function releaseClaimsForRemovedPermissions(
+  admin: any,
+  staffId: string,
+  managerStaffId: string,
+  removedStages: TaskStage[]
+) {
+  if (
+    removedStages.length ===
+    0
+  ) {
+    return;
+  }
+
+  const {
+    data: claims,
+    error: claimError,
+  } =
+    await admin
+      .from("task_claims")
+      .select(`
+        id,
+        order_id,
+        stage
+      `)
+      .eq(
+        "staff_id",
+        staffId
+      )
+      .eq(
+        "claim_status",
+        "active"
+      )
+      .in(
+        "stage",
+        removedStages
+      );
+
+  if (claimError) {
+    throw new Error(
+      "ไม่สามารถตรวจสอบงานที่ต้องปล่อยได้: " +
+        claimError.message
+    );
+  }
+
+  const activeClaims =
+    (claims ?? []) as Array<{
+      id: string;
+      order_id: string;
+      stage: TaskStage;
+    }>;
+
+  if (
+    activeClaims.length ===
+    0
+  ) {
+    return;
+  }
+
+  const orderIds =
+    Array.from(
+      new Set(
+        activeClaims.map(
+          (claim) =>
+            claim.order_id
+        )
+      )
+    );
+
+  const {
+    data: orders,
+    error: orderError,
+  } =
+    await admin
+      .from("orders")
+      .select(`
+        id,
+        status
+      `)
+      .in(
+        "id",
+        orderIds
+      );
+
+  if (orderError) {
+    throw new Error(
+      "ไม่สามารถโหลดคำสั่งซื้อสำหรับการปล่อยงานได้: " +
+        orderError.message
+    );
+  }
+
+  const orderStatusMap =
+    new Map<string, string>(
+      (orders ?? []).map(
+        (order: any) => [
+          order.id,
+          order.status,
+        ]
+      )
+    );
+
+  for (
+    const claim of activeClaims
+  ) {
+    const fromStatus =
+      orderStatusMap.get(
+        claim.order_id
+      );
+
+    const returnStatus =
+      queueStatusForStage(
+        claim.stage
+      );
+
+    const {
+      error: releaseError,
+    } =
+      await admin
+        .from("task_claims")
+        .update({
+          claim_status:
+            "released",
+          released_at:
+            new Date()
+              .toISOString(),
+        })
+        .eq(
+          "id",
+          claim.id
+        )
+        .eq(
+          "claim_status",
+          "active"
+        );
+
+    if (releaseError) {
+      throw new Error(
+        "ไม่สามารถปล่อยงานของพนักงานได้: " +
+          releaseError.message
+      );
+    }
+
+    if (
+      fromStatus &&
+      fromStatus !==
+        "completed" &&
+      fromStatus !==
+        "cancelled"
+    ) {
+      const {
+        error: orderUpdateError,
+      } =
+        await admin
+          .from("orders")
+          .update({
+            status:
+              returnStatus,
+            updated_at:
+              new Date()
+                .toISOString(),
+          })
+          .eq(
+            "id",
+            claim.order_id
+          );
+
+      if (orderUpdateError) {
+        throw new Error(
+          "ปล่อยงานแล้ว แต่ไม่สามารถคืนคำสั่งซื้อกลับเข้าคิวได้: " +
+            orderUpdateError.message
+        );
+      }
+
+      const {
+        error: historyError,
+      } =
+        await admin
+          .from(
+            "order_history"
+          )
+          .insert({
+            order_id:
+              claim.order_id,
+            action:
+              "task_released",
+            stage:
+              claim.stage,
+            from_status:
+              fromStatus,
+            to_status:
+              returnStatus,
+            performed_by_staff_id:
+              managerStaffId,
+            note:
+              "Task released because Manager removed this staff task permission",
+            details: {
+              affected_staff_id:
+                staffId,
+              removed_stage:
+                claim.stage,
+            },
+          });
+
+      if (historyError) {
+        throw new Error(
+          "คืนงานเข้าคิวแล้ว แต่บันทึกประวัติไม่สำเร็จ: " +
+            historyError.message
+        );
+      }
+    }
+  }
+}
+
+async function replacePermissions(
+  admin: any,
+  staffId: string,
+  stages: TaskStage[]
+) {
+  const {
+    error: deleteError,
+  } =
+    await admin
+      .from(
+        "staff_task_permissions"
+      )
+      .delete()
+      .eq(
+        "staff_id",
+        staffId
+      );
+
+  if (deleteError) {
+    throw new Error(
+      "ไม่สามารถล้างสิทธิ์งานเดิมได้: " +
+        deleteError.message
+    );
+  }
+
+  if (
+    stages.length === 0
+  ) {
+    return;
+  }
+
+  const {
+    error: insertError,
+  } =
+    await admin
+      .from(
+        "staff_task_permissions"
+      )
+      .insert(
+        stages.map(
+          (stage) => ({
+            staff_id:
+              staffId,
+            stage,
+          })
+        )
+      );
+
+  if (insertError) {
+    throw new Error(
+      "ไม่สามารถบันทึกสิทธิ์งานได้: " +
+        insertError.message
+    );
+  }
+}
+
 // =====================================================
 // GET — LIST STAFF
 // =====================================================
@@ -275,31 +610,85 @@ export async function GET(
         request
       );
 
-    const {
-      data: staffRows,
-      error: staffError,
-    } =
-      await admin
-        .from("staff")
-        .select(`
-          id,
-          staff_code,
-          staff_name,
-          account_type,
-          auth_user_id,
-          is_active
-        `)
-        .order(
-          "staff_code",
-          {
-            ascending: true,
-          }
-        );
+    const [
+      staffResult,
+      permissionResult,
+    ] =
+      await Promise.all([
+        admin
+          .from("staff")
+          .select(`
+            id,
+            staff_code,
+            staff_name,
+            account_type,
+            auth_user_id,
+            is_active
+          `)
+          .order(
+            "staff_code",
+            {
+              ascending: true,
+            }
+          ),
 
-    if (staffError) {
+        admin
+          .from(
+            "staff_task_permissions"
+          )
+          .select(`
+            staff_id,
+            stage
+          `),
+      ]);
+
+    if (
+      staffResult.error
+    ) {
       throw new Error(
         "ไม่สามารถโหลดข้อมูลพนักงานได้: " +
-          staffError.message
+          staffResult.error.message
+      );
+    }
+
+    if (
+      permissionResult.error
+    ) {
+      throw new Error(
+        "ไม่สามารถโหลดสิทธิ์งานได้: " +
+          permissionResult.error.message
+      );
+    }
+
+    const permissionMap =
+      new Map<
+        string,
+        TaskStage[]
+      >();
+
+    for (
+      const row of
+      permissionResult.data ?? []
+    ) {
+      const list =
+        permissionMap.get(
+          row.staff_id
+        ) ?? [];
+
+      const stage =
+        row.stage as TaskStage;
+
+      if (
+        ALL_TASK_STAGES.includes(
+          stage
+        )
+      ) {
+        list.push(stage);
+      }
+
+      permissionMap.set(
+        row.staff_id,
+        list
       );
     }
 
@@ -354,8 +743,10 @@ export async function GET(
     }
 
     const staff =
-      (staffRows ??
-        []).map(
+      (
+        staffResult.data ??
+        []
+      ).map(
         (row) => ({
           id:
             row.id,
@@ -381,6 +772,16 @@ export async function GET(
           isCurrentUser:
             row.auth_user_id ===
             currentUserId,
+          taskPermissions:
+            row.account_type ===
+            "manager"
+              ? [...ALL_TASK_STAGES]
+              : (
+                  permissionMap.get(
+                    row.id
+                  ) ??
+                  []
+                ),
         })
       );
 
@@ -422,6 +823,12 @@ export async function POST(
     const accountType =
       normalizeAccountType(
         body.accountType
+      );
+
+    const taskPermissions =
+      normalizeTaskPermissions(
+        body.taskPermissions,
+        ALL_TASK_STAGES
       );
 
     if (!staffName) {
@@ -572,6 +979,34 @@ export async function POST(
       );
     }
 
+    try {
+      if (
+        accountType ===
+        "staff"
+      ) {
+        await replacePermissions(
+          admin,
+          createdStaff.id,
+          taskPermissions
+        );
+      }
+    } catch (permissionError) {
+      await admin
+        .from("staff")
+        .delete()
+        .eq(
+          "id",
+          createdStaff.id
+        );
+
+      await admin.auth
+        .admin.deleteUser(
+          authUserId
+        );
+
+      throw permissionError;
+    }
+
     return NextResponse.json(
       {
         success:
@@ -593,6 +1028,11 @@ export async function POST(
             null,
           isCurrentUser:
             false,
+          taskPermissions:
+            accountType ===
+            "manager"
+              ? [...ALL_TASK_STAGES]
+              : taskPermissions,
         },
       },
       {
@@ -607,7 +1047,7 @@ export async function POST(
 }
 
 // =====================================================
-// PATCH — EDIT / DEACTIVATE / REACTIVATE
+// PATCH — EDIT / DEACTIVATE / REACTIVATE / PERMISSIONS
 // =====================================================
 
 export async function PATCH(
@@ -617,6 +1057,7 @@ export async function PATCH(
     const {
       admin,
       currentUserId,
+      managerStaffId,
     } =
       await requireManager(
         request
@@ -663,8 +1104,7 @@ export async function PATCH(
 
     const {
       data: target,
-      error:
-        targetError,
+      error: targetError,
     } =
       await admin
         .from("staff")
@@ -697,6 +1137,55 @@ export async function PATCH(
       );
     }
 
+    const {
+      data: currentPermissionRows,
+      error: currentPermissionError,
+    } =
+      await admin
+        .from(
+          "staff_task_permissions"
+        )
+        .select("stage")
+        .eq(
+          "staff_id",
+          target.id
+        );
+
+    if (
+      currentPermissionError
+    ) {
+      throw new Error(
+        "ไม่สามารถโหลดสิทธิ์งานเดิมได้: " +
+          currentPermissionError.message
+      );
+    }
+
+    const currentPermissions =
+      normalizeTaskPermissions(
+        (
+          currentPermissionRows ??
+          []
+        ).map(
+          (row) =>
+            row.stage
+        )
+      );
+
+    const requestedPermissions =
+      normalizeTaskPermissions(
+        body.taskPermissions,
+        target.account_type ===
+          "manager"
+          ? ALL_TASK_STAGES
+          : currentPermissions
+      );
+
+    const finalPermissions =
+      accountType ===
+      "manager"
+        ? [...ALL_TASK_STAGES]
+        : requestedPermissions;
+
     const isSelf =
       target.auth_user_id ===
       currentUserId;
@@ -704,8 +1193,7 @@ export async function PATCH(
     if (
       isSelf &&
       (
-        isActive !==
-          true ||
+        isActive !== true ||
         accountType !==
           "manager"
       )
@@ -734,8 +1222,7 @@ export async function PATCH(
     if (removingManager) {
       const {
         count,
-        error:
-          countError,
+        error: countError,
       } =
         await admin
           .from("staff")
@@ -765,8 +1252,8 @@ export async function PATCH(
       }
 
       if (
-        (count ??
-          0) <= 1
+        (count ?? 0) <=
+        1
       ) {
         return NextResponse.json(
           {
@@ -827,7 +1314,7 @@ export async function PATCH(
         return NextResponse.json(
           {
             error:
-              "พนักงานคนนี้ยังมีงานที่ Claim อยู่ กรุณาทำงานให้เสร็จหรือปล่อยงานก่อนปิดใช้งานบัญชี",
+              "พนักงานคนนี้ยังมีงานที่ Claim อยู่ กรุณาทำงานให้เสร็จหรือเอาสิทธิ์งานนั้นออกก่อนปิดใช้งานบัญชี",
           },
           {
             status: 400,
@@ -835,6 +1322,32 @@ export async function PATCH(
         );
       }
     }
+
+    const effectiveCurrentPermissions =
+      target.account_type ===
+      "manager"
+        ? [...ALL_TASK_STAGES]
+        : currentPermissions;
+
+    const removedStages =
+      accountType ===
+      "staff"
+        ? effectiveCurrentPermissions.filter(
+            (stage) =>
+              !finalPermissions.includes(
+                stage
+              )
+          )
+        : [];
+
+    // If a Manager removes a stage that the staff member is actively
+    // working on, release that task back to the shared queue first.
+    await releaseClaimsForRemovedPermissions(
+      admin,
+      target.id,
+      managerStaffId,
+      removedStages
+    );
 
     const activeChanged =
       target.is_active !==
@@ -859,9 +1372,7 @@ export async function PATCH(
             }
           );
 
-      if (
-        authUpdateError
-      ) {
+      if (authUpdateError) {
         return NextResponse.json(
           {
             error:
@@ -877,8 +1388,7 @@ export async function PATCH(
 
     const {
       data: updated,
-      error:
-        updateError,
+      error: updateError,
     } =
       await admin
         .from("staff")
@@ -933,6 +1443,15 @@ export async function PATCH(
       );
     }
 
+    await replacePermissions(
+      admin,
+      target.id,
+      accountType ===
+        "manager"
+        ? []
+        : finalPermissions
+    );
+
     return NextResponse.json(
       {
         success:
@@ -950,6 +1469,11 @@ export async function PATCH(
             updated.auth_user_id,
           isActive:
             updated.is_active,
+          taskPermissions:
+            accountType ===
+            "manager"
+              ? [...ALL_TASK_STAGES]
+              : finalPermissions,
         },
       }
     );

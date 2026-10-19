@@ -13,6 +13,29 @@ import {
   supabase,
 } from "../../lib/supabase";
 
+type TaskStage =
+  | "confirmation"
+  | "picking"
+  | "billing"
+  | "delivery"
+  | "payment_verification";
+
+const TASK_OPTIONS: Array<{
+  stage: TaskStage;
+  label: string;
+}> = [
+  { stage: "confirmation", label: "ยืนยันคำสั่งซื้อ" },
+  { stage: "picking", label: "จัดสินค้า" },
+  { stage: "billing", label: "ออกบิล" },
+  { stage: "delivery", label: "จัดส่ง" },
+  { stage: "payment_verification", label: "ตรวจสอบการชำระเงิน" },
+];
+
+const ALL_TASK_STAGES =
+  TASK_OPTIONS.map(
+    (option) => option.stage
+  );
+
 type StaffRow = {
   id: string;
   staffCode: string;
@@ -28,6 +51,7 @@ type StaffRow = {
     | string
     | null;
   isCurrentUser: boolean;
+  taskPermissions: TaskStage[];
 };
 
 type StaffListResponse = {
@@ -152,6 +176,14 @@ export default function StaffManagementPage() {
     >("staff");
 
   const [
+    createPermissions,
+    setCreatePermissions,
+  ] =
+    useState<TaskStage[]>(
+      [...ALL_TASK_STAGES]
+    );
+
+  const [
     editingId,
     setEditingId,
   ] =
@@ -173,6 +205,12 @@ export default function StaffManagementPage() {
       | "staff"
       | "manager"
     >("staff");
+
+  const [
+    editPermissions,
+    setEditPermissions,
+  ] =
+    useState<TaskStage[]>([]);
 
   const [
     savingId,
@@ -344,6 +382,9 @@ export default function StaffManagementPage() {
     setShowCreate(true);
     setCreateName("");
     setCreateRole("staff");
+    setCreatePermissions(
+      [...ALL_TASK_STAGES]
+    );
     setMessage("");
     setSuccess("");
   }
@@ -382,6 +423,10 @@ export default function StaffManagementPage() {
                     createName,
                   accountType:
                     createRole,
+                  taskPermissions:
+                    createRole === "manager"
+                      ? ALL_TASK_STAGES
+                      : createPermissions,
                 }
               ),
           }
@@ -414,6 +459,9 @@ export default function StaffManagementPage() {
       setShowCreate(false);
       setCreateName("");
       setCreateRole("staff");
+      setCreatePermissions(
+        [...ALL_TASK_STAGES]
+      );
 
       await loadStaff();
     } catch (error) {
@@ -444,6 +492,12 @@ export default function StaffManagementPage() {
 
     setEditRole(
       item.accountType
+    );
+
+    setEditPermissions(
+      item.accountType === "manager"
+        ? [...ALL_TASK_STAGES]
+        : [...item.taskPermissions]
     );
 
     setMessage("");
@@ -485,6 +539,10 @@ export default function StaffManagementPage() {
                     editName,
                   accountType:
                     editRole,
+                  taskPermissions:
+                    editRole === "manager"
+                      ? ALL_TASK_STAGES
+                      : editPermissions,
                   isActive:
                     item.isActive,
                 }
@@ -568,6 +626,8 @@ export default function StaffManagementPage() {
                     item.staffName,
                   accountType:
                     item.accountType,
+                  taskPermissions:
+                    item.taskPermissions,
                   isActive:
                     nextActive,
                 }
@@ -637,7 +697,7 @@ export default function StaffManagementPage() {
               </h1>
 
               <p className="text-gray-500 mt-2">
-                หนึ่งบัญชีต่อหนึ่งพนักงาน เพื่อให้ประวัติออเดอร์ระบุผู้ปฏิบัติงานได้จริง
+                หนึ่งบัญชีต่อหนึ่งพนักงาน พร้อมกำหนดว่าสามารถทำงานประเภทใดได้บ้าง
               </p>
             </div>
 
@@ -759,6 +819,62 @@ export default function StaffManagementPage() {
                 </select>
               </label>
 
+              <div className="md:col-span-2 border rounded-xl p-4">
+                <p className="font-semibold">
+                  สิทธิ์งาน
+                </p>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  เลือกเฉพาะงานที่พนักงานคนนี้สามารถเห็นและรับงานได้
+                </p>
+
+                {createRole === "manager" ? (
+                  <div className="mt-4 bg-gray-50 border rounded-xl p-4 text-sm text-gray-600">
+                    Manager มีสิทธิ์ทำงานทั้ง 5 ประเภทโดยอัตโนมัติ
+                  </div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                    {TASK_OPTIONS.map(
+                      (option) => (
+                        <label
+                          key={option.stage}
+                          className="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={
+                              createPermissions.includes(
+                                option.stage
+                              )
+                            }
+                            onChange={(event) =>
+                              setCreatePermissions(
+                                (current) =>
+                                  event.target.checked
+                                    ? Array.from(
+                                        new Set([
+                                          ...current,
+                                          option.stage,
+                                        ])
+                                      )
+                                    : current.filter(
+                                        (stage) =>
+                                          stage !== option.stage
+                                      )
+                              )
+                            }
+                            className="h-4 w-4"
+                          />
+                          <span className="text-sm font-medium">
+                            {option.label}
+                          </span>
+                        </label>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="md:col-span-2 bg-gray-50 border rounded-xl p-4">
                 <p className="font-semibold">
                   การเข้าสู่ระบบ
@@ -823,7 +939,7 @@ export default function StaffManagementPage() {
                 </h2>
 
                 <p className="text-sm text-gray-500 mt-1">
-                  ปิดใช้งานแทนการลบ เพื่อเก็บประวัติงานเก่าไว้ครบถ้วน
+                  กำหนดประเภทบัญชี สิทธิ์งาน และสถานะการใช้งานของพนักงานแต่ละคน
                 </p>
               </div>
 
@@ -998,6 +1114,58 @@ export default function StaffManagementPage() {
                               ยกเลิก
                             </button>
                           </div>
+
+                          <div className="md:col-span-3 border rounded-xl p-4">
+                            <p className="text-sm font-semibold">
+                              สิทธิ์งาน
+                            </p>
+
+                            {editRole === "manager" ? (
+                              <p className="text-sm text-gray-500 mt-2">
+                                Manager มีสิทธิ์ทำงานทั้ง 5 ประเภทโดยอัตโนมัติ
+                              </p>
+                            ) : (
+                              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+                                {TASK_OPTIONS.map(
+                                  (option) => (
+                                    <label
+                                      key={option.stage}
+                                      className="flex items-center gap-3 border rounded-xl px-3 py-2.5 cursor-pointer"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={
+                                          editPermissions.includes(
+                                            option.stage
+                                          )
+                                        }
+                                        onChange={(event) =>
+                                          setEditPermissions(
+                                            (current) =>
+                                              event.target.checked
+                                                ? Array.from(
+                                                    new Set([
+                                                      ...current,
+                                                      option.stage,
+                                                    ])
+                                                  )
+                                                : current.filter(
+                                                    (stage) =>
+                                                      stage !== option.stage
+                                                  )
+                                          )
+                                        }
+                                        className="h-4 w-4"
+                                      />
+                                      <span className="text-sm">
+                                        {option.label}
+                                      </span>
+                                    </label>
+                                  )
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -1041,7 +1209,35 @@ export default function StaffManagementPage() {
                               เข้าสู่ระบบผ่าน LINE
                             </p>
 
-                            <p className="text-xs text-gray-400 mt-1">
+                            <div className="flex flex-wrap gap-1.5 mt-3">
+                              {item.accountType === "manager" ? (
+                                <span className="text-xs border rounded-full px-2.5 py-1 bg-gray-50">
+                                  ทุกงาน (Manager)
+                                </span>
+                              ) : item.taskPermissions.length === 0 ? (
+                                <span className="text-xs border border-amber-200 text-amber-700 rounded-full px-2.5 py-1 bg-amber-50">
+                                  ยังไม่ได้กำหนดสิทธิ์งาน
+                                </span>
+                              ) : (
+                                TASK_OPTIONS.filter(
+                                  (option) =>
+                                    item.taskPermissions.includes(
+                                      option.stage
+                                    )
+                                ).map(
+                                  (option) => (
+                                    <span
+                                      key={option.stage}
+                                      className="text-xs border rounded-full px-2.5 py-1 bg-gray-50"
+                                    >
+                                      {option.label}
+                                    </span>
+                                  )
+                                )
+                              )}
+                            </div>
+
+                            <p className="text-xs text-gray-400 mt-2">
                               เข้าสู่ระบบล่าสุด:{" "}
                               {formatDateTime(
                                 item.lastSignInAt

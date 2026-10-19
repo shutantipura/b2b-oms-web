@@ -36,6 +36,28 @@ type StaffProfile = {
 
 
 
+const TASK_STATUS_MAP:
+  Record<string, string[]> = {
+  confirmation: [
+    "awaiting_confirmation",
+  ],
+  picking: [
+    "awaiting_picking",
+    "picking",
+  ],
+  billing: [
+    "awaiting_billing",
+  ],
+  delivery: [
+    "ready_for_delivery",
+    "out_for_delivery",
+  ],
+  payment_verification: [
+    "awaiting_payment",
+    "payment_submitted",
+  ],
+};
+
 type NavigationItem = {
 
   name: string;
@@ -134,7 +156,28 @@ export default function Home() {
 
 
 
-  async function loadActiveOrderCount() {
+  async function loadActiveOrderCount(
+    allowedStages: string[]
+  ) {
+    const allowedStatuses =
+      Array.from(
+        new Set(
+          allowedStages.flatMap(
+            (stage) =>
+              TASK_STATUS_MAP[
+                stage
+              ] ?? []
+          )
+        )
+      );
+
+    if (
+      allowedStatuses.length ===
+      0
+    ) {
+      setActiveOrderCount(0);
+      return;
+    }
 
     const {
 
@@ -168,13 +211,11 @@ export default function Home() {
 
         )
 
-        .not(
+        .in(
 
           "status",
 
-          "in",
-
-          '("completed","cancelled")'
+          allowedStatuses
 
         );
 
@@ -364,7 +405,34 @@ export default function Home() {
 
 
 
-    await loadActiveOrderCount();
+    const {
+      data: permissionData,
+      error: permissionError,
+    } =
+      await supabase.rpc(
+        "get_my_task_permissions"
+      );
+
+    if (permissionError) {
+      console.error(
+        "Could not load task permissions:",
+        permissionError
+      );
+
+      setActiveOrderCount(0);
+    } else {
+      const allowedStages =
+        (permissionData ?? [])
+          .map(
+            (row: { stage?: string }) =>
+              row.stage ?? ""
+          )
+          .filter(Boolean);
+
+      await loadActiveOrderCount(
+        allowedStages
+      );
+    }
 
 
 
@@ -900,21 +968,15 @@ export default function Home() {
 
           "งาน",
 
-
-
         href:
 
           "/tasks",
 
-
-
         description:
 
-          "คิวงานปฏิบัติการ",
+          "คิวงานปฏิบัติการตามสิทธิ์ที่ได้รับ",
 
       },
-
-
 
       {
 
@@ -922,39 +984,13 @@ export default function Home() {
 
           "คำสั่งซื้อ",
 
-
-
         href:
 
           "/orders",
 
-
-
         description:
 
           "ดูคำสั่งซื้อ B2B",
-
-      },
-
-
-
-      {
-
-        name:
-
-          "ศูนย์ควบคุม",
-
-
-
-        href:
-
-          "/control-tower",
-
-
-
-        description:
-
-          "ติดตามภาพรวมการปฏิบัติงานวันนี้",
 
       },
 
