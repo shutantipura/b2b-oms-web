@@ -793,18 +793,6 @@ export default function CatalogPage() {
 
   const [
 
-    visibleImportId,
-
-    setVisibleImportId,
-
-  ] =
-
-    useState<string | null>(null);
-
-
-
-  const [
-
     visibleStageProcessed,
 
     setVisibleStageProcessed,
@@ -3145,53 +3133,105 @@ export default function CatalogPage() {
 
   // =====================================================
 
-  // PREVIEW VISIBLE SKU
+  // VISIBLE PRODUCT API HELPER
 
   // =====================================================
 
+  async function callVisibleProductsAdminApi(
+    body: Record<string, unknown>
+  ) {
+    const {
+      data: { session },
+      error: sessionError,
+    } =
+      await supabase.auth.getSession();
 
+    if (
+      sessionError ||
+      !session?.access_token
+    ) {
+      throw new Error(
+        "กรุณาเข้าสู่ระบบ OMS ใหม่อีกครั้ง"
+      );
+    }
+
+    const response =
+      await fetch(
+        "/api/admin/catalog/visible-products",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${session.access_token}`,
+          },
+          body:
+            JSON.stringify(body),
+        }
+      );
+
+    const result =
+      (await response.json()) as {
+        error?: string;
+        matchedKeys?: string[];
+        matchedCount?: number;
+        updatedCount?: number;
+        items?: {
+          id: string;
+          catalogue_sku_key: string | null;
+        }[];
+        nextCursor?: string | null;
+        done?: boolean;
+      };
+
+    if (!response.ok) {
+      throw new Error(
+        result.error ??
+          "ไม่สามารถประมวลผลรายการสินค้าได้"
+      );
+    }
+
+    return result;
+  }
+
+  // =====================================================
+
+  // PREVIEW VISIBLE SKU
+  //
+  // Important: matching is deliberately done in small API
+  // batches. We no longer ask Supabase to compare 10k+
+  // products in one SQL statement, so statement_timeout is
+  // no longer part of the normal import path.
+
+  // =====================================================
 
   async function previewVisibleImport() {
 
     if (
-
       visibleSkuColumnIndex ===
         null ||
-
       visibleSalesColumnIndex ===
         null ||
-
       visibleCategoryColumnIndex ===
         null
-
     ) {
-
       setVisibleMessage(
         "กรุณาเลือกคอลัมน์ SKU, Sales และแผนกสินค้า"
       );
-
       return;
     }
 
-
-
     if (
-
       visibleImportRows.length ===
         0
-
     ) {
-
       setVisibleMessage(
         "ไม่พบ SKU ในคอลัมน์ที่เลือก"
       );
-
       return;
     }
 
-
-
-    // Validate locally before sending anything to Supabase.
     const invalidSalesCount =
       visibleImportRows.filter(
         (row) => {
@@ -3213,16 +3253,12 @@ export default function CatalogPage() {
         }
       ).length;
 
-
-
     const invalidCategoryCount =
       visibleImportRows.filter(
         (row) =>
           row.category.trim() ===
           ""
       ).length;
-
-
 
     const uniqueSkus =
       visibleUniqueImportRows.length;
@@ -3231,18 +3267,10 @@ export default function CatalogPage() {
       visibleImportRows.length -
       uniqueSkus;
 
-
-
     if (
-      invalidSalesCount >
-        0 ||
-      invalidCategoryCount >
-        0
+      invalidSalesCount > 0 ||
+      invalidCategoryCount > 0
     ) {
-      setVisibleImportId(
-        null
-      );
-
       setVisiblePreview({
         totalRows:
           visibleImportRows.length,
@@ -3264,106 +3292,22 @@ export default function CatalogPage() {
       return;
     }
 
-
-
     setPreviewingVisible(
       true
     );
-
-    setVisibleMessage(
-      ""
-    );
-
-    setVisibleSuccess(
-      ""
-    );
-
-    setVisiblePreview(
-      null
-    );
-
-    setVisibleStageProcessed(
-      0
-    );
-
+    setVisibleMessage("");
+    setVisibleSuccess("");
+    setVisiblePreview(null);
+    setVisibleStageProcessed(0);
     setVisibleStageTotal(
       visibleUniqueImportRows.length
     );
 
-
-
-    const importId =
-      crypto.randomUUID();
-
-    setVisibleImportId(
-      importId
-    );
-
-
-
-    const batchSize =
-      400;
-
-
-
-    async function stageBatchWithRetry(
-      batch: VisibleUploadRow[],
-      batchNumber: number
-    ) {
-      let lastMessage =
-        "ไม่ทราบสาเหตุ";
-
-      for (
-        let attempt = 1;
-        attempt <= 3;
-        attempt += 1
-      ) {
-        const {
-          error,
-        } =
-          await supabase.rpc(
-            "stage_customer_visible_products_batch",
-            {
-              p_import_id:
-                importId,
-              p_rows:
-                batch,
-            }
-          );
-
-        if (!error) {
-          return;
-        }
-
-        lastMessage =
-          error.message ??
-          lastMessage;
-
-        console.error(
-          `Visible import batch ${batchNumber}, attempt ${attempt}:`,
-          error
-        );
-
-        if (attempt < 3) {
-          await new Promise(
-            (resolve) =>
-              window.setTimeout(
-                resolve,
-                700 * attempt
-              )
-          );
-        }
-      }
-
-      throw new Error(
-        `ไม่สามารถตรวจสอบชุดข้อมูลที่ ${batchNumber.toLocaleString()} ได้หลังลอง 3 ครั้ง: ${lastMessage}`
-      );
-    }
-
-
+    const batchSize = 500;
 
     try {
-      let batchNumber = 0;
+      const matchedKeys =
+        new Set<string>();
 
       for (
         let start = 0;
@@ -3371,56 +3315,105 @@ export default function CatalogPage() {
         visibleUniqueImportRows.length;
         start += batchSize
       ) {
-        batchNumber += 1;
-
         const batch =
           visibleUniqueImportRows.slice(
             start,
-            start +
-              batchSize
+            start + batchSize
           );
 
-        await stageBatchWithRetry(
-          batch,
-          batchNumber
+        let lastError =
+          "ไม่ทราบสาเหตุ";
+        let result:
+          | Awaited<
+              ReturnType<
+                typeof callVisibleProductsAdminApi
+              >
+            >
+          | null = null;
+
+        for (
+          let attempt = 1;
+          attempt <= 3;
+          attempt += 1
+        ) {
+          try {
+            result =
+              await callVisibleProductsAdminApi({
+                action: "match",
+                rows: batch,
+              });
+            break;
+          } catch (error) {
+            lastError =
+              error instanceof Error
+                ? error.message
+                : "ไม่ทราบสาเหตุ";
+
+            if (attempt < 3) {
+              await new Promise(
+                (resolve) =>
+                  window.setTimeout(
+                    resolve,
+                    600 * attempt
+                  )
+              );
+            }
+          }
+        }
+
+        if (!result) {
+          throw new Error(
+            `ตรวจสอบสินค้าไม่สำเร็จบริเวณรายการ ${(start + 1).toLocaleString()}: ${lastError}`
+          );
+        }
+
+        (
+          result.matchedKeys ??
+          []
+        ).forEach(
+          (key) =>
+            matchedKeys.add(key)
         );
 
         setVisibleStageProcessed(
           Math.min(
-            start +
-              batch.length,
+            start + batch.length,
             visibleUniqueImportRows.length
           )
         );
       }
 
+      const originalSkuByKey =
+        new Map<string, string>();
 
+      visibleUniqueImportRows.forEach(
+        (row) => {
+          originalSkuByKey.set(
+            normalizeSku(row.sku),
+            row.sku
+          );
+        }
+      );
 
-      const {
-        data,
-        error,
-      } =
-        await supabase.rpc(
-          "preview_customer_visible_import",
-          {
-            p_import_id:
-              importId,
-          }
-        );
-
-      if (error) {
-        throw new Error(
-          error.message ??
-            "ไม่สามารถตรวจสอบรายการสินค้าได้"
-        );
-      }
-
-      const serverPreview =
-        data as {
-          matchedCount?: number;
-          unmatchedCount?: number;
-          unmatchedSkus?: string[];
-        };
+      const unmatchedSkus =
+        visibleUniqueImportRows
+          .filter(
+            (row) =>
+              !matchedKeys.has(
+                normalizeSku(
+                  row.sku
+                )
+              )
+          )
+          .map(
+            (row) =>
+              originalSkuByKey.get(
+                normalizeSku(
+                  row.sku
+                )
+              ) ??
+              row.sku
+          );
 
       setVisiblePreview({
         totalRows:
@@ -3428,32 +3421,20 @@ export default function CatalogPage() {
         uniqueSkus,
         duplicateCount,
         matchedCount:
-          Number(
-            serverPreview.matchedCount ??
-              0
-          ),
+          matchedKeys.size,
         unmatchedCount:
-          Number(
-            serverPreview.unmatchedCount ??
-              0
-          ),
+          unmatchedSkus.length,
         invalidSalesCount: 0,
         invalidCategoryCount: 0,
-        unmatchedSkus:
-          serverPreview.unmatchedSkus ??
-          [],
+        unmatchedSkus,
       });
 
     } catch (
       error: unknown
     ) {
       console.error(
-        "Visible product staged preview failed:",
+        "Visible product preview failed:",
         error
-      );
-
-      setVisibleImportId(
-        null
       );
 
       setVisibleMessage(
@@ -3461,92 +3442,65 @@ export default function CatalogPage() {
           ? error.message
           : "ไม่สามารถตรวจสอบรายการสินค้าได้"
       );
-
     } finally {
       setPreviewingVisible(
         false
       );
     }
-
   }
 
   // =====================================================
 
   // APPLY VISIBLE SKU
+  //
+  // Apply the new assortment in small batches first, then
+  // scan the currently-visible catalogue in pages and hide
+  // only products that are not in the new file. This avoids
+  // one giant UPDATE and also avoids temporarily emptying the
+  // live customer catalogue if an individual request fails.
 
   // =====================================================
 
-
-
   async function applyVisibleImport() {
 
-    if (
-
-      !visiblePreview ||
-
-      !visibleImportId
-
-    ) {
-
+    if (!visiblePreview) {
       setVisibleMessage(
         "กรุณากดตรวจสอบรายการสินค้าอีกครั้งก่อนยืนยัน"
       );
-
       return;
     }
 
-
-
     if (
-
-      visiblePreview
-        .matchedCount ===
+      visiblePreview.matchedCount ===
         0
-
     ) {
-
       setVisibleMessage(
         "ไม่สามารถยืนยันได้ เนื่องจากไม่มี SKU ใดจับคู่กับ Product Master"
       );
-
       return;
     }
 
-
-
     if (
-
       visiblePreview
         .invalidSalesCount >
         0
-
     ) {
-
       setVisibleMessage(
         "ไม่สามารถยืนยันได้ เนื่องจากมีค่า Sales ที่ไม่ถูกต้อง กรุณาแก้ไขไฟล์ก่อน"
       );
-
       return;
     }
 
-
-
     if (
-
       visiblePreview
         .invalidCategoryCount >
         0
-
     ) {
-
       setVisibleMessage(
         "ไม่สามารถยืนยันได้ เนื่องจากมี SKU ที่ไม่มีชื่อแผนกภาษาไทย กรุณาแก้ไขไฟล์ก่อน"
       );
-
       return;
     }
-
-
 
     const confirmed =
       window.confirm(
@@ -3554,67 +3508,166 @@ export default function CatalogPage() {
           `SKU ที่จับคู่สำเร็จ: ${visiblePreview.matchedCount.toLocaleString()}\n` +
           `SKU ที่หาไม่พบ: ${visiblePreview.unmatchedCount.toLocaleString()}\n` +
           `SKU ซ้ำ: ${visiblePreview.duplicateCount.toLocaleString()}\n\n` +
-          `รายการสินค้าที่แสดงอยู่เดิมจะถูกแทนที่ด้วยรายการใหม่นี้`
+          `ระบบจะอัปเดตเป็นชุดเล็ก ๆ เพื่อลดปัญหา timeout`
       );
-
-
 
     if (!confirmed) {
       return;
     }
 
-
-
-    setApplyingVisible(
-      true
+    setApplyingVisible(true);
+    setVisibleMessage("");
+    setVisibleSuccess("");
+    setVisibleStageProcessed(0);
+    setVisibleStageTotal(
+      visibleUniqueImportRows.length
     );
 
-    setVisibleMessage(
-      ""
-    );
-
-    setVisibleSuccess(
-      ""
-    );
-
-
+    const batchSize = 500;
 
     try {
-      const {
-        data,
-        error,
-      } =
-        await supabase.rpc(
-          "commit_customer_visible_import",
-          {
-            p_import_id:
-              visibleImportId,
-          }
-        );
+      // --------------------------------------------------
+      // Phase 1: add/update every SKU in the new file.
+      // Old visible products stay visible during this phase.
+      // --------------------------------------------------
+      for (
+        let start = 0;
+        start <
+        visibleUniqueImportRows.length;
+        start += batchSize
+      ) {
+        const batch =
+          visibleUniqueImportRows.slice(
+            start,
+            start + batchSize
+          );
 
-      if (error) {
-        throw new Error(
-          error.message ??
-            "ไม่สามารถอัปเดตรายการสินค้าได้"
+        let success = false;
+        let lastError =
+          "ไม่ทราบสาเหตุ";
+
+        for (
+          let attempt = 1;
+          attempt <= 3;
+          attempt += 1
+        ) {
+          try {
+            await callVisibleProductsAdminApi({
+              action: "apply",
+              rows: batch,
+            });
+            success = true;
+            break;
+          } catch (error) {
+            lastError =
+              error instanceof Error
+                ? error.message
+                : "ไม่ทราบสาเหตุ";
+
+            if (attempt < 3) {
+              await new Promise(
+                (resolve) =>
+                  window.setTimeout(
+                    resolve,
+                    700 * attempt
+                  )
+              );
+            }
+          }
+        }
+
+        if (!success) {
+          throw new Error(
+            `อัปเดตสินค้าไม่สำเร็จบริเวณรายการ ${(start + 1).toLocaleString()}: ${lastError}`
+          );
+        }
+
+        setVisibleStageProcessed(
+          Math.min(
+            start + batch.length,
+            visibleUniqueImportRows.length
+          )
         );
       }
 
-      const result =
-        data as VisibleApplyResult;
+      // --------------------------------------------------
+      // Phase 2: remove old visible products that are not
+      // present in the newly uploaded assortment.
+      // --------------------------------------------------
+      const keepKeys =
+        new Set(
+          visibleUniqueImportRows.map(
+            (row) =>
+              normalizeSku(
+                row.sku
+              )
+          )
+        );
+
+      let cursor:
+        | string
+        | null = null;
+
+      while (true) {
+        const page =
+          await callVisibleProductsAdminApi({
+            action: "list-visible",
+            afterId: cursor,
+            limit: 500,
+          });
+
+        const items =
+          page.items ?? [];
+
+        const staleIds =
+          items
+            .filter(
+              (item) => {
+                const key =
+                  item.catalogue_sku_key ??
+                  "";
+
+                return (
+                  key !== "" &&
+                  !keepKeys.has(key)
+                );
+              }
+            )
+            .map(
+              (item) =>
+                item.id
+            );
+
+        if (
+          staleIds.length >
+          0
+        ) {
+          await callVisibleProductsAdminApi({
+            action: "hide",
+            ids: staleIds,
+          });
+        }
+
+        if (
+          page.done ||
+          !page.nextCursor
+        ) {
+          break;
+        }
+
+        cursor =
+          page.nextCursor;
+      }
 
       setVisibleSuccess(
-        `อัปเดตสำเร็จ — สินค้าที่แสดงให้ลูกค้า ${result.visibleProductCount.toLocaleString()} รายการ`
-      );
-
-      setVisibleImportId(
-        null
+        `อัปเดตสำเร็จ — สินค้าที่แสดงให้ลูกค้า ${visiblePreview.matchedCount.toLocaleString()} SKU`
       );
 
     } catch (
       error: unknown
     ) {
       console.error(
-        "Visible product commit failed:",
+        "Visible product batched apply failed:",
         error
       );
 
@@ -3623,13 +3676,9 @@ export default function CatalogPage() {
           ? error.message
           : "ไม่สามารถอัปเดตรายการสินค้าได้"
       );
-
     } finally {
-      setApplyingVisible(
-        false
-      );
+      setApplyingVisible(false);
     }
-
   }
 
   // =====================================================
@@ -3787,14 +3836,6 @@ export default function CatalogPage() {
         null
 
       );
-
-      setVisibleImportId(
-
-        null
-
-      );
-
-
 
       setVisibleSuccess(
 
@@ -6579,7 +6620,7 @@ export default function CatalogPage() {
 
                     {applyingVisible
 
-                      ? "กำลังอัปเดต..."
+                      ? `กำลังอัปเดต ${visibleStageProcessed.toLocaleString()} / ${visibleStageTotal.toLocaleString()}`
 
                       : "ยืนยันการอัปเดต"}
 
