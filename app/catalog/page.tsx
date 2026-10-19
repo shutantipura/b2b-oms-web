@@ -2349,6 +2349,92 @@ export default function CatalogPage() {
 
     ]);
 
+  // Collapse duplicate SKUs BEFORE batching them to Supabase.
+  // PostgreSQL cannot execute one INSERT ... ON CONFLICT DO UPDATE
+  // statement when the same conflict key appears twice in that statement.
+  // Keeping one row per normalized SKU prevents that permanently.
+  // If the same SKU appears more than once, keep the row with the
+  // highest Sales value. If Sales ties, keep the later row.
+  const visibleUniqueImportRows =
+
+    useMemo<VisibleUploadRow[]>(() => {
+      const bySku =
+        new Map<
+          string,
+          VisibleUploadRow
+        >();
+
+      visibleImportRows.forEach(
+        (row) => {
+          const key =
+            normalizeSku(
+              row.sku
+            );
+
+          const existing =
+            bySku.get(
+              key
+            );
+
+          if (!existing) {
+            bySku.set(
+              key,
+              row
+            );
+            return;
+          }
+
+          const currentSales =
+            Number(
+              row.sales_score
+                .trim()
+                .replace(
+                  /,/g,
+                  ""
+                ) ||
+                "0"
+            );
+
+          const existingSales =
+            Number(
+              existing.sales_score
+                .trim()
+                .replace(
+                  /,/g,
+                  ""
+                ) ||
+                "0"
+            );
+
+          if (
+            Number.isFinite(
+              currentSales
+            ) &&
+            (
+              !Number.isFinite(
+                existingSales
+              ) ||
+              currentSales >=
+                existingSales
+            )
+          ) {
+            bySku.set(
+              key,
+              row
+            );
+          }
+        }
+      );
+
+      return Array.from(
+        bySku.values()
+      );
+    }, [
+      visibleImportRows,
+    ]);
+
+
+
   const visibleSkuValues =
 
     useMemo(
@@ -3138,18 +3224,8 @@ export default function CatalogPage() {
 
 
 
-    const normalizedSkus =
-      visibleImportRows.map(
-        (row) =>
-          normalizeSku(
-            row.sku
-          )
-      );
-
     const uniqueSkus =
-      new Set(
-        normalizedSkus
-      ).size;
+      visibleUniqueImportRows.length;
 
     const duplicateCount =
       visibleImportRows.length -
@@ -3211,7 +3287,7 @@ export default function CatalogPage() {
     );
 
     setVisibleStageTotal(
-      visibleImportRows.length
+      visibleUniqueImportRows.length
     );
 
 
@@ -3292,13 +3368,13 @@ export default function CatalogPage() {
       for (
         let start = 0;
         start <
-        visibleImportRows.length;
+        visibleUniqueImportRows.length;
         start += batchSize
       ) {
         batchNumber += 1;
 
         const batch =
-          visibleImportRows.slice(
+          visibleUniqueImportRows.slice(
             start,
             start +
               batchSize
@@ -3313,7 +3389,7 @@ export default function CatalogPage() {
           Math.min(
             start +
               batch.length,
-            visibleImportRows.length
+            visibleUniqueImportRows.length
           )
         );
       }
