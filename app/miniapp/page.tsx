@@ -1282,7 +1282,7 @@ export default function MiniAppHomePage() {
 
                 <p className="text-gray-500 mt-2">
 
-                  สั่งสินค้า ติดตามคำสั่งซื้อ และดูประวัติการสั่งซื้อ
+                  สั่งสินค้าและดูคำสั่งซื้อ
 
                 </p>
 
@@ -1774,7 +1774,7 @@ export default function MiniAppHomePage() {
 
             </button>
 
-            {/* TRACK ORDER */}
+            {/* ORDERS */}
 
             <button
 
@@ -1796,47 +1796,13 @@ export default function MiniAppHomePage() {
 
               <p className="font-bold text-lg">
 
-                ติดตามคำสั่งซื้อ
+                คำสั่งซื้อ
 
               </p>
 
               <p className="text-sm text-gray-500 mt-1">
 
-                ดูสถานะคำสั่งซื้อปัจจุบันและสถานะการชำระเงิน
-
-              </p>
-
-            </button>
-
-            {/* HISTORY */}
-
-            <button
-
-              type="button"
-
-              onClick={() =>
-
-                router.push(
-
-                  `/miniapp/orders?customer=${selectedCustomer.customerCode}&view=history`
-
-                )
-
-              }
-
-              className="w-full bg-white border rounded-2xl p-5 text-left"
-
-            >
-
-              <p className="font-bold text-lg">
-
-                ประวัติคำสั่งซื้อ
-
-              </p>
-
-              <p className="text-sm text-gray-500 mt-1">
-
-                ดูคำสั่งซื้อที่เสร็จสิ้นแล้ว
+                ติดตามสถานะคำสั่งซื้อปัจจุบันและดูประวัติคำสั่งซื้อ
 
               </p>
 
