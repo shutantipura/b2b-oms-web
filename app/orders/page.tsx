@@ -29,7 +29,8 @@ type Order = {
 type StatusFilter =
   | "all"
   | "pending"
-  | "completed";
+  | "completed"
+  | "cancelled";
 
 type SortOption =
   | "delivery_soonest"
@@ -521,10 +522,6 @@ export default function OrdersPage() {
           "delivery_date",
           date
         )
-        .neq(
-          "status",
-          "cancelled"
-        )
         .order(
           "order_number",
           {
@@ -600,6 +597,21 @@ export default function OrdersPage() {
       ]
     );
 
+  const cancelledCount =
+    useMemo(
+      () =>
+        orders.filter(
+          (
+            order
+          ) =>
+            order.status ===
+            "cancelled"
+        ).length,
+      [
+        orders,
+      ]
+    );
+
   const totalCount =
     orders.length;
 
@@ -628,8 +640,12 @@ export default function OrdersPage() {
                 ? isPending(
                     order
                   )
+                : statusFilter ===
+                  "completed"
+                ? order.status ===
+                  "completed"
                 : order.status ===
-                  "completed";
+                  "cancelled";
 
             const matchesSearch =
               searchText ===
@@ -847,7 +863,7 @@ export default function OrdersPage() {
 
         {/* SUMMARY CARDS */}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
 
           <button
             type="button"
@@ -898,6 +914,33 @@ export default function OrdersPage() {
             <p className="text-3xl font-bold mt-2">
               {
                 completedCount
+              }
+            </p>
+
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setStatusFilter(
+                "cancelled"
+              )
+            }
+            className={`text-left bg-white border rounded-2xl p-5 transition ${
+              statusFilter ===
+              "cancelled"
+                ? "ring-2 ring-black"
+                : ""
+            }`}
+          >
+
+            <p className="text-sm text-gray-500">
+              ยกเลิก
+            </p>
+
+            <p className="text-3xl font-bold mt-2">
+              {
+                cancelledCount
               }
             </p>
 
@@ -994,6 +1037,10 @@ export default function OrdersPage() {
 
                 <option value="completed">
                   เสร็จสิ้น
+                </option>
+
+                <option value="cancelled">
+                  ยกเลิก
                 </option>
 
               </select>

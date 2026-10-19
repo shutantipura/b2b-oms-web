@@ -1734,237 +1734,262 @@ export default function CustomerOrdersPage() {
 
                     </div>
 
-                    {/* TRACKING */}
+                    {/* TRACKING / CANCELLED */}
 
-                    <div className="p-5 border-b">
+                    {order.status ===
+                    "cancelled" ? (
 
-                      <h3 className="font-bold">
+                      <div className="p-5 border-b">
 
-                        สถานะคำสั่งซื้อ
+                        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
 
-                      </h3>
+                          <p className="font-bold text-red-700">
+                            คำสั่งซื้อนี้ถูกยกเลิก
+                          </p>
 
-                      <div className="mt-5 space-y-0">
+                          <p className="text-sm text-red-600 mt-1">
+                            คำสั่งซื้อนี้จะไม่ถูกดำเนินการต่อ และถูกเก็บไว้ในประวัติคำสั่งซื้อ
+                          </p>
 
-                        {TRACKING_STEPS.map(
+                        </div>
 
-                          (
+                      </div>
 
-                            label,
+                    ) : (
 
-                            index
+                      <>
+                      <div className="p-5 border-b">
 
-                          ) => {
+                        <h3 className="font-bold">
 
-                            const done =
+                          สถานะคำสั่งซื้อ
 
-                              index <
+                        </h3>
 
-                              step;
+                        <div className="mt-5 space-y-0">
 
-                            const current =
+                          {TRACKING_STEPS.map(
 
-                              index ===
+                            (
 
-                              step;
+                              label,
 
-                            return (
+                              index
 
-                              <div
+                            ) => {
 
-                                key={
+                              const done =
 
-                                  label
+                                index <
 
-                                }
+                                step;
 
-                                className="flex gap-4"
+                              const current =
 
-                              >
+                                index ===
 
-                                <div className="flex flex-col items-center">
+                                step;
 
-                                  <div
+                              return (
 
-                                    className={
+                                <div
 
-                                      done ||
+                                  key={
 
-                                      current
+                                    label
 
-                                        ? "w-8 h-8 rounded-full bg-black text-white flex items-center justify-center text-sm font-bold"
+                                  }
 
-                                        : "w-8 h-8 rounded-full border bg-white flex items-center justify-center text-sm text-gray-400"
+                                  className="flex gap-4"
 
-                                    }
+                                >
 
-                                  >
-
-                                    {done
-
-                                      ? "✓"
-
-                                      : current
-
-                                      ? "●"
-
-                                      : ""}
-
-                                  </div>
-
-                                  {index <
-
-                                    TRACKING_STEPS.length -
-
-                                      1 && (
+                                  <div className="flex flex-col items-center">
 
                                     <div
 
                                       className={
 
-                                        done
+                                        done ||
 
-                                          ? "w-px h-8 bg-black"
+                                        current
 
-                                          : "w-px h-8 bg-gray-200"
+                                          ? "w-8 h-8 rounded-full bg-black text-white flex items-center justify-center text-sm font-bold"
+
+                                          : "w-8 h-8 rounded-full border bg-white flex items-center justify-center text-sm text-gray-400"
 
                                       }
 
-                                    />
+                                    >
 
-                                  )}
+                                      {done
 
-                                </div>
+                                        ? "✓"
 
-                                <div className="pt-1">
+                                        : current
 
-                                  <p
+                                        ? "●"
 
-                                    className={
+                                        : ""}
 
-                                      done ||
+                                    </div>
 
-                                      current
+                                    {index <
 
-                                        ? "font-semibold"
+                                      TRACKING_STEPS.length -
 
-                                        : "text-gray-400"
+                                        1 && (
 
-                                    }
+                                      <div
 
-                                  >
+                                        className={
 
-                                    {
+                                          done
 
-                                      label
+                                            ? "w-px h-8 bg-black"
 
-                                    }
+                                            : "w-px h-8 bg-gray-200"
 
-                                  </p>
+                                        }
 
-                                  {current && (
+                                      />
 
-                                    <p className="text-xs text-gray-500 mt-1">
+                                    )}
 
-                                      สถานะปัจจุบัน
+                                  </div>
+
+                                  <div className="pt-1">
+
+                                    <p
+
+                                      className={
+
+                                        done ||
+
+                                        current
+
+                                          ? "font-semibold"
+
+                                          : "text-gray-400"
+
+                                      }
+
+                                    >
+
+                                      {
+
+                                        label
+
+                                      }
 
                                     </p>
 
-                                  )}
+                                    {current && (
+
+                                      <p className="text-xs text-gray-500 mt-1">
+
+                                        สถานะปัจจุบัน
+
+                                      </p>
+
+                                    )}
+
+                                  </div>
 
                                 </div>
 
-                              </div>
+                              );
 
-                            );
+                            }
 
-                          }
+                          )}
 
-                        )}
-
-                      </div>
-
-                    </div>
-
-                    {/* PAYMENT ACTION */}
-
-                    {order.status ===
-
-                      "awaiting_payment" &&
-
-                      customer && (
-
-                      <div className="p-5 border-b bg-gray-50">
-
-                        <button
-
-                          type="button"
-
-                          onClick={() =>
-
-                            router.push(
-
-                              `/miniapp/payment?customer=${customer.customerCode}&order=${order.orderNumber}`
-
-                            )
-
-                          }
-
-                          className="w-full bg-black text-white rounded-xl px-5 py-4 font-bold text-lg"
-
-                        >
-
-                          ชำระเงิน
-
-                        </button>
-
-                        <p className="text-xs text-gray-500 text-center mt-2">
-
-                          ดูบิล QR สำหรับชำระเงิน และหลักฐานการจัดส่ง
-
-                        </p>
+                        </div>
 
                       </div>
 
-                    )}
+                      {/* PAYMENT ACTION */}
 
-                    {order.status ===
+                      {order.status ===
 
-                      "payment_submitted" &&
+                        "awaiting_payment" &&
 
-                      customer && (
+                        customer && (
 
-                      <div className="p-5 border-b bg-gray-50">
+                        <div className="p-5 border-b bg-gray-50">
 
-                        <button
+                          <button
 
-                          type="button"
+                            type="button"
 
-                          onClick={() =>
+                            onClick={() =>
 
-                            router.push(
+                              router.push(
 
-                              `/miniapp/payment?customer=${customer.customerCode}&order=${order.orderNumber}`
+                                `/miniapp/payment?customer=${customer.customerCode}&order=${order.orderNumber}`
 
-                            )
+                              )
 
-                          }
+                            }
 
-                          className="w-full border rounded-xl px-5 py-4 font-semibold"
+                            className="w-full bg-black text-white rounded-xl px-5 py-4 font-bold text-lg"
 
-                        >
+                          >
 
-                          ส่งหลักฐานการชำระเงินแล้ว ✓
+                            ชำระเงิน
 
-                        </button>
+                          </button>
 
-                        <p className="text-xs text-gray-500 text-center mt-2">
+                          <p className="text-xs text-gray-500 text-center mt-2">
 
-                          กำลังรอทีมงานตรวจสอบการชำระเงิน
+                            ดูบิล QR สำหรับชำระเงิน และหลักฐานการจัดส่ง
 
-                        </p>
+                          </p>
 
-                      </div>
+                        </div>
+
+                      )}
+
+                      {order.status ===
+
+                        "payment_submitted" &&
+
+                        customer && (
+
+                        <div className="p-5 border-b bg-gray-50">
+
+                          <button
+
+                            type="button"
+
+                            onClick={() =>
+
+                              router.push(
+
+                                `/miniapp/payment?customer=${customer.customerCode}&order=${order.orderNumber}`
+
+                              )
+
+                            }
+
+                            className="w-full border rounded-xl px-5 py-4 font-semibold"
+
+                          >
+
+                            ส่งหลักฐานการชำระเงินแล้ว ✓
+
+                          </button>
+
+                          <p className="text-xs text-gray-500 text-center mt-2">
+
+                            กำลังรอทีมงานตรวจสอบการชำระเงิน
+
+                          </p>
+
+                        </div>
+
+                      )}
+                      </>
 
                     )}
 
