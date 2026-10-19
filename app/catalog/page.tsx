@@ -793,6 +793,42 @@ export default function CatalogPage() {
 
   const [
 
+    visibleImportId,
+
+    setVisibleImportId,
+
+  ] =
+
+    useState<string | null>(null);
+
+
+
+  const [
+
+    visibleStageProcessed,
+
+    setVisibleStageProcessed,
+
+  ] =
+
+    useState(0);
+
+
+
+  const [
+
+    visibleStageTotal,
+
+    setVisibleStageTotal,
+
+  ] =
+
+    useState(0);
+
+
+
+  const [
+
     resettingVisible,
 
     setResettingVisible,
@@ -3034,29 +3070,21 @@ export default function CatalogPage() {
     if (
 
       visibleSkuColumnIndex ===
-
         null ||
 
       visibleSalesColumnIndex ===
-
         null ||
 
       visibleCategoryColumnIndex ===
-
         null
 
     ) {
 
       setVisibleMessage(
-
         "กรุณาเลือกคอลัมน์ SKU, Sales และแผนกสินค้า"
-
       );
 
-
-
       return;
-
     }
 
 
@@ -3064,183 +3092,304 @@ export default function CatalogPage() {
     if (
 
       visibleImportRows.length ===
-
         0
 
     ) {
 
       setVisibleMessage(
-
         "ไม่พบ SKU ในคอลัมน์ที่เลือก"
-
       );
 
+      return;
+    }
 
+
+
+    // Validate locally before sending anything to Supabase.
+    const invalidSalesCount =
+      visibleImportRows.filter(
+        (row) => {
+          const value =
+            row.sales_score
+              .trim()
+              .replace(
+                /,/g,
+                ""
+              );
+
+          if (value === "") {
+            return false;
+          }
+
+          return !/^[0-9]+([.][0-9]+)?$/.test(
+            value
+          );
+        }
+      ).length;
+
+
+
+    const invalidCategoryCount =
+      visibleImportRows.filter(
+        (row) =>
+          row.category.trim() ===
+          ""
+      ).length;
+
+
+
+    const normalizedSkus =
+      visibleImportRows.map(
+        (row) =>
+          normalizeSku(
+            row.sku
+          )
+      );
+
+    const uniqueSkus =
+      new Set(
+        normalizedSkus
+      ).size;
+
+    const duplicateCount =
+      visibleImportRows.length -
+      uniqueSkus;
+
+
+
+    if (
+      invalidSalesCount >
+        0 ||
+      invalidCategoryCount >
+        0
+    ) {
+      setVisibleImportId(
+        null
+      );
+
+      setVisiblePreview({
+        totalRows:
+          visibleImportRows.length,
+        uniqueSkus,
+        duplicateCount,
+        matchedCount: 0,
+        unmatchedCount: 0,
+        invalidSalesCount,
+        invalidCategoryCount,
+        unmatchedSkus: [],
+      });
+
+      setVisibleMessage(
+        invalidSalesCount > 0
+          ? `พบค่า Sales ไม่ถูกต้อง ${invalidSalesCount.toLocaleString()} รายการ`
+          : `พบรายการที่ไม่มีแผนกสินค้า ${invalidCategoryCount.toLocaleString()} รายการ`
+      );
 
       return;
-
     }
 
 
 
     setPreviewingVisible(
-
       true
-
     );
-
-
 
     setVisibleMessage(
-
       ""
-
     );
-
-
 
     setVisibleSuccess(
-
       ""
-
     );
+
+    setVisiblePreview(
+      null
+    );
+
+    setVisibleStageProcessed(
+      0
+    );
+
+    setVisibleStageTotal(
+      visibleImportRows.length
+    );
+
+
+
+    const importId =
+      crypto.randomUUID();
+
+    setVisibleImportId(
+      importId
+    );
+
+
+
+    const batchSize =
+      400;
+
+
+
+    async function stageBatchWithRetry(
+      batch: VisibleUploadRow[],
+      batchNumber: number
+    ) {
+      let lastMessage =
+        "ไม่ทราบสาเหตุ";
+
+      for (
+        let attempt = 1;
+        attempt <= 3;
+        attempt += 1
+      ) {
+        const {
+          error,
+        } =
+          await supabase.rpc(
+            "stage_customer_visible_products_batch",
+            {
+              p_import_id:
+                importId,
+              p_rows:
+                batch,
+            }
+          );
+
+        if (!error) {
+          return;
+        }
+
+        lastMessage =
+          error.message ??
+          lastMessage;
+
+        console.error(
+          `Visible import batch ${batchNumber}, attempt ${attempt}:`,
+          error
+        );
+
+        if (attempt < 3) {
+          await new Promise(
+            (resolve) =>
+              window.setTimeout(
+                resolve,
+                700 * attempt
+              )
+          );
+        }
+      }
+
+      throw new Error(
+        `ไม่สามารถตรวจสอบชุดข้อมูลที่ ${batchNumber.toLocaleString()} ได้หลังลอง 3 ครั้ง: ${lastMessage}`
+      );
+    }
 
 
 
     try {
+      let batchNumber = 0;
+
+      for (
+        let start = 0;
+        start <
+        visibleImportRows.length;
+        start += batchSize
+      ) {
+        batchNumber += 1;
+
+        const batch =
+          visibleImportRows.slice(
+            start,
+            start +
+              batchSize
+          );
+
+        await stageBatchWithRetry(
+          batch,
+          batchNumber
+        );
+
+        setVisibleStageProcessed(
+          Math.min(
+            start +
+              batch.length,
+            visibleImportRows.length
+          )
+        );
+      }
+
+
 
       const {
-
         data,
-
         error,
-
       } =
-
         await supabase.rpc(
-
-          "preview_customer_visible_products",
-
+          "preview_customer_visible_import",
           {
-
-            p_rows:
-
-              visibleImportRows,
-
+            p_import_id:
+              importId,
           }
-
         );
-
-
 
       if (error) {
-
-        console.error(
-
-          "Visible product preview failed:",
-
-          error
-
-        );
-
-
-
         throw new Error(
-
           error.message ??
-
             "ไม่สามารถตรวจสอบรายการสินค้าได้"
-
         );
-
       }
 
+      const serverPreview =
+        data as {
+          matchedCount?: number;
+          unmatchedCount?: number;
+          unmatchedSkus?: string[];
+        };
 
-
-      setVisiblePreview(
-
-        data as VisiblePreviewResult
-
-      );
+      setVisiblePreview({
+        totalRows:
+          visibleImportRows.length,
+        uniqueSkus,
+        duplicateCount,
+        matchedCount:
+          Number(
+            serverPreview.matchedCount ??
+              0
+          ),
+        unmatchedCount:
+          Number(
+            serverPreview.unmatchedCount ??
+              0
+          ),
+        invalidSalesCount: 0,
+        invalidCategoryCount: 0,
+        unmatchedSkus:
+          serverPreview.unmatchedSkus ??
+          [],
+      });
 
     } catch (
-
       error: unknown
-
     ) {
-
       console.error(
-
-        "Visible product preview failed:",
-
+        "Visible product staged preview failed:",
         error
-
       );
 
+      setVisibleImportId(
+        null
+      );
 
-
-      if (
-
+      setVisibleMessage(
         error instanceof Error
-
-      ) {
-
-        setVisibleMessage(
-
-          error.message
-
-        );
-
-      } else if (
-
-        error &&
-
-        typeof error ===
-
-          "object" &&
-
-        "message" in error
-
-      ) {
-
-        setVisibleMessage(
-
-          String(
-
-            (
-
-              error as {
-
-                message?: unknown;
-
-              }
-
-            ).message ??
-
-              "ไม่สามารถตรวจสอบรายการสินค้าได้"
-
-          )
-
-        );
-
-      } else {
-
-        setVisibleMessage(
-
-          "ไม่สามารถตรวจสอบรายการสินค้าได้"
-
-        );
-
-      }
+          ? error.message
+          : "ไม่สามารถตรวจสอบรายการสินค้าได้"
+      );
 
     } finally {
-
       setPreviewingVisible(
-
         false
-
       );
-
     }
 
   }
@@ -3259,14 +3408,15 @@ export default function CatalogPage() {
 
       !visiblePreview ||
 
-      visibleImportRows.length ===
-
-        0
+      !visibleImportId
 
     ) {
 
-      return;
+      setVisibleMessage(
+        "กรุณากดตรวจสอบรายการสินค้าอีกครั้งก่อนยืนยัน"
+      );
 
+      return;
     }
 
 
@@ -3274,23 +3424,16 @@ export default function CatalogPage() {
     if (
 
       visiblePreview
-
         .matchedCount ===
-
         0
 
     ) {
 
       setVisibleMessage(
-
         "ไม่สามารถยืนยันได้ เนื่องจากไม่มี SKU ใดจับคู่กับ Product Master"
-
       );
 
-
-
       return;
-
     }
 
 
@@ -3298,23 +3441,16 @@ export default function CatalogPage() {
     if (
 
       visiblePreview
-
         .invalidSalesCount >
-
         0
 
     ) {
 
       setVisibleMessage(
-
         "ไม่สามารถยืนยันได้ เนื่องจากมีค่า Sales ที่ไม่ถูกต้อง กรุณาแก้ไขไฟล์ก่อน"
-
       );
 
-
-
       return;
-
     }
 
 
@@ -3322,154 +3458,103 @@ export default function CatalogPage() {
     if (
 
       visiblePreview
-
         .invalidCategoryCount >
-
         0
 
     ) {
 
       setVisibleMessage(
-
         "ไม่สามารถยืนยันได้ เนื่องจากมี SKU ที่ไม่มีชื่อแผนกภาษาไทย กรุณาแก้ไขไฟล์ก่อน"
-
       );
 
-
-
       return;
-
     }
 
 
 
     const confirmed =
-
       window.confirm(
-
         `ยืนยันการอัปเดตสินค้าที่แสดงให้ลูกค้า?\n\n` +
-
           `SKU ที่จับคู่สำเร็จ: ${visiblePreview.matchedCount.toLocaleString()}\n` +
-
           `SKU ที่หาไม่พบ: ${visiblePreview.unmatchedCount.toLocaleString()}\n` +
-
-          `ค่า Sales ไม่ถูกต้อง: ${visiblePreview.invalidSalesCount.toLocaleString()}\n` +
-
-          `แผนกว่าง: ${visiblePreview.invalidCategoryCount.toLocaleString()}\n\n` +
-
+          `SKU ซ้ำ: ${visiblePreview.duplicateCount.toLocaleString()}\n\n` +
           `รายการสินค้าที่แสดงอยู่เดิมจะถูกแทนที่ด้วยรายการใหม่นี้`
-
       );
 
 
 
-    if (
-
-      !confirmed
-
-    ) {
-
+    if (!confirmed) {
       return;
-
     }
 
 
 
     setApplyingVisible(
-
       true
-
     );
-
-
 
     setVisibleMessage(
-
       ""
-
     );
 
-
-
     setVisibleSuccess(
-
       ""
-
     );
 
 
 
     try {
-
       const {
-
         data,
-
         error,
-
       } =
-
         await supabase.rpc(
-
-          "apply_customer_visible_products",
-
+          "commit_customer_visible_import",
           {
-
-            p_rows:
-
-              visibleImportRows,
-
+            p_import_id:
+              visibleImportId,
           }
-
         );
 
-
-
       if (error) {
-
-        throw error;
-
+        throw new Error(
+          error.message ??
+            "ไม่สามารถอัปเดตรายการสินค้าได้"
+        );
       }
 
-
-
       const result =
-
         data as VisibleApplyResult;
 
-
-
       setVisibleSuccess(
-
         `อัปเดตสำเร็จ — สินค้าที่แสดงให้ลูกค้า ${result.visibleProductCount.toLocaleString()} รายการ`
-
       );
 
-    } catch (error) {
+      setVisibleImportId(
+        null
+      );
+
+    } catch (
+      error: unknown
+    ) {
+      console.error(
+        "Visible product commit failed:",
+        error
+      );
 
       setVisibleMessage(
-
         error instanceof Error
-
           ? error.message
-
           : "ไม่สามารถอัปเดตรายการสินค้าได้"
-
       );
 
     } finally {
-
       setApplyingVisible(
-
         false
-
       );
-
     }
 
   }
-
-
 
   // =====================================================
 
@@ -3622,6 +3707,12 @@ export default function CatalogPage() {
 
 
       setVisiblePreview(
+
+        null
+
+      );
+
+      setVisibleImportId(
 
         null
 
@@ -5956,7 +6047,7 @@ export default function CatalogPage() {
 
                 {previewingVisible
 
-                  ? "กำลังตรวจสอบ..."
+                  ? `กำลังตรวจสอบ ${visibleStageProcessed.toLocaleString()} / ${visibleStageTotal.toLocaleString()}`
 
                   : "ตรวจสอบรายการสินค้า"}
 
