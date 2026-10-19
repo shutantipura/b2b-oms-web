@@ -284,6 +284,20 @@ export default function OrdersPage() {
     useState("");
 
   const [
+    isManager,
+    setIsManager,
+  ] =
+    useState(false);
+
+  const [
+    managerActionOrder,
+    setManagerActionOrder,
+  ] =
+    useState<number | null>(
+      null
+    );
+
+  const [
     search,
     setSearch,
   ] =
@@ -304,6 +318,166 @@ export default function OrdersPage() {
     useState<SortOption>(
       "delivery_soonest"
     );
+
+  // =====================================================
+  // MANAGER ACCESS
+  // =====================================================
+
+  async function loadManagerAccess() {
+    const {
+      data: { user },
+    } =
+      await supabase.auth.getUser();
+
+    if (!user) {
+      setIsManager(false);
+      return;
+    }
+
+    const {
+      data,
+      error,
+    } =
+      await supabase
+        .from("staff")
+        .select("account_type")
+        .eq(
+          "auth_user_id",
+          user.id
+        )
+        .eq(
+          "is_active",
+          true
+        )
+        .maybeSingle();
+
+    if (error) {
+      setIsManager(false);
+      return;
+    }
+
+    setIsManager(
+      data?.account_type ===
+        "manager"
+    );
+  }
+
+  async function cancelOrder(
+    orderNumber: number
+  ) {
+    const reason =
+      window.prompt(
+        `ยกเลิกคำสั่งซื้อ #${orderNumber}\n\nกรุณาระบุเหตุผลในการยกเลิก`
+      );
+
+    if (reason === null) {
+      return;
+    }
+
+    const trimmedReason =
+      reason.trim();
+
+    if (!trimmedReason) {
+      setMessage(
+        "กรุณาระบุเหตุผลในการยกเลิกคำสั่งซื้อ"
+      );
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        `ยืนยันยกเลิกคำสั่งซื้อ #${orderNumber} หรือไม่?\n\nการดำเนินการนี้จะยกเลิกงานที่กำลังทำอยู่ของพนักงานด้วย`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setManagerActionOrder(
+      orderNumber
+    );
+    setMessage("");
+
+    const {
+      error,
+    } =
+      await supabase.rpc(
+        "manager_cancel_order",
+        {
+          p_order_number:
+            orderNumber,
+          p_reason:
+            trimmedReason,
+        }
+      );
+
+    if (error) {
+      setMessage(
+        "ไม่สามารถยกเลิกคำสั่งซื้อได้: " +
+          error.message
+      );
+      setManagerActionOrder(
+        null
+      );
+      return;
+    }
+
+    await loadOrders(
+      selectedDate
+    );
+
+    setManagerActionOrder(
+      null
+    );
+  }
+
+  async function forceCompleteOrder(
+    orderNumber: number
+  ) {
+    const confirmed =
+      window.confirm(
+        `ยืนยันบังคับให้คำสั่งซื้อ #${orderNumber} เสร็จสิ้นทันทีหรือไม่?\n\nระบบจะปิดงานที่กำลังดำเนินการอยู่และเปลี่ยนสถานะเป็นเสร็จสิ้น`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setManagerActionOrder(
+      orderNumber
+    );
+    setMessage("");
+
+    const {
+      error,
+    } =
+      await supabase.rpc(
+        "manager_force_complete_order",
+        {
+          p_order_number:
+            orderNumber,
+        }
+      );
+
+    if (error) {
+      setMessage(
+        "ไม่สามารถบังคับเสร็จสิ้นคำสั่งซื้อได้: " +
+          error.message
+      );
+      setManagerActionOrder(
+        null
+      );
+      return;
+    }
+
+    await loadOrders(
+      selectedDate
+    );
+
+    setManagerActionOrder(
+      null
+    );
+  }
 
   // =====================================================
   // LOAD ORDERS FOR SELECTED DELIVERY DATE
@@ -387,6 +561,8 @@ export default function OrdersPage() {
   }
 
   useEffect(() => {
+    void loadManagerAccess();
+
     loadOrders(
       selectedDate
     );
@@ -1097,6 +1273,48 @@ export default function OrdersPage() {
                               >
                                 ดูรายละเอียด
                               </Link>
+
+                              {isManager &&
+                                isPending(
+                                  order
+                                ) && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void cancelOrder(
+                                          order.order_number
+                                        )
+                                      }
+                                      disabled={
+                                        managerActionOrder ===
+                                        order.order_number
+                                      }
+                                      className="inline-block bg-white border border-red-300 text-red-700 rounded-lg px-4 py-2 font-semibold whitespace-nowrap disabled:opacity-40"
+                                    >
+                                      ยกเลิกคำสั่งซื้อ
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void forceCompleteOrder(
+                                          order.order_number
+                                        )
+                                      }
+                                      disabled={
+                                        managerActionOrder ===
+                                        order.order_number
+                                      }
+                                      className="inline-block bg-black text-white rounded-lg px-4 py-2 font-semibold whitespace-nowrap disabled:opacity-40"
+                                    >
+                                      {managerActionOrder ===
+                                      order.order_number
+                                        ? "กำลังดำเนินการ..."
+                                        : "บังคับเสร็จสิ้น"}
+                                    </button>
+                                  </>
+                                )}
 
                               {order.status ===
                                 "awaiting_payment" && (
