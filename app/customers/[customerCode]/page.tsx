@@ -40,6 +40,8 @@ type LineUser = {
 
   display_name: string;
 
+  internal_name: string | null;
+
   user_type: string;
 
 };
@@ -59,6 +61,8 @@ type CustomerLineUser = {
     id: string;
 
     display_name: string;
+
+    internal_name: string | null;
 
     user_type: string;
 
@@ -417,6 +421,8 @@ export default function CustomerDetailPage() {
 
           display_name,
 
+          internal_name,
+
           user_type
 
         )
@@ -485,11 +491,13 @@ export default function CustomerDetailPage() {
 
         display_name,
 
+        internal_name,
+
         user_type
 
       `)
 
-      .order("display_name", {
+      .order("internal_name", {
 
         ascending: true,
 
@@ -679,7 +687,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "กรุณากรอกเลขลูกค้า (CV)"
+        "กรุณากรอกเลข CV"
 
       );
 
@@ -691,7 +699,7 @@ export default function CustomerDetailPage() {
 
     // The legacy ABC test account may remain C001.
 
-    // Any changed / real customer เลขลูกค้า (CV) must be exactly 10 digits.
+    // Any changed / real customer เลข CV must be exactly 10 digits.
 
     if (
 
@@ -707,7 +715,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "เลขลูกค้า (CV) ต้องเป็นตัวเลข 10 หลัก"
+        "เลข CV ต้องเป็นตัวเลข 10 หลัก"
 
       );
 
@@ -721,7 +729,7 @@ export default function CustomerDetailPage() {
 
       setMessage(
 
-        "กรุณากรอกชื่อลูกค้า"
+        "กรุณากรอกชื่อร้าน"
 
       );
 
@@ -805,7 +813,7 @@ export default function CustomerDetailPage() {
 
         setMessage(
 
-          "ไม่สามารถตรวจสอบเลขลูกค้า (CV) ได้: " +
+          "ไม่สามารถตรวจสอบเลข CV ได้: " +
 
             duplicateError.message
 
@@ -823,7 +831,7 @@ export default function CustomerDetailPage() {
 
         setMessage(
 
-          "เลขลูกค้า (CV) นี้ถูกใช้โดยลูกค้ารายอื่นแล้ว"
+          "เลข CV นี้ถูกใช้โดยลูกค้ารายอื่นแล้ว"
 
         );
 
@@ -1413,7 +1421,7 @@ export default function CustomerDetailPage() {
 
               >
 
-                EDIT ลูกค้า
+                แก้ไขข้อมูลลูกค้า
 
               </button>
 
@@ -1435,7 +1443,7 @@ export default function CustomerDetailPage() {
 
                 <label className="block text-sm font-medium mb-2">
 
-                  เลขลูกค้า (CV)
+                  เลข CV
 
                 </label>
 
@@ -1465,7 +1473,7 @@ export default function CustomerDetailPage() {
 
                   className="w-full border rounded-lg px-4 py-3"
 
-                  placeholder="10-digit เลขลูกค้า (CV)"
+                  placeholder="เลข CV 10 หลัก"
 
                 />
 
@@ -1473,7 +1481,7 @@ export default function CustomerDetailPage() {
 
                 <p className="text-xs text-gray-500 mt-2">
 
-                  Real customer เลขลูกค้า (CV)s must contain exactly 10 digits. ABC Restaurant may remain C001 as the test account.
+                  เลข CV ของลูกค้าจริงต้องเป็นตัวเลข 10 หลัก ส่วนบัญชีทดสอบ ABC Restaurant สามารถใช้ C001 ต่อไปได้
 
                 </p>
 
@@ -1485,7 +1493,7 @@ export default function CustomerDetailPage() {
 
                 <label className="block text-sm font-medium mb-2">
 
-                  ชื่อลูกค้า
+                  ชื่อร้าน
 
                 </label>
 
@@ -1597,7 +1605,7 @@ export default function CustomerDetailPage() {
 
                 <label className="block text-sm font-medium mb-2">
 
-                  ผู้ติดต่อ
+                  ชื่อลูกค้า CV
 
                 </label>
 
@@ -1813,7 +1821,7 @@ export default function CustomerDetailPage() {
 
                 <p className="text-sm text-gray-500">
 
-                  เลขลูกค้า (CV)
+                  เลข CV
 
                 </p>
 
@@ -1857,7 +1865,7 @@ export default function CustomerDetailPage() {
 
                 <p className="text-sm text-gray-500">
 
-                  ผู้ติดต่อ
+                  ชื่อลูกค้า CV
 
                 </p>
 
@@ -2017,9 +2025,9 @@ export default function CustomerDetailPage() {
 
                         <p className="font-semibold">
 
-                          {line?.display_name ??
+                          {line?.internal_name?.trim() ||
 
-                            "ผู้ใช้ LINE ที่ไม่ทราบชื่อ"}
+                            "ยังไม่ได้ตั้งชื่อใน OMS"}
 
                         </p>
 
@@ -2095,9 +2103,9 @@ export default function CustomerDetailPage() {
 
                               link.line_user_id,
 
-                              line?.display_name ??
+                              line?.internal_name?.trim() ||
 
-                                "ผู้ใช้ LINE นี้"
+                                "บัญชี LINE นี้"
 
                             )
 
@@ -2107,7 +2115,7 @@ export default function CustomerDetailPage() {
 
                         >
 
-                          REMOVE
+                          นำออก
 
                         </button>
 
@@ -2191,7 +2199,9 @@ export default function CustomerDetailPage() {
 
                     >
 
-                      {user.display_name}
+                      {user.internal_name?.trim() ||
+
+                        "ยังไม่ได้ตั้งชื่อใน OMS"}
 
                       {" · "}
 
@@ -2223,7 +2233,7 @@ export default function CustomerDetailPage() {
 
               >
 
-                อนุญาต LINE ACCOUNT
+                อนุญาตบัญชี LINE
 
               </button>
 
