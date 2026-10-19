@@ -26,12 +26,60 @@ type Product = {
   category: string | null;
   unit: string;
   normal_price: number | string;
+  image_url: string | null;
 };
 
 type FavouriteRow = {
   product_id: string;
   sort_order: number | null;
 };
+
+function ProductThumbnail({
+  imageUrl,
+  alt,
+  category,
+}: {
+  imageUrl: string | null | undefined;
+  alt: string;
+  category: string | null;
+}) {
+  const isRestrictedCategory =
+    category?.trim() ===
+    "สุราและยาสูบ";
+
+  if (isRestrictedCategory) {
+    return (
+      <div className="w-16 h-16 rounded-xl border bg-gray-50 shrink-0 flex flex-col items-center justify-center text-center px-1">
+        <span className="text-lg">ℹ️</span>
+        <span className="text-[9px] leading-tight text-gray-500 mt-1">
+          ไม่แสดงรูป
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0 border">
+      <div className="absolute inset-0 flex items-center justify-center text-xl text-gray-400">
+        📦
+      </div>
+
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 w-full h-full object-contain bg-white p-1"
+          onError={(event) => {
+            event.currentTarget.style.display =
+              "none";
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
 
 export default function CustomerFavouritesPage() {
   const [
@@ -347,7 +395,8 @@ export default function CustomerFavouritesPage() {
           product_name,
           category,
           unit,
-          normal_price
+          normal_price,
+          image_url
         `)
         .eq(
           "is_active",
@@ -441,83 +490,46 @@ export default function CustomerFavouritesPage() {
 
   // =====================================================
   // SEARCH PRODUCTS TO ADD
+  // Same ranking as customer Order Products:
+  //   1. Exact SKU
+  //   2. Exact product name
+  //   3. Any other match
+  //   then Sales DESC
   // =====================================================
 
   async function searchProductsToAdd(
     rawSearch: string
   ) {
     const term =
-      rawSearch
-        .trim();
+      rawSearch.trim();
 
     if (
       !showAddProduct ||
       !selectedCustomer ||
       term.length === 0
     ) {
-      setAddResults(
-        []
-      );
-
-      setSearchingProducts(
-        false
-      );
-
+      setAddResults([]);
+      setSearchingProducts(false);
       return;
     }
 
-    setSearchingProducts(
-      true
-    );
-
-    const safeTerm =
-      term
-        .replace(
-          /[,%()]/g,
-          " "
-        )
-        .trim();
-
-    let query =
-      supabase
-        .from(
-          "products"
-        )
-        .select(`
-          id,
-          sku,
-          product_name,
-          category,
-          unit,
-          normal_price
-        `)
-        .eq(
-          "is_active",
-          true
-        )
-        .eq(
-          "is_customer_visible",
-          true
-        )
-        .or(
-          `sku.ilike.%${safeTerm}%,product_name.ilike.%${safeTerm}%,category.ilike.%${safeTerm}%`
-        )
-        .order(
-          "product_name",
-          {
-            ascending:
-              true,
-          }
-        )
-        .limit(
-          30
-        );
+    setSearchingProducts(true);
+    setMessage("");
 
     const {
       data,
       error,
-    } =
-      await query;
+    } = await supabase.rpc(
+      "search_products_for_customer_favourites",
+      {
+        p_customer_id:
+          selectedCustomer,
+        p_query:
+          term,
+        p_limit:
+          30,
+      }
+    );
 
     if (error) {
       setMessage(
@@ -525,37 +537,16 @@ export default function CustomerFavouritesPage() {
           error.message
       );
 
-      setAddResults(
-        []
-      );
-
-      setSearchingProducts(
-        false
-      );
-
+      setAddResults([]);
+      setSearchingProducts(false);
       return;
     }
 
-    const available =
-      (
-        (data ??
-          []) as Product[]
-      ).filter(
-        (
-          product
-        ) =>
-          !favouriteIds.has(
-            product.id
-          )
-      );
-
     setAddResults(
-      available
+      (data ?? []) as Product[]
     );
 
-    setSearchingProducts(
-      false
-    );
+    setSearchingProducts(false);
   }
 
   useEffect(() => {
@@ -1046,7 +1037,7 @@ export default function CustomerFavouritesPage() {
                 </h2>
 
                 <p className="text-sm text-gray-500 mt-1">
-                  ค้นหาจาก SKU ชื่อสินค้า หรือหมวดสินค้า แล้วกด + เพื่อเพิ่มให้ลูกค้าที่เลือก
+                  ค้นหาจาก SKU หรือชื่อสินค้า ผลลัพธ์เรียงตามความตรงของคำค้นหา แล้วตามยอดขาย
                 </p>
               </div>
 
@@ -1112,7 +1103,21 @@ export default function CustomerFavouritesPage() {
                         className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-4 border-b last:border-b-0"
                       >
 
-                        <div className="min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+
+                          <ProductThumbnail
+                            imageUrl={
+                              product.image_url
+                            }
+                            alt={
+                              product.product_name
+                            }
+                            category={
+                              product.category
+                            }
+                          />
+
+                          <div className="min-w-0 flex-1">
 
                           <div className="font-semibold">
                             {
@@ -1149,6 +1154,8 @@ export default function CustomerFavouritesPage() {
                                   2,
                               }
                             )}
+                          </div>
+
                           </div>
 
                         </div>
