@@ -28,6 +28,10 @@ type Customer = {
 
   delivery_address: string | null;
 
+  delivery_map_url: string | null;
+
+  rider_note: string | null;
+
   is_active: boolean;
 
 };
@@ -239,7 +243,13 @@ export default function CustomerDetailPage() {
 
 
 
-  const [deliveryAddress, setDeliveryAddress] =
+  const [deliveryMapUrl, setDeliveryMapUrl] =
+
+    useState("");
+
+
+
+  const [riderNote, setRiderNote] =
 
     useState("");
 
@@ -310,6 +320,10 @@ export default function CustomerDetailPage() {
         phone,
 
         delivery_address,
+
+        delivery_map_url,
+
+        rider_note,
 
         is_active
 
@@ -383,9 +397,23 @@ export default function CustomerDetailPage() {
 
 
 
-    setDeliveryAddress(
+    setDeliveryMapUrl(
 
-      loadedCustomer.delivery_address ?? ""
+      loadedCustomer.delivery_map_url ??
+
+        (loadedCustomer.delivery_address?.startsWith("http")
+
+          ? loadedCustomer.delivery_address
+
+          : "")
+
+    );
+
+
+
+    setRiderNote(
+
+      loadedCustomer.rider_note ?? ""
 
     );
 
@@ -753,11 +781,35 @@ export default function CustomerDetailPage() {
 
 
 
-    if (!deliveryAddress.trim()) {
+    if (!deliveryMapUrl.trim()) {
 
       setMessage(
 
-        "กรุณากรอกที่อยู่จัดส่ง"
+        "กรุณากรอกลิงก์ Google Maps"
+
+      );
+
+      return;
+
+    }
+
+
+
+    try {
+
+      const url = new URL(deliveryMapUrl.trim());
+
+      if (url.protocol !== "https:" && url.protocol !== "http:") {
+
+        throw new Error("invalid protocol");
+
+      }
+
+    } catch {
+
+      setMessage(
+
+        "ลิงก์ Google Maps ไม่ถูกต้อง"
 
       );
 
@@ -883,9 +935,25 @@ export default function CustomerDetailPage() {
 
 
 
+          delivery_map_url:
+
+            deliveryMapUrl.trim(),
+
+
+
+          rider_note:
+
+            riderNote.trim() || null,
+
+
+
+          // Legacy compatibility mirror. New orders use this as
+
+          // the location snapshot until delivery_address is retired.
+
           delivery_address:
 
-            deliveryAddress.trim(),
+            deliveryMapUrl.trim(),
 
         })
 
@@ -1667,23 +1735,21 @@ export default function CustomerDetailPage() {
 
               <div className="md:col-span-2">
 
-
-
                 <label className="block text-sm font-medium mb-2">
 
-                  ที่อยู่จัดส่ง
+                  ลิงก์ Google Maps
 
                 </label>
 
+                <input
 
+                  type="url"
 
-                <textarea
-
-                  value={deliveryAddress}
+                  value={deliveryMapUrl}
 
                   onChange={(event) =>
 
-                    setDeliveryAddress(
+                    setDeliveryMapUrl(
 
                       event.target.value
 
@@ -1691,13 +1757,45 @@ export default function CustomerDetailPage() {
 
                   }
 
-                  rows={4}
+                  placeholder="https://maps.app.goo.gl/..."
 
                   className="w-full border rounded-lg px-4 py-3"
 
                 />
 
+              </div>
 
+
+
+              <div className="md:col-span-2">
+
+                <label className="block text-sm font-medium mb-2">
+
+                  หมายเหตุถึงไรเดอร์
+
+                </label>
+
+                <textarea
+
+                  value={riderNote}
+
+                  onChange={(event) =>
+
+                    setRiderNote(
+
+                      event.target.value
+
+                    )
+
+                  }
+
+                  rows={3}
+
+                  placeholder="เช่น เข้าทางประตูหลัง โทรก่อนถึง 10 นาที"
+
+                  className="w-full border rounded-lg px-4 py-3"
+
+                />
 
               </div>
 
@@ -1761,11 +1859,23 @@ export default function CustomerDetailPage() {
 
 
 
-                    setDeliveryAddress(
+                    setDeliveryMapUrl(
 
-                      customer.delivery_address ??
+                      customer.delivery_map_url ??
 
-                        ""
+                        (customer.delivery_address?.startsWith("http")
+
+                          ? customer.delivery_address
+
+                          : "")
+
+                    );
+
+
+
+                    setRiderNote(
+
+                      customer.rider_note ?? ""
 
                     );
 
@@ -1921,17 +2031,53 @@ export default function CustomerDetailPage() {
 
                 <p className="text-sm text-gray-500">
 
-                  ที่อยู่จัดส่ง
+                  ตำแหน่งจัดส่ง
 
                 </p>
 
 
 
-                <p className="font-medium">
+                {customer.delivery_map_url ? (
 
-                  {customer.delivery_address ??
+                  <a
 
-                    "—"}
+                    href={customer.delivery_map_url}
+
+                    target="_blank"
+
+                    rel="noopener noreferrer"
+
+                    className="inline-block mt-2 bg-black text-white rounded-lg px-4 py-2 font-semibold"
+
+                  >
+
+                    📍 เปิด Google Maps
+
+                  </a>
+
+                ) : (
+
+                  <p className="font-medium">—</p>
+
+                )}
+
+              </div>
+
+
+
+              <div className="md:col-span-2">
+
+                <p className="text-sm text-gray-500">
+
+                  หมายเหตุถึงไรเดอร์
+
+                </p>
+
+
+
+                <p className="font-medium whitespace-pre-wrap">
+
+                  {customer.rider_note ?? "—"}
 
                 </p>
 

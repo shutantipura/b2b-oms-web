@@ -88,6 +88,34 @@ type Cart = Record<
 
 >;
 
+function isWebUrl(
+
+  value: string
+
+) {
+
+  try {
+
+    const url =
+
+      new URL(value);
+
+    return (
+
+      url.protocol === "https:" ||
+
+      url.protocol === "http:"
+
+    );
+
+  } catch {
+
+    return false;
+
+  }
+
+}
+
 function prettyDate(
 
   value: string
@@ -215,16 +243,6 @@ export default function MiniAppตรวจสอบคำสั่งซื้�
     deliveryAddress,
 
     setการจัดส่งAddress,
-
-  ] =
-
-    useState("");
-
-  const [
-
-    recommendedAddress,
-
-    setRecommendedAddress,
 
   ] =
 
@@ -646,7 +664,7 @@ export default function MiniAppตรวจสอบคำสั่งซื้�
 
         );
 
-        const savedAddress =
+        const savedLocation =
 
           data.customer
 
@@ -654,15 +672,13 @@ export default function MiniAppตรวจสอบคำสั่งซื้�
 
           "";
 
-        setRecommendedAddress(
+        // delivery_address now carries the customer's
 
-          savedAddress
-
-        );
+        // saved Google Maps link for order compatibility.
 
         setการจัดส่งAddress(
 
-          savedAddress
+          savedLocation
 
         );
 
@@ -922,13 +938,17 @@ export default function MiniAppตรวจสอบคำสั่งซื้�
 
     if (
 
-      !deliveryAddress.trim()
+      !isWebUrl(
+
+        deliveryAddress.trim()
+
+      )
 
     ) {
 
       setMessage(
 
-        "กรุณาระบุที่อยู่จัดส่ง"
+        "ยังไม่ได้ตั้งค่าลิงก์ Google Maps สำหรับลูกค้ารายนี้ กรุณาติดต่อผู้จัดการ"
 
       );
 
@@ -1720,77 +1740,49 @@ export default function MiniAppตรวจสอบคำสั่งซื้�
 
         </section>
 
-        {/* ADDRESS */}
+        {/* GOOGLE MAPS LOCATION */}
 
         <section className="bg-white border rounded-2xl p-5 mb-5">
 
-          <div className="flex justify-between items-start gap-4">
+          <h2 className="font-bold text-lg">
 
-            <h2 className="font-bold text-lg">
+            ตำแหน่งจัดส่ง
 
-              การจัดส่ง Address
+          </h2>
 
-            </h2>
+          <p className="text-sm text-gray-500 mt-1">
 
-            {deliveryAddress !==
+            ตำแหน่งนี้ถูกบันทึกโดยทีมงานและไม่ต้องกรอกที่อยู่เพิ่มเติม
 
-              recommendedAddress && (
+          </p>
 
-              <button
+          {isWebUrl(deliveryAddress) ? (
 
-                type="button"
+            <a
 
-                onClick={() =>
+              href={deliveryAddress}
 
-                  setการจัดส่งAddress(
+              target="_blank"
 
-                    recommendedAddress
+              rel="noopener noreferrer"
 
-                  )
+              className="inline-block mt-4 bg-black text-white rounded-xl px-5 py-3 font-semibold"
 
-                }
+            >
 
-                className="text-sm underline"
+              📍 เปิด Google Maps
 
-              >
+            </a>
 
-                ใช้ที่อยู่ที่บันทึกไว้
+          ) : (
 
-              </button>
+            <p className="text-red-600 mt-4">
 
-            )}
+              ยังไม่ได้ตั้งค่าลิงก์ Google Maps
 
-          </div>
+            </p>
 
-          <textarea
-
-            value={
-
-              deliveryAddress
-
-            }
-
-            onChange={(
-
-              event
-
-            ) =>
-
-              setการจัดส่งAddress(
-
-                event.target
-
-                  .value
-
-              )
-
-            }
-
-            rows={4}
-
-            className="w-full border rounded-xl px-4 py-3 mt-4"
-
-          />
+          )}
 
         </section>
 

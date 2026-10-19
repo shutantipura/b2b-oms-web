@@ -40,6 +40,10 @@ type OrderDetails = {
 
     phone: string | null;
 
+    delivery_map_url: string | null;
+
+    rider_note: string | null;
+
   } | null;
 
 };
@@ -58,6 +62,29 @@ type DisplayFile = {
   name: string;
   mimeType: string | null;
 };
+
+function safeWebUrl(
+  value: string | null | undefined
+) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const url = new URL(value);
+
+    if (
+      url.protocol !== "https:" &&
+      url.protocol !== "http:"
+    ) {
+      return null;
+    }
+
+    return value;
+  } catch {
+    return null;
+  }
+}
 
 
 
@@ -175,7 +202,11 @@ export default function DeliveryPage() {
 
           contact_name,
 
-          phone
+          phone,
+
+          delivery_map_url,
+
+          rider_note
 
         )
 
@@ -785,6 +816,22 @@ export default function DeliveryPage() {
 
 
 
+  const deliveryMapUrl =
+
+    safeWebUrl(
+
+      order.delivery_address
+
+    ) ??
+
+    safeWebUrl(
+
+      order.customers?.delivery_map_url
+
+    );
+
+
+
   return (
 
     <main className="min-h-screen bg-gray-100 p-8">
@@ -987,15 +1034,57 @@ export default function DeliveryPage() {
 
             <p className="text-sm text-gray-500">
 
-              ที่อยู่จัดส่ง
+              ตำแหน่งจัดส่ง
 
             </p>
 
 
 
-            <p className="font-medium text-lg">
+            {deliveryMapUrl ? (
 
-              {order.delivery_address ?? "—"}
+              <a
+
+                href={deliveryMapUrl}
+
+                target="_blank"
+
+                rel="noopener noreferrer"
+
+                className="inline-block mt-2 bg-black text-white rounded-xl px-5 py-3 font-semibold"
+
+              >
+
+                📍 เปิด Google Maps
+
+              </a>
+
+            ) : (
+
+              <p className="font-medium text-red-600 mt-2">
+
+                ยังไม่ได้บันทึกลิงก์ Google Maps
+
+              </p>
+
+            )}
+
+          </div>
+
+
+
+          <div className="mt-5">
+
+            <p className="text-sm text-gray-500">
+
+              หมายเหตุถึงไรเดอร์
+
+            </p>
+
+
+
+            <p className="font-medium whitespace-pre-wrap mt-1">
+
+              {order.customers?.rider_note ?? "—"}
 
             </p>
 
@@ -1009,7 +1098,7 @@ export default function DeliveryPage() {
 
               <p className="text-sm text-gray-500">
 
-                หมายเหตุจากลูกค้า
+                หมายเหตุคำสั่งซื้อจากลูกค้า
 
               </p>
 
