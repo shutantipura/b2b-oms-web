@@ -1,136 +1,229 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import {
+  FormEvent,
+  useState,
+} from "react";
+
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { supabase } from "../../../lib/supabase";
+
+import {
+  useRouter,
+} from "next/navigation";
+
+import {
+  supabase,
+} from "../../../lib/supabase";
 
 export default function NewCustomerPage() {
-  const router = useRouter();
+  const router =
+    useRouter();
 
-  const [customerCode, setCustomerCode] =
+  const [
+    customerCode,
+    setCustomerCode,
+  ] =
     useState("");
 
-  const [customerName, setCustomerName] =
+  const [
+    customerName,
+    setCustomerName,
+  ] =
     useState("");
 
-  const [customerType, setCustomerType] =
+  const [
+    customerType,
+    setCustomerType,
+  ] =
     useState("");
 
-  const [contactName, setContactName] =
+  const [
+    contactName,
+    setContactName,
+  ] =
     useState("");
 
-  const [phone, setPhone] =
+  const [
+    phone,
+    setPhone,
+  ] =
     useState("");
 
-  const [deliveryAddress, setDeliveryAddress] =
+  const [
+    deliveryAddress,
+    setDeliveryAddress,
+  ] =
     useState("");
 
-  const [saving, setSaving] =
+  const [
+    saving,
+    setSaving,
+  ] =
     useState(false);
 
-  const [message, setMessage] =
+  const [
+    message,
+    setMessage,
+  ] =
     useState("");
 
   async function createCustomer(
-    event: FormEvent<HTMLFormElement>
+    event:
+      FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
     setMessage("");
 
     const code =
-      customerCode.trim().toUpperCase();
+      customerCode
+        .trim()
+        .toUpperCase();
 
     const name =
       customerName.trim();
 
     if (!code) {
       setMessage(
-        "Customer code is required."
+        "กรุณากรอกเลข CV"
       );
+
       return;
     }
 
     if (!name) {
       setMessage(
-        "Customer name is required."
+        "กรุณากรอกชื่อร้าน"
       );
+
       return;
     }
 
-    if (!phone.trim()) {
+    if (
+      !phone.trim()
+    ) {
       setMessage(
-        "Phone number is required."
+        "กรุณากรอกเบอร์โทรศัพท์"
       );
+
       return;
     }
 
-    if (!deliveryAddress.trim()) {
+    if (
+      !deliveryAddress.trim()
+    ) {
       setMessage(
-        "Delivery address is required."
+        "กรุณากรอกที่อยู่จัดส่ง"
       );
+
       return;
     }
 
-    setSaving(true);
+    setSaving(
+      true
+    );
 
-    // Check whether customer code already exists
+    // ตรวจสอบว่าเลข CV มีอยู่แล้วหรือไม่
     const {
-      data: existingCustomer,
-      error: checkError,
-    } = await supabase
-      .from("customers")
-      .select("id")
-      .eq("customer_code", code)
-      .maybeSingle();
+      data:
+        existingCustomer,
+      error:
+        checkError,
+    } =
+      await supabase
+        .from(
+          "customers"
+        )
+        .select(
+          "id"
+        )
+        .eq(
+          "customer_code",
+          code
+        )
+        .maybeSingle();
 
-    if (checkError) {
+    if (
+      checkError
+    ) {
       setMessage(
-        "Could not check customer code: " +
+        "ไม่สามารถตรวจสอบเลข CV ได้: " +
           checkError.message
       );
 
-      setSaving(false);
+      setSaving(
+        false
+      );
+
       return;
     }
 
-    if (existingCustomer) {
+    if (
+      existingCustomer
+    ) {
       setMessage(
-        `Customer code ${code} already exists.`
+        `เลข CV ${code} มีอยู่ในระบบแล้ว`
       );
 
-      setSaving(false);
+      setSaving(
+        false
+      );
+
       return;
     }
 
     const {
       data,
       error,
-    } = await supabase
-      .from("customers")
-      .insert({
-        customer_code: code,
-        customer_name: name,
-        customer_type:
-          customerType.trim() || null,
-        contact_name:
-          contactName.trim() || null,
-        phone: phone.trim(),
-        delivery_address:
-          deliveryAddress.trim(),
-        is_active: true,
-      })
-      .select("customer_code")
-      .single();
+    } =
+      await supabase
+        .from(
+          "customers"
+        )
+        .insert({
+          customer_code:
+            code,
 
-    if (error) {
+          customer_name:
+            name,
+
+          customer_type:
+            customerType
+              .trim() ||
+            null,
+
+          contact_name:
+            contactName
+              .trim() ||
+            null,
+
+          phone:
+            phone.trim(),
+
+          delivery_address:
+            deliveryAddress
+              .trim(),
+
+          is_active:
+            true,
+        })
+        .select(
+          "customer_code"
+        )
+        .single();
+
+    if (
+      error
+    ) {
       setMessage(
-        "Could not create customer: " +
+        "ไม่สามารถสร้างลูกค้าได้: " +
           error.message
       );
 
-      setSaving(false);
+      setSaving(
+        false
+      );
+
       return;
     }
 
@@ -150,144 +243,186 @@ export default function NewCustomerPage() {
           href="/customers"
           className="text-gray-500"
         >
-          ← Back to Customers
+          ← กลับไปหน้าลูกค้า
         </Link>
 
         <div className="mt-4 mb-8">
 
           <p className="text-sm text-gray-500">
-            CUSTOMER MANAGEMENT
+            จัดการลูกค้า
           </p>
 
           <h1 className="text-3xl font-bold mt-1">
-            Create Customer
+            สร้างลูกค้าใหม่
           </h1>
 
           <p className="text-gray-500 mt-2">
-            Create a new B2B customer account.
+            สร้างบัญชีลูกค้า B2B ใหม่
           </p>
 
         </div>
 
         <form
-          onSubmit={createCustomer}
+          onSubmit={
+            createCustomer
+          }
           className="bg-white border rounded-2xl p-6"
         >
 
           <div className="grid md:grid-cols-2 gap-5">
 
             <div>
+
               <label className="block font-medium mb-2">
-                Customer Code *
+                เลข CV *
               </label>
 
               <input
                 type="text"
-                value={customerCode}
-                onChange={(event) =>
+                value={
+                  customerCode
+                }
+                onChange={(
+                  event
+                ) =>
                   setCustomerCode(
-                    event.target.value
+                    event
+                      .target
+                      .value
                   )
                 }
-                placeholder="e.g. C002"
+                placeholder="เช่น 1234567890"
                 className="w-full border rounded-lg px-4 py-3"
                 required
               />
 
               <p className="text-xs text-gray-500 mt-2">
-                Customer code becomes the permanent identifier and should not be changed later.
+                เลข CV ใช้เป็นรหัสประจำตัวลูกค้าในระบบ
               </p>
+
             </div>
 
             <div>
+
               <label className="block font-medium mb-2">
-                Customer Name *
+                ชื่อร้าน *
               </label>
 
               <input
                 type="text"
-                value={customerName}
-                onChange={(event) =>
+                value={
+                  customerName
+                }
+                onChange={(
+                  event
+                ) =>
                   setCustomerName(
-                    event.target.value
+                    event
+                      .target
+                      .value
                   )
                 }
-                placeholder="Restaurant or company name"
+                placeholder="ชื่อร้านหรือชื่อบริษัท"
                 className="w-full border rounded-lg px-4 py-3"
                 required
               />
+
             </div>
 
             <div>
+
               <label className="block font-medium mb-2">
-                Customer Type
+                ประเภทลูกค้า
               </label>
 
               <select
-                value={customerType}
-                onChange={(event) =>
+                value={
+                  customerType
+                }
+                onChange={(
+                  event
+                ) =>
                   setCustomerType(
-                    event.target.value
+                    event
+                      .target
+                      .value
                   )
                 }
                 className="w-full border rounded-lg px-4 py-3 bg-white"
               >
+
                 <option value="">
-                  Select type
+                  เลือกประเภทลูกค้า
                 </option>
 
                 <option value="restaurant">
-                  Restaurant
+                  ร้านอาหาร
                 </option>
 
                 <option value="grocery">
-                  Grocery / โชห่วย
+                  ร้านโชห่วย
                 </option>
 
                 <option value="hotel">
-                  Hotel
+                  โรงแรม
                 </option>
 
                 <option value="cafe">
-                  Cafe
+                  คาเฟ่
                 </option>
 
                 <option value="other">
-                  Other
+                  อื่น ๆ
                 </option>
+
               </select>
+
             </div>
 
             <div>
+
               <label className="block font-medium mb-2">
-                Contact Person
+                ชื่อลูกค้า CV
               </label>
 
               <input
                 type="text"
-                value={contactName}
-                onChange={(event) =>
+                value={
+                  contactName
+                }
+                onChange={(
+                  event
+                ) =>
                   setContactName(
-                    event.target.value
+                    event
+                      .target
+                      .value
                   )
                 }
-                placeholder="Main contact"
+                placeholder="ชื่อผู้ติดต่อหลัก"
                 className="w-full border rounded-lg px-4 py-3"
               />
+
             </div>
 
             <div className="md:col-span-2">
 
               <label className="block font-medium mb-2">
-                Phone *
+                เบอร์โทรศัพท์ *
               </label>
 
               <input
                 type="tel"
-                value={phone}
-                onChange={(event) =>
+                value={
+                  phone
+                }
+                onChange={(
+                  event
+                ) =>
                   setPhone(
-                    event.target.value
+                    event
+                      .target
+                      .value
                   )
                 }
                 placeholder="0812345678"
@@ -300,18 +435,26 @@ export default function NewCustomerPage() {
             <div className="md:col-span-2">
 
               <label className="block font-medium mb-2">
-                Delivery Address *
+                ที่อยู่จัดส่ง *
               </label>
 
               <textarea
-                value={deliveryAddress}
-                onChange={(event) =>
+                value={
+                  deliveryAddress
+                }
+                onChange={(
+                  event
+                ) =>
                   setDeliveryAddress(
-                    event.target.value
+                    event
+                      .target
+                      .value
                   )
                 }
-                rows={4}
-                placeholder="Full delivery address"
+                rows={
+                  4
+                }
+                placeholder="กรอกที่อยู่สำหรับจัดส่งสินค้า"
                 className="w-full border rounded-lg px-4 py-3"
                 required
               />
@@ -321,9 +464,13 @@ export default function NewCustomerPage() {
           </div>
 
           {message && (
+
             <div className="mt-6 border rounded-lg p-4 text-red-600">
-              {message}
+              {
+                message
+              }
             </div>
+
           )}
 
           <div className="flex justify-end gap-3 mt-8">
@@ -332,17 +479,19 @@ export default function NewCustomerPage() {
               href="/customers"
               className="bg-white border rounded-lg px-6 py-3 font-semibold"
             >
-              CANCEL
+              ยกเลิก
             </Link>
 
             <button
               type="submit"
-              disabled={saving}
+              disabled={
+                saving
+              }
               className="bg-black text-white rounded-lg px-8 py-3 font-semibold disabled:opacity-40"
             >
               {saving
-                ? "CREATING..."
-                : "CREATE CUSTOMER"}
+                ? "กำลังสร้าง..."
+                : "สร้างลูกค้า"}
             </button>
 
           </div>
