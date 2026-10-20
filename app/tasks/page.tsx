@@ -267,6 +267,21 @@ export default function TasksPage() {
 
 
 
+  // Overrides for expanded/collapsed task groups.
+  // Authorized groups are expanded by default; others collapsed.
+  const [expandedOverrides, setExpandedOverrides] = useState<Record<string, boolean>>({});
+
+  function isExpanded(stage: string) {
+    return expandedOverrides[stage] ?? allowedStages.includes(stage);
+  }
+
+  function toggleGroup(stage: string) {
+    setExpandedOverrides((previous) => ({
+      ...previous,
+      [stage]: !(previous[stage] ?? allowedStages.includes(stage)),
+    }));
+  }
+
   // =====================================================
 
   // LOAD DATA
@@ -457,157 +472,34 @@ export default function TasksPage() {
 
 
 
-    if (
-
-      permissionStages.length ===
-
-      0
-
-    ) {
-
-      setOrders([]);
-
-      setClaims([]);
-
-      setLoading(false);
-
-      return;
-
-    }
-
-
-
-    const allowedStatuses =
-
-      groups
-
-        .filter(
-
-          (group) =>
-
-            permissionStages.includes(
-
-              group.stage
-
-            )
-
-        )
-
-        .flatMap(
-
-          (group) =>
-
-            group.statuses
-
-        );
-
-
-
-    // ---------------------------------------------------
-
-    // ACTIVE ORDERS FOR ALLOWED TASKS ONLY
-
-    // ---------------------------------------------------
-
-
-
-    const {
-
-      data: orderData,
-
-      error: orderError,
-
-    } =
-
-      await supabase
-
-        .from("orders")
-
-        .select(`
-
-          id,
-
-          order_number,
-
-          status,
-
-          delivery_date,
-
-          delivery_slot,
-
-          customers (
-
-            customer_name
-
-          )
-
-        `)
-
-        .in(
-
-          "status",
-
-          allowedStatuses
-
-        )
-
-        .order(
-
-          "delivery_date",
-
-          {
-
-            ascending:
-
-              true,
-
-          }
-
-        )
-
-        .order(
-
-          "order_number",
-
-          {
-
-            ascending:
-
-              true,
-
-          }
-
-        );
-
-
-
-    if (orderError) {
-
-      setMessage(
-
-        orderError.message
-
-      );
-
-
-
-      setLoading(false);
-
-      return;
-
-    }
-
-
-
-    setOrders(
-
-      (orderData ??
-
-        []) as unknown as Order[]
-
+    // Load every active stage so unauthorized staff can see
+    // the workload without gaining permission to process it.
+    const allStatuses = Array.from(
+      new Set(groups.flatMap((group) => group.statuses))
     );
 
+    const { data: orderData, error: orderError } =
+      await supabase
+        .from("orders")
+        .select(`
+          id,
+          order_number,
+          status,
+          delivery_date,
+          delivery_slot,
+          customers (customer_name)
+        `)
+        .in("status", allStatuses)
+        .order("delivery_date", { ascending: true })
+        .order("order_number", { ascending: true });
 
+    if (orderError) {
+      setMessage(orderError.message);
+      setLoading(false);
+      return;
+    }
+
+    setOrders((orderData ?? []) as unknown as Order[]);
 
     // ---------------------------------------------------
 
@@ -655,7 +547,7 @@ export default function TasksPage() {
 
           "stage",
 
-          permissionStages
+          groups.map((group) => group.stage)
 
         );
 
@@ -885,6 +777,10 @@ export default function TasksPage() {
   orderNumber: number,
   stage: string
 ) {
+  if (!allowedStages.includes(stage)) {
+    setMessage("คุณไม่มีสิทธิ์รับงานประเภทนี้");
+    return;
+  }
   setMessage(
     `กำลังรับงานคำสั่งซื้อ #${orderNumber}...`
   );
@@ -1151,47 +1047,18 @@ export default function TasksPage() {
 
 
 
-        {allowedStages.length === 0 ? (
-
-          <div className="bg-white border rounded-2xl p-8 text-center">
-
-            <h2 className="text-xl font-bold">
-
-              ยังไม่มีสิทธิ์งาน
-
-            </h2>
-
-            <p className="text-gray-500 mt-2">
-
-              Manager ยังไม่ได้กำหนดประเภทงานให้บัญชีนี้
-
-            </p>
-
-          </div>
-
-        ) : (
-
         <div className="space-y-6">
 
 
 
           {groups
 
-            .filter(
-
-              (group) =>
-
-                allowedStages.includes(
-
-                  group.stage
-
-                )
-
-            )
-
             .map(
 
             (group) => {
+
+              const canWork = allowedStages.includes(group.stage);
+              const expanded = isExpanded(group.stage);
 
               const groupOrders =
 
@@ -1225,49 +1092,31 @@ export default function TasksPage() {
 
 
 
-                  {/* GROUP HEADER */}
-
-
-
-                  <div className="p-5 border-b">
-
-
-
-                    <div className="flex justify-between items-center">
-
-
-
-                      <h2 className="text-xl font-bold">
-
-                        {
-
-                          group.title
-
-                        }
-
-                      </h2>
-
-
-
+                  {/* Every stage is visible; unauthorized stages start collapsed. */}
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.stage)}
+                    aria-expanded={expanded}
+                    className="w-full p-5 border-b flex items-center justify-between gap-3 text-left hover:bg-gray-50"
+                  >
+                    <span className="flex flex-wrap items-center gap-3">
+                      <span className="text-xl font-bold">{group.title}</span>
                       <span className="text-sm bg-gray-100 rounded-full px-3 py-1">
-
-                        {
-
-                          groupOrders.length
-
-                        }
-
+                        {groupOrders.length} คำสั่งซื้อ
                       </span>
+                      {!canWork && (
+                        <span className="text-xs text-gray-500 border rounded-full px-3 py-1">
+                          ดูได้เท่านั้น
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-gray-500 text-sm whitespace-nowrap">
+                      {expanded ? "▲ ย่อ" : "▼ แสดง"}
+                    </span>
+                  </button>
 
-
-
-                    </div>
-
-
-
-                  </div>
-
-
+                  {expanded && (
+                    <>
 
                   {/* NO ORDERS */}
 
@@ -1459,7 +1308,14 @@ export default function TasksPage() {
 
 
 
-                                {isAwaitingPayment ? (
+                                {!canWork ? (
+                                  <div className="text-sm text-gray-500 text-right">
+                                    <div className="font-medium">ดูสถานะได้เท่านั้น</div>
+                                    <div className="mt-1">
+                                      {claim ? `ผู้รับงาน: ${claim.staff_name}` : "ยังไม่มีผู้รับงาน"}
+                                    </div>
+                                  </div>
+                                ) : isAwaitingPayment ? (
 
 
 
@@ -1665,6 +1521,8 @@ export default function TasksPage() {
 
 
 
+                    </>
+                  )}
                 </section>
 
               );
@@ -1676,8 +1534,6 @@ export default function TasksPage() {
 
 
         </div>
-
-        )}
 
 
 
