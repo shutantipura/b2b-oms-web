@@ -89,8 +89,6 @@ type MasterProduct = {
 
   normal_price: number;
 
-  category: string;
-
 };
 
 
@@ -1141,14 +1139,6 @@ export default function CatalogPage() {
 
 
 
-      const categoryIndex =
-
-        normalizedHeaders.indexOf(
-
-          "category"
-
-        );
-
 
 
       const missingHeaders:
@@ -1222,20 +1212,6 @@ export default function CatalogPage() {
       }
 
 
-
-      if (
-
-        categoryIndex === -1
-
-      ) {
-
-        missingHeaders.push(
-
-          "Category"
-
-        );
-
-      }
 
 
 
@@ -1384,20 +1360,6 @@ export default function CatalogPage() {
             ];
 
 
-
-          const category =
-
-            String(
-
-              row[
-
-                categoryIndex
-
-              ] ??
-
-                ""
-
-            ).trim();
 
 
 
@@ -1604,8 +1566,6 @@ export default function CatalogPage() {
               normal_price:
 
                 price,
-
-              category,
 
             }
 
@@ -4284,7 +4244,7 @@ export default function CatalogPage() {
 
 
 
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3 text-gray-600">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3 text-gray-600">
 
 
 
@@ -4320,12 +4280,6 @@ export default function CatalogPage() {
 
 
 
-                <span>
-
-                  Category
-
-                </span>
-
 
 
               </div>
@@ -4334,7 +4288,7 @@ export default function CatalogPage() {
 
               <p className="text-xs text-gray-400 mt-3">
 
-                ระบบจะเลือก Sheet ชื่อ “Master Price” ให้อัตโนมัติ
+                ไม่ต้องมีคอลัมน์ Category — หมวดหมู่สินค้าจัดการผ่าน Visible Products เท่านั้น ระบบจะเลือก Sheet ชื่อ “Master Price” ให้อัตโนมัติ
 
               </p>
 
@@ -4734,12 +4688,6 @@ export default function CatalogPage() {
 
 
 
-                          <th className="text-left p-3">
-
-                            Category
-
-                          </th>
-
 
 
                         </tr>
@@ -4841,18 +4789,6 @@ export default function CatalogPage() {
                               </td>
 
 
-
-                              <td className="p-3 whitespace-nowrap">
-
-                                {
-
-                                  row.category ||
-
-                                  "—"
-
-                                }
-
-                              </td>
 
 
 
