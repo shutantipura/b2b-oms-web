@@ -782,16 +782,7 @@ export async function GET(
           isCurrentUser:
             row.auth_user_id ===
             currentUserId,
-          taskPermissions:
-            row.account_type ===
-            "manager"
-              ? [...ALL_TASK_STAGES]
-              : (
-                  permissionMap.get(
-                    row.id
-                  ) ??
-                  []
-                ),
+          taskPermissions: permissionMap.get(row.id) ?? [],
         })
       );
 
@@ -993,16 +984,7 @@ export async function POST(
     }
 
     try {
-      if (
-        accountType ===
-        "staff"
-      ) {
-        await replacePermissions(
-          admin,
-          createdStaff.id,
-          taskPermissions
-        );
-      }
+      await replacePermissions(admin, createdStaff.id, taskPermissions);
     } catch (permissionError) {
       await admin
         .from("staff")
@@ -1042,11 +1024,7 @@ export async function POST(
             null,
           isCurrentUser:
             false,
-          taskPermissions:
-            accountType ===
-            "manager"
-              ? [...ALL_TASK_STAGES]
-              : taskPermissions,
+          taskPermissions,
         },
       },
       {
@@ -1188,20 +1166,7 @@ export async function PATCH(
         )
       );
 
-    const requestedPermissions =
-      normalizeTaskPermissions(
-        body.taskPermissions,
-        target.account_type ===
-          "manager"
-          ? ALL_TASK_STAGES
-          : currentPermissions
-      );
-
-    const finalPermissions =
-      accountType ===
-      "manager"
-        ? [...ALL_TASK_STAGES]
-        : requestedPermissions;
+    const finalPermissions = normalizeTaskPermissions(body.taskPermissions, currentPermissions);
 
     const isSelf =
       target.auth_user_id ===
@@ -1340,22 +1305,7 @@ export async function PATCH(
       }
     }
 
-    const effectiveCurrentPermissions =
-      target.account_type ===
-      "manager"
-        ? [...ALL_TASK_STAGES]
-        : currentPermissions;
-
-    const removedStages =
-      accountType ===
-      "staff"
-        ? effectiveCurrentPermissions.filter(
-            (stage) =>
-              !finalPermissions.includes(
-                stage
-              )
-          )
-        : [];
+    const removedStages = currentPermissions.filter((stage) => !finalPermissions.includes(stage));
 
     // If a Manager removes a stage that the staff member is actively
     // working on, release that task back to the shared queue first.
@@ -1462,14 +1412,7 @@ export async function PATCH(
       );
     }
 
-    await replacePermissions(
-      admin,
-      target.id,
-      accountType ===
-        "manager"
-        ? []
-        : finalPermissions
-    );
+    await replacePermissions(admin, target.id, finalPermissions);
 
     return NextResponse.json(
       {
@@ -1489,11 +1432,7 @@ export async function PATCH(
             updated.auth_user_id,
           isActive:
             updated.is_active,
-          taskPermissions:
-            accountType ===
-            "manager"
-              ? [...ALL_TASK_STAGES]
-              : finalPermissions,
+          taskPermissions: finalPermissions,
         },
       }
     );

@@ -431,9 +431,7 @@ export default function StaffManagementPage() {
                   accountType:
                     createRole,
                   taskPermissions:
-                    createRole === "manager"
-                      ? ALL_TASK_STAGES
-                      : createPermissions,
+                    createPermissions,
                 }
               ),
           }
@@ -504,9 +502,7 @@ export default function StaffManagementPage() {
     );
 
     setEditPermissions(
-      item.accountType === "manager"
-        ? [...ALL_TASK_STAGES]
-        : [...item.taskPermissions]
+      [...item.taskPermissions]
     );
 
     setMessage("");
@@ -550,9 +546,7 @@ export default function StaffManagementPage() {
                   accountType:
                     editRole,
                   taskPermissions:
-                    editRole === "manager"
-                      ? ALL_TASK_STAGES
-                      : editPermissions,
+                    editPermissions,
                   isActive:
                     item.isActive,
                 }
@@ -839,19 +833,14 @@ export default function StaffManagementPage() {
 
               <div className="md:col-span-2 border rounded-xl p-4">
                 <p className="font-semibold">
-                  สิทธิ์งาน
+                  งานที่พร้อมรับ / ให้เรียกพนักงาน
                 </p>
 
                 <p className="text-sm text-gray-500 mt-1">
-                  เลือกเฉพาะงานที่พนักงานคนนี้สามารถเห็นและรับงานได้
+                  เลือกงานที่พร้อมรับและให้เพื่อนร่วมงานเรียกได้ (Manager เลือกงานของตัวเองได้)
                 </p>
 
-                {createRole === "manager" ? (
-                  <div className="mt-4 bg-gray-50 border rounded-xl p-4 text-sm text-gray-600">
-                    Manager มีสิทธิ์ทำงานทั้ง 5 ประเภทโดยอัตโนมัติ
-                  </div>
-                ) : (
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
                     {TASK_OPTIONS.map(
                       (option) => (
                         <label
@@ -890,7 +879,6 @@ export default function StaffManagementPage() {
                       )
                     )}
                   </div>
-                )}
               </div>
 
               <div className="md:col-span-2 bg-gray-50 border rounded-xl p-4">
@@ -957,7 +945,7 @@ export default function StaffManagementPage() {
                 </h2>
 
                 <p className="text-sm text-gray-500 mt-1">
-                  กำหนดประเภทบัญชี สิทธิ์งาน และสถานะการใช้งานของพนักงานแต่ละคน
+                  กำหนดประเภทบัญชี งานที่พร้อมรับ และสถานะการใช้งานของพนักงานแต่ละคน
                 </p>
               </div>
 
@@ -1142,15 +1130,10 @@ export default function StaffManagementPage() {
 
                           <div className="md:col-span-3 border rounded-xl p-4">
                             <p className="text-sm font-semibold">
-                              สิทธิ์งาน
+                              งานที่พร้อมรับ / ให้เรียกพนักงาน
                             </p>
 
-                            {editRole === "manager" ? (
-                              <p className="text-sm text-gray-500 mt-2">
-                                Manager มีสิทธิ์ทำงานทั้ง 5 ประเภทโดยอัตโนมัติ
-                              </p>
-                            ) : (
-                              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+                            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
                                 {TASK_OPTIONS.map(
                                   (option) => (
                                     <label
@@ -1189,7 +1172,6 @@ export default function StaffManagementPage() {
                                   )
                                 )}
                               </div>
-                            )}
                           </div>
                         </div>
                       ) : (
@@ -1238,13 +1220,9 @@ export default function StaffManagementPage() {
                             </p>
 
                             <div className="flex flex-wrap gap-1.5 mt-3">
-                              {item.accountType === "manager" ? (
-                                <span className="text-xs border rounded-full px-2.5 py-1 bg-gray-50">
-                                  ทุกงาน (Manager)
-                                </span>
-                              ) : item.taskPermissions.length === 0 ? (
+                              {item.taskPermissions.length === 0 ? (
                                 <span className="text-xs border border-amber-200 text-amber-700 rounded-full px-2.5 py-1 bg-amber-50">
-                                  ยังไม่ได้กำหนดสิทธิ์งาน
+                                  ยังไม่ได้เลือกงานที่พร้อมรับ
                                 </span>
                               ) : (
                                 TASK_OPTIONS.filter(
