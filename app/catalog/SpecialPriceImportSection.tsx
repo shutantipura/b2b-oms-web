@@ -637,178 +637,92 @@ export default function SpecialPriceImportSection() {
   // =====================================================
 
   async function importPrices() {
-    if (
-      rows.length ===
-      0
-    ) {
-      return;
-    }
+    if (rows.length === 0) return;
 
-    const confirmed =
-      window.confirm(
-        `ยืนยันการนำเข้าราคาพิเศษ?\n\n` +
-          `รายการที่จะนำเข้า: ${rows.length.toLocaleString()}\n` +
-          `แถวไม่ถูกต้อง: ${invalidRows.length.toLocaleString()}\n` +
-          `รายการซ้ำในไฟล์: ${duplicateCount.toLocaleString()}\n\n` +
-          `ระบบจะเพิ่มหรืออัปเดตราคาพิเศษจากไฟล์นี้`
-      );
-
-    if (
-      !confirmed
-    ) {
-      return;
-    }
-
-    setImporting(
-      true
+    const confirmed = window.confirm(
+      `ยืนยันการนำเข้าราคาพิเศษ?\n\n` +
+        `รายการที่จะนำเข้า: ${rows.length.toLocaleString()}\n` +
+        `แถวไม่ถูกต้อง: ${invalidRows.length.toLocaleString()}\n` +
+        `รายการซ้ำในไฟล์: ${duplicateCount.toLocaleString()}\n\n` +
+        `ระบบจะเพิ่มหรืออัปเดตราคาพิเศษจากไฟล์นี้`
     );
+    if (!confirmed) return;
 
-    setMessage(
-      ""
-    );
+    setImporting(true);
+    setMessage("");
+    setSuccess("");
+    setProgress(0);
+    setProcessed(0);
 
-    setSuccess(
-      ""
-    );
-
-    setProgress(
-      0
-    );
-
-    setProcessed(
-      0
-    );
-
-    let inserted =
-      0;
-
-    let updated =
-      0;
-
-    let unmatchedCustomers =
-      0;
-
-    let unmatchedProducts =
-      0;
-
-    let invalid =
-      0;
-
-    const batchSize =
-      500;
+    let inserted = 0;
+    let updated = 0;
+    let unmatchedCustomers = 0;
+    let unmatchedProducts = 0;
+    let invalid = 0;
+    let cursor = 0;
+    let batchSize = 20;
 
     try {
-      for (
-        let start =
-          0;
+      while (cursor < rows.length) {
+        const batch = rows.slice(cursor, cursor + batchSize);
+        const { data, error } = await supabase.rpc(
+          "import_customer_price_batch",
+          { p_rows: batch }
+        );
 
-        start <
-        rows.length;
+        if (error) {
+          // Each RPC is a transaction. A timed-out batch is rolled back,
+          // so it is safe to retry that same range in smaller batches.
+          const timedOut =
+            error.code === "57014" ||
+            /statement timeout|canceling statement due to statement timeout/i.test(
+              error.message
+            );
 
-        start +=
-          batchSize
-      ) {
-        const batch =
-          rows.slice(
-            start,
-            start +
-              batchSize
-          );
+          if (timedOut && batch.length > 1) {
+            batchSize = Math.max(1, Math.floor(batch.length / 2));
+            continue;
+          }
 
-        const {
-          data,
-          error,
-        } =
-          await supabase.rpc(
-            "import_customer_price_batch",
-            {
-              p_rows:
-                batch,
-            }
-          );
-
-        if (
-          error
-        ) {
           throw new Error(
-            `Import หยุดที่ประมาณรายการ ${start + 1}: ${error.message}`
+            `นำเข้าหยุดที่แถวข้อมูล ${cursor + 1}–${cursor + batch.length} ` +
+              `(นำเข้าสำเร็จแล้ว ${cursor} จาก ${rows.length} รายการ): ` +
+              error.message +
+              (timedOut
+                ? " — แม้ส่งทีละ 1 รายการก็ยังหมดเวลา กรุณาตรวจสอบฟังก์ชัน import_customer_price_batch ใน Supabase"
+                : "")
           );
         }
 
-        const result =
-          data as ImportResult;
-
-        inserted +=
-          Number(
-            result
-              .insertedCount ??
-              0
+        const result = data as ImportResult | null;
+        if (!result || result.success === false) {
+          throw new Error(
+            `ฟังก์ชันนำเข้ารายงานว่าไม่สำเร็จที่รายการ ${cursor + 1}–${cursor + batch.length}`
           );
+        }
 
-        updated +=
-          Number(
-            result
-              .updatedCount ??
-              0
-          );
+        inserted += Number(result.insertedCount ?? 0);
+        updated += Number(result.updatedCount ?? 0);
+        unmatchedCustomers += Number(result.unmatchedCustomerCount ?? 0);
+        unmatchedProducts += Number(result.unmatchedProductCount ?? 0);
+        invalid += Number(result.invalidCount ?? 0);
 
-        unmatchedCustomers +=
-          Number(
-            result
-              .unmatchedCustomerCount ??
-              0
-          );
-
-        unmatchedProducts +=
-          Number(
-            result
-              .unmatchedProductCount ??
-              0
-          );
-
-        invalid +=
-          Number(
-            result
-              .invalidCount ??
-              0
-          );
-
-        const done =
-          Math.min(
-            start +
-              batch.length,
-            rows.length
-          );
-
-        setProcessed(
-          done
-        );
-
-        setProgress(
-          Math.round(
-            (
-              done /
-              rows.length
-            ) *
-              100
-          )
-        );
+        cursor += batch.length;
+        setProcessed(cursor);
+        setProgress(Math.round((cursor / rows.length) * 100));
       }
 
       setSuccess(
         `นำเข้าราคาพิเศษสำเร็จ — เพิ่มใหม่ ${inserted.toLocaleString()} รายการ · อัปเดต ${updated.toLocaleString()} รายการ${
-          unmatchedCustomers >
-          0
+          unmatchedCustomers > 0
             ? ` · ไม่พบลูกค้า ${unmatchedCustomers.toLocaleString()} รายการ`
             : ""
         }${
-          unmatchedProducts >
-          0
+          unmatchedProducts > 0
             ? ` · ไม่พบ SKU ${unmatchedProducts.toLocaleString()} รายการ`
             : ""
         }${
-          invalid >
-          0
+          invalid > 0
             ? ` · ข้ามข้อมูลไม่ถูกต้อง ${invalid.toLocaleString()} รายการ`
             : ""
         }`
@@ -820,9 +734,7 @@ export default function SpecialPriceImportSection() {
           : "ไม่สามารถนำเข้าราคาพิเศษได้"
       );
     } finally {
-      setImporting(
-        false
-      );
+      setImporting(false);
     }
   }
 
