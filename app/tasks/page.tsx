@@ -935,279 +935,680 @@ export default function TasksPage() {
 
 
   // =====================================================
-  // VISUAL DESIGN — KEEP EXISTING WORKFLOW AND PERMISSIONS
+
+  // LOADING
+
   // =====================================================
 
-  const stageStyles: Record<string, {
-    icon: string;
-    accent: string;
-    border: string;
-    surface: string;
-    badge: string;
-    button: string;
-    subtle: string;
-  }> = {
-    confirmation: {
-      icon: "✓", accent: "text-emerald-800", border: "border-emerald-300",
-      surface: "bg-emerald-50", badge: "bg-emerald-100 text-emerald-800",
-      button: "bg-emerald-700 hover:bg-emerald-800", subtle: "border-emerald-200",
-    },
-    picking: {
-      icon: "▣", accent: "text-amber-800", border: "border-amber-300",
-      surface: "bg-amber-50", badge: "bg-amber-100 text-amber-800",
-      button: "bg-amber-600 hover:bg-amber-700", subtle: "border-amber-200",
-    },
-    billing: {
-      icon: "฿", accent: "text-blue-800", border: "border-blue-300",
-      surface: "bg-blue-50", badge: "bg-blue-100 text-blue-800",
-      button: "bg-blue-700 hover:bg-blue-800", subtle: "border-blue-200",
-    },
-    delivery: {
-      icon: "➜", accent: "text-violet-800", border: "border-violet-300",
-      surface: "bg-violet-50", badge: "bg-violet-100 text-violet-800",
-      button: "bg-violet-700 hover:bg-violet-800", subtle: "border-violet-200",
-    },
-    payment_verification: {
-      icon: "✓", accent: "text-rose-800", border: "border-rose-300",
-      surface: "bg-rose-50", badge: "bg-rose-100 text-rose-800",
-      button: "bg-rose-700 hover:bg-rose-800", subtle: "border-rose-200",
-    },
-  };
 
-  const activeTaskCount = orders.filter((order) =>
-    groups.some((group) =>
-      allowedStages.includes(group.stage) && group.statuses.includes(order.status)
-    )
-  ).length;
 
   if (loading) {
+
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10 sm:px-8">
-        <div className="mx-auto max-w-6xl animate-pulse space-y-5">
-          <div className="h-20 rounded-2xl bg-slate-200" />
-          {[1, 2, 3].map((item) => (
-            <div key={item} className="h-28 rounded-2xl bg-slate-200" />
-          ))}
-          <p className="text-sm text-slate-500">กำลังโหลดงาน...</p>
-        </div>
+
+      <main className="min-h-screen bg-gray-100 p-8">
+
+
+
+        <p>
+
+          กำลังโหลดงาน...
+
+        </p>
+
+
+
       </main>
+
     );
+
   }
 
+
+
+  // =====================================================
+
+  // PAGE
+
+  // =====================================================
+
+
+
   return (
-    <main className="min-h-screen bg-slate-50 px-3 py-5 text-slate-900 sm:px-6 sm:py-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-6 overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-700 p-5 text-white shadow-lg sm:p-7">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <Link href="/" className="text-sm font-medium text-emerald-100 hover:text-white">
-                ← กลับหน้าหลัก
-              </Link>
-              <div className="mt-3 flex items-center gap-3">
-                <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-2xl">▦</span>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-emerald-100">LOTUS’S B2B · OPERATIONS</p>
-                  <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">งานประจำวัน</h1>
-                </div>
-              </div>
-              <p className="mt-3 text-sm text-emerald-50">
-                {currentStaff?.staff_name ? `สวัสดี ${currentStaff.staff_name} · ` : ""}
-                ดูความคืบหน้าทุกขั้นตอน และรับงานตามสิทธิ์ที่ได้รับ
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void loadData()}
-              className="rounded-xl border border-white/40 bg-white/15 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/25"
+
+    <main className="min-h-screen bg-gray-100 p-8">
+
+
+
+      <div className="max-w-6xl mx-auto">
+
+
+
+        {/* HEADER */}
+
+
+
+        <div className="flex justify-between items-center mb-8">
+
+
+
+          <div>
+
+
+
+            <Link
+
+              href="/"
+
+              className="text-sm text-gray-500"
+
             >
-              ↻ รีเฟรช
-            </button>
+
+              ← กลับ
+
+            </Link>
+
+
+
+            <h1 className="text-3xl font-bold mt-2">
+
+              งาน
+
+            </h1>
+
+
+
+            <p className="text-gray-500 mt-1">
+
+              เลือกคำสั่งซื้อเพื่อเริ่มงาน
+
+            </p>
+
+
+
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:max-w-lg">
-            <div className="rounded-2xl border border-white/20 bg-white/15 px-4 py-3">
-              <p className="text-xs text-emerald-100">งานที่คุณทำได้</p>
-              <p className="mt-1 text-2xl font-extrabold">{activeTaskCount} <span className="text-sm font-normal">คำสั่งซื้อ</span></p>
-            </div>
-            <div className="rounded-2xl border border-white/20 bg-white/15 px-4 py-3">
-              <p className="text-xs text-emerald-100">ประเภทงานที่ได้รับสิทธิ์</p>
-              <p className="mt-1 text-2xl font-extrabold">{allowedStages.length} <span className="text-sm font-normal">จาก 5 ประเภท</span></p>
-            </div>
-          </div>
+
+
+
+          <button
+
+            onClick={
+
+              loadData
+
+            }
+
+            className="bg-white border rounded-lg px-4 py-2"
+
+          >
+
+            รีเฟรช
+
+          </button>
+
+
+
         </div>
+
+
+
+        {/* MESSAGE */}
+
+
 
         {message && (
-          <div role="alert" className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+
+          <div className="bg-white border rounded-lg p-4 mb-6">
+
             {message}
+
           </div>
+
         )}
 
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 px-1">
-          <h2 className="text-lg font-bold text-slate-800">ขั้นตอนการดำเนินงาน</h2>
-          <div className="flex items-center gap-3 text-xs text-slate-600">
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-600" /> มีสิทธิ์รับงาน</span>
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-slate-300" /> ดูสถานะเท่านั้น</span>
-          </div>
-        </div>
 
-        <div className="space-y-4">
-          {groups.map((group) => {
-            const canWork = allowedStages.includes(group.stage);
-            const expanded = isExpanded(group.stage);
-            const groupOrders = orders.filter((order) => group.statuses.includes(order.status));
-            const style = stageStyles[group.stage];
-            return (
-              <section
-                key={group.stage}
-                className={`overflow-hidden rounded-2xl border-2 bg-white shadow-sm transition-shadow ${canWork ? `${style.border} shadow-md` : "border-slate-200"}`}
-              >
-                <div className={`flex flex-wrap items-center justify-between gap-3 px-3 py-4 sm:px-5 ${canWork ? style.surface : "bg-slate-50"}`}>
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <span aria-hidden="true" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl font-bold ${canWork ? `${style.badge}` : "bg-slate-200 text-slate-500"}`}>
-                      {style.icon}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className={`text-base font-extrabold sm:text-lg ${canWork ? style.accent : "text-slate-600"}`}>
-                          {group.title}
-                        </h3>
-                        {canWork ? (
-                          <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white">✓ รับงานได้</span>
-                        ) : (
-                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600">ดูได้เท่านั้น</span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500">{canWork ? "พร้อมให้คุณดำเนินการ" : "เปิดดูรายการและเรียกพนักงานที่รับผิดชอบได้"}</p>
-                    </div>
-                  </div>
-                  <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
-                    <span className={`whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-bold ${canWork ? style.badge : "bg-slate-200 text-slate-700"}`}>
-                      {groupOrders.length} คำสั่งซื้อ
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => void openStaffDirectory(group.stage)}
-                      className="whitespace-nowrap rounded-full border border-emerald-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm hover:bg-emerald-50 sm:px-3"
-                      aria-label={`เรียกพนักงานสำหรับ${group.title}`}
-                    >
-                      ☎ เรียกพนักงาน
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toggleGroup(group.stage)}
-                      aria-expanded={expanded}
-                      aria-controls={`task-list-${group.stage}`}
-                      className="rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white/80"
-                    >
-                      {expanded ? "▲ ย่อ" : "▼ แสดง"}
-                    </button>
-                  </div>
-                </div>
-
-                {expanded && (
-                  <div id={`task-list-${group.stage}`} className="border-t border-slate-200 bg-white">
-                    {groupOrders.length === 0 ? (
-                      <div className="flex items-center gap-3 px-5 py-7 text-sm text-slate-500">
-                        <span className="text-xl">✓</span> ไม่มีคำสั่งซื้อรอดำเนินการ
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-slate-100">
-                        {groupOrders.map((order) => {
-                          const claim = claims.find((item) => item.order_id === order.id && item.stage === group.stage);
-                          const isMine = Boolean(claim && currentStaff && claim.staff_id === currentStaff.id);
-                          const isAwaitingPayment = order.status === "awaiting_payment";
-                          return (
-                            <div key={order.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <p className="text-base font-extrabold text-slate-900">คำสั่งซื้อ #{order.order_number}</p>
-                                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">{prettyStatus(order.status)}</span>
-                                </div>
-                                <p className="mt-1 font-medium text-slate-700">{order.customers?.customer_name ?? "ไม่ทราบชื่อลูกค้า"}</p>
-                                <p className="mt-1 text-xs text-slate-500">
-                                  {order.delivery_date ?? "ยังไม่ระบุวันที่"} · {order.delivery_slot ?? "ยังไม่ระบุช่วงเวลา"}
-                                </p>
-                                {claim && (
-                                  <p className="mt-1 text-xs text-slate-500">ผู้รับงาน: {isMine ? "คุณ · " : ""}{claim.staff_name}</p>
-                                )}
-                              </div>
-                              <div className="flex shrink-0 items-center sm:justify-end">
-                                {!canWork ? (
-                                  <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-500">ดูสถานะเท่านั้น</span>
-                                ) : isAwaitingPayment ? (
-                                  <div className="flex flex-wrap items-center gap-3">
-                                    <span className="text-xs text-slate-500">รอชำระเงิน · อัปโหลดสลิปแทนลูกค้าได้</span>
-                                    <Link href={`/tasks/payment-verification/${order.order_number}`} className={`rounded-xl px-4 py-2.5 text-sm font-bold text-white ${style.button}`}>
-                                      ชำระเงิน →
-                                    </Link>
-                                  </div>
-                                ) : !claim ? (
-                                  <button type="button" onClick={() => void startWork(order.order_number, group.stage)} className={`rounded-xl px-5 py-2.5 text-sm font-bold text-white shadow-sm ${style.button}`}>
-                                    รับงาน →
-                                  </button>
-                                ) : isMine ? (
-                                  <Link href={taskLink(group.stage, order.order_number)} className={`rounded-xl px-5 py-2.5 text-sm font-bold text-white ${style.button}`}>
-                                    ทำต่อ →
-                                  </Link>
-                                ) : (
-                                  <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">กำลังดำเนินการ</span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </section>
-            );
-          })}
-        </div>
 
         {callStage && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" onClick={() => setCallStage(null)}>
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label="เรียกพนักงาน"
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setCallStage(null)}>
+            <div role="dialog" aria-modal="true" aria-label="เรียกพนักงาน"
               onClick={(event) => event.stopPropagation()}
-              className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6"
-            >
-              <div className="mb-4 flex items-start justify-between gap-3">
+              className="bg-white w-full max-w-lg rounded-2xl p-5 shadow-xl max-h-[85vh] overflow-y-auto">
+              <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
-                  <h2 className="text-xl font-extrabold text-slate-900">☎ เรียกพนักงาน</h2>
-                  <p className="mt-1 text-sm text-slate-500">{groups.find((group) => group.stage === callStage)?.title}</p>
+                  <h2 className="text-xl font-bold">📞 เรียกพนักงาน</h2>
+                  <p className="text-sm text-gray-500 mt-1">{groups.find((g) => g.stage === callStage)?.title}</p>
                 </div>
-                <button type="button" onClick={() => setCallStage(null)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">ปิด</button>
+                <button type="button" onClick={() => setCallStage(null)} className="border rounded-lg px-3 py-2">ปิด</button>
               </div>
-              {callLoading ? (
-                <p className="py-5 text-sm text-slate-500">กำลังโหลดรายชื่อ...</p>
-              ) : callError ? (
-                <p className="py-5 text-sm text-red-700">{callError}</p>
-              ) : callStaff.length === 0 ? (
-                <p className="py-5 text-sm text-slate-500">ไม่มีพนักงานที่ได้รับสิทธิ์งานประเภทนี้</p>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {callStaff.map((person) => (
-                    <div key={person.staff_id} className="flex items-center justify-between gap-3 py-4">
-                      <div className="min-w-0">
-                        <p className="font-bold text-slate-900">{person.staff_name} <span className="text-xs font-normal text-slate-500">({person.staff_code})</span></p>
-                        <p className="mt-1 text-xs text-slate-500">{person.account_type === "manager" ? "Manager" : "Staff"}</p>
-                        <p className="mt-1 text-sm text-slate-700">{person.phone || "ยังไม่มีเบอร์โทรศัพท์"}</p>
-                      </div>
-                      {person.phone ? (
-                        <a href={`tel:${person.phone}`} className="shrink-0 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800">☎ โทร</a>
-                      ) : (
-                        <span className="text-xs text-slate-400">โทรไม่ได้</span>
-                      )}
+              {callLoading ? <p className="text-gray-500 py-5">กำลังโหลดรายชื่อ...</p>
+                : callError ? <p className="text-red-600 py-5">{callError}</p>
+                : callStaff.length === 0 ? <p className="text-gray-500 py-5">ไม่มีพนักงานที่ได้รับสิทธิ์งานประเภทนี้</p>
+                : <div className="divide-y">{callStaff.map((person) => (
+                  <div key={person.staff_id} className="py-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold">{person.staff_name} <span className="text-xs text-gray-500">({person.staff_code})</span></p>
+                      <p className="text-xs text-gray-500">{person.account_type === "manager" ? "Manager" : "Staff"}</p>
+                      <p className="text-sm text-gray-600">{person.phone || "ยังไม่มีเบอร์โทรศัพท์"}</p>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {person.phone ? <a href={`tel:${person.phone}`} className="shrink-0 bg-green-600 text-white rounded-xl px-4 py-3 font-semibold">📞 โทร</a>
+                      : <span className="text-xs text-gray-400">โทรไม่ได้</span>}
+                  </div>
+                ))}</div>}
             </div>
           </div>
         )}
+
+        {/* TASK GROUPS */}
+
+
+
+        <div className="space-y-6">
+
+
+
+          {groups
+
+            .map(
+
+            (group) => {
+
+              const canWork = allowedStages.includes(group.stage);
+              const expanded = isExpanded(group.stage);
+
+              const groupOrders =
+
+                orders.filter(
+
+                  (order) =>
+
+                    group.statuses.includes(
+
+                      order.status
+
+                    )
+
+                );
+
+
+
+              return (
+
+                <section
+
+                  key={
+
+                    group.stage
+
+                  }
+
+                  className="bg-white border rounded-2xl overflow-hidden"
+
+                >
+
+
+
+                  {/* All stages visible; only authorized stages start expanded. */}
+                  <div className="p-4 sm:p-5 border-b flex items-center justify-between gap-2 sm:gap-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+                      <span className="text-lg sm:text-xl font-bold">{group.title}</span>
+                      <span className="text-xs sm:text-sm bg-gray-100 rounded-full px-3 py-1 whitespace-nowrap">
+                        {groupOrders.length} คำสั่งซื้อ
+                      </span>
+                      {!canWork && (
+                        <span className="text-xs text-gray-500 border rounded-full px-3 py-1 whitespace-nowrap">
+                          ดูได้เท่านั้น
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void openStaffDirectory(group.stage)}
+                        className="text-xs sm:text-sm bg-green-50 border border-green-200 text-green-700 rounded-full px-2.5 sm:px-3 py-1 font-medium whitespace-nowrap hover:bg-green-100"
+                      >
+                        📞 เรียกพนักงาน
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(group.stage)}
+                        aria-expanded={expanded}
+                        aria-label={`${expanded ? "ย่อ" : "แสดง"}รายการ${group.title}`}
+                        className="text-gray-500 text-sm whitespace-nowrap rounded-lg px-1.5 py-1 hover:bg-gray-100"
+                      >
+                        {expanded ? "▲ ย่อ" : "▼ แสดง"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {expanded && (
+                    <>
+
+                  {/* NO ORDERS */}
+
+
+
+                  {groupOrders.length ===
+
+                  0 ? (
+
+
+
+                    <div className="p-5 text-gray-400">
+
+                      ไม่มีคำสั่งซื้อรอดำเนินการ
+
+                    </div>
+
+
+
+                  ) : (
+
+
+
+                    <div>
+
+
+
+                      {groupOrders.map(
+
+                        (order) => {
+
+                          const claim =
+
+                            claims.find(
+
+                              (
+
+                                claim
+
+                              ) =>
+
+                                claim.order_id ===
+
+                                  order.id &&
+
+                                claim.stage ===
+
+                                  group.stage
+
+                            );
+
+
+
+                          const isMine =
+
+                            Boolean(
+
+                              claim &&
+
+                                currentStaff &&
+
+                                claim.staff_id ===
+
+                                  currentStaff.id
+
+                            );
+
+
+
+                          const isAwaitingPayment =
+
+                            order.status ===
+
+                            "awaiting_payment";
+
+
+
+                          return (
+
+                            <div
+
+                              key={
+
+                                order.order_number
+
+                              }
+
+                              className="p-5 border-b last:border-b-0 flex flex-col md:flex-row md:justify-between md:items-center gap-6"
+
+                            >
+
+
+
+                              {/* ORDER DETAILS */}
+
+
+
+                              <div>
+
+
+
+                                <div className="font-semibold text-lg">
+
+                                  คำสั่งซื้อ #
+
+                                  {
+
+                                    order.order_number
+
+                                  }
+
+                                </div>
+
+
+
+                                <div className="text-gray-600 mt-1">
+
+                                  {
+
+                                    order.customers
+
+                                      ?.customer_name ??
+
+                                    "ไม่ทราบชื่อลูกค้า"
+
+                                  }
+
+                                </div>
+
+
+
+                                <div className="text-sm text-gray-400 mt-1">
+
+                                  {
+
+                                    order.delivery_date ??
+
+                                    "ยังไม่ระบุวันที่"
+
+                                  }
+
+
+
+                                  {" · "}
+
+
+
+                                  {
+
+                                    order.delivery_slot ??
+
+                                    "ยังไม่ระบุช่วงเวลา"
+
+                                  }
+
+                                </div>
+
+
+
+                                <div className="text-xs text-gray-400 mt-1">
+
+                                  {prettyStatus(
+
+                                    order.status
+
+                                  )}
+
+                                </div>
+
+
+
+                              </div>
+
+
+
+                              {/* ACTION */}
+
+
+
+                              <div>
+
+
+
+                                {/* ============================== */}
+
+                                {/* AWAITING PAYMENT */}
+
+                                {/* ============================== */}
+
+
+
+                                {!canWork ? (
+                                  <div className="text-sm text-gray-500 text-right">
+                                    <div className="font-medium">ดูสถานะได้เท่านั้น</div>
+                                    <div className="mt-1">
+                                      {claim ? `ผู้รับงาน: ${claim.staff_name}` : "ยังไม่มีผู้รับงาน"}
+                                    </div>
+                                  </div>
+                                ) : isAwaitingPayment ? (
+
+
+
+                                  <div className="text-right">
+
+
+
+                                    <div className="font-semibold mb-1">
+
+                                      รอชำระเงิน
+
+                                    </div>
+
+
+
+                                    <div className="text-sm text-gray-500 mb-3">
+
+                                      พนักงานสามารถอัปโหลดสลิปการชำระเงินแทนลูกค้าได้
+
+                                    </div>
+
+
+
+                                    <Link
+
+                                      href={`/tasks/payment-verification/${order.order_number}`}
+
+                                      className="inline-block bg-black text-white rounded-lg px-5 py-3 font-semibold"
+
+                                    >
+
+                                      ชำระเงิน
+
+                                    </Link>
+
+
+
+                                  </div>
+
+
+
+                                ) : !claim ? (
+
+
+
+                                  /* ============================ */
+
+                                  /* AVAILABLE TASK */
+
+                                  /* ============================ */
+
+
+
+                                  <button
+
+                                    onClick={() =>
+
+                                      startWork(
+
+                                        order.order_number,
+
+                                        group.stage
+
+                                      )
+
+                                    }
+
+                                    className="bg-black text-white rounded-lg px-5 py-3 font-semibold"
+
+                                  >
+
+                                    รับงาน
+
+                                  </button>
+
+
+
+                                ) : isMine ? (
+
+
+
+                                  /* ============================ */
+
+                                  /* CURRENT STAFF OWNS TASK */
+
+                                  /* ============================ */
+
+
+
+                                  <div className="text-right">
+
+
+
+                                    <div className="font-semibold">
+
+                                      กำลังดำเนินการ
+
+                                    </div>
+
+
+
+                                    <div className="text-sm text-gray-500 mb-3">
+
+                                      คุณ ·{" "}
+
+                                      {
+
+                                        claim?.staff_name
+
+                                      }
+
+                                    </div>
+
+
+
+                                    <Link
+
+                                      href={taskLink(
+
+                                        group.stage,
+
+                                        order.order_number
+
+                                      )}
+
+                                      className="inline-block bg-black text-white rounded-lg px-5 py-2 font-semibold"
+
+                                    >
+
+                                      ทำต่อ
+
+                                    </Link>
+
+
+
+                                  </div>
+
+
+
+                                ) : (
+
+
+
+                                  /* ============================ */
+
+                                  /* SOMEONE ELSE OWNS TASK */
+
+                                  /* ============================ */
+
+
+
+                                  <div className="text-right">
+
+
+
+                                    <div className="font-semibold">
+
+                                      กำลังดำเนินการ
+
+                                    </div>
+
+
+
+                                    <div className="text-sm text-gray-500">
+
+                                      {
+
+                                        claim?.staff_name
+
+                                      }
+
+                                    </div>
+
+
+
+                                  </div>
+
+
+
+                                )}
+
+
+
+                              </div>
+
+
+
+                            </div>
+
+                          );
+
+                        }
+
+                      )}
+
+
+
+                    </div>
+
+
+
+                  )}
+
+
+
+                    </>
+                  )}
+                </section>
+
+              );
+
+            }
+
+          )}
+
+
+
+        </div>
+
+
+
       </div>
+
+
+
     </main>
+
   );
+
 }
