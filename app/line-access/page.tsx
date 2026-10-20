@@ -240,6 +240,10 @@ export default function LineAccessPage() {
 
 
 
+  // Customer lists start collapsed; each LINE user can expand independently.
+  const [expandedCustomerLists, setExpandedCustomerLists] =
+    useState<Record<string, boolean>>({});
+
   // Each LINE user gets its own
 
   // customer/staff selector.
@@ -2389,6 +2393,31 @@ export default function LineAccessPage() {
                           ใช้กับบัญชี LINE นี้เท่านั้น · อนุญาตเฉพาะลูกค้าที่ใช้งานอยู่ · ไม่เปลี่ยนสิทธิ์พนักงาน
                         </p>
 
+                        <button
+                          type="button"
+                          aria-expanded={Boolean(expandedCustomerLists[user.lineUserRowId])}
+                          aria-controls={`customer-list-${user.lineUserRowId}`}
+                          onClick={() =>
+                            setExpandedCustomerLists((previous) => ({
+                              ...previous,
+                              [user.lineUserRowId]: !previous[user.lineUserRowId],
+                            }))
+                          }
+                          className="mt-5 w-full flex items-center justify-between gap-3 rounded-lg border bg-gray-50 px-4 py-3 text-left text-sm font-semibold hover:bg-gray-100"
+                        >
+                          <span>
+                            {expandedCustomerLists[user.lineUserRowId]
+                              ? "ซ่อนรายชื่อลูกค้า"
+                              : "ดูรายชื่อลูกค้า"}
+                            {` (${user.customerCodes.length})`}
+                          </span>
+                          <span aria-hidden="true" className="text-gray-500">
+                            {expandedCustomerLists[user.lineUserRowId] ? "▲" : "▼"}
+                          </span>
+                        </button>
+
+                        {expandedCustomerLists[user.lineUserRowId] && (
+                          <div id={`customer-list-${user.lineUserRowId}`}>
                         <div className="mt-5 space-y-2">
 
 
@@ -2538,6 +2567,9 @@ export default function LineAccessPage() {
                         </div>
 
 
+
+                          </div>
+                        )}
 
                         <div className="flex flex-col sm:flex-row gap-2 mt-5">
 
