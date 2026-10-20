@@ -40,6 +40,7 @@ type StaffRow = {
   id: string;
   staffCode: string;
   staffName: string;
+  phone: string | null;
   accountType:
     | "staff"
     | "manager";
@@ -166,6 +167,8 @@ export default function StaffManagementPage() {
   ] =
     useState("");
 
+  const [createPhone, setCreatePhone] = useState("");
+
   const [
     createRole,
     setCreateRole,
@@ -196,6 +199,8 @@ export default function StaffManagementPage() {
     setEditName,
   ] =
     useState("");
+
+  const [editPhone, setEditPhone] = useState("");
 
   const [
     editRole,
@@ -381,6 +386,7 @@ export default function StaffManagementPage() {
   function openCreateForm() {
     setShowCreate(true);
     setCreateName("");
+    setCreatePhone("");
     setCreateRole("staff");
     setCreatePermissions(
       [...ALL_TASK_STAGES]
@@ -421,6 +427,7 @@ export default function StaffManagementPage() {
                 {
                   staffName:
                     createName,
+                  phone: createPhone,
                   accountType:
                     createRole,
                   taskPermissions:
@@ -458,6 +465,7 @@ export default function StaffManagementPage() {
 
       setShowCreate(false);
       setCreateName("");
+      setCreatePhone("");
       setCreateRole("staff");
       setCreatePermissions(
         [...ALL_TASK_STAGES]
@@ -489,6 +497,7 @@ export default function StaffManagementPage() {
     setEditName(
       item.staffName
     );
+    setEditPhone(item.phone ?? "");
 
     setEditRole(
       item.accountType
@@ -537,6 +546,7 @@ export default function StaffManagementPage() {
                     item.id,
                   staffName:
                     editName,
+                  phone: editPhone,
                   accountType:
                     editRole,
                   taskPermissions:
@@ -624,6 +634,7 @@ export default function StaffManagementPage() {
                     item.id,
                   staffName:
                     item.staffName,
+                  phone: item.phone,
                   accountType:
                     item.accountType,
                   taskPermissions:
@@ -817,6 +828,13 @@ export default function StaffManagementPage() {
                     Manager
                   </option>
                 </select>
+              </label>
+
+              <label>
+                <span className="block text-sm font-semibold mb-2">เบอร์โทรศัพท์</span>
+                <input type="tel" inputMode="tel" autoComplete="tel"
+                  value={createPhone} onChange={(event) => setCreatePhone(event.target.value)}
+                  placeholder="เช่น 0812345678" className="w-full border rounded-xl px-4 py-3" />
               </label>
 
               <div className="md:col-span-2 border rounded-xl p-4">
@@ -1085,6 +1103,13 @@ export default function StaffManagementPage() {
                             </select>
                           </label>
 
+                          <label>
+                            <span className="block text-xs text-gray-500 mb-1">เบอร์โทรศัพท์</span>
+                            <input type="tel" inputMode="tel" autoComplete="tel"
+                              value={editPhone} onChange={(event) => setEditPhone(event.target.value)}
+                              placeholder="0812345678" className="w-full border rounded-xl px-4 py-3" />
+                          </label>
+
                           <div className="flex gap-2">
                             <button
                               type="button"
@@ -1205,6 +1230,9 @@ export default function StaffManagementPage() {
                               )}
                             </div>
 
+                            <p className="text-sm text-gray-600 mt-2">
+                              โทร: {item.phone || "ยังไม่มีเบอร์โทรศัพท์"}
+                            </p>
                             <p className="text-sm text-gray-600 mt-2">
                               เข้าสู่ระบบผ่าน LINE
                             </p>

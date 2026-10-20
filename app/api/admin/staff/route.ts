@@ -202,6 +202,14 @@ function normalizeText(
     : "";
 }
 
+function normalizePhone(value: unknown): string | null {
+  const raw = normalizeText(value);
+  if (!raw) return null;
+  const cleaned = raw.replace(/[\s().-]/g, "");
+  if (!/^\+?[0-9]{9,15}$/.test(cleaned)) throw new Error("กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (9–15 หลัก)");
+  return cleaned;
+}
+
 function normalizeAccountType(
   value: unknown
 ): AccountType | null {
@@ -621,6 +629,7 @@ export async function GET(
             id,
             staff_code,
             staff_name,
+            phone,
             account_type,
             auth_user_id,
             is_active
@@ -754,6 +763,7 @@ export async function GET(
             row.staff_code,
           staffName:
             row.staff_name,
+          phone: row.phone,
           accountType:
             row.account_type,
           authUserId:
@@ -819,6 +829,7 @@ export async function POST(
       normalizeText(
         body.staffName
       );
+    const phone = normalizePhone(body.phone);
 
     const accountType =
       normalizeAccountType(
@@ -944,6 +955,7 @@ export async function POST(
             staffCode,
           staff_name:
             staffName,
+          phone,
           account_type:
             accountType,
           auth_user_id:
@@ -955,6 +967,7 @@ export async function POST(
           id,
           staff_code,
           staff_name,
+          phone,
           account_type,
           auth_user_id,
           is_active
@@ -1018,6 +1031,7 @@ export async function POST(
             createdStaff.staff_code,
           staffName:
             createdStaff.staff_name,
+          phone: createdStaff.phone,
           accountType:
             createdStaff.account_type,
           authUserId:
@@ -1076,6 +1090,8 @@ export async function PATCH(
         body.staffName
       );
 
+    const hasPhone = Object.prototype.hasOwnProperty.call(body, "phone");
+
     const accountType =
       normalizeAccountType(
         body.accountType
@@ -1112,6 +1128,7 @@ export async function PATCH(
           id,
           staff_code,
           staff_name,
+          phone,
           account_type,
           auth_user_id,
           is_active
@@ -1395,6 +1412,7 @@ export async function PATCH(
         .update({
           staff_name:
             staffName,
+          phone: hasPhone ? normalizePhone(body.phone) : target.phone,
           account_type:
             accountType,
           is_active:
@@ -1408,6 +1426,7 @@ export async function PATCH(
           id,
           staff_code,
           staff_name,
+          phone,
           account_type,
           auth_user_id,
           is_active
@@ -1463,6 +1482,7 @@ export async function PATCH(
             updated.staff_code,
           staffName:
             updated.staff_name,
+          phone: updated.phone,
           accountType:
             updated.account_type,
           authUserId:
