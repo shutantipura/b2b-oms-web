@@ -1148,34 +1148,37 @@ export default function TasksPage() {
 
 
 
-                  {/* Every stage is visible; unauthorized stages start collapsed. */}
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(group.stage)}
-                    aria-expanded={expanded}
-                    className="w-full p-5 border-b flex items-center justify-between gap-3 text-left hover:bg-gray-50"
-                  >
-                    <span className="flex flex-wrap items-center gap-3">
-                      <span className="text-xl font-bold">{group.title}</span>
-                      <span className="text-sm bg-gray-100 rounded-full px-3 py-1">
+                  {/* All stages visible; only authorized stages start expanded. */}
+                  <div className="p-4 sm:p-5 border-b flex items-center justify-between gap-2 sm:gap-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+                      <span className="text-lg sm:text-xl font-bold">{group.title}</span>
+                      <span className="text-xs sm:text-sm bg-gray-100 rounded-full px-3 py-1 whitespace-nowrap">
                         {groupOrders.length} คำสั่งซื้อ
                       </span>
                       {!canWork && (
-                        <span className="text-xs text-gray-500 border rounded-full px-3 py-1">
+                        <span className="text-xs text-gray-500 border rounded-full px-3 py-1 whitespace-nowrap">
                           ดูได้เท่านั้น
                         </span>
                       )}
-                    </span>
-                    <span className="text-gray-500 text-sm whitespace-nowrap">
-                      {expanded ? "▲ ย่อ" : "▼ แสดง"}
-                    </span>
-                  </button>
-
-                  <div className="px-5 py-3 border-b flex justify-end">
-                    <button type="button" onClick={() => void openStaffDirectory(group.stage)}
-                      className="border border-green-600 text-green-700 bg-green-50 rounded-xl px-4 py-2.5 font-semibold hover:bg-green-100">
-                      📞 เรียกพนักงาน
-                    </button>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void openStaffDirectory(group.stage)}
+                        className="text-xs sm:text-sm bg-green-50 border border-green-200 text-green-700 rounded-full px-2.5 sm:px-3 py-1 font-medium whitespace-nowrap hover:bg-green-100"
+                      >
+                        📞 เรียกพนักงาน
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(group.stage)}
+                        aria-expanded={expanded}
+                        aria-label={`${expanded ? "ย่อ" : "แสดง"}รายการ${group.title}`}
+                        className="text-gray-500 text-sm whitespace-nowrap rounded-lg px-1.5 py-1 hover:bg-gray-100"
+                      >
+                        {expanded ? "▲ ย่อ" : "▼ แสดง"}
+                      </button>
+                    </div>
                   </div>
 
                   {expanded && (
