@@ -4,6 +4,8 @@ import {
 
   useEffect,
 
+  useRef,
+
   useState,
 
 } from "react";
@@ -326,6 +328,7 @@ export default function MiniAppHomePage() {
   // A LINE in-app browser can be slow to establish a Supabase session.
   // Show which step is taking time and never leave the button spinning forever.
   const [staffLoginStep, setStaffLoginStep] = useState("");
+  const autoStaffLoginAttempted = useRef(false);
 
   async function openStaffOms() {
     if (openingStaff) return;
@@ -795,24 +798,9 @@ export default function MiniAppHomePage() {
 
         // ===============================================
 
-        // A LINE user authorized for exactly one customer enters that
-        // customer's home directly, even if they also have staff access.
-        // Explicit ?portal=staff and ?portal=access remain respected above.
+        // Both customer and staff access: always show the account-type
+        // chooser by default. Explicit portal links are handled above.
         if (
-
-          data.hasCustomerAccess &&
-
-          customers.length === 1
-
-        ) {
-
-          setPortal("customer");
-          setSelectedCustomer(customers[0]);
-          router.replace(
-            `/miniapp?portal=customer&customer=${encodeURIComponent(customers[0].customerCode)}`
-          );
-
-        } else if (
 
           data.hasCustomerAccess &&
 
@@ -846,6 +834,10 @@ export default function MiniAppHomePage() {
 
               customers[0]
 
+            );
+
+            router.replace(
+              `/miniapp?portal=customer&customer=${encodeURIComponent(customers[0].customerCode)}`
             );
 
           }
@@ -919,6 +911,22 @@ export default function MiniAppHomePage() {
     };
 
   }, []);
+
+  // Staff/manager-only LINE accounts enter OMS automatically.
+  // The guard avoids repeated login attempts after a timeout or failure.
+  useEffect(() => {
+    if (
+      loading ||
+      !access?.hasStaffAccess ||
+      access.hasCustomerAccess ||
+      portal !== "staff" ||
+      !lineIdToken ||
+      autoStaffLoginAttempted.current
+    ) return;
+
+    autoStaffLoginAttempted.current = true;
+    void openStaffOms();
+  }, [loading, access?.hasStaffAccess, access?.hasCustomerAccess, portal, lineIdToken]);
 
   // =====================================================
 
