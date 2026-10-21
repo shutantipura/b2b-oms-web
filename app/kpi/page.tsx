@@ -634,7 +634,7 @@ export default function KPIPage() {
 
             <Link
 
-              href="/"
+              href="/login"
 
               className="text-gray-500"
 

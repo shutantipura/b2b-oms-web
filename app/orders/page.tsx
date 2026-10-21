@@ -766,7 +766,7 @@ export default function OrdersPage() {
           <div>
 
             <Link
-              href="/"
+              href="/login"
               className="text-gray-500"
             >
               ← กลับ

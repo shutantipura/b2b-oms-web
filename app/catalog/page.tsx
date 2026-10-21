@@ -4050,7 +4050,7 @@ export default function CatalogPage() {
 
               router.push(
 
-                "/"
+                "/login"
 
               )
 
