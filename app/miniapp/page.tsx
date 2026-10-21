@@ -1544,9 +1544,9 @@ export default function MiniAppHomePage() {
 
     return (
 
-      <main className="min-h-screen bg-gray-100 p-5">
+      <main className="min-h-screen bg-[#F7FAFA] p-4 pb-12 text-[#173E31] sm:p-6">
 
-        <div className="max-w-md mx-auto">
+        <div className="max-w-lg mx-auto">
 
           <div className="flex justify-between items-center gap-3">
 
@@ -1570,7 +1570,7 @@ export default function MiniAppHomePage() {
 
                 }
 
-                className="text-gray-500"
+                className="rounded-xl px-2 py-3 text-sm font-bold text-[#426559]"
 
               >
 
@@ -1596,7 +1596,7 @@ export default function MiniAppHomePage() {
 
                 }
 
-                className="text-gray-500"
+                className="rounded-xl px-2 py-3 text-xs font-semibold text-[#008F8D]"
 
               >
 
@@ -1608,15 +1608,13 @@ export default function MiniAppHomePage() {
 
           </div>
 
-          <div className="mt-6">
+          <div className="mt-5 rounded-2xl border border-[#DDECE5] bg-white px-5 py-6 text-center shadow-sm">
 
-            <p className="text-sm text-gray-500">
+            <h1 className="text-3xl font-black tracking-tight text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span><span className="ml-2 text-xl text-[#17453F]">B2B</span></h1>
 
-              LOTUS&apos;S B2B
+            <p className="mt-1 text-xs font-semibold text-[#82968D]">สั่งซื้อง่าย เพื่อธุรกิจของคุณ</p>
 
-            </p>
-
-            <h1 className="text-3xl font-bold mt-2">
+            <p className="mt-5 truncate text-base font-extrabold text-[#315E4C]">
 
               {
 
@@ -1624,9 +1622,9 @@ export default function MiniAppHomePage() {
 
               }
 
-            </h1>
+            </p>
 
-            <p className="text-gray-500">
+            <p className="mt-1 text-xs text-[#8B9D91]">
 
               {
 
@@ -1638,7 +1636,7 @@ export default function MiniAppHomePage() {
 
           </div>
 
-          <div className="space-y-3 mt-7">
+          <div className="space-y-3 mt-5">
 
             {/* ORDER PRODUCTS */}
 
@@ -1656,17 +1654,19 @@ export default function MiniAppHomePage() {
 
               }
 
-              className="w-full bg-black text-white rounded-2xl p-5 text-left"
+              className="group relative w-full overflow-hidden rounded-2xl bg-[#02B0AF] p-5 text-left text-white shadow-[0_8px_24px_rgba(2,176,175,0.20)] transition hover:bg-[#009C9A]"
 
             >
 
-              <p className="font-bold text-lg">
+              <div className="mb-4 flex items-center justify-between"><span className="grid h-12 w-12 place-items-center rounded-xl bg-white/20 text-2xl">🛒</span><span className="text-2xl">↗</span></div>
 
-                สั่งสินค้า
+              <p className="font-extrabold text-xl">
+
+                เลือกซื้อสินค้า
 
               </p>
 
-              <p className="text-sm opacity-70 mt-1">
+              <p className="text-sm text-white/85 mt-1">
 
                 เลือกสินค้าและสร้างคำสั่งซื้อใหม่
 
@@ -1690,22 +1690,35 @@ export default function MiniAppHomePage() {
 
               }
 
-              className="w-full bg-white border rounded-2xl p-5 text-left"
+              className="w-full rounded-2xl border-2 border-[#C7E7DD] bg-white p-5 text-left shadow-sm transition hover:border-[#02B0AF]"
 
             >
 
-              <p className="font-bold text-lg">
+              <div className="mb-3 flex items-center justify-between"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#E8F8F5] text-xl">📋</span><span className="text-xl font-bold text-[#02B0AF]">↗</span></div>
 
-                คำสั่งซื้อ
+              <p className="font-extrabold text-lg text-[#173E31]">
 
-              </p>
-
-              <p className="text-sm text-gray-500 mt-1">
-
-                ติดตามสถานะคำสั่งซื้อปัจจุบันและดูประวัติคำสั่งซื้อ
+                คำสั่งซื้อของฉัน
 
               </p>
 
+              <p className="text-sm text-[#82968D] mt-1">
+
+                ติดตามสถานะคำสั่งซื้อที่กำลังดำเนินการ
+
+              </p>
+
+            </button>
+
+            {/* ORDER HISTORY */}
+            <button
+              type="button"
+              onClick={() => router.push(`/miniapp/orders?customer=${encodeURIComponent(selectedCustomer.customerCode)}&view=history`)}
+              className="w-full rounded-2xl border-2 border-[#C7E7DD] bg-white p-5 text-left shadow-sm transition hover:border-[#02B0AF]"
+            >
+              <div className="mb-3 flex items-center justify-between"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#E8F8F5] text-xl">🕒</span><span className="text-xl font-bold text-[#02B0AF]">↗</span></div>
+              <p className="text-lg font-extrabold text-[#173E31]">ประวัติคำสั่งซื้อ</p>
+              <p className="mt-1 text-sm text-[#82968D]">ดูคำสั่งซื้อที่เสร็จสิ้นหรือถูกยกเลิก</p>
             </button>
 
           </div>
