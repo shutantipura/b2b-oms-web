@@ -64,6 +64,8 @@ type AccessResponse = {
 
   error?: string;
 
+  code?: string;
+
 };
 
 type StaffSessionResponse = {
@@ -514,16 +516,11 @@ export default function MiniAppHomePage() {
 
 }
 
-        if (
-
-          !liff.isLoggedIn()
-
-        ) {
-
-          liff.login();
-
+        if (!liff.isLoggedIn()) {
+          // Desktop browsers must authenticate through the LIFF endpoint,
+          // not the miniapp.line.me mobile-only launch URL.
+          liff.login({ redirectUri: window.location.origin + "/miniapp" });
           return;
-
         }
 
         const idToken =
@@ -546,56 +543,51 @@ export default function MiniAppHomePage() {
 
         // -----------------------------------------------
 
-        const response =
-
-          await fetch(
-
-            "/api/line/customer",
-
-            {
-
-              method:
-
-                "POST",
-
-              headers: {
-
-                "Content-Type":
-
-                  "application/json",
-
-              },
-
-              body:
-
-                JSON.stringify({
-
-                  idToken,
-
-                }),
-
-            }
-
-          );
+        const controller = new AbortController();
+        const customerTimeout = setTimeout(() => controller.abort(), 15000);
+        let response: Response;
+        try {
+          response = await fetch("/api/line/customer", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken }),
+            cache: "no-store",
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(customerTimeout);
+        }
 
         const data =
 
           (await response.json()) as AccessResponse;
 
-        if (
-
-          !response.ok
-
-        ) {
-
-          throw new Error(
-
-            data.error ??
-
-              "ไม่สามารถตรวจสอบบัญชี LINE ได้"
-
-          );
-
+        if (!response.ok) {
+          // A stale desktop LIFF session can return an expired ID token.
+          // Reauthenticate ONCE; never loop indefinitely on a bad channel setup.
+          const retryKey = "lotus_b2b_desktop_line_reauth_once";
+          const externalBrowser = !liff.isInClient();
+          if (
+            response.status === 401 &&
+            data.code === "LINE_ID_TOKEN_INVALID" &&
+            externalBrowser &&
+            window.sessionStorage.getItem(retryKey) !== "1"
+          ) {
+            window.sessionStorage.setItem(retryKey, "1");
+            liff.logout();
+            liff.login({ redirectUri: window.location.origin + "/miniapp" });
+            return;
+          }
+          if (response.status === 401 && externalBrowser) {
+            throw new Error(
+              (data.error ?? "LINE ไม่สามารถยืนยันตัวตนได้") +
+              " กรุณาตรวจสอบว่า LINE Login Channel ID ตรงกับช่องทางของ LIFF และลองเข้าสู่ระบบใหม่"
+            );
+          }
+          throw new Error(data.error ?? "ไม่สามารถตรวจสอบบัญชี LINE ได้");
+        }
+        if (!liff.isInClient()) {
+          window.sessionStorage.removeItem("lotus_b2b_desktop_line_reauth_once");
         }
 
         if (cancelled) {
@@ -969,6 +961,20 @@ export default function MiniAppHomePage() {
               }
 
             </p>
+
+            <button
+              type="button"
+              onClick={async () => {
+                const liffModule = await import("@line/liff");
+                const liff = liffModule.default;
+                window.sessionStorage.removeItem("lotus_b2b_desktop_line_reauth_once");
+                try { liff.logout(); } catch { /* LIFF may not be initialized */ }
+                window.location.assign("/miniapp");
+              }}
+              className="w-full bg-black text-white rounded-xl px-5 py-3 font-semibold mt-5"
+            >
+              เข้าสู่ระบบ LINE ใหม่
+            </button>
 
             <button
 

@@ -133,29 +133,26 @@ export async function POST(
 
           cache:
             "no-store",
+          signal: AbortSignal.timeout(10000),
         }
       );
 
     const lineData =
       (await lineResponse.json()) as LineVerifyResponse;
 
-    if (
-      !lineResponse.ok ||
-      !lineData.sub
-    ) {
-      console.error(
-        "LINE verification:",
-        lineData
-      );
-
+    if (!lineResponse.ok || !lineData.sub) {
+      // Never log the ID token or echo raw LINE responses to the browser.
+      console.error("LINE ID token verification failed", {
+        httpStatus: lineResponse.status,
+        code: lineData.error ?? "unknown",
+        description: lineData.error_description ?? "",
+      });
       return NextResponse.json(
         {
-          error:
-            "LINE identity could not be verified.",
+          error: "LINE identity could not be verified.",
+          code: "LINE_ID_TOKEN_INVALID",
         },
-        {
-          status: 401,
-        }
+        { status: 401, headers: { "Cache-Control": "no-store" } }
       );
     }
 
