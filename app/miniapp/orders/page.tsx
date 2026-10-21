@@ -12,10 +12,12 @@ type Customer = {
 type OrderItem = {
   id: string;
   productName: string;
+  imageUrl?: string | null;
   unit: string;
   requested: number | null;
   confirmed: number | null;
   actual: number | null;
+  estimatedSubtotal?: number | null;
 };
 
 type Order = {
@@ -27,6 +29,7 @@ type Order = {
   deliverySlot: string | null;
   deliveryAddress: string | null;
   finalAmount: number | null;
+  estimatedAmount?: number | null;
   items: OrderItem[];
 };
 
@@ -129,7 +132,7 @@ export default function CustomerOrdersPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
 
-  const card = "overflow-hidden rounded-2xl border border-[#E0ECE5] bg-white shadow-[0_2px_12px_rgba(0,120,115,0.045)]";
+  const card = "overflow-hidden rounded-2xl border-2 border-[#A9DAD1] bg-white shadow-[0_5px_18px_rgba(0,120,115,0.12)]";
 
   function goCustomerHome() {
     const code = customer?.customerCode ?? customerCode;
@@ -230,7 +233,12 @@ export default function CustomerOrdersPage() {
   }
 
   async function changeMode(nextMode: "active" | "history") {
+    if (nextMode === mode) return;
     setMode(nextMode);
+    // Clear the previous tab immediately; don't leave stale orders on screen.
+    setOrders([]);
+    setRefreshing(true);
+    setMessage("");
     const code = customer?.customerCode ?? customerCode;
     window.history.replaceState({}, "", `/miniapp/orders?view=${nextMode}${code ? `&customer=${encodeURIComponent(code)}` : ""}`);
     if (idToken) await loadOrders(idToken, nextMode, code);
@@ -302,7 +310,7 @@ export default function CustomerOrdersPage() {
 
       <div className="mx-auto max-w-3xl space-y-4 px-3 pt-4 sm:px-5">
         <div className="px-1">
-          <h1 className="text-xl font-extrabold sm:text-2xl">คำสั่งซื้อของฉัน</h1>
+          <h1 className="text-xl font-extrabold sm:text-2xl">คำสั่งซื้อของฉัน <span className="text-[#F3B913]">★</span></h1>
           <p className="mt-1 text-sm text-[#82968D]">ติดตามสถานะและดูรายการสินค้าที่สั่งซื้อ</p>
           {lastUpdated && <p className="mt-2 text-[11px] text-[#96AAA0]">อัปเดตล่าสุด {lastUpdated.toLocaleTimeString("th-TH-u-ca-gregory", { hour: "2-digit", minute: "2-digit" })}</p>}
         </div>
@@ -314,7 +322,12 @@ export default function CustomerOrdersPage() {
 
         {message && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{message}</div>}
 
-        {orders.length === 0 ? (
+        {refreshing && orders.length === 0 ? (
+          <div className={`${card} flex items-center justify-center gap-3 px-5 py-12`}>
+            <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-[#C9E9E3] border-t-[#02B0AF]" />
+            <p className="text-sm font-semibold text-[#66887A]">กำลังโหลด{mode === "active" ? "คำสั่งซื้อปัจจุบัน" : "ประวัติคำสั่งซื้อ"}...</p>
+          </div>
+        ) : orders.length === 0 ? (
           <div className={`${card} px-6 py-12 text-center`}>
             <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#E6F8F3] text-3xl">📋</div>
             <h2 className="mt-4 text-lg font-extrabold">{mode === "active" ? "ไม่มีคำสั่งซื้อที่กำลังดำเนินการ" : "ยังไม่มีประวัติคำสั่งซื้อ"}</h2>
@@ -333,20 +346,27 @@ export default function CustomerOrdersPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-[11px] font-semibold text-[#8BA096]">หมายเลขคำสั่งซื้อ</p>
-                        <h2 className="mt-0.5 text-2xl font-black text-[#183F33]">#{order.orderNumber}</h2>
+                        <h2 className="mt-0.5 text-2xl font-black text-[#BA8A00]">#{order.orderNumber}</h2>
                         <p className="mt-1 text-xs text-[#94A69B]">สั่งเมื่อ {formatTimestamp(order.createdAt)}</p>
                       </div>
                       <span className={`max-w-[55%] rounded-full border px-3 py-1.5 text-center text-xs font-extrabold ${badgeStyle(order.status)}`}>{statusName(order.status)}</span>
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-[#F4F9F6] p-3">
+                    <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-[#EFE1A7] bg-[#FFFCF0] p-3">
                       <div>
                         <p className="text-[11px] text-[#80998B]">กำหนดจัดส่ง</p>
                         <p className="mt-1 text-xs font-bold">{formatDate(order.deliveryDate)}</p>
                         {order.deliverySlot && <p className="mt-0.5 text-[11px] text-[#728D7C]">{order.deliverySlot}</p>}
                       </div>
                       <div className="text-right">
-                        <p className="text-[11px] text-[#80998B]">ยอดสุทธิ</p>
-                        <p className="mt-1 text-lg font-black text-[#009F9D]">{order.finalAmount === null ? "รอออกบิล" : `฿${money(order.finalAmount)}`}</p>
+                        {order.status === "awaiting_payment" && customer ? (
+                          <button type="button" onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(customer.customerCode)}&order=${order.orderNumber}`)} className="w-full rounded-xl bg-[#FDBC16] px-2 py-3 text-sm font-black text-[#5B4200] shadow-sm">ชำระเงินตอนนี้ →</button>
+                        ) : (
+                          <>
+                            <p className="text-[11px] text-[#80998B]">{order.finalAmount !== null ? "ยอดสุทธิ" : "ยอดประมาณการ"}</p>
+                            <p className="mt-1 text-lg font-black text-[#009F9D]">{order.finalAmount !== null ? `฿${money(order.finalAmount)}` : order.estimatedAmount !== null && order.estimatedAmount !== undefined ? `~฿${money(order.estimatedAmount)}` : "ยังไม่มีราคา"}</p>
+                            {order.finalAmount === null && <p className="mt-1 text-[10px] leading-4 text-[#927E4A]">* ยอดอาจเปลี่ยนหลังหยิบและออกบิล</p>}
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -365,13 +385,10 @@ export default function CustomerOrdersPage() {
                         <p className="text-xs font-bold text-[#009F9D]">{step + 1} / {TRACKING_STEPS.length}</p>
                       </div>
                       <div className="mt-3 grid grid-cols-6 gap-1">
-                        {TRACKING_STEPS.map((label, index) => <div key={label} aria-label={label} className={`h-2 rounded-full ${index <= step ? "bg-[#02B0AF]" : "bg-[#E3EEE7]"}`} />)}
+                        {TRACKING_STEPS.map((label, index) => <div key={label} aria-label={label} className={`h-2 rounded-full ${index === step ? "bg-[#FDBC16]" : index < step ? "bg-[#02B0AF]" : "bg-[#E3EEE7]"}`} />)}
                       </div>
                       <p className="mt-2 text-sm font-extrabold text-[#008F8D]">{statusName(order.status)}</p>
 
-                      {order.status === "awaiting_payment" && customer && (
-                        <button type="button" onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(customer.customerCode)}&order=${order.orderNumber}`)} className="mt-4 min-h-12 w-full rounded-xl bg-[#02B0AF] px-4 py-3 text-sm font-extrabold text-white">ชำระเงิน →</button>
-                      )}
                       {order.status === "payment_submitted" && customer && (
                         <button type="button" onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(customer.customerCode)}&order=${order.orderNumber}`)} className="mt-4 min-h-12 w-full rounded-xl border-2 border-[#BDE5DF] bg-[#F3FBF8] px-4 py-3 text-sm font-bold text-[#008F8D]">ส่งหลักฐานแล้ว · ดูรายละเอียดการชำระเงิน</button>
                       )}
@@ -403,7 +420,16 @@ export default function CustomerOrdersPage() {
                         <div className="space-y-3">
                           {order.items.map((item) => (
                             <div key={item.id} className="rounded-xl border border-[#E4EEE7] bg-white p-3">
-                              <p className="text-sm font-bold">{item.productName}</p>
+                              <div className="flex items-start gap-3">
+                                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-[#E4EEE7] bg-[#F4F8F5]">
+                                  <div className="absolute inset-0 grid place-items-center text-2xl text-[#92AA9D]">📦</div>
+                                  {item.imageUrl && <img src={item.imageUrl} alt={item.productName} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full bg-white object-contain p-1" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-bold">{item.productName}</p>
+                                  {item.estimatedSubtotal !== null && item.estimatedSubtotal !== undefined && <p className="mt-2 text-xs font-semibold text-[#008F8D]">ประมาณ ฿{money(item.estimatedSubtotal)}</p>}
+                                </div>
+                              </div>
                               <div className="mt-3 grid grid-cols-3 divide-x divide-[#E6EEE8] text-center">
                                 <div className="px-1"><p className="text-[10px] text-[#82968D]">สั่งซื้อ</p><p className="mt-1 text-xs font-bold">{quantityText(item.requested, item.unit)}</p></div>
                                 <div className="px-1"><p className="text-[10px] text-[#82968D]">ยืนยัน</p><p className="mt-1 text-xs font-bold">{quantityText(item.confirmed, item.unit)}</p></div>

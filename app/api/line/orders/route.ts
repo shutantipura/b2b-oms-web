@@ -38,6 +38,35 @@ type RawItem = Record<
 
 >;
 
+// Use prices saved with the order, never today's catalogue price.
+// Older orders without a stored price remain without an estimate.
+function estimatedLineAmount(item: RawItem, requested: number | null): number | null {
+  const direct = [
+    item.estimated_subtotal,
+    item.subtotal_at_order,
+    item.requested_subtotal,
+    item.line_total_at_order,
+  ].find((value) => value !== null && value !== undefined && value !== "");
+  if (direct !== undefined) {
+    const amount = Number(direct);
+    return Number.isFinite(amount) && amount >= 0 ? amount : null;
+  }
+
+  const savedUnitPrice = [
+    item.price_per_kg_at_order,
+    item.price_per_unit_at_order,
+    item.unit_price_at_order,
+    item.effective_price_at_order,
+    item.price_at_order,
+    item.agreed_price_at_order,
+    item.price_per_kg,
+    item.unit_price,
+  ].find((value) => value !== null && value !== undefined && value !== "");
+  if (savedUnitPrice === undefined || requested === null) return null;
+  const price = Number(savedUnitPrice);
+  return Number.isFinite(price) && price >= 0 ? price * requested : null;
+}
+
 
 
 export async function POST(
@@ -1031,6 +1060,8 @@ export async function POST(
 
           unit: string;
 
+          image_url: string | null;
+
         }
 
       >();
@@ -1061,7 +1092,9 @@ export async function POST(
 
             product_name,
 
-            unit
+            unit,
+
+            image_url
 
           `)
 
@@ -1100,6 +1133,10 @@ export async function POST(
               unit:
 
                 product.unit,
+
+              image_url:
+
+                product.image_url ?? null,
 
             }
 
@@ -1227,6 +1264,10 @@ export async function POST(
 
                     productName,
 
+                    imageUrl:
+
+                      product?.image_url ?? null,
+
 
 
                     unit,
@@ -1279,6 +1320,11 @@ export async function POST(
 
                           ),
 
+                    estimatedSubtotal: estimatedLineAmount(
+                      item,
+                      requested === null ? null : Number(requested)
+                    ),
+
                   };
 
                 }
@@ -1286,6 +1332,13 @@ export async function POST(
               );
 
 
+
+          const estimatedSubtotals = items.map((item) => item.estimatedSubtotal);
+          const estimatedAmount = estimatedSubtotals.every(
+            (value) => value !== null && Number.isFinite(value)
+          ) && items.length > 0
+            ? estimatedSubtotals.reduce<number>((sum, value) => sum + Number(value), 0)
+            : null;
 
           return {
 
@@ -1344,6 +1397,8 @@ export async function POST(
                     order.final_amount
 
                   ),
+
+            estimatedAmount,
 
 
 
