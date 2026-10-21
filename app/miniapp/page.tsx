@@ -795,7 +795,24 @@ export default function MiniAppHomePage() {
 
         // ===============================================
 
+        // A LINE user authorized for exactly one customer enters that
+        // customer's home directly, even if they also have staff access.
+        // Explicit ?portal=staff and ?portal=access remain respected above.
         if (
+
+          data.hasCustomerAccess &&
+
+          customers.length === 1
+
+        ) {
+
+          setPortal("customer");
+          setSelectedCustomer(customers[0]);
+          router.replace(
+            `/miniapp?portal=customer&customer=${encodeURIComponent(customers[0].customerCode)}`
+          );
+
+        } else if (
 
           data.hasCustomerAccess &&
 
@@ -803,11 +820,7 @@ export default function MiniAppHomePage() {
 
         ) {
 
-          setPortal(
-
-            "choose"
-
-          );
+          setPortal("choose");
 
         } else if (
 
