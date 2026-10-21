@@ -310,200 +310,94 @@ export default function MiniAppHomePage() {
 
   // =====================================================
 
+  // A LINE in-app browser can be slow to establish a Supabase session.
+  // Show which step is taking time and never leave the button spinning forever.
+  const [staffLoginStep, setStaffLoginStep] = useState("");
+
   async function openStaffOms() {
-
+    if (openingStaff) return;
     if (!lineIdToken) {
-
-      setMessage(
-
-        "เซสชัน LINE ยังไม่พร้อมใช้งาน"
-
-      );
-
+      setMessage("เซสชัน LINE ยังไม่พร้อมใช้งาน กรุณาลองเปิด MINI App อีกครั้ง");
       return;
-
     }
 
-    setOpeningStaff(
-
-      true
-
-    );
-
-    setMessage(
-
-      ""
-
-    );
+    setOpeningStaff(true);
+    setStaffLoginStep("กำลังตรวจสอบบัญชีพนักงาน...");
+    setMessage("");
+    const startedAt = performance.now();
+    let currentStage = "staff-session";
+    const controller = new AbortController();
+    const serverTimeout = setTimeout(() => controller.abort(), 15000);
 
     try {
+      const response = await fetch("/api/line/staff-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken: lineIdToken }),
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      clearTimeout(serverTimeout);
 
-      // -------------------------------------------------
+      const result = (await response.json()) as StaffSessionResponse;
+      const serverMs = Math.round(performance.now() - startedAt);
+      console.info("[LINE Staff Login] Staff-session response", {
+        status: response.status,
+        durationMs: serverMs,
+        serverTiming: response.headers.get("Server-Timing"),
+      });
 
-      // 1. Ask server to verify LINE identity
-
-      //    and create a one-time Supabase login token
-
-      // -------------------------------------------------
-
-      const response =
-
-        await fetch(
-
-          "/api/line/staff-session",
-
-          {
-
-            method:
-
-              "POST",
-
-            headers: {
-
-              "Content-Type":
-
-                "application/json",
-
-            },
-
-            body:
-
-              JSON.stringify({
-
-                idToken:
-
-                  lineIdToken,
-
-              }),
-
-          }
-
-        );
-
-      const result =
-
-        (await response.json()) as StaffSessionResponse;
-
-      if (
-
-        !response.ok ||
-
-        !result.tokenHash
-
-      ) {
-
-        throw new Error(
-
-          result.error ??
-
-            "ไม่สามารถสร้างเซสชันสำหรับพนักงานได้"
-
-        );
-
+      if (!response.ok || !result.tokenHash) {
+        throw new Error(result.error ?? "ไม่สามารถสร้างเซสชันสำหรับพนักงานได้");
       }
 
-      // -------------------------------------------------
+      currentStage = "verify-otp";
+      setStaffLoginStep("กำลังเชื่อมต่อ Supabase...");
+      const verifyStartedAt = performance.now();
+      let verifyTimeout: ReturnType<typeof setTimeout> | undefined;
+      // Promise.race bounds the UI wait; it does not cancel Supabase's
+      // underlying request. On timeout, reload before attempting again.
+      const verification = await Promise.race([
+        supabase.auth.verifyOtp({
+          token_hash: result.tokenHash,
+          type: "magiclink",
+        }),
+        new Promise<never>((_, reject) => {
+          verifyTimeout = setTimeout(
+            () => reject(new Error("Supabase ใช้เวลาตรวจสอบเซสชันนานเกิน 15 วินาที กรุณาปิดแล้วเปิด MINI App ใหม่")),
+            15000
+          );
+        }),
+      ]).finally(() => {
+        if (verifyTimeout) clearTimeout(verifyTimeout);
+      });
 
-      // 2. Convert one-time token into normal
-
-      //    Supabase browser session
-
-      // -------------------------------------------------
-
-      const {
-
-        data,
-
-        error,
-
-      } =
-
-        await supabase.auth
-
-          .verifyOtp({
-
-            token_hash:
-
-              result.tokenHash,
-
-            type:
-
-              "magiclink",
-
-          });
-
-      if (error) {
-
-        throw new Error(
-
-          error.message
-
-        );
-
+      console.info("[LINE Staff Login] Supabase verification", {
+        durationMs: Math.round(performance.now() - verifyStartedAt),
+      });
+      if (verification.error) throw new Error(verification.error.message);
+      if (!verification.data.session || !verification.data.user) {
+        throw new Error("ไม่สามารถสร้างเซสชันเข้าสู่ระบบพนักงานได้");
       }
 
-      if (
-
-        !data.session ||
-
-        !data.user
-
-      ) {
-
-        throw new Error(
-
-          "ไม่สามารถสร้างเซสชันเข้าสู่ระบบพนักงานได้"
-
-        );
-
-      }
-
-      // -------------------------------------------------
-
-      // 3. Full navigation to OMS
-
-      //
-
-      // We deliberately bypass the old login screen.
-
-      // -------------------------------------------------
-
-      window.location.assign(
-
-        "/tasks"
-
-      );
-
+      setStaffLoginStep("กำลังเปิดระบบ OMS...");
+      window.location.assign("/tasks");
     } catch (error) {
-
-      console.error(
-
-        "Staff LINE login:",
-
-        error
-
-      );
-
-      setMessage(
-
-        error instanceof
-
-          Error
-
+      clearTimeout(serverTimeout);
+      console.error("[LINE Staff Login]", {
+        stage: currentStage,
+        elapsedMs: Math.round(performance.now() - startedAt),
+        error,
+      });
+      const isAbort = error instanceof Error && error.name === "AbortError";
+      setMessage(isAbort
+        ? "การตรวจสอบบัญชีพนักงานใช้เวลานานเกิน 15 วินาที กรุณาลองใหม่อีกครั้ง"
+        : error instanceof Error
           ? error.message
-
-          : "ไม่สามารถเข้าสู่ระบบ OMS สำหรับพนักงานได้"
-
-      );
-
-      setOpeningStaff(
-
-        false
-
-      );
-
+          : "ไม่สามารถเข้าสู่ระบบ OMS สำหรับพนักงานได้");
+      setStaffLoginStep("");
+      setOpeningStaff(false);
     }
-
   }
 
   // =====================================================
@@ -1348,7 +1242,7 @@ export default function MiniAppHomePage() {
 
                   {openingStaff
 
-                    ? "กำลังเข้าสู่ระบบ..."
+                    ? (staffLoginStep || "กำลังเข้าสู่ระบบ...")
 
                     : "เข้าสู่ระบบพนักงาน →"}
 
@@ -1470,7 +1364,7 @@ export default function MiniAppHomePage() {
 
               {openingStaff
 
-                ? "กำลังเข้าสู่ระบบ..."
+                ? (staffLoginStep || "กำลังเข้าสู่ระบบ...")
 
                 : "เข้าสู่ระบบพนักงาน"}
 
