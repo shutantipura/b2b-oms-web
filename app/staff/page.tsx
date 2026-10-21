@@ -685,7 +685,7 @@ export default function StaffManagementPage() {
       <header className="bg-white border-b">
         <div className="max-w-5xl mx-auto px-5 py-6">
           <Link
-            href="/"
+            href="/login"
             className="text-sm text-gray-500"
           >
             ← กลับหน้าหลัก

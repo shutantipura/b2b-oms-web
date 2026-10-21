@@ -1637,7 +1637,7 @@ export default function LineAccessPage() {
 
             <Link
 
-              href="/"
+              href="/login"
 
               className="text-sm text-gray-500"
 

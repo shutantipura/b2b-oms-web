@@ -2466,7 +2466,7 @@ export default function ControlTowerPage() {
 
           <Link
 
-            href="/"
+            href="/login"
 
             className="inline-block mt-6 underline font-semibold"
 
@@ -2522,7 +2522,7 @@ export default function ControlTowerPage() {
 
             <Link
 
-              href="/"
+              href="/login"
 
               className="text-gray-500"
 
