@@ -2981,7 +2981,7 @@ export default function MiniAppShopPage() {
 
 
   return (
-    <main className="min-h-screen bg-[#F5F8F5] pb-32 text-[#15372E]">
+    <main className="min-h-screen bg-[#F7FAFA] pb-32 text-[#15372E]">
       {/* CUSTOMER NAVIGATION */}
       <header className="sticky top-0 z-30 border-b border-[#E6EEE9] bg-white/95 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
@@ -2996,7 +2996,7 @@ export default function MiniAppShopPage() {
               <span>หน้าแรก</span>
             </button>
             <div className="text-center">
-              <div className="text-xl font-black tracking-tight text-[#00876A]">Lotus<span className="text-[#FFB81C]">’s</span><span className="ml-1.5 text-base font-bold text-[#154B3A]">B2B</span></div>
+              <div className="text-xl font-black tracking-tight text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span><span className="ml-1.5 text-base font-bold text-[#17453F]">B2B</span></div>
               <div className="text-[10px] font-medium tracking-wide text-[#82968D]">เพื่อธุรกิจที่ไปได้ไกลกว่า</div>
             </div>
             <button
@@ -3007,7 +3007,7 @@ export default function MiniAppShopPage() {
             >
               🛒
               {cartItemCount > 0 && (
-                <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-[#FFB81C] px-1 text-[11px] font-extrabold text-[#173A30]">
+                <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-[#FDBC16] px-1 text-[11px] font-extrabold text-[#173A30]">
                   {cartItemCount}
                 </span>
               )}
@@ -3016,46 +3016,28 @@ export default function MiniAppShopPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6">
+      <div className="mx-auto max-w-6xl px-3 pt-3 sm:px-6">
         {/* CUSTOMER + SHOP INTRO */}
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#DCEBE3] bg-white px-4 py-3 shadow-sm sm:px-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#DCEBE3] bg-white px-3 py-2 shadow-sm sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#E4F5EC] text-2xl">🏪</div>
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#E2F8F5] text-xl">🏪</div>
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-[#779286]">กำลังสั่งสินค้าให้</p>
               <p className="truncate text-base font-bold text-[#153E30]">{customer.customerName}</p>
               <p className="text-xs text-[#869A90]">รหัสลูกค้า {customer.customerCode}</p>
             </div>
           </div>
-          <span className="rounded-full bg-[#E7F7EF] px-3 py-1.5 text-xs font-bold text-[#09815F]">ลูกค้า B2B</span>
+          <span className="rounded-full bg-[#E4F8F6] px-2 py-1 text-[10px] font-bold text-[#009F9D]">ลูกค้า B2B</span>
         </div>
 
-        <section className="relative mb-6 overflow-hidden rounded-[28px] bg-gradient-to-br from-[#007B60] via-[#07886C] to-[#0B4D40] p-6 text-white sm:p-8">
-          <div className="pointer-events-none absolute -right-14 -top-24 h-72 w-72 rounded-full border-[35px] border-white/10" />
-          <div className="pointer-events-none absolute -bottom-32 right-8 h-64 w-64 rounded-full bg-[#FFCB43]/15 blur-2xl" />
-          <div className="relative z-10 flex items-center justify-between gap-3">
-            <div className="max-w-lg">
-              <p className="mb-2 text-xs font-bold tracking-[0.18em] text-[#CBF5DD]">LOTUS’S FOR BUSINESS</p>
-              <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">สั่งวัตถุดิบง่าย ๆ<br />สำหรับร้านของคุณ</h1>
-              <p className="mt-3 text-sm leading-relaxed text-white/85">ค้นหาสินค้า ราคาเฉพาะร้าน และรายการที่ซื้อประจำได้ในที่เดียว</p>
-            </div>
-            <div className="hidden shrink-0 text-7xl drop-shadow-lg sm:block" aria-hidden="true">🥬</div>
-          </div>
-          <div className="relative z-10 mt-5 flex flex-wrap gap-2">
-            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-[11px] font-semibold">✓ ราคาเฉพาะลูกค้า</span>
-            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-[11px] font-semibold">✓ สินค้าซื้อประจำ</span>
-            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-[11px] font-semibold">✓ ติดตามคำสั่งซื้อ</span>
-          </div>
-        </section>
-
         {/* SEARCH + TABS */}
-        <section className="mb-5 rounded-[24px] border border-[#E1EAE4] bg-white p-4 shadow-[0_4px_24px_rgba(13,75,50,0.04)] sm:p-5">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <section className="mb-3 rounded-2xl border border-[#E1EAE4] bg-white p-3 shadow-sm sm:p-4">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
             <div>
-              <h2 className="text-xl font-extrabold text-[#173E31] sm:text-2xl">เลือกซื้อสินค้า</h2>
+              <h2 className="text-base font-extrabold text-[#173E31] sm:text-xl">เลือกซื้อสินค้า</h2>
               <p className="mt-1 text-xs text-[#7C9288]">ค้นหาวัตถุดิบและสินค้าสำหรับธุรกิจของคุณ</p>
             </div>
-            <span className="rounded-xl bg-[#F0F8F3] px-3 py-2 text-xs font-semibold text-[#428065]">แสดงครั้งละ {PAGE_SIZE} รายการ</span>
+            <span className="rounded-lg bg-[#E4F8F6] px-2 py-1 text-[11px] font-semibold text-[#009F9D]">แสดงครั้งละ {PAGE_SIZE} รายการ</span>
           </div>
           <div className="relative">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg text-[#67907A]">⌕</span>
@@ -3065,7 +3047,7 @@ export default function MiniAppShopPage() {
               onChange={(event) => setSearch(event.target.value)}
               placeholder="ค้นหาชื่อสินค้า หรือ SKU"
               aria-label="ค้นหาสินค้า"
-              className="w-full rounded-2xl border border-[#DCE9E1] bg-[#F7FAF8] py-3.5 pl-12 pr-12 text-sm text-[#153D30] outline-none transition focus:border-[#009874] focus:ring-2 focus:ring-[#009874]/10"
+              className="w-full rounded-2xl border border-[#DCE9E1] bg-[#F7FAF8] py-3 pl-12 pr-12 text-sm text-[#153D30] outline-none transition focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/15"
             />
             {search && (
               <button
@@ -3076,16 +3058,16 @@ export default function MiniAppShopPage() {
               >×</button>
             )}
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-[#F1F6F2] p-1.5">
+          <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-[#EFF7F6] p-1">
             <button
               type="button"
               onClick={() => setTab("all")}
-              className={`min-h-11 rounded-xl px-3 py-2 text-sm font-bold transition ${tab === "all" ? "bg-white text-[#08795D] shadow-sm" : "text-[#84978B] hover:text-[#315C49]"}`}
+              className={`min-h-10 rounded-lg px-3 py-2 text-sm font-bold transition ${tab === "all" ? "bg-white text-[#009F9D] shadow-sm" : "text-[#84978B] hover:text-[#315C49]"}`}
             >สินค้าทั้งหมด</button>
             <button
               type="button"
               onClick={() => setTab("favourites")}
-              className={`min-h-11 rounded-xl px-3 py-2 text-sm font-bold transition ${tab === "favourites" ? "bg-white text-[#08795D] shadow-sm" : "text-[#84978B] hover:text-[#315C49]"}`}
+              className={`min-h-10 rounded-lg px-3 py-2 text-sm font-bold transition ${tab === "favourites" ? "bg-white text-[#009F9D] shadow-sm" : "text-[#84978B] hover:text-[#315C49]"}`}
             >★ ซื้อประจำ <span className="text-xs opacity-70">({favouriteProductIds.length})</span></button>
           </div>
 
@@ -3096,14 +3078,14 @@ export default function MiniAppShopPage() {
                 <button
                   type="button"
                   onClick={() => void selectCategory("")}
-                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-bold ${selectedCategory === "" ? "border-[#007D60] bg-[#007D60] text-white" : "border-[#DDE9E2] bg-white text-[#456957]"}`}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-bold ${selectedCategory === "" ? "border-[#02B0AF] bg-[#02B0AF] text-white" : "border-[#DDE9E2] bg-white text-[#456957]"}`}
                 >ทั้งหมด ({searchTotal.toLocaleString()})</button>
                 {categoryFacets.map((facet) => (
                   <button
                     key={facet.category}
                     type="button"
                     onClick={() => void selectCategory(facet.category)}
-                    className={`shrink-0 rounded-full border px-4 py-2 text-xs font-bold ${selectedCategory === facet.category ? "border-[#007D60] bg-[#007D60] text-white" : "border-[#DDE9E2] bg-white text-[#456957]"}`}
+                    className={`shrink-0 rounded-full border px-4 py-2 text-xs font-bold ${selectedCategory === facet.category ? "border-[#02B0AF] bg-[#02B0AF] text-white" : "border-[#DDE9E2] bg-white text-[#456957]"}`}
                   >{categoryLabel(facet.category)} ({facet.count.toLocaleString()})</button>
                 ))}
               </div>
@@ -3116,20 +3098,20 @@ export default function MiniAppShopPage() {
         )}
 
         {/* PRODUCT COUNT */}
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-2 px-1">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2 px-1">
           <div>
-            <h3 className="text-lg font-extrabold text-[#173E31]">{tab === "favourites" ? "สินค้าซื้อประจำของคุณ" : search.trim() ? "ผลการค้นหา" : "สินค้าสำหรับร้านคุณ"}</h3>
+            <h3 className="text-base font-extrabold text-[#173E31]">{tab === "favourites" ? "สินค้าซื้อประจำของคุณ" : search.trim() ? "ผลการค้นหา" : "สินค้าสำหรับร้านคุณ"}</h3>
             <p className="mt-1 text-xs text-[#82948A]">
               {tab === "favourites" ? "แตะดาวเพื่อเพิ่มหรือนำสินค้าออกจากรายการโปรด" : selectedCategory ? categoryLabel(selectedCategory) : search.trim() ? `คำค้นหา: ${debouncedSearch}` : "สินค้าขายดีแสดงก่อน เลื่อนดูหรือโหลดสินค้าเพิ่ม"}
             </p>
           </div>
-          <span className="rounded-lg bg-[#E7F3EA] px-3 py-2 text-xs font-bold text-[#367A5D]">
+          <span className="rounded-lg bg-[#E7F3EA] px-3 py-2 text-xs font-bold text-[#009F9D]">
             {tab === "favourites" ? `${displayedProducts.length.toLocaleString()} รายการ` : `${totalProducts.toLocaleString()} รายการ`}
           </span>
         </div>
         {tab === "all" && loadingProducts && (
           <div className="mb-4 flex items-center gap-3 rounded-2xl border border-[#D5E7DB] bg-white p-4 text-sm font-medium text-[#688572]">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#CFE8D9] border-t-[#008B68]" />
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#CFE8D9] border-t-[#02B0AF]" />
             กำลังค้นหาสินค้า...
           </div>
         )}
@@ -3141,7 +3123,7 @@ export default function MiniAppShopPage() {
             <p className="text-lg font-extrabold">{tab === "favourites" ? "ยังไม่มีสินค้าซื้อประจำ" : "ไม่พบสินค้า"}</p>
             <p className="mt-2 text-sm text-[#809288]">{tab === "favourites" ? "เลือกสินค้าจากหน้าสินค้าทั้งหมดแล้วแตะดาว" : "ลองค้นหาด้วยชื่อสินค้าหรือรหัส SKU อื่น"}</p>
             {tab === "favourites" && (
-              <button type="button" onClick={() => setTab("all")} className="mt-5 rounded-xl bg-[#008469] px-5 py-3 text-sm font-bold text-white">ดูสินค้าทั้งหมด</button>
+              <button type="button" onClick={() => setTab("all")} className="mt-5 rounded-xl bg-[#02B0AF] px-5 py-3 text-sm font-bold text-white">ดูสินค้าทั้งหมด</button>
             )}
           </div>
         ) : (
@@ -3153,8 +3135,8 @@ export default function MiniAppShopPage() {
                 const favouriteBusy = savingFavouriteIds.has(product.id);
                 const hideImage = isLiquorTobaccoCategory(product.category);
                 return (
-                  <article key={product.id} className="group flex min-w-0 flex-col overflow-hidden rounded-[22px] border border-[#E4EDE6] bg-white shadow-[0_2px_12px_rgba(18,73,47,0.035)] transition hover:border-[#AED9BF] hover:shadow-md">
-                    <div className="relative aspect-[1.17] overflow-hidden bg-[#F8FAF7] sm:aspect-square">
+                  <article key={product.id} className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#E4EDE6] bg-white shadow-[0_2px_12px_rgba(0,120,115,0.045)] transition hover:border-[#AED9BF] hover:shadow-md">
+                    <div className="relative aspect-[1.42] overflow-hidden bg-[#F8FAF7] sm:aspect-square">
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-3 text-center text-[#A4B8A9]">
                         <span className="text-4xl">{hideImage ? "ⓘ" : "📦"}</span>
                         <span className="text-[11px]">{hideImage ? "หมวดสุราและยาสูบ" : "ไม่มีรูปสินค้า"}</span>
@@ -3168,20 +3150,20 @@ export default function MiniAppShopPage() {
                         disabled={favouriteBusy}
                         onClick={() => void toggleFavourite(product)}
                         aria-label={product.isFavourite ? `นำ ${product.productName} ออกจากรายการโปรด` : `เพิ่ม ${product.productName} ในรายการโปรด`}
-                        className={`absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full border text-xl shadow-sm disabled:opacity-50 ${product.isFavourite ? "border-[#FFDE8A] bg-[#FFF5D8] text-[#E6A600]" : "border-[#EBEDE8] bg-white/95 text-[#91A69A]"}`}
+                        className={`absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full border text-xl shadow-sm disabled:opacity-50 ${product.isFavourite ? "border-[#FFDE8A] bg-[#FFF5D8] text-[#E5A400]" : "border-[#EBEDE8] bg-white/95 text-[#91A69A]"}`}
                       >{favouriteBusy ? "…" : product.isFavourite ? "★" : "☆"}</button>
                     </div>
-                    <div className="flex flex-1 flex-col p-3 sm:p-4">
+                    <div className="flex flex-1 flex-col p-2.5 sm:p-3">
                       <p className="mb-1 min-h-10 line-clamp-2 text-[13px] font-bold leading-5 text-[#1D4034] sm:text-sm">{product.productName}</p>
                       <p className="truncate text-[10px] text-[#95A69A]">SKU {product.sku}</p>
-                      <div className="mt-3">
-                        <p className="text-[19px] font-extrabold leading-tight text-[#00815F] sm:text-xl">฿{formatPrice(product.effectivePrice)} <span className="text-[11px] font-semibold text-[#708878]">/ {product.unit}</span></p>
+                      <div className="mt-2">
+                        <p className="text-[18px] font-extrabold leading-tight text-[#009F9D] sm:text-xl">฿{formatPrice(product.effectivePrice)} <span className="text-[11px] font-semibold text-[#708878]">/ {product.unit}</span></p>
                         {product.hasSpecialPrice && <p className="mt-1 text-[11px] text-[#9AACA0] line-through">ปกติ ฿{formatPrice(product.normalPrice)}</p>}
                       </div>
-                      <div className="mt-auto pt-4">
+                      <div className="mt-auto pt-2.5">
                         {quantity > 0 ? (
-                          <div className="flex h-11 items-center overflow-hidden rounded-xl border border-[#CCE3D4]">
-                            <button type="button" onClick={() => changeQuantity(product, -1)} className="grid h-full w-9 shrink-0 place-items-center bg-[#EFF7F1] text-lg font-bold text-[#087B5D]" aria-label={`ลดจำนวน ${product.productName}`}>−</button>
+                          <div className="flex h-10 items-center overflow-hidden rounded-xl border border-[#BCE9E5]">
+                            <button type="button" onClick={() => changeQuantity(product, -1)} className="grid h-full w-9 shrink-0 place-items-center bg-[#EFF7F1] text-lg font-bold text-[#009F9D]" aria-label={`ลดจำนวน ${product.productName}`}>−</button>
                             <input
                               type="number" min="0" step={step} inputMode="decimal" aria-label={`จำนวน ${product.productName}`}
                               value={quantityInputs[product.id] ?? String(quantity)}
@@ -3191,10 +3173,10 @@ export default function MiniAppShopPage() {
                               onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
                               className="h-full w-full min-w-0 flex-1 bg-white text-center text-xs font-extrabold text-[#214937] outline-none"
                             />
-                            <button type="button" onClick={() => changeQuantity(product, 1)} className="grid h-full w-9 shrink-0 place-items-center bg-[#008B69] text-lg font-bold text-white" aria-label={`เพิ่มจำนวน ${product.productName}`}>+</button>
+                            <button type="button" onClick={() => changeQuantity(product, 1)} className="grid h-full w-9 shrink-0 place-items-center bg-[#02B0AF] text-lg font-bold text-white" aria-label={`เพิ่มจำนวน ${product.productName}`}>+</button>
                           </div>
                         ) : (
-                          <button type="button" onClick={() => changeQuantity(product, 1)} className="min-h-11 w-full rounded-xl bg-[#008B69] px-2 py-2.5 text-sm font-bold text-white transition hover:bg-[#006E55]">+ เพิ่มลงตะกร้า</button>
+                          <button type="button" onClick={() => changeQuantity(product, 1)} className="min-h-10 w-full rounded-xl bg-[#02B0AF] px-2 py-2 text-sm font-bold text-white transition hover:bg-[#008F8B]">+ เพิ่มลงตะกร้า</button>
                         )}
                       </div>
                     </div>
@@ -3210,7 +3192,7 @@ export default function MiniAppShopPage() {
                     type="button"
                     disabled={loadingMore || loadingProducts}
                     onClick={() => void loadAllProducts(loadedSearch, nextOffset, true, loadedCategory)}
-                    className="min-h-12 w-full rounded-2xl border border-[#BFDCCB] bg-white px-5 py-3 font-bold text-[#067B60] shadow-sm disabled:opacity-50"
+                    className="min-h-12 w-full rounded-2xl border border-[#BFDCCB] bg-white px-5 py-3 font-bold text-[#009F9D] shadow-sm disabled:opacity-50"
                   >{loadingMore ? "กำลังโหลดสินค้า..." : `โหลดสินค้าเพิ่มอีก ${PAGE_SIZE} รายการ`}</button>
                 ) : (
                   <p className="rounded-xl bg-[#E7F4EB] py-3 text-sm font-medium text-[#6A8F75]">แสดงสินค้าครบแล้ว</p>
@@ -3225,11 +3207,11 @@ export default function MiniAppShopPage() {
       {cartItemCount > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#D7E9DD] bg-white/95 p-3 shadow-[0_-8px_30px_rgba(15,64,39,0.08)] backdrop-blur-lg">
           <div className="mx-auto max-w-6xl">
-            <button type="button" onClick={() => setShowCart(true)} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl bg-[#007E61] px-4 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 sm:px-6">
+            <button type="button" onClick={() => setShowCart(true)} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl bg-[#02B0AF] px-4 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 sm:px-6">
               <span className="flex items-center gap-3">
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/15 text-xl">🛒</span>
                 <span>
-                  <span className="block text-sm font-extrabold">ดูตะกร้า <span className="ml-1 rounded-full bg-[#FFC83E] px-2 py-0.5 text-xs text-[#294631]">{cartItemCount}</span></span>
+                  <span className="block text-sm font-extrabold">ดูตะกร้า <span className="ml-1 rounded-full bg-[#FDBC16] px-2 py-0.5 text-xs text-[#294631]">{cartItemCount}</span></span>
                   <span className="mt-0.5 block text-[11px] text-white/75">ตรวจสอบรายการก่อนสั่งซื้อ</span>
                 </span>
               </span>
@@ -3276,7 +3258,7 @@ export default function MiniAppShopPage() {
                           <button type="button" onClick={() => changeQuantity(product, 1)} aria-label={`เพิ่มจำนวน ${product.productName}`} className="h-full w-9 bg-[#00886B] text-lg font-bold text-white">+</button>
                         </div>
                       </div>
-                      <p className="shrink-0 text-sm font-extrabold text-[#087C60]">฿{formatPrice(product.quantity * product.effectivePrice)}</p>
+                      <p className="shrink-0 text-sm font-extrabold text-[#009F9D]">฿{formatPrice(product.quantity * product.effectivePrice)}</p>
                     </div>
                   ))}
                 </div>
@@ -3294,7 +3276,7 @@ export default function MiniAppShopPage() {
                 type="button"
                 disabled={cartProducts.length === 0}
                 onClick={() => router.push(`/miniapp/checkout?customer=${encodeURIComponent(customer.customerCode)}`)}
-                className="min-h-13 w-full rounded-xl bg-[#008568] px-5 py-3.5 text-sm font-extrabold text-white disabled:opacity-40"
+                className="min-h-13 w-full rounded-xl bg-[#02B0AF] px-5 py-3.5 text-sm font-extrabold text-white disabled:opacity-40"
               >ดำเนินการสั่งซื้อ <span className="ml-1">→</span></button>
               <div className="mt-3 flex justify-center gap-4">
                 <button type="button" onClick={() => setShowCart(false)} className="px-3 py-2 text-xs font-bold text-[#58806A]">เลือกซื้อสินค้าต่อ</button>
