@@ -67,6 +67,22 @@ function estimatedLineAmount(item: RawItem, requested: number | null): number | 
   return Number.isFinite(price) && price >= 0 ? price * requested : null;
 }
 
+function savedUnitPrice(item: RawItem): number | null {
+  const value = [
+    item.price_per_kg_at_order,
+    item.price_per_unit_at_order,
+    item.unit_price_at_order,
+    item.effective_price_at_order,
+    item.price_at_order,
+    item.agreed_price_at_order,
+    item.price_per_kg,
+    item.unit_price,
+  ].find((candidate) => candidate !== null && candidate !== undefined && candidate !== "");
+  if (value === undefined) return null;
+  const price = Number(value);
+  return Number.isFinite(price) && price >= 0 ? price : null;
+}
+
 
 
 export async function POST(
@@ -1062,6 +1078,8 @@ export async function POST(
 
           image_url: string | null;
 
+          normal_price: number;
+
         }
 
       >();
@@ -1094,7 +1112,9 @@ export async function POST(
 
             unit,
 
-            image_url
+            image_url,
+
+            normal_price
 
           `)
 
@@ -1138,6 +1158,8 @@ export async function POST(
 
                 product.image_url ?? null,
 
+              normal_price: Number(product.normal_price),
+
             }
 
           );
@@ -1152,7 +1174,31 @@ export async function POST(
 
     // ===================================================
 
-    // 9. FORMAT ORDERS
+    // 9. LOAD CURRENT CUSTOMER PRICES AS FALLBACK
+    // Older order_items rows may not contain a saved unit price.
+    // When that happens, use the same pricing hierarchy as checkout:
+    // active customer agreed_price, then products.normal_price.
+    // These fallback figures are estimates, not historical invoices.
+
+    const agreedPriceMap = new Map<string, number>();
+    if (productIds.length > 0) {
+      const { data: priceData, error: priceError } = await supabaseAdmin
+        .from("customer_prices")
+        .select("product_id, agreed_price")
+        .eq("customer_id", selectedCustomer.id)
+        .eq("is_active", true)
+        .in("product_id", productIds);
+      if (priceError) {
+        console.error("Orders price query:", priceError);
+        return NextResponse.json({ error: "Could not load customer pricing." }, { status: 500 });
+      }
+      for (const price of priceData ?? []) {
+        const value = Number(price.agreed_price);
+        if (Number.isFinite(value) && value >= 0) agreedPriceMap.set(price.product_id, value);
+      }
+    }
+
+    // 10. FORMAT ORDERS
 
     // ===================================================
 
@@ -1254,6 +1300,22 @@ export async function POST(
 
 
 
+                  const requestedNumber = requested === null ? null : Number(requested);
+                  const storedPrice = savedUnitPrice(item);
+                  const currentPrice = agreedPriceMap.get(item.product_id) ?? product?.normal_price ?? null;
+                  const storedLineTotal = estimatedLineAmount(item, requestedNumber);
+                  const unitPrice = storedPrice ?? (
+                    storedLineTotal !== null && requestedNumber !== null && requestedNumber > 0
+                      ? storedLineTotal / requestedNumber
+                      : currentPrice
+                  );
+                  const estimatedSubtotal = storedLineTotal ?? (
+                    unitPrice !== null && requestedNumber !== null &&
+                    Number.isFinite(unitPrice) && Number.isFinite(requestedNumber)
+                      ? unitPrice * requestedNumber
+                      : null
+                  );
+
                   return {
 
                     id:
@@ -1263,6 +1325,10 @@ export async function POST(
 
 
                     productName,
+
+                    unitPrice,
+
+                    priceIsCurrentEstimate: storedPrice === null && storedLineTotal === null,
 
                     imageUrl:
 
@@ -1320,10 +1386,7 @@ export async function POST(
 
                           ),
 
-                    estimatedSubtotal: estimatedLineAmount(
-                      item,
-                      requested === null ? null : Number(requested)
-                    ),
+                    estimatedSubtotal,
 
                   };
 

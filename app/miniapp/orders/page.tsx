@@ -18,6 +18,8 @@ type OrderItem = {
   confirmed: number | null;
   actual: number | null;
   estimatedSubtotal?: number | null;
+  unitPrice?: number | null;
+  priceIsCurrentEstimate?: boolean;
 };
 
 type Order = {
@@ -310,7 +312,7 @@ export default function CustomerOrdersPage() {
 
       <div className="mx-auto max-w-3xl space-y-4 px-3 pt-4 sm:px-5">
         <div className="px-1">
-          <h1 className="text-xl font-extrabold sm:text-2xl">คำสั่งซื้อของฉัน <span className="text-[#F3B913]">★</span></h1>
+          <h1 className="text-xl font-extrabold sm:text-2xl">คำสั่งซื้อของฉัน</h1>
           <p className="mt-1 text-sm text-[#82968D]">ติดตามสถานะและดูรายการสินค้าที่สั่งซื้อ</p>
           {lastUpdated && <p className="mt-2 text-[11px] text-[#96AAA0]">อัปเดตล่าสุด {lastUpdated.toLocaleTimeString("th-TH-u-ca-gregory", { hour: "2-digit", minute: "2-digit" })}</p>}
         </div>
@@ -346,12 +348,12 @@ export default function CustomerOrdersPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-[11px] font-semibold text-[#8BA096]">หมายเลขคำสั่งซื้อ</p>
-                        <h2 className="mt-0.5 text-2xl font-black text-[#BA8A00]">#{order.orderNumber}</h2>
+                        <h2 className="mt-0.5 text-2xl font-black text-[#009F9D]">#{order.orderNumber}</h2>
                         <p className="mt-1 text-xs text-[#94A69B]">สั่งเมื่อ {formatTimestamp(order.createdAt)}</p>
                       </div>
                       <span className={`max-w-[55%] rounded-full border px-3 py-1.5 text-center text-xs font-extrabold ${badgeStyle(order.status)}`}>{statusName(order.status)}</span>
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-[#EFE1A7] bg-[#FFFCF0] p-3">
+                    <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-[#D5EBE5] bg-[#F0FAF7] p-3">
                       <div>
                         <p className="text-[11px] text-[#80998B]">กำหนดจัดส่ง</p>
                         <p className="mt-1 text-xs font-bold">{formatDate(order.deliveryDate)}</p>
@@ -364,7 +366,7 @@ export default function CustomerOrdersPage() {
                           <>
                             <p className="text-[11px] text-[#80998B]">{order.finalAmount !== null ? "ยอดสุทธิ" : "ยอดประมาณการ"}</p>
                             <p className="mt-1 text-lg font-black text-[#009F9D]">{order.finalAmount !== null ? `฿${money(order.finalAmount)}` : order.estimatedAmount !== null && order.estimatedAmount !== undefined ? `~฿${money(order.estimatedAmount)}` : "ยังไม่มีราคา"}</p>
-                            {order.finalAmount === null && <p className="mt-1 text-[10px] leading-4 text-[#927E4A]">* ยอดอาจเปลี่ยนหลังหยิบและออกบิล</p>}
+                            {order.finalAmount === null && <p className="mt-1 text-[10px] leading-4 text-[#68877C]">* ยอดประมาณการ อาจเปลี่ยนหลังหยิบและออกบิล</p>}
                           </>
                         )}
                       </div>
@@ -385,7 +387,7 @@ export default function CustomerOrdersPage() {
                         <p className="text-xs font-bold text-[#009F9D]">{step + 1} / {TRACKING_STEPS.length}</p>
                       </div>
                       <div className="mt-3 grid grid-cols-6 gap-1">
-                        {TRACKING_STEPS.map((label, index) => <div key={label} aria-label={label} className={`h-2 rounded-full ${index === step ? "bg-[#FDBC16]" : index < step ? "bg-[#02B0AF]" : "bg-[#E3EEE7]"}`} />)}
+                        {TRACKING_STEPS.map((label, index) => <div key={label} aria-label={label} className={`h-2 rounded-full ${index <= step ? "bg-[#02B0AF]" : "bg-[#E3EEE7]"}`} />)}
                       </div>
                       <p className="mt-2 text-sm font-extrabold text-[#008F8D]">{statusName(order.status)}</p>
 
@@ -427,7 +429,9 @@ export default function CustomerOrdersPage() {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-sm font-bold">{item.productName}</p>
-                                  {item.estimatedSubtotal !== null && item.estimatedSubtotal !== undefined && <p className="mt-2 text-xs font-semibold text-[#008F8D]">ประมาณ ฿{money(item.estimatedSubtotal)}</p>}
+                                  {item.unitPrice !== null && item.unitPrice !== undefined && <p className="mt-1 text-xs font-semibold text-[#008F8D]">฿{money(item.unitPrice)} / {item.unit}</p>}
+                                  {item.estimatedSubtotal !== null && item.estimatedSubtotal !== undefined && <p className="mt-1 text-sm font-extrabold text-[#009F9D]">รวมประมาณ ฿{money(item.estimatedSubtotal)}</p>}
+                                  {item.priceIsCurrentEstimate && <p className="mt-1 text-[10px] text-[#82968D]">* ประเมินจากราคาปัจจุบัน</p>}
                                 </div>
                               </div>
                               <div className="mt-3 grid grid-cols-3 divide-x divide-[#E6EEE8] text-center">
