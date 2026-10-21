@@ -86,6 +86,17 @@ type StaffSessionResponse = {
 
 };
 
+function NavigationArrow({ light = false }: { light?: boolean }) {
+  return (
+    <span className={`grid h-9 w-9 place-items-center rounded-full ${light ? "bg-white/15 text-white" : "bg-[#EAF8F5] text-[#009F9D]"}`}>
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M5 12h14" />
+        <path d="m13 6 6 6-6 6" />
+      </svg>
+    </span>
+  );
+}
+
 export default function MiniAppHomePage() {
 
   const router =
@@ -1658,9 +1669,9 @@ export default function MiniAppHomePage() {
 
             >
 
-              <div className="mb-4 flex items-center justify-between"><span className="grid h-12 w-12 place-items-center rounded-xl bg-white/20 text-2xl">🛒</span><span className="text-2xl">↗</span></div>
+              <div className="mb-4 flex items-center justify-between"><span className="grid h-12 w-12 place-items-center rounded-xl bg-white/20 text-2xl">🛒</span><NavigationArrow light /></div>
 
-              <p className="font-extrabold text-xl">
+              <p className="font-extrabold text-xl"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#FDBC16] align-middle" />
 
                 เลือกซื้อสินค้า
 
@@ -1694,7 +1705,7 @@ export default function MiniAppHomePage() {
 
             >
 
-              <div className="mb-3 flex items-center justify-between"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#E8F8F5] text-xl">📋</span><span className="text-xl font-bold text-[#02B0AF]">↗</span></div>
+              <div className="mb-3 flex items-center justify-between"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#E8F8F5] text-xl">📋</span><NavigationArrow /></div>
 
               <p className="font-extrabold text-lg text-[#173E31]">
 
@@ -1716,7 +1727,7 @@ export default function MiniAppHomePage() {
               onClick={() => router.push(`/miniapp/orders?customer=${encodeURIComponent(selectedCustomer.customerCode)}&view=history`)}
               className="w-full rounded-2xl border-2 border-[#C7E7DD] bg-white p-5 text-left shadow-sm transition hover:border-[#02B0AF]"
             >
-              <div className="mb-3 flex items-center justify-between"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#E8F8F5] text-xl">🕒</span><span className="text-xl font-bold text-[#02B0AF]">↗</span></div>
+              <div className="mb-3 flex items-center justify-between"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#FFF3D2] text-xl">🕒</span><NavigationArrow /></div>
               <p className="text-lg font-extrabold text-[#173E31]">ประวัติคำสั่งซื้อ</p>
               <p className="mt-1 text-sm text-[#82968D]">ดูคำสั่งซื้อที่เสร็จสิ้นหรือถูกยกเลิก</p>
             </button>
