@@ -1,0 +1,53 @@
+name: OMS read-only load test
+
+# Manual only. Committing this file does NOT start a load test.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Test intensity: smoke first; then 20 virtual users"
+        required: true
+        type: choice
+        default: smoke
+        options:
+          - smoke
+          - twenty_users
+      confirmation:
+        description: "Type RUN_READ_ONLY to approve traffic to your OMS website"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oms-readonly-load-test
+  cancel-in-progress: false
+
+jobs:
+  website-load-test:
+    if: ${{ inputs.confirmation == 'RUN_READ_ONLY' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install k6 on the GitHub runner
+        uses: grafana/setup-k6-action@v1
+
+      - name: Run read-only test
+        env:
+          OMS_TARGET_URL: https://b2b-oms-web.vercel.app
+          OMS_TEST_PROFILE: ${{ inputs.profile }}
+        run: |
+          k6 run --summary-export=oms-load-test-results.json load-tests/oms-readonly.js
+
+      - name: Upload small test summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oms-readonly-load-test-summary
+          path: oms-load-test-results.json
+          if-no-files-found: ignore
+          retention-days: 2
