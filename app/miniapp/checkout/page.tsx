@@ -1,1887 +1,410 @@
 "use client";
 
-import {
-
-  useEffect,
-
-  useMemo,
-
-  useState,
-
-} from "react";
-
-import {
-
-  useRouter,
-
-} from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Customer = {
-
   id: string;
-
   customerCode: string;
-
   customerName: string;
-
   deliveryAddress: string;
-
 };
 
-type ตรวจสอบคำสั่งซื้อItem = {
-
+type CheckoutItem = {
   id: string;
-
   sku: string;
-
   productName: string;
-
   unit: string;
-
   quantity: number;
-
   normalPrice: number;
-
   effectivePrice: number;
-
   hasSpecialPrice: boolean;
-
   estimatedSubtotal: number;
-
 };
 
-type การจัดส่งOption = {
-
+type DeliveryOption = {
   date: string;
-
-  slots: {
-
-    value: string;
-
-    label: string;
-
-  }[];
-
+  slots: { value: string; label: string }[];
 };
 
-type ตรวจสอบคำสั่งซื้อResponse = {
-
+type CheckoutResponse = {
   customer?: Customer;
-
-  items?: ตรวจสอบคำสั่งซื้อItem[];
-
-  deliveryOptions?: การจัดส่งOption[];
-
+  items?: CheckoutItem[];
+  deliveryOptions?: DeliveryOption[];
   success?: boolean;
-
   orderNumber?: number;
-
   error?: string;
-
 };
 
-type Cart = Record<
+type Cart = Record<string, number>;
 
-  string,
+const BRAND = "#02B0AF";
+const formatMoney = (value: number) =>
+  new Intl.NumberFormat("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 
-  number
+const formatQuantity = (value: number) =>
+  new Intl.NumberFormat("th-TH", {
+    maximumFractionDigits: 3,
+  }).format(value);
 
->;
-
-function isWebUrl(
-
-  value: string
-
-) {
-
+function isWebUrl(value: string) {
   try {
-
-    const url =
-
-      new URL(value);
-
-    return (
-
-      url.protocol === "https:" ||
-
-      url.protocol === "http:"
-
-    );
-
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
   } catch {
-
     return false;
-
   }
-
 }
 
-function prettyDate(
-
-  value: string
-
-) {
-
-  const [
-
-    year,
-
-    month,
-
-    day,
-
-  ] =
-
-    value
-
-      .split("-")
-
-      .map(Number);
-
-  return new Intl.DateTimeFormat(
-
-    "th-TH-u-ca-gregory",
-
-    {
-
-      weekday: "short",
-
-      day: "numeric",
-
-      month: "short",
-
-      year: "numeric",
-
-    }
-
-  ).format(
-
-    new Date(
-
-      year,
-
-      month - 1,
-
-      day
-
-    )
-
-  );
-
+function prettyDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("th-TH-u-ca-gregory", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(year, month - 1, day));
 }
 
-export default function MiniAppตรวจสอบคำสั่งซื้อPage() {
-
-  const router =
-
-    useRouter();
-
-  const [
-
-    customer,
-
-    setCustomer,
-
-  ] =
-
-    useState<Customer | null>(
-
-      null
-
-    );
-
-  const [
-
-    items,
-
-    setItems,
-
-  ] =
-
-    useState<
-
-      ตรวจสอบคำสั่งซื้อItem[]
-
-    >([]);
-
-  const [
-
-    deliveryOptions,
-
-    setการจัดส่งOptions,
-
-  ] =
-
-    useState<
-
-      การจัดส่งOption[]
-
-    >([]);
-
-  const [
-
-    deliveryDate,
-
-    setการจัดส่งDate,
-
-  ] =
-
-    useState("");
-
-  const [
-
-    deliverySlot,
-
-    setการจัดส่งSlot,
-
-  ] =
-
-    useState("");
-
-  const [
-
-    deliveryAddress,
-
-    setการจัดส่งAddress,
-
-  ] =
-
-    useState("");
-
-  const [
-
-    notes,
-
-    setNotes,
-
-  ] =
-
-    useState("");
-
-  const [
-
-    idToken,
-
-    setIdToken,
-
-  ] =
-
-    useState("");
-
-  const [
-
-    cart,
-
-    setCart,
-
-  ] =
-
-    useState<Cart>({});
-
-  const [
-
-    loading,
-
-    setLoading,
-
-  ] =
-
-    useState(true);
-
-  const [
-
-    submitting,
-
-    setSubmitting,
-
-  ] =
-
-    useState(false);
-
-  const [
-
-    message,
-
-    setMessage,
-
-  ] =
-
-    useState("");
-
-  const [
-
-    createdOrderNumber,
-
-    setCreatedOrderNumber,
-
-  ] =
-
-    useState<
-
-      number | null
-
-    >(null);
-
-  // =====================================================
-
-  // INITIALIZE LINE + LOAD CHECKOUT
-
-  // =====================================================
+export default function MiniAppCheckoutPage() {
+  const router = useRouter();
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [items, setItems] = useState<CheckoutItem[]>([]);
+  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>([]);
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [deliverySlot, setDeliverySlot] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [notes, setNotes] = useState("");
+  const [idToken, setIdToken] = useState("");
+  const [cart, setCart] = useState<Cart>({});
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
+  const [createdOrderNumber, setCreatedOrderNumber] = useState<number | null>(null);
 
   useEffect(() => {
-
-    let cancelled =
-
-      false;
+    let cancelled = false;
 
     async function initialize() {
-
       try {
+        const customerCode = (
+          new URLSearchParams(window.location.search).get("customer") ?? ""
+        ).trim().toUpperCase();
+        if (!customerCode) throw new Error("ไม่ได้เลือกลูกค้า");
 
-        const params =
+        const stored = localStorage.getItem(`b2b-cart-${customerCode}`);
+        if (!stored) throw new Error("ตะกร้าสินค้าว่าง");
 
-          new URLSearchParams(
-
-            window.location.search
-
-          );
-
-        const customerCode =
-
-          (
-
-            params.get(
-
-              "customer"
-
-            ) ?? ""
-
-          )
-
-            .trim()
-
-            .toUpperCase();
-
-        if (
-
-          !customerCode
-
-        ) {
-
-          throw new Error(
-
-            "ไม่ได้เลือกลูกค้า"
-
-          );
-
-        }
-
-        // ---------------------------------------------
-
-        // LOAD CART
-
-        // ---------------------------------------------
-
-        const stored =
-
-          localStorage.getItem(
-
-            `b2b-cart-${customerCode}`
-
-          );
-
-        if (!stored) {
-
-          throw new Error(
-
-            "ตะกร้าสินค้าว่าง"
-
-          );
-
-        }
-
-        let loadedCart:
-
-          Cart;
-
+        let loadedCart: Cart;
         try {
-
-          loadedCart =
-
-            JSON.parse(
-
-              stored
-
-            ) as Cart;
-
+          loadedCart = JSON.parse(stored) as Cart;
         } catch {
-
-          throw new Error(
-
-            "ไม่สามารถอ่านข้อมูลตะกร้าสินค้าได้"
-
-          );
-
+          throw new Error("ไม่สามารถอ่านข้อมูลตะกร้าสินค้าได้");
         }
 
-        const hasItems =
-
-          Object.values(
-
-            loadedCart
-
-          ).some(
-
-            (quantity) =>
-
-              Number(
-
-                quantity
-
-              ) > 0
-
-          );
-
-        if (
-
-          !hasItems
-
-        ) {
-
-          throw new Error(
-
-            "ตะกร้าสินค้าว่าง"
-
-          );
-
+        if (!Object.values(loadedCart).some((quantity) => Number(quantity) > 0)) {
+          throw new Error("ตะกร้าสินค้าว่าง");
         }
 
-        // ---------------------------------------------
+        const liffModule = await import("@line/liff");
+        const liff = liffModule.default;
+        const liffId = process.env.NEXT_PUBLIC_LINE_LIFF_ID;
+        if (!liffId) throw new Error("ไม่พบ LINE LIFF ID");
 
-        // INITIALIZE LIFF
-
-        // ---------------------------------------------
-
-        const liffModule =
-
-          await import(
-
-            "@line/liff"
-
-          );
-
-        const liff =
-
-          liffModule.default;
-
-        const liffId =
-
-          process.env
-
-            .NEXT_PUBLIC_LINE_LIFF_ID;
-
-        if (!liffId) {
-
-          throw new Error(
-
-            "ไม่พบ LINE LIFF ID"
-
-          );
-
-        }
-
-        await liff.init({
-
-          liffId,
-
-          withLoginOnExternalBrowser:
-
-            true,
-
-        });
-
-        if (
-
-          !liff.isLoggedIn()
-
-        ) {
-
+        await liff.init({ liffId, withLoginOnExternalBrowser: true });
+        if (!liff.isLoggedIn()) {
           liff.login();
-
           return;
-
         }
 
-        const token =
+        const token = liff.getIDToken();
+        if (!token) throw new Error("ไม่สามารถอ่าน LINE ID token ได้");
 
-          liff.getIDToken();
-
-        if (!token) {
-
-          throw new Error(
-
-            "ไม่สามารถอ่าน LINE ID token ได้"
-
-          );
-
+        const response = await fetch("/api/line/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "load",
+            idToken: token,
+            customerCode,
+            cart: loadedCart,
+          }),
+        });
+        const data = (await response.json()) as CheckoutResponse;
+        if (!response.ok) {
+          throw new Error(data.error ?? "ไม่สามารถโหลดหน้าตรวจสอบคำสั่งซื้อได้");
         }
+        if (!data.customer) throw new Error("ไม่สามารถโหลดข้อมูลลูกค้าได้");
+        if (cancelled) return;
 
-        // ---------------------------------------------
-
-        // SECURE SERVER LOAD
-
-        // ---------------------------------------------
-
-        const response =
-
-          await fetch(
-
-            "/api/line/checkout",
-
-            {
-
-              method:
-
-                "POST",
-
-              headers: {
-
-                "Content-Type":
-
-                  "application/json",
-
-              },
-
-              body:
-
-                JSON.stringify({
-
-                  action:
-
-                    "load",
-
-                  idToken:
-
-                    token,
-
-                  customerCode,
-
-                  cart:
-
-                    loadedCart,
-
-                }),
-
-            }
-
-          );
-
-        const data =
-
-          (await response.json()) as ตรวจสอบคำสั่งซื้อResponse;
-
-        if (
-
-          !response.ok
-
-        ) {
-
-          throw new Error(
-
-            data.error ??
-
-              "ไม่สามารถโหลดหน้าตรวจสอบคำสั่งซื้อได้"
-
-          );
-
+        setIdToken(token);
+        setCart(loadedCart);
+        setCustomer(data.customer);
+        setItems(data.items ?? []);
+        const options = data.deliveryOptions ?? [];
+        setDeliveryOptions(options);
+        setDeliveryAddress(data.customer.deliveryAddress ?? "");
+        if (options[0]) {
+          setDeliveryDate(options[0].date);
+          setDeliverySlot(options[0].slots[0]?.value ?? "");
         }
-
-        if (
-
-          !data.customer
-
-        ) {
-
-          throw new Error(
-
-            "ไม่สามารถโหลดข้อมูลลูกค้าได้"
-
-          );
-
-        }
-
-        if (
-
-          cancelled
-
-        ) {
-
-          return;
-
-        }
-
-        // ---------------------------------------------
-
-        // SAVE STATE
-
-        // ---------------------------------------------
-
-        setIdToken(
-
-          token
-
-        );
-
-        setCart(
-
-          loadedCart
-
-        );
-
-        setCustomer(
-
-          data.customer
-
-        );
-
-        setItems(
-
-          data.items ??
-
-            []
-
-        );
-
-        const options =
-
-          data.deliveryOptions ??
-
-          [];
-
-        setการจัดส่งOptions(
-
-          options
-
-        );
-
-        const savedLocation =
-
-          data.customer
-
-            .deliveryAddress ??
-
-          "";
-
-        // delivery_address now carries the customer's
-
-        // saved Google Maps link for order compatibility.
-
-        setการจัดส่งAddress(
-
-          savedLocation
-
-        );
-
-        // Default to first available date/slot.
-
-        const firstOption =
-
-          options[0];
-
-        if (
-
-          firstOption
-
-        ) {
-
-          setการจัดส่งDate(
-
-            firstOption.date
-
-          );
-
-          setการจัดส่งSlot(
-
-            firstOption
-
-              .slots[0]
-
-              ?.value ??
-
-              ""
-
-          );
-
-        }
-
-        setLoading(
-
-          false
-
-        );
-
       } catch (error) {
-
-        if (
-
-          cancelled
-
-        ) {
-
-          return;
-
-        }
-
-        console.error(
-
-          "ตรวจสอบคำสั่งซื้อ initialization:",
-
-          error
-
-        );
-
-        setMessage(
-
-          error instanceof
-
-            Error
-
-            ? error.message
-
-            : "ไม่สามารถโหลดหน้าตรวจสอบคำสั่งซื้อได้"
-
-        );
-
-        setLoading(
-
-          false
-
-        );
-
+        if (cancelled) return;
+        console.error("Checkout initialization:", error);
+        setMessage(error instanceof Error ? error.message : "ไม่สามารถโหลดหน้าตรวจสอบคำสั่งซื้อได้");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
     }
 
-    initialize();
-
-    return () => {
-
-      cancelled =
-
-        true;
-
-    };
-
+    void initialize();
+    return () => { cancelled = true; };
   }, []);
 
-  // =====================================================
-
-  // CURRENT AVAILABLE SLOTS
-
-  // =====================================================
-
-  const currentSlots =
-
-    useMemo(() => {
-
-      return (
-
-        deliveryOptions.find(
-
-          (option) =>
-
-            option.date ===
-
-            deliveryDate
-
-        )?.slots ??
-
-        []
-
-      );
-
-    }, [
-
-      deliveryOptions,
-
-      deliveryDate,
-
-    ]);
-
-  // =====================================================
-
-  // ESTIMATED TOTAL
-
-  // =====================================================
-
-  const estimatedTotal =
-
-    useMemo(() => {
-
-      return items.reduce(
-
-        (
-
-          total,
-
-          item
-
-        ) =>
-
-          total +
-
-          item.estimatedSubtotal,
-
-        0
-
-      );
-
-    }, [items]);
-
-  // =====================================================
-
-  // DELIVERY DATE CHANGE
-
-  // =====================================================
-
-  function changeDate(
-
-    value: string
-
-  ) {
-
-    setการจัดส่งDate(
-
-      value
-
-    );
-
-    const option =
-
-      deliveryOptions.find(
-
-        (item) =>
-
-          item.date ===
-
-          value
-
-      );
-
-    setการจัดส่งSlot(
-
-      option
-
-        ?.slots[0]
-
-        ?.value ??
-
-        ""
-
-    );
-
-  }
-
-  // =====================================================
-
-  // SUBMIT ORDER
-
-  // =====================================================
-
-  async function submitOrder() {
-
-    if (
-
-      !customer ||
-
-      !idToken
-
-    ) {
-
-      return;
-
-    }
-
-    setMessage("");
-
-    if (
-
-      !deliveryDate
-
-    ) {
-
-      setMessage(
-
-        "กรุณาเลือกวันที่จัดส่ง"
-
-      );
-
-      return;
-
-    }
-
-    if (
-
-      !deliverySlot
-
-    ) {
-
-      setMessage(
-
-        "กรุณาเลือกช่วงเวลาจัดส่ง"
-
-      );
-
-      return;
-
-    }
-
-    if (
-
-      !isWebUrl(
-
-        deliveryAddress.trim()
-
-      )
-
-    ) {
-
-      setMessage(
-
-        "ยังไม่ได้ตั้งค่าลิงก์ Google Maps สำหรับลูกค้ารายนี้ กรุณาติดต่อผู้จัดการ"
-
-      );
-
-      return;
-
-    }
-
-    const confirmed =
-
-      window.confirm(
-
-        `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(
-
-          2
-
-        )} หรือไม่?`
-
-      );
-
-    if (
-
-      !confirmed
-
-    ) {
-
-      return;
-
-    }
-
-    setSubmitting(
-
-      true
-
-    );
-
-    try {
-
-      const response =
-
-        await fetch(
-
-          "/api/line/checkout",
-
-          {
-
-            method:
-
-              "POST",
-
-            headers: {
-
-              "Content-Type":
-
-                "application/json",
-
-            },
-
-            body:
-
-              JSON.stringify({
-
-                action:
-
-                  "submit",
-
-                idToken,
-
-                customerCode:
-
-                  customer.customerCode,
-
-                cart,
-
-                deliveryDate,
-
-                deliverySlot,
-
-                deliveryAddress:
-
-                  deliveryAddress.trim(),
-
-                notes:
-
-                  notes.trim(),
-
-              }),
-
-          }
-
-        );
-
-      const data =
-
-        (await response.json()) as ตรวจสอบคำสั่งซื้อResponse;
-
-      if (
-
-        !response.ok
-
-      ) {
-
-        // การจัดส่ง rules may have changed
-
-        // between loading checkout and submitting.
-
-        if (
-
-          data.deliveryOptions
-
-        ) {
-
-          setการจัดส่งOptions(
-
-            data.deliveryOptions
-
-          );
-
-        }
-
-        throw new Error(
-
-          data.error ??
-
-            "ไม่สามารถส่งคำสั่งซื้อได้"
-
-        );
-
-      }
-
-      if (
-
-        !data.orderNumber
-
-      ) {
-
-        throw new Error(
-
-          "ส่งคำสั่งซื้อสำเร็จ แต่ไม่สามารถอ่านหมายเลขคำสั่งซื้อได้"
-
-        );
-
-      }
-
-      // Only clear cart AFTER confirmed success.
-
-      localStorage.removeItem(
-
-        `b2b-cart-${customer.customerCode}`
-
-      );
-
-      setCreatedOrderNumber(
-
-        data.orderNumber
-
-      );
-
-    } catch (error) {
-
-      console.error(
-
-        "Submit order:",
-
-        error
-
-      );
-
-      setMessage(
-
-        error instanceof
-
-          Error
-
-          ? error.message
-
-          : "ไม่สามารถส่งคำสั่งซื้อได้"
-
-      );
-
-    } finally {
-
-      setSubmitting(
-
-        false
-
-      );
-
-    }
-
-  }
-
-  // =====================================================
-
-  // LOADING
-
-  // =====================================================
-
-  if (loading) {
-
-    return (
-
-      <main className="min-h-screen bg-gray-100 flex items-center justify-center p-5">
-
-        <div className="text-center">
-
-          <p className="text-xl font-bold">
-
-            LOTUS&apos;S B2B
-
-          </p>
-
-          <p className="text-gray-500 mt-3">
-
-            กำลังโหลดข้อมูลคำสั่งซื้อ...
-
-          </p>
-
-        </div>
-
-      </main>
-
-    );
-
-  }
-
-  // =====================================================
-
-  // ERROR BEFORE CUSTOMER LOAD
-
-  // =====================================================
-
-  if (
-
-    !customer
-
-  ) {
-
-    return (
-
-      <main className="min-h-screen bg-gray-100 p-5">
-
-        <div className="max-w-md mx-auto">
-
-          <button
-
-            onClick={() =>
-
-              router.push(
-
-                "/miniapp"
-
-              )
-
-            }
-
-            className="text-gray-500"
-
-          >
-
-            ← หน้าแรก
-
-          </button>
-
-          <div className="bg-white border rounded-2xl p-6 mt-5">
-
-            <h1 className="text-xl font-bold">
-
-              ไม่สามารถดำเนินการสั่งซื้อได้
-
-            </h1>
-
-            <p className="text-red-600 mt-3">
-
-              {
-
-                message
-
-              }
-
-            </p>
-
-          </div>
-
-        </div>
-
-      </main>
-
-    );
-
-  }
-
-  // =====================================================
-
-  // SUCCESS SCREEN
-
-  // =====================================================
-
-  if (
-
-    createdOrderNumber !==
-
-    null
-
-  ) {
-
-    return (
-
-      <main className="min-h-screen bg-gray-100 p-5">
-
-        <div className="max-w-md mx-auto">
-
-          <div className="bg-white border rounded-2xl p-7 text-center mt-8">
-
-            <div className="text-5xl">
-
-              ✓
-
-            </div>
-
-            <h1 className="text-2xl font-bold mt-4">
-
-              ได้รับคำสั่งซื้อแล้ว
-
-            </h1>
-
-            <p className="text-gray-500 mt-2">
-
-              ส่งคำสั่งซื้อให้ทีมงานเรียบร้อยแล้ว และกำลังรอการยืนยัน
-
-            </p>
-
-            <div className="border rounded-xl p-5 mt-6">
-
-              <p className="text-sm text-gray-500">
-
-                หมายเลขคำสั่งซื้อ
-
-              </p>
-
-              <p className="text-3xl font-bold mt-1">
-
-                #
-
-                {
-
-                  createdOrderNumber
-
-                }
-
-              </p>
-
-            </div>
-
-            <p className="text-sm text-gray-500 mt-5">
-
-              จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการยืนยันและการหยิบสินค้า
-
-            </p>
-
-            <button
-
-              onClick={() =>
-
-                router.push(
-
-                  `/miniapp/orders?customer=${customer.customerCode}&view=active`
-
-                )
-
-              }
-
-              className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-6"
-
-            >
-
-              ติดตามคำสั่งซื้อ
-
-            </button>
-
-            <button
-
-              onClick={() =>
-
-                router.push(
-
-                  `/miniapp/shop?customer=${customer.customerCode}`
-
-                )
-
-              }
-
-              className="w-full border rounded-xl px-5 py-3 font-semibold mt-3"
-
-            >
-
-              สั่งสินค้าเพิ่ม
-
-            </button>
-
-            <button
-
-              onClick={() =>
-
-                router.push(
-
-                  "/miniapp"
-
-                )
-
-              }
-
-              className="w-full text-gray-500 text-sm mt-4"
-
-            >
-
-              กลับหน้าหลัก
-
-            </button>
-
-          </div>
-
-        </div>
-
-      </main>
-
-    );
-
-  }
-
-  // =====================================================
-
-  // CHECKOUT
-
-  // =====================================================
-
-  return (
-
-    <main className="min-h-screen bg-gray-100 pb-10">
-
-      {/* HEADER */}
-
-      <header className="bg-white border-b">
-
-        <div className="max-w-2xl mx-auto px-4 py-4">
-
-          <button
-
-            onClick={() =>
-
-              router.push(
-
-                `/miniapp/shop?customer=${customer.customerCode}`
-
-              )
-
-            }
-
-            className="text-sm text-gray-500"
-
-          >
-
-            ← กลับไปที่ตะกร้า
-
-          </button>
-
-          <h1 className="text-2xl font-bold mt-3">
-
-            ตรวจสอบคำสั่งซื้อ
-
-          </h1>
-
-          <p className="text-gray-500">
-
-            {
-
-              customer.customerName
-
-            }
-
-          </p>
-
-        </div>
-
-      </header>
-
-      <div className="max-w-2xl mx-auto p-4">
-
-        {/* ERROR */}
-
-        {message && (
-
-          <div className="bg-white border border-red-200 rounded-xl p-4 mb-5 text-red-600">
-
-            {
-
-              message
-
-            }
-
-          </div>
-
-        )}
-
-        {/* ORDER SUMMARY */}
-
-        <section className="bg-white border rounded-2xl overflow-hidden mb-5">
-
-          <div className="p-5 border-b">
-
-            <h2 className="font-bold text-lg">
-
-              สรุปคำสั่งซื้อ
-
-            </h2>
-
-          </div>
-
-          {items.map(
-
-            (item) => (
-
-            <div
-
-              key={
-
-                item.id
-
-              }
-
-              className="p-5 border-b last:border-b-0"
-
-            >
-
-              <div className="flex justify-between gap-4">
-
-                <div>
-
-                  <p className="font-semibold">
-
-                    {
-
-                      item.productName
-
-                    }
-
-                  </p>
-
-                  <p className="text-sm text-gray-500 mt-1">
-
-                    {
-
-                      item.quantity
-
-                    }{" "}
-
-                    {
-
-                      item.unit
-
-                    }
-
-                    {" × "}
-
-                    ฿
-
-                    {item.effectivePrice.toFixed(
-
-                      2
-
-                    )}
-
-                  </p>
-
-                  {item.hasSpecialPrice && (
-
-                    <p className="text-xs font-semibold mt-1">
-
-                      ราคาพิเศษสำหรับคุณ
-
-                    </p>
-
-                  )}
-
-                </div>
-
-                <p className="font-bold">
-
-                  ฿
-
-                  {item.estimatedSubtotal.toFixed(
-
-                    2
-
-                  )}
-
-                </p>
-
-              </div>
-
-            </div>
-
-          ))}
-
-          <div className="p-5 bg-gray-50 flex justify-between items-center">
-
-            <span className="text-gray-500">
-
-              ยอดประมาณการ
-
-            </span>
-
-            <span className="text-2xl font-bold">
-
-              ฿
-
-              {estimatedTotal.toFixed(
-
-                2
-
-              )}
-
-            </span>
-
-          </div>
-
-        </section>
-
-        {/* DELIVERY */}
-
-        <section className="bg-white border rounded-2xl p-5 mb-5">
-
-          <h2 className="font-bold text-lg">
-
-            การจัดส่ง
-
-          </h2>
-
-          <label className="block mt-5">
-
-            <span className="text-sm text-gray-500">
-
-              การจัดส่ง Date
-
-            </span>
-
-            <select
-
-              value={
-
-                deliveryDate
-
-              }
-
-              onChange={(
-
-                event
-
-              ) =>
-
-                changeDate(
-
-                  event.target
-
-                    .value
-
-                )
-
-              }
-
-              className="w-full border rounded-xl px-4 py-3 mt-1 bg-white"
-
-            >
-
-              {deliveryOptions.map(
-
-                (option) => (
-
-                <option
-
-                  key={
-
-                    option.date
-
-                  }
-
-                  value={
-
-                    option.date
-
-                  }
-
-                >
-
-                  {prettyDate(
-
-                    option.date
-
-                  )}
-
-                </option>
-
-              ))}
-
-            </select>
-
-          </label>
-
-          <label className="block mt-4">
-
-            <span className="text-sm text-gray-500">
-
-              การจัดส่ง Time
-
-            </span>
-
-            <select
-
-              value={
-
-                deliverySlot
-
-              }
-
-              onChange={(
-
-                event
-
-              ) =>
-
-                setการจัดส่งSlot(
-
-                  event.target
-
-                    .value
-
-                )
-
-              }
-
-              className="w-full border rounded-xl px-4 py-3 mt-1 bg-white"
-
-            >
-
-              {currentSlots.map(
-
-                (slot) => (
-
-                <option
-
-                  key={
-
-                    slot.value
-
-                  }
-
-                  value={
-
-                    slot.value
-
-                  }
-
-                >
-
-                  {
-
-                    slot.label
-
-                  }
-
-                </option>
-
-              ))}
-
-            </select>
-
-          </label>
-
-          {currentSlots.length ===
-
-            0 && (
-
-            <p className="text-sm text-red-600 mt-3">
-
-              ไม่มีช่วงเวลาจัดส่งที่ว่างสำหรับวันที่เลือก
-
-            </p>
-
-          )}
-
-        </section>
-
-        {/* GOOGLE MAPS LOCATION */}
-
-        <section className="bg-white border rounded-2xl p-5 mb-5">
-
-          <h2 className="font-bold text-lg">
-
-            ตำแหน่งจัดส่ง
-
-          </h2>
-
-          <p className="text-sm text-gray-500 mt-1">
-
-            ตำแหน่งนี้ถูกบันทึกโดยทีมงานและไม่ต้องกรอกที่อยู่เพิ่มเติม
-
-          </p>
-
-          {isWebUrl(deliveryAddress) ? (
-
-            <a
-
-              href={deliveryAddress}
-
-              target="_blank"
-
-              rel="noopener noreferrer"
-
-              className="inline-block mt-4 bg-black text-white rounded-xl px-5 py-3 font-semibold"
-
-            >
-
-              📍 เปิด Google Maps
-
-            </a>
-
-          ) : (
-
-            <p className="text-red-600 mt-4">
-
-              ยังไม่ได้ตั้งค่าลิงก์ Google Maps
-
-            </p>
-
-          )}
-
-        </section>
-
-        {/* NOTES */}
-
-        <section className="bg-white border rounded-2xl p-5 mb-5">
-
-          <h2 className="font-bold text-lg">
-
-            หมายเหตุถึงทีมงาน
-
-          </h2>
-
-          <textarea
-
-            value={
-
-              notes
-
-            }
-
-            onChange={(
-
-              event
-
-            ) =>
-
-              setNotes(
-
-                event.target
-
-                  .value
-
-              )
-
-            }
-
-            rows={3}
-
-            placeholder="ไม่บังคับ"
-
-            className="w-full border rounded-xl px-4 py-3 mt-4"
-
-          />
-
-        </section>
-
-        {/* SUBMIT */}
-
-        <button
-
-          type="button"
-
-          onClick={
-
-            submitOrder
-
-          }
-
-          disabled={
-
-            submitting ||
-
-            !deliveryDate ||
-
-            !deliverySlot ||
-
-            items.length ===
-
-              0
-
-          }
-
-          className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold disabled:opacity-40"
-
-        >
-
-          {submitting
-
-            ? "กำลังส่งคำสั่งซื้อ..."
-
-            : `ยืนยันคำสั่งซื้อ · ~฿${estimatedTotal.toFixed(
-
-                2
-
-              )}`}
-
-        </button>
-
-        <p className="text-xs text-center text-gray-500 mt-3">
-
-          จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการยืนยันและการหยิบสินค้า
-
-        </p>
-
-      </div>
-
-    </main>
-
+  const currentSlots = useMemo(
+    () => deliveryOptions.find((option) => option.date === deliveryDate)?.slots ?? [],
+    [deliveryOptions, deliveryDate]
   );
 
+  const estimatedTotal = useMemo(
+    () => items.reduce((total, item) => total + item.estimatedSubtotal, 0),
+    [items]
+  );
+
+  function changeDate(value: string) {
+    setDeliveryDate(value);
+    const option = deliveryOptions.find((item) => item.date === value);
+    setDeliverySlot(option?.slots[0]?.value ?? "");
+  }
+
+  function goShop() {
+    if (!customer) {
+      router.push("/miniapp?portal=customer");
+      return;
+    }
+    router.push(`/miniapp/shop?customer=${encodeURIComponent(customer.customerCode)}`);
+  }
+
+  async function submitOrder() {
+    if (!customer || !idToken || submitting) return;
+    setMessage("");
+    if (!deliveryDate) {
+      setMessage("กรุณาเลือกวันที่จัดส่ง");
+      return;
+    }
+    if (!deliverySlot) {
+      setMessage("กรุณาเลือกช่วงเวลาจัดส่ง");
+      return;
+    }
+    if (!isWebUrl(deliveryAddress.trim())) {
+      setMessage("ยังไม่ได้ตั้งค่าลิงก์ Google Maps สำหรับลูกค้ารายนี้ กรุณาติดต่อผู้จัดการ");
+      return;
+    }
+
+    if (!window.confirm(`ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)} หรือไม่?`)) return;
+    setSubmitting(true);
+
+    try {
+      const response = await fetch("/api/line/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "submit",
+          idToken,
+          customerCode: customer.customerCode,
+          cart,
+          deliveryDate,
+          deliverySlot,
+          deliveryAddress: deliveryAddress.trim(),
+          notes: notes.trim(),
+        }),
+      });
+      const data = (await response.json()) as CheckoutResponse;
+      if (!response.ok) {
+        if (data.deliveryOptions) setDeliveryOptions(data.deliveryOptions);
+        throw new Error(data.error ?? "ไม่สามารถส่งคำสั่งซื้อได้");
+      }
+      if (!data.orderNumber) {
+        throw new Error("ส่งคำสั่งซื้อสำเร็จ แต่ไม่สามารถอ่านหมายเลขคำสั่งซื้อได้");
+      }
+
+      // Preserve the existing behavior: clear the basket only after success.
+      localStorage.removeItem(`b2b-cart-${customer.customerCode}`);
+      setCreatedOrderNumber(data.orderNumber);
+    } catch (error) {
+      console.error("Submit order:", error);
+      setMessage(error instanceof Error ? error.message : "ไม่สามารถส่งคำสั่งซื้อได้");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const card = "rounded-2xl border border-[#DFEAE4] bg-white shadow-[0_2px_12px_rgba(0,120,115,0.045)]";
+  const field = "mt-2 min-h-12 w-full rounded-xl border-2 border-[#D9E8E1] bg-white px-4 py-3 text-sm font-semibold text-[#173E31] outline-none focus:border-[#02B0AF] focus:ring-4 focus:ring-[#02B0AF]/10";
+
+  if (loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F7FAFA] p-5">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#D9EAE4] border-t-[#02B0AF]" />
+          <p className="mt-5 text-xl font-extrabold text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span> B2B</p>
+          <p className="mt-2 text-sm text-[#82968D]">กำลังโหลดข้อมูลคำสั่งซื้อ...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <main className="min-h-screen bg-[#F7FAFA] p-5 text-[#173E31]">
+        <div className="mx-auto max-w-md">
+          <button type="button" onClick={() => router.push("/miniapp")} className="text-sm font-bold text-[#008F8D]">‹ หน้าแรก</button>
+          <div className={`${card} mt-5 p-6`}>
+            <h1 className="text-xl font-extrabold">ไม่สามารถดำเนินการสั่งซื้อได้</h1>
+            <p className="mt-3 text-sm text-red-600">{message}</p>
+            <button type="button" onClick={goShop} className="mt-5 rounded-xl bg-[#02B0AF] px-5 py-3 text-sm font-bold text-white">กลับหน้าสินค้า</button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (createdOrderNumber !== null) {
+    return (
+      <main className="min-h-screen bg-[#F7FAFA] px-4 py-8 text-[#173E31]">
+        <div className="mx-auto max-w-md">
+          <div className={`${card} p-6 text-center sm:p-8`}>
+            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#E1F8F1] text-5xl font-black text-[#009F9D]">✓</div>
+            <h1 className="mt-5 text-2xl font-extrabold">ได้รับคำสั่งซื้อแล้ว!</h1>
+            <p className="mt-2 text-sm leading-6 text-[#748C80]">ทีมงานได้รับคำสั่งซื้อและกำลังตรวจสอบสินค้าเพื่อยืนยันรายการ</p>
+            <div className="mt-6 rounded-2xl border border-[#BDEAE3] bg-[#EDFAF8] p-5">
+              <p className="text-xs font-semibold text-[#668B81]">หมายเลขคำสั่งซื้อ</p>
+              <p className="mt-1 text-4xl font-black text-[#008F8D]">#{createdOrderNumber}</p>
+              <span className="mt-3 inline-block rounded-full bg-[#FFF2C9] px-3 py-1 text-xs font-bold text-[#906300]">รอการยืนยันจากทีมงาน</span>
+            </div>
+            <p className="mt-5 text-xs leading-5 text-[#82968D]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการยืนยันและการหยิบสินค้า</p>
+            <button type="button" onClick={() => router.push(`/miniapp/orders?customer=${encodeURIComponent(customer.customerCode)}&view=active`)} className="mt-6 min-h-12 w-full rounded-xl bg-[#02B0AF] px-5 py-3 font-extrabold text-white">ติดตามคำสั่งซื้อ →</button>
+            <button type="button" onClick={goShop} className="mt-3 min-h-12 w-full rounded-xl border-2 border-[#BDE5DF] bg-white px-5 py-3 font-bold text-[#008F8D]">สั่งสินค้าเพิ่ม</button>
+            <button type="button" onClick={() => router.push("/miniapp")} className="mt-4 px-3 py-2 text-sm font-semibold text-[#789186]">กลับหน้าหลัก</button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-[#F7FAFA] pb-32 text-[#173E31]">
+      <header className="sticky top-0 z-30 border-b border-[#E1EBE5] bg-white/95 backdrop-blur-md">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
+          <button type="button" onClick={goShop} className="min-h-11 rounded-xl px-2 text-sm font-bold text-[#426559]">‹ กลับ</button>
+          <div className="text-center">
+            <div className="text-xl font-black tracking-tight text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span><span className="ml-1 text-base text-[#17453F]">B2B</span></div>
+            <p className="text-[10px] font-medium text-[#82968D]">ตรวจสอบคำสั่งซื้อ</p>
+          </div>
+          <span className="rounded-full bg-[#E5F8F5] px-3 py-2 text-xs font-bold text-[#009F9D]">ขั้นตอนสุดท้าย</span>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-3xl space-y-4 px-3 pt-4 sm:px-5">
+        <div className="px-1">
+          <h1 className="text-xl font-extrabold sm:text-2xl">ตรวจสอบคำสั่งซื้อ</h1>
+          <p className="mt-1 text-sm text-[#82968D]">ตรวจสอบรายการและเลือกเวลาจัดส่งก่อนยืนยัน</p>
+        </div>
+
+        {message && (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{message}</div>
+        )}
+
+        <section className={`${card} overflow-hidden`}>
+          <div className="flex items-center justify-between border-b border-[#E8F0EA] px-4 py-4 sm:px-5">
+            <h2 className="font-extrabold">🛒 รายการสินค้า</h2>
+            <span className="rounded-full bg-[#E4F8F6] px-3 py-1 text-xs font-bold text-[#009F9D]">{items.length} รายการ</span>
+          </div>
+          <div className="divide-y divide-[#EEF3EF]">
+            {items.map((item) => (
+              <div key={item.id} className="flex items-start justify-between gap-3 px-4 py-4 sm:px-5">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold leading-5">{item.productName}</p>
+                  <p className="mt-1 text-[11px] text-[#91A298]">SKU {item.sku}</p>
+                  <p className="mt-1 text-xs text-[#678575]">{formatQuantity(item.quantity)} {item.unit} × ฿{formatMoney(item.effectivePrice)}</p>
+                  {item.hasSpecialPrice && <span className="mt-2 inline-block rounded-md bg-[#FFF3D4] px-2 py-1 text-[10px] font-bold text-[#A47700]">ราคาพิเศษสำหรับคุณ</span>}
+                </div>
+                <strong className="shrink-0 text-sm text-[#009F9D]">฿{formatMoney(item.estimatedSubtotal)}</strong>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-[#DCEDE5] bg-[#EDF9F5] px-4 py-4 sm:px-5">
+            <div>
+              <p className="text-sm font-bold text-[#3D6654]">ยอดรวมประมาณการ</p>
+              <p className="mt-1 text-[11px] text-[#79988A]">ยอดจริงขึ้นอยู่กับจำนวนที่หยิบได้</p>
+            </div>
+            <strong className="text-xl font-black text-[#008F8D]">฿{formatMoney(estimatedTotal)}</strong>
+          </div>
+        </section>
+
+        <section className={`${card} p-4 sm:p-5`}>
+          <div className="flex items-center gap-2">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#E4F8F6] text-lg">🚚</span>
+            <h2 className="text-base font-extrabold">วันและเวลาจัดส่ง</h2>
+          </div>
+          <label className="mt-4 block">
+            <span className="text-xs font-bold text-[#537566]">วันที่จัดส่ง</span>
+            <select value={deliveryDate} onChange={(event) => changeDate(event.target.value)} className={field}>
+              {deliveryOptions.length === 0 && <option value="">ไม่มีวันที่จัดส่งให้เลือก</option>}
+              {deliveryOptions.map((option) => <option key={option.date} value={option.date}>{prettyDate(option.date)}</option>)}
+            </select>
+          </label>
+          <label className="mt-4 block">
+            <span className="text-xs font-bold text-[#537566]">ช่วงเวลาจัดส่ง</span>
+            <select value={deliverySlot} onChange={(event) => setDeliverySlot(event.target.value)} className={field}>
+              {currentSlots.length === 0 && <option value="">ไม่มีช่วงเวลาที่ว่าง</option>}
+              {currentSlots.map((slot) => <option key={slot.value} value={slot.value}>{slot.label}</option>)}
+            </select>
+          </label>
+          {currentSlots.length === 0 && <p className="mt-3 text-xs font-medium text-red-600">ไม่มีช่วงเวลาจัดส่งที่ว่างสำหรับวันที่เลือก</p>}
+        </section>
+
+        <section className={`${card} p-4 sm:p-5`}>
+          <div className="flex items-center gap-2">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#E4F8F6] text-lg">📍</span>
+            <h2 className="text-base font-extrabold">ตำแหน่งจัดส่ง</h2>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-[#82968D]">ใช้ตำแหน่ง Google Maps ที่ทีมงานบันทึกไว้สำหรับลูกค้ารายนี้</p>
+          {isWebUrl(deliveryAddress) ? (
+            <a href={deliveryAddress} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-11 items-center rounded-xl border-2 border-[#B9E9E3] bg-[#EFFAF8] px-4 py-2 text-sm font-extrabold text-[#008F8D]">เปิดตำแหน่งใน Google Maps ↗</a>
+          ) : (
+            <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-600">ยังไม่ได้ตั้งค่าลิงก์ Google Maps กรุณาติดต่อผู้จัดการ</p>
+          )}
+        </section>
+
+        <section className={`${card} p-4 sm:p-5`}>
+          <h2 className="text-base font-extrabold">📝 หมายเหตุถึงทีมงาน</h2>
+          <p className="mt-1 text-xs text-[#82968D]">หากมีคำแนะนำเพิ่มเติม สามารถแจ้งได้ที่นี่ (ไม่บังคับ)</p>
+          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="เช่น จุดรับสินค้า หรือรายละเอียดการจัดส่ง" className={`${field} resize-y font-normal`} />
+        </section>
+
+        <p className="px-2 text-center text-xs leading-5 text-[#81978B]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการยืนยันและการหยิบสินค้า</p>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#D8EAE0] bg-white/95 p-3 shadow-[0_-8px_30px_rgba(15,64,39,0.08)] backdrop-blur-lg">
+        <div className="mx-auto max-w-3xl">
+          <button
+            type="button"
+            onClick={() => void submitOrder()}
+            disabled={submitting || !deliveryDate || !deliverySlot || items.length === 0}
+            className="flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl bg-[#02B0AF] px-5 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <span>
+              <span className="block text-sm font-extrabold">{submitting ? "กำลังส่งคำสั่งซื้อ..." : "ยืนยันคำสั่งซื้อ"}</span>
+              <span className="mt-1 block text-[11px] text-white/80">{submitting ? "กรุณารอสักครู่" : "ส่งรายการให้ทีมงานตรวจสอบ →"}</span>
+            </span>
+            <span className="text-right text-xl font-black">~฿{formatMoney(estimatedTotal)}</span>
+          </button>
+        </div>
+      </div>
+    </main>
+  );
 }
