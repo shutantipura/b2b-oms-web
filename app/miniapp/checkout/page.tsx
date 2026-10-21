@@ -14,6 +14,7 @@ type CheckoutItem = {
   id: string;
   sku: string;
   productName: string;
+  imageUrl?: string | null;
   unit: string;
   quantity: number;
   normalPrice: number;
@@ -73,6 +74,7 @@ export default function MiniAppCheckoutPage() {
   const router = useRouter();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [items, setItems] = useState<CheckoutItem[]>([]);
+  const [imageByProductId, setImageByProductId] = useState<Record<string, string>>({});
   const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>([]);
   const [deliveryDate, setDeliveryDate] = useState("");
   const [deliverySlot, setDeliverySlot] = useState("");
@@ -144,6 +146,44 @@ export default function MiniAppCheckoutPage() {
         setCart(loadedCart);
         setCustomer(data.customer);
         setItems(data.items ?? []);
+
+        // Reuse the catalogue's existing product-image mapping.
+        // Image failure must never prevent a customer from checking out.
+        try {
+          const catalogResponse = await fetch("/api/line/catalog", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              idToken: token,
+              customerCode,
+              search: "",
+              category: "",
+              offset: 0,
+              limit: 30,
+              includeContext: true,
+              cartProductIds: Object.keys(loadedCart).filter(
+                (id) => Number(loadedCart[id]) > 0
+              ),
+            }),
+          });
+          if (catalogResponse.ok) {
+            const catalogData = (await catalogResponse.json()) as {
+              cartProducts?: { id: string; imageUrl: string | null; category: string | null }[];
+            };
+            if (!cancelled) {
+              setImageByProductId(
+                Object.fromEntries(
+                  (catalogData.cartProducts ?? [])
+                    .filter((product) => Boolean(product.imageUrl) && product.category?.trim() !== "สุราและยาสูบ")
+                    .map((product) => [product.id, product.imageUrl as string])
+                )
+              );
+            }
+          }
+        } catch (imageError) {
+          console.warn("Product images unavailable:", imageError);
+        }
+
         const options = data.deliveryOptions ?? [];
         setDeliveryOptions(options);
         setDeliveryAddress(data.customer.deliveryAddress ?? "");
@@ -326,6 +366,22 @@ export default function MiniAppCheckoutPage() {
           <div className="divide-y divide-[#EEF3EF]">
             {items.map((item) => (
               <div key={item.id} className="flex items-start justify-between gap-3 px-4 py-4 sm:px-5">
+                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-[#E8F0EA] bg-[#F5F9F7] sm:h-24 sm:w-24">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-[#9DB1A6]">
+                    <span className="text-2xl">📦</span>
+                    <span className="mt-1 text-[9px]">ไม่มีรูปสินค้า</span>
+                  </div>
+                  {imageByProductId[item.id] && (
+                    <img
+                      src={imageByProductId[item.id]}
+                      alt={item.productName}
+                      loading="lazy"
+                      decoding="async"
+                      className="absolute inset-0 h-full w-full bg-white object-contain p-1.5"
+                      onError={(event) => { event.currentTarget.style.display = "none"; }}
+                    />
+                  )}
+                </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold leading-5">{item.productName}</p>
                   <p className="mt-1 text-[11px] text-[#91A298]">SKU {item.sku}</p>
