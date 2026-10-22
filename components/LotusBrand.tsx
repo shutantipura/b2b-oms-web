@@ -25,7 +25,7 @@ export default function LotusBrand({
         className={["whitespace-nowrap font-black tracking-tight leading-tight text-[#02B0AF]", FONT_SIZES[size]].join(" ")}
       >
         Lotus<span className="text-[#FDBC16]">’s</span>
-        <span className="ml-[0.28em] font-black text-[#17453F]">B2B</span>
+        <span className="ml-[0.28em] font-black text-[#6B7280]">B2B</span>
       </div>
       {showSlogan && (
         <p className="mt-1 text-[11px] font-semibold leading-tight text-[#82968D]">

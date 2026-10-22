@@ -246,16 +246,6 @@ body {
   background: #fff;
   box-shadow: 0 6px 21px rgba(22, 95, 90, .045);
 }
-.oms-dashboard-tile::after {
-  content: "↗";
-  position: absolute;
-  right: 21px;
-  bottom: 16px;
-  font-size: 19px;
-  line-height: 1;
-  font-weight: 700;
-  color: #00a8a7;
-}
 .oms-workspace .oms-dashboard-tile:hover {
   transform: translateY(-2px);
   border-color: #9ddbd5;

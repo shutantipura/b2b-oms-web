@@ -227,11 +227,19 @@ export default function OmsHomePage() {
             <Link
               key={item.href}
               href={item.href}
-              className="oms-dashboard-tile flex min-h-[130px] flex-col rounded-[20px] border border-[#D8E9E5] bg-white p-4 shadow-[0_4px_16px_rgba(18,96,89,0.05)] transition hover:border-[#90D6CF] sm:p-5"
+              className="oms-dashboard-tile group flex min-h-[130px] flex-col rounded-[20px] border border-[#D8E9E5] bg-white p-4 shadow-[0_4px_16px_rgba(18,96,89,0.05)] transition hover:border-[#90D6CF] sm:p-5"
             >
               <span aria-hidden="true" className={index === 0 ? "mb-3 h-1.5 w-9 rounded-full bg-[#FDBC16]" : "mb-3 h-1.5 w-9 rounded-full bg-[#75D9CE]"} />
               <span className="pr-5 text-base font-black leading-snug text-[#17453F]">{item.name}</span>
-              <span className="mt-2 pr-2 text-xs leading-5 text-[#77918A]">{item.description}</span>
+              <span className="mt-2 pr-9 text-xs leading-5 text-[#77918A]">{item.description}</span>
+              <span
+                aria-hidden="true"
+                className="absolute bottom-4 right-4 grid h-9 w-9 place-items-center rounded-xl bg-[#E8F8F5] text-[#009F9D] transition-colors group-hover:bg-[#D7F3EE]"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7 17 17 7M8 7h9v9" />
+                </svg>
+              </span>
             </Link>
           ))}
         </div>
