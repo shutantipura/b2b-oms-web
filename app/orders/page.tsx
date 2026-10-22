@@ -32,12 +32,6 @@ type StatusFilter =
   | "completed"
   | "cancelled";
 
-type SortOption =
-  | "delivery_soonest"
-  | "delivery_latest"
-  | "newest"
-  | "oldest";
-
 // =====================================================
 // DATE HELPERS
 // =====================================================
@@ -188,56 +182,22 @@ function getSlotStart(
   );
 }
 
-function compareDelivery(
-  a: Order,
-  b: Order,
-  direction:
-    | "asc"
-    | "desc"
-) {
-  const aStart =
-    getSlotStart(
-      a.delivery_slot
-    );
+function compareDelivery(a: Order, b: Order) {
+  // Orders for the selected day always show the earliest delivery slot first.
+  // Missing delivery slots go last. Within the same slot, older orders go first.
+  const aStart = getSlotStart(a.delivery_slot);
+  const bStart = getSlotStart(b.delivery_slot);
 
-  const bStart =
-    getSlotStart(
-      b.delivery_slot
-    );
+  if (!aStart && bStart) return 1;
+  if (aStart && !bStart) return -1;
 
-  if (
-    !aStart &&
-    bStart
-  ) {
-    return 1;
-  }
+  const slotComparison = (aStart ?? "").localeCompare(bStart ?? "");
+  if (slotComparison !== 0) return slotComparison;
 
-  if (
-    aStart &&
-    !bStart
-  ) {
-    return -1;
-  }
-
-  if (
-    !aStart &&
-    !bStart
-  ) {
-    return (
-      b.order_number -
-      a.order_number
-    );
-  }
-
-  const result =
-    (aStart ?? "").localeCompare(
-      bStart ?? ""
-    );
-
-  return direction ===
-    "asc"
-    ? result
-    : -result;
+  const creationComparison = new Date(a.created_at).getTime()
+    - new Date(b.created_at).getTime();
+  if (creationComparison !== 0) return creationComparison;
+  return a.order_number - b.order_number;
 }
 
 function isPending(
@@ -310,14 +270,6 @@ export default function OrdersPage() {
   ] =
     useState<StatusFilter>(
       "all"
-    );
-
-  const [
-    sortOption,
-    setSortOption,
-  ] =
-    useState<SortOption>(
-      "delivery_soonest"
     );
 
   // =====================================================
@@ -616,139 +568,29 @@ export default function OrdersPage() {
     orders.length;
 
   // =====================================================
-  // FILTER + SORT
+  // FILTER + FIXED EARLIEST-DELIVERY ORDER
   // =====================================================
 
-  const filteredOrders =
-    useMemo(() => {
-      const searchText =
-        search
-          .trim()
-          .toLowerCase();
+  const filteredOrders = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-      const filtered =
-        orders.filter(
-          (
-            order
-          ) => {
-            const matchesStatus =
-              statusFilter ===
-              "all"
-                ? true
-                : statusFilter ===
-                  "pending"
-                ? isPending(
-                    order
-                  )
-                : statusFilter ===
-                  "completed"
-                ? order.status ===
-                  "completed"
-                : order.status ===
-                  "cancelled";
+    return orders
+      .filter((order) => {
+        const matchesStatus = statusFilter === "all"
+          || (statusFilter === "pending" && isPending(order))
+          || (statusFilter === "completed" && order.status === "completed")
+          || (statusFilter === "cancelled" && order.status === "cancelled");
 
-            const matchesSearch =
-              searchText ===
-                "" ||
-              String(
-                order.order_number
-              ).includes(
-                searchText
-              ) ||
-              (
-                order.customers
-                  ?.customer_name ??
-                ""
-              )
-                .toLowerCase()
-                .includes(
-                  searchText
-                ) ||
-              (
-                order.customers
-                  ?.customer_code ??
-                ""
-              )
-                .toLowerCase()
-                .includes(
-                  searchText
-                ) ||
-              (
-                order.customers
-                  ?.phone ??
-                ""
-              )
-                .toLowerCase()
-                .includes(
-                  searchText
-                );
+        const matchesSearch = !query
+          || String(order.order_number).includes(query)
+          || (order.customers?.customer_name ?? "").toLowerCase().includes(query)
+          || (order.customers?.customer_code ?? "").toLowerCase().includes(query)
+          || (order.customers?.phone ?? "").toLowerCase().includes(query);
 
-            return (
-              matchesStatus &&
-              matchesSearch
-            );
-          }
-        );
-
-      return [
-        ...filtered,
-      ].sort(
-        (
-          a,
-          b
-        ) => {
-          if (
-            sortOption ===
-            "delivery_soonest"
-          ) {
-            return compareDelivery(
-              a,
-              b,
-              "asc"
-            );
-          }
-
-          if (
-            sortOption ===
-            "delivery_latest"
-          ) {
-            return compareDelivery(
-              a,
-              b,
-              "desc"
-            );
-          }
-
-          if (
-            sortOption ===
-            "newest"
-          ) {
-            return (
-              new Date(
-                b.created_at
-              ).getTime() -
-              new Date(
-                a.created_at
-              ).getTime()
-            );
-          }
-
-          return (
-            new Date(
-              a.created_at
-            ).getTime() -
-            new Date(
-              b.created_at
-            ).getTime()
-          );
-        }
-      );
-    }, [
-      orders,
-      search,
-      statusFilter,
-      sortOption,
-    ]);
+        return matchesStatus && matchesSearch;
+      })
+      .sort(compareDelivery);
+  }, [orders, search, statusFilter]);
 
   // =====================================================
   // PAGE
@@ -800,298 +642,76 @@ export default function OrdersPage() {
 
         </div>
 
-        {/* DATE FILTER */}
-
-        <section className="bg-white border rounded-2xl p-5 mb-6">
-
-          <div className="flex flex-col md:flex-row md:items-end gap-4">
-
-            <div className="flex-1">
-
-              <label className="block text-sm font-medium mb-2">
+        {/* COMPACT DATE / SEARCH / STATUS FILTERS */}
+        <section className="mb-4 min-w-0 overflow-hidden rounded-2xl border border-[#D6E8E3] bg-white p-4 shadow-[0_3px_12px_rgba(15,95,88,0.04)] sm:p-5">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-extrabold text-[#17453F]">ค้นหาและกรองคำสั่งซื้อ</h2>
+            <span className="h-1.5 w-9 rounded-full bg-[#FDBC16]" aria-hidden="true" />
+          </div>
+          <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-[minmax(0,200px)_minmax(0,1fr)_minmax(0,210px)] md:items-end">
+            <div className="min-w-0">
+              <label htmlFor="orders-delivery-date" className="mb-1.5 block text-xs font-bold text-[#52786F]">
                 วันที่จัดส่ง
               </label>
-
-              <input
-                type="date"
-                value={
-                  selectedDate
-                }
-                onChange={(
-                  event
-                ) => {
-                  setSelectedDate(
-                    event.target
-                      .value
-                  );
-
-                  setStatusFilter(
-                    "all"
-                  );
-                }}
-                className="w-full border rounded-lg px-4 py-3 bg-white"
-              />
-
+              <div className="flex min-w-0 items-center gap-2">
+                <input
+                  id="orders-delivery-date"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(event) => {
+                    setSelectedDate(event.target.value);
+                    setStatusFilter("all");
+                  }}
+                  style={{ minWidth: 0, maxWidth: "11.5rem", width: "100%", boxSizing: "border-box" }}
+                  className="block h-11 flex-1 rounded-xl border border-[#C8DDD8] bg-white px-2 py-2 text-sm text-[#17453F]"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDate(getBangkokToday());
+                    setStatusFilter("all");
+                  }}
+                  className="h-11 shrink-0 rounded-xl border border-[#B9DDD6] bg-[#F0FAF7] px-3 text-xs font-extrabold text-[#008F8D]"
+                >
+                  วันนี้
+                </button>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedDate(
-                  getBangkokToday()
-                );
+            <div className="min-w-0">
+              <label htmlFor="orders-number-search" className="mb-1.5 block text-xs font-bold text-[#52786F]">
+                ค้นหาเลขคำสั่งซื้อ / ลูกค้า
+              </label>
+              <input
+                id="orders-number-search"
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="เลขคำสั่งซื้อ ชื่อร้าน หรือรหัสลูกค้า"
+                className="block h-11 w-full min-w-0 max-w-full rounded-xl border border-[#C8DDD8] bg-white px-3 py-2 text-sm text-[#17453F] placeholder:text-[#9AAFA8]"
+              />
+            </div>
 
-                setStatusFilter(
-                  "all"
-                );
-              }}
-              className="bg-white border rounded-lg px-5 py-3 font-medium"
-            >
-              วันนี้
-            </button>
-
+            <div className="min-w-0">
+              <label htmlFor="orders-status-filter" className="mb-1.5 block text-xs font-bold text-[#52786F]">
+                สถานะคำสั่งซื้อ
+              </label>
+              <select
+                id="orders-status-filter"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+                className="block h-11 w-full min-w-0 max-w-full rounded-xl border border-[#C8DDD8] bg-white px-3 py-2 text-sm text-[#17453F]"
+              >
+                <option value="all">ทุกสถานะ</option>
+                <option value="pending">รอดำเนินการ</option>
+                <option value="completed">เสร็จสิ้น</option>
+                <option value="cancelled">ยกเลิก</option>
+              </select>
+            </div>
           </div>
-
-          <p className="text-sm text-gray-500 mt-3">
-            {prettyDate(
-              selectedDate
-            )}
-          </p>
-
         </section>
 
-        {/* SUMMARY CARDS */}
-
-        <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-
-          <button
-            type="button"
-            onClick={() =>
-              setStatusFilter(
-                "pending"
-              )
-            }
-            className={`text-left bg-white border rounded-2xl p-5 transition ${
-              statusFilter ===
-              "pending"
-                ? "ring-2 ring-black"
-                : ""
-            }`}
-          >
-
-            <p className="text-sm text-gray-500">
-              รอดำเนินการ
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {
-                pendingCount
-              }
-            </p>
-
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setStatusFilter(
-                "completed"
-              )
-            }
-            className={`text-left bg-white border rounded-2xl p-5 transition ${
-              statusFilter ===
-              "completed"
-                ? "ring-2 ring-black"
-                : ""
-            }`}
-          >
-
-            <p className="text-sm text-gray-500">
-              เสร็จสิ้น
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {
-                completedCount
-              }
-            </p>
-
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setStatusFilter(
-                "cancelled"
-              )
-            }
-            className={`text-left bg-white border rounded-2xl p-5 transition ${
-              statusFilter ===
-              "cancelled"
-                ? "ring-2 ring-black"
-                : ""
-            }`}
-          >
-
-            <p className="text-sm text-gray-500">
-              ยกเลิก
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {
-                cancelledCount
-              }
-            </p>
-
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setStatusFilter(
-                "all"
-              )
-            }
-            className={`text-left bg-white border rounded-2xl p-5 transition ${
-              statusFilter ===
-              "all"
-                ? "ring-2 ring-black"
-                : ""
-            }`}
-          >
-
-            <p className="text-sm text-gray-500">
-              ทั้งหมด
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {
-                totalCount
-              }
-            </p>
-
-          </button>
-
-        </div>
-
-        {/* SEARCH / FILTER / SORT */}
-
-        <section className="bg-white border rounded-2xl p-5 mb-6">
-
-          <div className="grid md:grid-cols-3 gap-4">
-
-            <div>
-
-              <label className="block text-sm font-medium mb-2">
-                ค้นหา
-              </label>
-
-              <input
-                type="text"
-                value={
-                  search
-                }
-                onChange={(
-                  event
-                ) =>
-                  setSearch(
-                    event.target
-                      .value
-                  )
-                }
-                placeholder="เลขคำสั่งซื้อ ชื่อลูกค้า รหัสลูกค้า หรือเบอร์โทร"
-                className="w-full border rounded-lg px-4 py-3"
-              />
-
-            </div>
-
-            <div>
-
-              <label className="block text-sm font-medium mb-2">
-                สถานะ
-              </label>
-
-              <select
-                value={
-                  statusFilter
-                }
-                onChange={(
-                  event
-                ) =>
-                  setStatusFilter(
-                    event.target
-                      .value as StatusFilter
-                  )
-                }
-                className="w-full border rounded-lg px-4 py-3 bg-white"
-              >
-
-                <option value="all">
-                  ทั้งหมด
-                </option>
-
-                <option value="pending">
-                  รอดำเนินการ
-                </option>
-
-                <option value="completed">
-                  เสร็จสิ้น
-                </option>
-
-                <option value="cancelled">
-                  ยกเลิก
-                </option>
-
-              </select>
-
-            </div>
-
-            <div>
-
-              <label className="block text-sm font-medium mb-2">
-                เรียงตาม
-              </label>
-
-              <select
-                value={
-                  sortOption
-                }
-                onChange={(
-                  event
-                ) =>
-                  setSortOption(
-                    event.target
-                      .value as SortOption
-                  )
-                }
-                className="w-full border rounded-lg px-4 py-3 bg-white"
-              >
-
-                <option value="delivery_soonest">
-                  เวลาจัดส่ง — เร็วที่สุดก่อน
-                </option>
-
-                <option value="delivery_latest">
-                  เวลาจัดส่ง — ช้าที่สุดก่อน
-                </option>
-
-                <option value="newest">
-                  คำสั่งซื้อล่าสุดก่อน
-                </option>
-
-                <option value="oldest">
-                  คำสั่งซื้อเก่าสุดก่อน
-                </option>
-
-              </select>
-
-            </div>
-
-          </div>
-
-        </section>
-
-        {/* MESSAGE */}
+                {/* MESSAGE */}
 
         {message && (
 
@@ -1101,7 +721,7 @@ export default function OrdersPage() {
 
         )}
 
-        {/* ORDERS LIST */}
+        {/* ORDERS LIST: ALWAYS BEFORE STATISTICS */}
 
         <section className="bg-white border rounded-2xl overflow-hidden">
 
@@ -1125,7 +745,7 @@ export default function OrdersPage() {
               {
                 filteredOrders.length
               }{" "}
-              รายการ
+              รายการ · เร็วที่สุดก่อน
             </span>
 
           </div>
@@ -1195,8 +815,6 @@ export default function OrdersPage() {
                         isPending(
                           order
                         ) &&
-                        sortOption ===
-                          "delivery_soonest" &&
                         index <
                           3;
 
@@ -1403,6 +1021,31 @@ export default function OrdersPage() {
 
           )}
 
+        </section>
+
+        {/* ORDER STATISTICS — BELOW THE LIST */}
+        <section className="mt-5 pb-2" aria-label="สถิติคำสั่งซื้อ">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-extrabold text-[#17453F]">ภาพรวมคำสั่งซื้อ</h2>
+            <p className="text-xs text-[#718D84]">{prettyDate(selectedDate)}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: "รอดำเนินการ", value: pendingCount, highlight: true },
+              { label: "เสร็จสิ้น", value: completedCount, highlight: false },
+              { label: "ยกเลิก", value: cancelledCount, highlight: false },
+              { label: "ทั้งหมด", value: totalCount, highlight: false },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-2xl border border-[#D5E8E2] bg-white p-4 shadow-[0_3px_12px_rgba(15,95,88,0.04)]"
+              >
+                <div aria-hidden="true" className={stat.highlight ? "mb-3 h-1 w-8 rounded-full bg-[#FDBC16]" : "mb-3 h-1 w-8 rounded-full bg-[#A5E5DD]"} />
+                <p className="text-xs font-bold text-[#718D84]">{stat.label}</p>
+                <p className="mt-1 text-2xl font-black tabular-nums text-[#008F8D]">{stat.value}</p>
+              </div>
+            ))}
+          </div>
         </section>
 
       </div>
