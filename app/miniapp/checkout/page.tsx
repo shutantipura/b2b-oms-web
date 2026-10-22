@@ -391,10 +391,10 @@ export default function MiniAppCheckoutPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold leading-5">{item.productName}</p>
                   <p className="mt-1 text-[11px] text-[#91A298]">SKU {item.sku}</p>
-                  <p className="mt-1 text-xs text-[#678575]">{formatQuantity(item.quantity)} {item.unit} × <span className={item.hasSpecialPrice ? "font-bold text-[#DC2626]" : ""}>฿{formatMoney(item.effectivePrice)}</span></p>
-                  {item.hasSpecialPrice && <span className="mt-2 inline-block rounded-md bg-[#FFF3D4] px-2 py-1 text-[10px] font-bold text-[#A47700]">ราคาพิเศษสำหรับคุณ</span>}
+                  <p className="mt-1 text-xs text-[#678575]">{formatQuantity(item.quantity)} {item.unit} × <span className={(item.hasSpecialPrice && item.effectivePrice < item.normalPrice) ? "font-bold text-[#DC2626]" : ""}>฿{formatMoney(item.effectivePrice)}</span></p>
+                  {(item.hasSpecialPrice && item.effectivePrice < item.normalPrice) && <span className="mt-2 inline-block rounded-md bg-[#FFF3D4] px-2 py-1 text-[10px] font-bold text-[#A47700]">ราคาพิเศษสำหรับคุณ</span>}
                 </div>
-                <strong className={`shrink-0 text-sm ${item.hasSpecialPrice ? "text-[#DC2626]" : "text-[#009F9D]"}`}>฿{formatMoney(item.estimatedSubtotal)}</strong>
+                <strong className={`shrink-0 text-sm ${(item.hasSpecialPrice && item.effectivePrice < item.normalPrice) ? "text-[#DC2626]" : "text-[#009F9D]"}`}>฿{formatMoney(item.estimatedSubtotal)}</strong>
               </div>
             ))}
           </div>
