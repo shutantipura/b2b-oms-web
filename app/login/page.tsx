@@ -144,9 +144,9 @@ export default function OmsHomePage() {
             <span className="ml-2 rounded-lg bg-[#EAF8F5] px-2 py-1 align-middle text-sm tracking-normal text-[#17453F]">B2B</span>
           </div>
           <p className="mt-1 text-xs font-medium text-[#779087]">ระบบจัดการคำสั่งซื้อสำหรับธุรกิจ</p>
-          <h1 className="mt-8 text-[27px] font-black tracking-tight text-[#17453F]">เข้าสู่ระบบพนักงาน</h1>
+          <h1 className="mt-8 text-[27px] font-black tracking-tight text-[#17453F]">ยินดีต้อนรับสู่ Lotus’s B2B</h1>
           <p className="mt-2 text-sm leading-6 text-[#6F8982]">
-            ใช้บัญชี LINE ที่ผู้จัดการอนุญาตให้เข้าถึง OMS
+            ลูกค้าและพนักงานใช้บัญชี LINE เดียวกัน ระบบจะตรวจสอบสิทธิ์และพาไปยังหน้าที่เหมาะสมโดยอัตโนมัติ
           </p>
           {message && (
             <div role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -164,11 +164,11 @@ export default function OmsHomePage() {
                 <path d="M8 11h8" />
               </svg>
             </span>
-            เข้าสู่ระบบด้วย LINE
+            เข้าใช้งาน Lotus’s B2B ด้วย LINE
           </button>
           <div className="mt-6 rounded-xl bg-[#F3FAF8] p-4 text-xs leading-5 text-[#69847B]">
             <p className="font-bold text-[#19766E]">เข้าใช้งานอย่างปลอดภัย</p>
-            <p className="mt-1">ระบบจะตรวจสอบบัญชี LINE และสิทธิ์พนักงานก่อนเข้าสู่หน้าจัดการคำสั่งซื้อ</p>
+            <p className="mt-1">ลูกค้าสามารถสั่งสินค้าและติดตามคำสั่งซื้อ ส่วนพนักงานที่ได้รับสิทธิ์จะเข้าสู่ OMS</p>
           </div>
         </div>
       </main>
