@@ -31,8 +31,9 @@ type Order = {
   delivery_date: string | null;
 
   delivery_slot: string | null;
-
-
+  customer_id: string;
+  estimated_amount: number | null;
+  estimate_uses_current_price: boolean;
 
   customers: {
 
@@ -198,6 +199,152 @@ function prettyStatus(
   };
 
   return names[status] ?? status;
+}
+
+// Keep task estimates consistent with the customer order-tracking page:
+// use an amount saved at order time first; only fall back to today's price
+// for historical lines without a saved price.
+type PriceRecord = Record<string, unknown>;
+
+function validAmount(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function firstAmount(record: PriceRecord, keys: string[]): number | null {
+  for (const key of keys) {
+    const amount = validAmount(record[key]);
+    if (amount !== null) return amount;
+  }
+  return null;
+}
+
+function requestedQuantity(item: PriceRecord) {
+  return firstAmount(item, [
+    "requested_qty", "requested_quantity", "quantity", "requested",
+  ]);
+}
+
+function savedLineAmount(item: PriceRecord, quantity: number | null) {
+  const subtotal = firstAmount(item, [
+    "estimated_subtotal", "subtotal_at_order", "requested_subtotal", "line_total_at_order",
+  ]);
+  if (subtotal !== null) return subtotal;
+
+  const savedPrice = firstAmount(item, [
+    "price_per_kg_at_order", "price_per_unit_at_order", "unit_price_at_order",
+    "effective_price_at_order", "price_at_order", "agreed_price_at_order",
+    "price_per_kg", "unit_price",
+  ]);
+  return savedPrice !== null && quantity !== null ? savedPrice * quantity : null;
+}
+
+function formatBaht(amount: number) {
+  return new Intl.NumberFormat("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+
+async function withEstimatedAmounts(rawOrders: Order[]): Promise<Order[]> {
+  const withoutEstimate = rawOrders.map((order) => ({
+    ...order,
+    estimated_amount: null,
+    estimate_uses_current_price: false,
+  }));
+  if (withoutEstimate.length === 0) return withoutEstimate;
+
+  const orderIds = withoutEstimate.map((order) => order.id);
+  const { data: rows, error: itemsError } = await supabase
+    .from("order_items")
+    .select("*")
+    .in("order_id", orderIds);
+
+  // Task claiming remains usable even if an estimate is unavailable.
+  if (itemsError) {
+    console.warn("Could not calculate task estimates:", itemsError.message);
+    return withoutEstimate;
+  }
+
+  const items = (rows ?? []) as PriceRecord[];
+  const productIds = [...new Set(items
+    .map((item) => String(item.product_id ?? ""))
+    .filter(Boolean))];
+  const customerIds = [...new Set(withoutEstimate.map((order) => order.customer_id).filter(Boolean))];
+
+  const [productResult, specialPriceResult] = await Promise.all([
+    productIds.length
+      ? supabase.from("products").select("id, normal_price").in("id", productIds)
+      : Promise.resolve({ data: [], error: null }),
+    productIds.length && customerIds.length
+      ? supabase.from("customer_prices")
+          .select("customer_id, product_id, agreed_price")
+          .in("customer_id", customerIds)
+          .in("product_id", productIds)
+          .eq("is_active", true)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  const regularPrices = new Map<string, number>();
+  if (!productResult.error) {
+    for (const product of productResult.data ?? []) {
+      const price = validAmount(product.normal_price);
+      if (price !== null) regularPrices.set(String(product.id), price);
+    }
+  }
+
+  const specialPrices = new Map<string, number>();
+  if (!specialPriceResult.error) {
+    for (const priceRow of specialPriceResult.data ?? []) {
+      const price = validAmount(priceRow.agreed_price);
+      if (price !== null) {
+        specialPrices.set(String(priceRow.customer_id) + ":" + String(priceRow.product_id), price);
+      }
+    }
+  }
+
+  const byOrder = new Map<string, PriceRecord[]>();
+  for (const item of items) {
+    const id = String(item.order_id ?? "");
+    const previous = byOrder.get(id) ?? [];
+    previous.push(item);
+    byOrder.set(id, previous);
+  }
+
+  return withoutEstimate.map((order) => {
+    const orderItems = byOrder.get(order.id) ?? [];
+    if (orderItems.length === 0) return order;
+
+    let total = 0;
+    let usedCurrentPrice = false;
+    for (const item of orderItems) {
+      const quantity = requestedQuantity(item);
+      const saved = savedLineAmount(item, quantity);
+      if (saved !== null) {
+        total += saved;
+        continue;
+      }
+
+      const productId = String(item.product_id ?? "");
+      const current = !specialPriceResult.error
+        ? specialPrices.get(order.customer_id + ":" + productId) ?? regularPrices.get(productId)
+        : null;
+
+      if (quantity === null || current === null || current === undefined) {
+        return { ...order, estimated_amount: null, estimate_uses_current_price: false };
+      }
+      total += current * quantity;
+      usedCurrentPrice = true;
+    }
+
+    return {
+      ...order,
+      estimated_amount: total,
+      estimate_uses_current_price: usedCurrentPrice,
+    };
+  });
 }
 
 export default function TasksPage() {
@@ -512,6 +659,7 @@ export default function TasksPage() {
           status,
           delivery_date,
           delivery_slot,
+          customer_id,
           customers (customer_name)
         `)
         .in("status", allStatuses)
@@ -524,7 +672,7 @@ export default function TasksPage() {
       return;
     }
 
-    setOrders((orderData ?? []) as unknown as Order[]);
+    setOrders(await withEstimatedAmounts((orderData ?? []) as unknown as Order[]));
 
     // ---------------------------------------------------
 
@@ -1258,314 +1406,80 @@ export default function TasksPage() {
 
 
                           return (
-
                             <div
-
-                              key={
-
-                                order.order_number
-
-                              }
-
-                              className="p-5 border-b last:border-b-0 flex flex-col md:flex-row md:justify-between md:items-center gap-6"
-
+                              key={order.id}
+                              className="flex items-center justify-between gap-3 border-b border-[#E2EEEA] px-3 py-3.5 last:border-b-0 sm:px-5 sm:py-4"
                             >
-
-
-
-                              {/* ORDER DETAILS */}
-
-
-
-                              <div>
-
-
-
-                                <div className="font-semibold text-lg">
-
-                                  คำสั่งซื้อ #
-
-                                  {
-
-                                    order.order_number
-
-                                  }
-
+                              <div className="min-w-0 flex-1">
+                                <div
+                                  className="truncate text-base font-extrabold leading-snug text-[#17453F]"
+                                  title={order.customers?.customer_name ?? "ไม่ทราบชื่อลูกค้า"}
+                                >
+                                  {order.customers?.customer_name ?? "ไม่ทราบชื่อลูกค้า"}
                                 </div>
 
-
-
-                                <div className="text-gray-600 mt-1">
-
-                                  {
-
-                                    order.customers
-
-                                      ?.customer_name ??
-
-                                    "ไม่ทราบชื่อลูกค้า"
-
-                                  }
-
+                                <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-[#647D75]">
+                                  <span>{order.delivery_date ?? "ยังไม่ระบุวันที่"} · {order.delivery_slot ?? "ยังไม่ระบุช่วงเวลา"}</span>
+                                  <span className="font-medium text-[#52786F]">{prettyStatus(order.status)}</span>
                                 </div>
 
-
-
-                                <div className="text-sm text-gray-400 mt-1">
-
-                                  {
-
-                                    order.delivery_date ??
-
-                                    "ยังไม่ระบุวันที่"
-
-                                  }
-
-
-
-                                  {" · "}
-
-
-
-                                  {
-
-                                    order.delivery_slot ??
-
-                                    "ยังไม่ระบุช่วงเวลา"
-
-                                  }
-
-                                </div>
-
-
-
-                                <div className="text-xs text-gray-400 mt-1">
-
-                                  {prettyStatus(
-
-                                    order.status
-
+                                <div className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-sm font-extrabold text-[#008F8D]">
+                                  <span>
+                                    {order.estimated_amount !== null
+                                      ? `ยอดประมาณ ฿${formatBaht(order.estimated_amount)}`
+                                      : "ยอดประมาณ —"}
+                                  </span>
+                                  {order.estimate_uses_current_price && (
+                                    <span className="text-[10px] font-medium text-[#718C84]">
+                                      *อิงราคาปัจจุบัน
+                                    </span>
                                   )}
-
                                 </div>
-
-
-
+                                <p className="mt-1 text-[11px] font-medium text-[#8A9E97]">
+                                  คำสั่งซื้อ #{order.order_number}
+                                </p>
                               </div>
 
-
-
-                              {/* ACTION */}
-
-
-
-                              <div>
-
-
-
-                                {/* ============================== */}
-
-                                {/* AWAITING PAYMENT */}
-
-                                {/* ============================== */}
-
-
-
+                              <div className="flex shrink-0 items-center justify-end">
                                 {!canWork ? (
-                                  <div className="text-sm text-gray-500 text-right">
-                                    <div className="font-medium">ดูสถานะได้เท่านั้น</div>
-                                    <div className="mt-1">
+                                  <div className="max-w-28 text-right text-[11px] leading-snug text-[#718C84]">
+                                    <div className="font-bold">ดูสถานะเท่านั้น</div>
+                                    <div className="mt-1 break-words">
                                       {claim ? `ผู้รับงาน: ${claim.staff_name}` : "ยังไม่มีผู้รับงาน"}
                                     </div>
                                   </div>
                                 ) : isAwaitingPayment ? (
-
-
-
-                                  <div className="text-right">
-
-
-
-                                    <div className="font-semibold mb-1">
-
-                                      รอชำระเงิน
-
-                                    </div>
-
-
-
-                                    <div className="text-sm text-gray-500 mb-3">
-
-                                      พนักงานสามารถอัปโหลดสลิปการชำระเงินแทนลูกค้าได้
-
-                                    </div>
-
-
-
-                                    <Link
-
-                                      href={`/tasks/payment-verification/${order.order_number}`}
-
-                                      className="inline-block bg-black text-white rounded-lg px-5 py-3 font-semibold"
-
-                                    >
-
-                                      ชำระเงิน
-
-                                    </Link>
-
-
-
-                                  </div>
-
-
-
-                                ) : !claim ? (
-
-
-
-                                  /* ============================ */
-
-                                  /* AVAILABLE TASK */
-
-                                  /* ============================ */
-
-
-
-                                  <button
-
-                                    onClick={() =>
-
-                                      startWork(
-
-                                        order.order_number,
-
-                                        group.stage
-
-                                      )
-
-                                    }
-
-                                    className="bg-black text-white rounded-lg px-5 py-3 font-semibold"
-
+                                  <Link
+                                    href={`/tasks/payment-verification/${order.order_number}`}
+                                    className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-xl bg-[#008F8D] px-3 py-2 text-sm font-bold text-white shadow-sm"
                                   >
-
+                                    ชำระเงิน
+                                  </Link>
+                                ) : !claim ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => startWork(order.order_number, group.stage)}
+                                    className="inline-flex min-h-10 min-w-[76px] items-center justify-center whitespace-nowrap rounded-xl bg-[#008F8D] px-3 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#007C7A]"
+                                  >
                                     รับงาน
-
                                   </button>
-
-
-
                                 ) : isMine ? (
-
-
-
-                                  /* ============================ */
-
-                                  /* CURRENT STAFF OWNS TASK */
-
-                                  /* ============================ */
-
-
-
-                                  <div className="text-right">
-
-
-
-                                    <div className="font-semibold">
-
-                                      กำลังดำเนินการ
-
-                                    </div>
-
-
-
-                                    <div className="text-sm text-gray-500 mb-3">
-
-                                      คุณ ·{" "}
-
-                                      {
-
-                                        claim?.staff_name
-
-                                      }
-
-                                    </div>
-
-
-
+                                  <div className="flex flex-col items-end gap-1">
+                                    <span className="text-[11px] font-semibold text-[#52786F]">คุณรับงานแล้ว</span>
                                     <Link
-
-                                      href={taskLink(
-
-                                        group.stage,
-
-                                        order.order_number
-
-                                      )}
-
-                                      className="inline-block bg-black text-white rounded-lg px-5 py-2 font-semibold"
-
+                                      href={taskLink(group.stage, order.order_number)}
+                                      className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[#008F8D] px-3 py-2 text-sm font-bold text-white"
                                     >
-
                                       ทำต่อ
-
                                     </Link>
-
-
-
                                   </div>
-
-
-
                                 ) : (
-
-
-
-                                  /* ============================ */
-
-                                  /* SOMEONE ELSE OWNS TASK */
-
-                                  /* ============================ */
-
-
-
-                                  <div className="text-right">
-
-
-
-                                    <div className="font-semibold">
-
-                                      กำลังดำเนินการ
-
-                                    </div>
-
-
-
-                                    <div className="text-sm text-gray-500">
-
-                                      {
-
-                                        claim?.staff_name
-
-                                      }
-
-                                    </div>
-
-
-
+                                  <div className="max-w-24 text-right text-[11px] leading-snug text-[#647D75]">
+                                    <div className="font-bold">กำลังดำเนินการ</div>
+                                    <div className="mt-1 break-words">{claim.staff_name}</div>
                                   </div>
-
-
-
                                 )}
-
-
-
                               </div>
-
-
-
                             </div>
 
                           );
