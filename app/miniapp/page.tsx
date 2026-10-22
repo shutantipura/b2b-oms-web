@@ -488,6 +488,7 @@ export default function MiniAppHomePage() {
 
           liffModule.default;
 
+        // Next.js injects NEXT_PUBLIC variables during a fresh Preview build.
         const liffId =
 
           process.env
