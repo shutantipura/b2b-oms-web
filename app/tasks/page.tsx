@@ -182,25 +182,6 @@ const groups: TaskGroup[] = [
 
 
 
-function prettyStatus(
-  status: string
-) {
-  const names: Record<string, string> = {
-    awaiting_confirmation: "รอยืนยันคำสั่งซื้อ",
-    awaiting_picking: "รอจัดสินค้า",
-    picking: "กำลังจัดสินค้า",
-    awaiting_billing: "รอออกบิล",
-    ready_for_delivery: "พร้อมจัดส่ง",
-    out_for_delivery: "กำลังจัดส่ง",
-    awaiting_payment: "รอชำระเงิน",
-    payment_submitted: "ส่งหลักฐานการชำระเงินแล้ว",
-    completed: "เสร็จสิ้น",
-    cancelled: "ยกเลิก",
-  };
-
-  return names[status] ?? status;
-}
-
 // Keep task estimates consistent with the customer order-tracking page:
 // use an amount saved at order time first; only fall back to today's price
 // for historical lines without a saved price.
@@ -246,6 +227,97 @@ function formatBaht(amount: number) {
     maximumFractionDigits: 2,
   }).format(amount);
 }
+
+
+type DeliveryUrgency = "overdue" | "at-risk" | "today" | "none";
+type BangkokClock = { date: string; minutes: number };
+
+function getBangkokClock(): BangkokClock {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const part = (kind: string) => parts.find((entry) => entry.type === kind)?.value ?? "";
+  return {
+    date: `${part("year")}-${part("month")}-${part("day")}`,
+    minutes: Number(part("hour")) * 60 + Number(part("minute")),
+  };
+}
+
+function utcDateDay(value: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const timestamp = Date.UTC(year, month - 1, day);
+  return Number.isFinite(timestamp) ? timestamp / 86_400_000 : null;
+}
+
+function deliveryDaysAway(deliveryDate: string | null, today: string): number | null {
+  if (!deliveryDate) return null;
+  const target = utcDateDay(deliveryDate);
+  const baseline = utcDateDay(today);
+  return target === null || baseline === null ? null : Math.round(target - baseline);
+}
+
+function relativeDeliveryDay(deliveryDate: string | null, today: string): string {
+  const days = deliveryDaysAway(deliveryDate, today);
+  if (days === null) return "ไม่ระบุวันที่";
+  if (days === -1) return "เมื่อวาน";
+  if (days === 0) return "วันนี้";
+  if (days === 1) return "พรุ่งนี้";
+  return days < 0 ? `${Math.abs(days)} วันที่แล้ว` : `${days} วันข้างหน้า`;
+}
+
+function deliverySlotMinutes(slot: string | null): { start: number; end: number } | null {
+  if (!slot) return null;
+  const times = [...slot.matchAll(/([01]?\d|2[0-3]):([0-5]\d)/g)]
+    .map((match) => Number(match[1]) * 60 + Number(match[2]));
+  if (times.length < 2) return null;
+  return { start: times[0], end: times[1] <= times[0] ? times[1] + 1440 : times[1] };
+}
+
+function deliveryUrgency(order: Order, now: BangkokClock): DeliveryUrgency {
+  const days = deliveryDaysAway(order.delivery_date, now.date);
+  if (days === null) return "none";
+
+  // The payment-verification queue is post-delivery; an unpaid order
+  // should not be mislabelled as a missed delivery.
+  if (order.status === "awaiting_payment" || order.status === "payment_submitted") {
+    return days === 0 ? "today" : "none";
+  }
+
+  const slot = deliverySlotMinutes(order.delivery_slot);
+  if (days < 0) return "overdue";
+  if (days === 0 && slot && now.minutes >= slot.end) return "overdue";
+
+  // Operational rule: within 2 hours of the delivery window opening,
+  // an unfinished order needs urgent attention.
+  if (slot && days <= 1) {
+    const minutesToStart = days * 1440 + slot.start - now.minutes;
+    const minutesToEnd = days * 1440 + slot.end - now.minutes;
+    if (minutesToStart <= 120 && minutesToEnd > 0) return "at-risk";
+  }
+
+  return days === 0 ? "today" : "none";
+}
+
+const urgencyAccent: Record<DeliveryUrgency, string> = {
+  overdue: "border-l-[#DC2626] bg-[#FFF7F7]",
+  "at-risk": "border-l-[#EA580C] bg-[#FFFAF3]",
+  today: "border-l-[#EAB308] bg-[#FFFDF2]",
+  none: "border-l-transparent bg-white",
+};
+
+const urgencyDayStyle: Record<DeliveryUrgency, string> = {
+  overdue: "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]",
+  "at-risk": "border-[#FED7AA] bg-[#FFF1E6] text-[#C2410C]",
+  today: "border-[#FDE68A] bg-[#FEF9C3] text-[#854D0E]",
+  none: "border-transparent bg-transparent text-[#6C877E]",
+};
 
 
 async function withEstimatedAmounts(rawOrders: Order[]): Promise<Order[]> {
@@ -348,6 +420,13 @@ async function withEstimatedAmounts(rawOrders: Order[]): Promise<Order[]> {
 }
 
 export default function TasksPage() {
+
+  const [clock, setClock] = useState<BangkokClock>(() => getBangkokClock());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(getBangkokClock()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const [
 
@@ -1403,12 +1482,14 @@ export default function TasksPage() {
 
                             "awaiting_payment";
 
+                          const urgency = deliveryUrgency(order, clock);
+
 
 
                           return (
                             <div
                               key={order.id}
-                              className="flex items-center justify-between gap-3 border-b border-[#E2EEEA] px-3 py-3.5 last:border-b-0 sm:px-5 sm:py-4"
+                              className={`flex items-center justify-between gap-3 border-b border-[#E2EEEA] border-l-4 px-3 py-3 last:border-b-0 sm:px-5 sm:py-3.5 ${urgencyAccent[urgency]}`}
                             >
                               <div className="min-w-0 flex-1">
                                 <div
@@ -1418,24 +1499,50 @@ export default function TasksPage() {
                                   {order.customers?.customer_name ?? "ไม่ทราบชื่อลูกค้า"}
                                 </div>
 
-                                <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-[#647D75]">
-                                  <span>{order.delivery_date ?? "ยังไม่ระบุวันที่"} · {order.delivery_slot ?? "ยังไม่ระบุช่วงเวลา"}</span>
-                                  <span className="font-medium text-[#52786F]">{prettyStatus(order.status)}</span>
-                                </div>
-
-                                <div className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-sm font-extrabold text-[#008F8D]">
-                                  <span>
-                                    {order.estimated_amount !== null
-                                      ? `ยอดประมาณ ฿${formatBaht(order.estimated_amount)}`
-                                      : "ยอดประมาณ —"}
+                                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                  <span
+                                    className={`inline-flex min-h-7 items-center rounded-lg border px-2 py-1 text-xs font-extrabold ${urgencyDayStyle[urgency]}`}
+                                    title={
+                                      urgency === "overdue" ? "เลยช่วงเวลาจัดส่งแล้ว"
+                                        : urgency === "at-risk" ? "เหลือไม่เกิน 2 ชั่วโมงก่อนถึงช่วงเวลาจัดส่ง"
+                                        : urgency === "today" ? "กำหนดจัดส่งวันนี้" : "กำหนดจัดส่ง"
+                                    }
+                                  >
+                                    {relativeDeliveryDay(order.delivery_date, clock.date)}
                                   </span>
-                                  {order.estimate_uses_current_price && (
-                                    <span className="text-[10px] font-medium text-[#718C84]">
-                                      *อิงราคาปัจจุบัน
-                                    </span>
+                                  <span className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-[#CDE4DE] bg-[#EDF7F4] px-2.5 py-1 text-sm font-extrabold tracking-tight text-[#17453F]">
+                                    <svg
+                                      aria-hidden="true"
+                                      className="h-3.5 w-3.5 shrink-0 text-[#008F8D]"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <circle cx="12" cy="12" r="9" />
+                                      <path d="M12 7v5l3 2" />
+                                    </svg>
+                                    {order.delivery_slot ?? "ไม่ระบุเวลา"}
+                                  </span>
+                                  {urgency === "overdue" && (
+                                    <span className="text-[11px] font-extrabold text-[#B91C1C]">เกินกำหนด</span>
+                                  )}
+                                  {urgency === "at-risk" && (
+                                    <span className="text-[11px] font-extrabold text-[#C2410C]">เสี่ยงล่าช้า</span>
                                   )}
                                 </div>
-                                <p className="mt-1 text-[11px] font-medium text-[#8A9E97]">
+
+                                <div
+                                  className="mt-1.5 text-sm font-extrabold text-[#008F8D]"
+                                  title="มูลค่าคำสั่งซื้อโดยประมาณ ก่อนยืนยันยอดบิล"
+                                >
+                                  {order.estimated_amount !== null
+                                    ? `฿${formatBaht(order.estimated_amount)}`
+                                    : "฿ —"}
+                                </div>
+                                <p className="mt-0.5 text-[11px] font-medium text-[#8A9E97]">
                                   คำสั่งซื้อ #{order.order_number}
                                 </p>
                               </div>
