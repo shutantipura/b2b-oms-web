@@ -221,7 +221,7 @@ body {
 
 /* Page-specific polish; all data loading and actions remain in their pages. */
 .oms-page-kicker {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
@@ -310,4 +310,9 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .oms-workspace .oms-dashboard-tile:hover { transform: none; }
+}
+
+/* The persistent OMS navigation replaces the old per-page back-to-home links. */
+.oms-workspace .oms-content main a[href="/login"] {
+  display: none;
 }
