@@ -265,7 +265,19 @@ export default function MiniAppCheckoutPage() {
       });
       const data = (await response.json()) as CheckoutResponse;
       if (!response.ok) {
-        if (data.deliveryOptions) setDeliveryOptions(data.deliveryOptions);
+        if (data.deliveryOptions) {
+          const freshOptions = data.deliveryOptions;
+          setDeliveryOptions(freshOptions);
+          const selectionStillAvailable = freshOptions.some(
+            (option) => option.date === deliveryDate &&
+              option.slots.some((slot) => slot.value === deliverySlot)
+          );
+          if (!selectionStillAvailable) {
+            const firstAvailable = freshOptions.find((option) => option.slots.length > 0);
+            setDeliveryDate(firstAvailable?.date ?? "");
+            setDeliverySlot(firstAvailable?.slots[0]?.value ?? "");
+          }
+        }
         throw new Error(data.error ?? "ไม่สามารถส่งคำสั่งซื้อได้");
       }
       if (!data.orderNumber) {
@@ -414,6 +426,9 @@ export default function MiniAppCheckoutPage() {
             </select>
           </label>
           {currentSlots.length === 0 && <p className="mt-3 text-xs font-medium text-red-600">ไม่มีช่วงเวลาจัดส่งที่ว่างสำหรับวันที่เลือก</p>}
+          <p className="mt-3 text-[11px] leading-5 text-[#718F83]">
+            สั่งก่อน 10:00 น. เลือกรอบจัดส่งวันเดียวกันได้ตั้งแต่รอบถัดไป · รอบ 07:00–09:00 น. ต้องสั่งก่อน 20:00 น. ของวันก่อน
+          </p>
         </section>
 
         <section className={`${card} p-4 sm:p-5`}>
