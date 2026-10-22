@@ -2514,13 +2514,9 @@ export default function MiniAppShopPage() {
 
   ) {
 
-    const step =
-
-      getQuantityStep(
-
-        product.unit
-
-      );
+    // Buttons add or remove one whole selling unit (including kg).
+    // The number input still uses getQuantityStep, so customers can type 0.1 kg, 1.25 kg, etc.
+    const step = 1;
 
 
 
@@ -3129,7 +3125,7 @@ export default function MiniAppShopPage() {
                           <div className="flex h-10 items-center overflow-hidden rounded-xl border border-[#BCE9E5]">
                             <button type="button" onClick={() => changeQuantity(product, -1)} className="grid h-full w-9 shrink-0 place-items-center bg-[#EFF7F1] text-lg font-bold text-[#009F9D]" aria-label={`ลดจำนวน ${product.productName}`}>−</button>
                             <input
-                              type="number" min="0" step={step} inputMode="decimal" aria-label={`จำนวน ${product.productName}`}
+                              type="number" min="0" step={step < 1 ? "any" : step} inputMode="decimal" aria-label={`จำนวน ${product.productName}`}
                               value={quantityInputs[product.id] ?? String(quantity)}
                               onFocus={() => setQuantityInputs((current) => ({ ...current, [product.id]: String(quantity) }))}
                               onChange={(event) => updateQuantity(product.id, event.target.value)}

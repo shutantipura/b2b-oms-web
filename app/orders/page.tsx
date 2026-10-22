@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -183,8 +184,13 @@ function getSlotStart(
 }
 
 function compareDelivery(a: Order, b: Order) {
-  // Orders for the selected day always show the earliest delivery slot first.
-  // Missing delivery slots go last. Within the same slot, older orders go first.
+  // Across multiple dates, the earliest date must sort before the earliest time slot.
+  if (a.delivery_date !== b.delivery_date) {
+    if (!a.delivery_date) return 1;
+    if (!b.delivery_date) return -1;
+    return a.delivery_date.localeCompare(b.delivery_date);
+  }
+
   const aStart = getSlotStart(a.delivery_slot);
   const bStart = getSlotStart(b.delivery_slot);
 
@@ -211,6 +217,102 @@ function isPending(
   );
 }
 
+type DeliveryUrgency = "overdue" | "at-risk" | "today" | "none";
+type BangkokClock = { date: string; minutes: number };
+
+// Match the operational urgency rules on the Tasks dashboard.
+function getBangkokClock(): BangkokClock {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const part = (kind: string) =>
+    parts.find((entry) => entry.type === kind)?.value ?? "";
+  return {
+    date: `${part("year")}-${part("month")}-${part("day")}`,
+    minutes: Number(part("hour")) * 60 + Number(part("minute")),
+  };
+}
+
+function dateDayNumber(value: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const timestamp = Date.UTC(year, month - 1, day);
+  return Number.isFinite(timestamp) ? timestamp / 86_400_000 : null;
+}
+
+function deliveryDaysAway(deliveryDate: string | null, today: string): number | null {
+  if (!deliveryDate) return null;
+  const target = dateDayNumber(deliveryDate);
+  const baseline = dateDayNumber(today);
+  return target === null || baseline === null ? null : Math.round(target - baseline);
+}
+
+function relativeDeliveryDay(deliveryDate: string | null, today: string): string {
+  const days = deliveryDaysAway(deliveryDate, today);
+  if (days === null) return "ไม่ระบุวันที่";
+  if (days === -1) return "เมื่อวาน";
+  if (days === 0) return "วันนี้";
+  if (days === 1) return "พรุ่งนี้";
+  return days < 0 ? `${Math.abs(days)} วันที่แล้ว` : `${days} วันข้างหน้า`;
+}
+
+function deliverySlotMinutes(slot: string | null): { start: number; end: number } | null {
+  if (!slot) return null;
+  const times = [...slot.matchAll(/([01]?\d|2[0-3]):([0-5]\d)/g)]
+    .map((match) => Number(match[1]) * 60 + Number(match[2]));
+  if (times.length < 2) return null;
+  return { start: times[0], end: times[1] <= times[0] ? times[1] + 1440 : times[1] };
+}
+
+function deliveryUrgency(order: Order, now: BangkokClock): DeliveryUrgency {
+  if (order.status === "completed" || order.status === "cancelled") return "none";
+
+  const days = deliveryDaysAway(order.delivery_date, now.date);
+  if (days === null) return "none";
+
+  // Payment takes place after delivery; an unpaid bill is not an overdue delivery.
+  if (order.status === "awaiting_payment" || order.status === "payment_submitted") {
+    return days === 0 ? "today" : "none";
+  }
+
+  const slot = deliverySlotMinutes(order.delivery_slot);
+  if (days < 0) return "overdue";
+  if (days === 0 && slot && now.minutes >= slot.end) return "overdue";
+
+  // Warn staff within 2 hours before the delivery window begins.
+  if (slot && days <= 1) {
+    const minutesToStart = days * 1440 + slot.start - now.minutes;
+    const minutesToEnd = days * 1440 + slot.end - now.minutes;
+    if (minutesToStart <= 120 && minutesToEnd > 0) return "at-risk";
+  }
+  return days === 0 ? "today" : "none";
+}
+
+const urgencyRowStyle: Record<DeliveryUrgency, string> = {
+  overdue: "bg-[#FFF7F7]",
+  "at-risk": "bg-[#FFFAF3]",
+  today: "bg-[#FFFDF2]",
+  none: "bg-white",
+};
+const urgencyBorderStyle: Record<DeliveryUrgency, string> = {
+  overdue: "border-l-[#DC2626]",
+  "at-risk": "border-l-[#EA580C]",
+  today: "border-l-[#EAB308]",
+  none: "border-l-transparent",
+};
+const urgencyDateStyle: Record<DeliveryUrgency, string> = {
+  overdue: "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]",
+  "at-risk": "border-[#FED7AA] bg-[#FFF1E6] text-[#C2410C]",
+  today: "border-[#FDE68A] bg-[#FEF9C3] text-[#854D0E]",
+  none: "border-[#DCEAE5] bg-[#F6FAF8] text-[#6C877E]",
+};
+
 // =====================================================
 // PAGE
 // =====================================================
@@ -223,6 +325,10 @@ export default function OrdersPage() {
     useState(
       getBangkokToday()
     );
+
+  const [allDates, setAllDates] = useState(false);
+  const [clock, setClock] = useState(() => getBangkokClock());
+  const loadRequestRef = useRef(0);
 
   const [
     orders,
@@ -437,25 +543,22 @@ export default function OrdersPage() {
   // =====================================================
 
   async function loadOrders(
-    date: string =
-      selectedDate
+    date: string = selectedDate,
+    includeAllDates: boolean = allDates
   ) {
-    setLoading(
-      true
-    );
+    const requestId = ++loadRequestRef.current;
+    setLoading(true);
+    setMessage("");
 
-    setMessage(
-      ""
-    );
+    // Supabase queries can be capped by the project's maximum-row setting.
+    // Load in stable pages so the “all dates” choice truly includes older orders.
+    const pageSize = 500;
+    const loaded: Order[] = [];
+    let from = 0;
 
-    const {
-      data,
-      error,
-    } =
-      await supabase
-        .from(
-          "orders"
-        )
+    while (true) {
+      let query = supabase
+        .from("orders")
         .select(`
           id,
           order_number,
@@ -470,57 +573,50 @@ export default function OrdersPage() {
             phone
           )
         `)
-        .eq(
-          "delivery_date",
-          date
-        )
-        .order(
-          "order_number",
-          {
-            ascending:
-              false,
-          }
-        );
+        .order("order_number", { ascending: true })
+        .range(from, from + pageSize - 1);
 
-    if (error) {
-      setMessage(
-        "ไม่สามารถโหลดคำสั่งซื้อได้: " +
-          error.message
-      );
+      if (!includeAllDates) {
+        query = query.eq("delivery_date", date);
+      }
 
-      setOrders(
-        []
-      );
+      const { data, error } = await query;
+      // Ignore an older request if the user has already switched date modes.
+      if (requestId !== loadRequestRef.current) return;
 
-      setLoading(
-        false
-      );
+      if (error) {
+        setMessage("ไม่สามารถโหลดคำสั่งซื้อได้: " + error.message);
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
 
-      return;
+      const page = (data ?? []) as unknown as Order[];
+      loaded.push(...page);
+      if (page.length < pageSize) break;
+      from += pageSize;
     }
 
-    setOrders(
-      (data ??
-        []) as unknown as Order[]
-    );
-
-    setLoading(
-      false
-    );
+    if (requestId !== loadRequestRef.current) return;
+    setOrders(loaded);
+    setLoading(false);
   }
 
   useEffect(() => {
     void loadManagerAccess();
+    void loadOrders(selectedDate, allDates);
+    return () => {
+      loadRequestRef.current += 1;
+    };
+  }, [selectedDate, allDates]);
 
-    loadOrders(
-      selectedDate
-    );
-  }, [
-    selectedDate,
-  ]);
+  useEffect(() => {
+    const interval = window.setInterval(() => setClock(getBangkokClock()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   // =====================================================
-  // COUNTS FOR SELECTED DATE
+  // COUNTS FOR CURRENT DATE MODE
   // =====================================================
 
   const pendingCount =
@@ -592,6 +688,8 @@ export default function OrdersPage() {
       .sort(compareDelivery);
   }, [orders, search, statusFilter]);
 
+  const dateScopeLabel = allDates ? "ทุกวัน" : prettyDate(selectedDate);
+
   // =====================================================
   // PAGE
   // =====================================================
@@ -618,7 +716,7 @@ export default function OrdersPage() {
 <h1 className="text-3xl font-bold mt-3">คำสั่งซื้อ</h1>
 
             <p className="text-gray-500 mt-1">
-              ดูคำสั่งซื้อ B2B ตามวันที่จัดส่ง
+              ดูและจัดการคำสั่งซื้อ B2B ตามวันที่จัดส่ง
             </p>
 
           </div>
@@ -650,17 +748,28 @@ export default function OrdersPage() {
           </div>
           <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-[minmax(0,200px)_minmax(0,1fr)_minmax(0,210px)] md:items-end">
             <div className="min-w-0">
-              <label htmlFor="orders-delivery-date" className="mb-1.5 block text-xs font-bold text-[#52786F]">
-                วันที่จัดส่ง
-              </label>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <label htmlFor="orders-delivery-date" className="block text-xs font-bold text-[#52786F]">
+                  วันที่จัดส่ง
+                </label>
+                <button
+                  type="button"
+                  aria-pressed={allDates}
+                  onClick={() => setAllDates((current) => !current)}
+                  className={`shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-extrabold transition ${allDates ? "border-[#02B0AF] bg-[#E6F8F5] text-[#008F8D]" : "border-[#D5E8E2] bg-white text-[#52786F] hover:bg-[#F0FAF7]"}`}
+                >
+                  ทุกวัน {allDates ? "✓" : ""}
+                </button>
+              </div>
               <div className="flex min-w-0 items-center gap-2">
                 <input
                   id="orders-delivery-date"
                   type="date"
                   value={selectedDate}
                   onChange={(event) => {
+                    if (!event.target.value) return;
                     setSelectedDate(event.target.value);
-                    setStatusFilter("all");
+                    setAllDates(false);
                   }}
                   style={{ minWidth: 0, maxWidth: "11.5rem", width: "100%", height: "44px", minHeight: "44px", maxHeight: "44px", boxSizing: "border-box", paddingTop: 0, paddingBottom: 0 }}
                   className="block h-11 min-h-11 max-h-11 flex-1 rounded-xl border border-[#C8DDD8] bg-white px-2 text-sm text-[#17453F] [color-scheme:light]"
@@ -669,13 +778,16 @@ export default function OrdersPage() {
                   type="button"
                   onClick={() => {
                     setSelectedDate(getBangkokToday());
-                    setStatusFilter("all");
+                    setAllDates(false);
                   }}
                   className="h-11 shrink-0 rounded-xl border border-[#B9DDD6] bg-[#F0FAF7] px-3 text-xs font-extrabold text-[#008F8D]"
                 >
                   วันนี้
                 </button>
               </div>
+              {allDates && (
+                <p className="mt-1.5 text-[11px] font-semibold text-[#008F8D]">แสดงทุกวันที่จัดส่ง</p>
+              )}
             </div>
 
             <div className="min-w-0">
@@ -734,9 +846,7 @@ export default function OrdersPage() {
               </h2>
 
               <p className="text-sm text-gray-500 mt-1">
-                {prettyDate(
-                  selectedDate
-                )}
+                {dateScopeLabel}
               </p>
 
             </div>
@@ -760,7 +870,7 @@ export default function OrdersPage() {
             0 ? (
 
             <div className="p-8 text-gray-500">
-              ไม่พบคำสั่งซื้อสำหรับวันที่และตัวกรองที่เลือก
+              ไม่พบคำสั่งซื้อที่ตรงกับตัวกรองที่เลือก
             </div>
 
           ) : (
@@ -804,29 +914,16 @@ export default function OrdersPage() {
                 <tbody>
 
                   {filteredOrders.map(
-                    (
-                      order,
-                      index
-                    ) => {
-
-                      const urgent =
-                        statusFilter !==
-                          "completed" &&
-                        isPending(
-                          order
-                        ) &&
-                        index <
-                          3;
+                    (order) => {
+                      const urgency = deliveryUrgency(order, clock);
 
                       return (
                         <tr
-                          key={
-                            order.id
-                          }
-                          className="border-t"
+                          key={order.id}
+                          className={`border-t border-[#E2EEEA] ${urgencyRowStyle[urgency]}`}
                         >
 
-                          <td className="p-4">
+                          <td className={`border-l-4 p-4 ${urgencyBorderStyle[urgency]}`}>
 
                             <div className="flex items-center gap-2">
 
@@ -837,12 +934,15 @@ export default function OrdersPage() {
                                 }
                               </div>
 
-                              {urgent && (
-
-                                <span className="text-xs border rounded-full px-2 py-1">
-                                  เร่งด่วน
+                              {urgency === "overdue" && (
+                                <span className="rounded-full border border-[#FECACA] bg-[#FEF2F2] px-2 py-1 text-[11px] font-extrabold text-[#B91C1C]">
+                                  เกินกำหนด
                                 </span>
-
+                              )}
+                              {urgency === "at-risk" && (
+                                <span className="rounded-full border border-[#FED7AA] bg-[#FFF1E6] px-2 py-1 text-[11px] font-extrabold text-[#C2410C]">
+                                  เสี่ยงล่าช้า
+                                </span>
                               )}
 
                             </div>
@@ -889,12 +989,12 @@ export default function OrdersPage() {
                               }
                             </div>
 
-                            <div className="text-sm text-gray-500">
-                              {
-                                order.delivery_date ??
-                                "—"
-                              }
-                            </div>
+                            <span
+                              title={order.delivery_date ?? undefined}
+                              className={`mt-1 inline-flex rounded-lg border px-2 py-1 text-xs font-extrabold ${urgencyDateStyle[urgency]}`}
+                            >
+                              {relativeDeliveryDay(order.delivery_date, clock.date)}
+                            </span>
 
                           </td>
 
@@ -1027,7 +1127,7 @@ export default function OrdersPage() {
         <section className="mt-5 pb-2" aria-label="สถิติคำสั่งซื้อ">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-extrabold text-[#17453F]">ภาพรวมคำสั่งซื้อ</h2>
-            <p className="text-xs text-[#718D84]">{prettyDate(selectedDate)}</p>
+            <p className="text-xs text-[#718D84]">{dateScopeLabel}</p>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
