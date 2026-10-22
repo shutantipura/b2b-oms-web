@@ -23,6 +23,7 @@ import {
 } from "../../lib/supabase";
 
 import LotusLoading from "../../components/LotusLoading";
+import LotusBrand from "@/components/LotusBrand";
 
 type Customer = {
 
@@ -401,7 +402,7 @@ export default function MiniAppHomePage() {
       }
 
       setStaffLoginStep("กำลังเปิดระบบ OMS...");
-      window.location.assign("/tasks");
+      window.location.assign("/login");
     } catch (error) {
       clearTimeout(serverTimeout);
       console.error("[LINE Staff Login]", {
@@ -488,6 +489,7 @@ export default function MiniAppHomePage() {
 
           liffModule.default;
 
+        // Next.js injects NEXT_PUBLIC variables during a fresh Preview build.
         const liffId =
 
           process.env
@@ -947,35 +949,30 @@ export default function MiniAppHomePage() {
   // =====================================================
 
   // ERROR
-
   // =====================================================
 
   if (message) {
-
+    const missingLiffId = message.includes("ไม่พบ LINE LIFF ID");
     return (
-
-      <main className="min-h-screen bg-gray-100 p-5">
-
-        <div className="max-w-md mx-auto">
-
-          <div className="bg-white border rounded-2xl p-6 mt-8">
-
-            <h1 className="text-xl font-bold">
-
-              ไม่สามารถเปิด MINI App ได้
-
-            </h1>
-
-            <p className="text-red-600 mt-3">
-
-              {
-
-                message
-
-              }
-
+      <main className="flex min-h-screen items-center justify-center bg-[#F3F8F7] px-4 py-8">
+        <section className="w-full max-w-md rounded-[26px] border border-[#D5E8E3] bg-white p-6 shadow-[0_18px_44px_rgba(20,91,83,0.1)]">
+          <div className="mb-6 h-1.5 w-14 rounded-full bg-[#FDBC16]" />
+          <LotusBrand size="md" />
+          <h1 className="mt-6 text-xl font-black text-[#17453F]">
+            {missingLiffId ? "ลิงก์ทดสอบยังไม่ได้ตั้งค่า LINE" : "ไม่สามารถเปิด MINI App ได้"}
+          </h1>
+          <p role="alert" className="mt-3 rounded-xl bg-[#FFF7E4] p-4 text-sm leading-6 text-[#704F11]">
+            {missingLiffId
+              ? "เว็บไซต์ทดสอบนี้ยังไม่มีการตั้งค่า LINE LIFF ID ใน Vercel (Preview) จึงยังไม่สามารถตรวจสอบสิทธิ์ลูกค้าหรือพนักงานได้"
+              : message}
+          </p>
+          {missingLiffId ? (
+            <p className="mt-4 text-sm leading-6 text-[#69847B]">
+              กรุณาให้ผู้ดูแลตั้งค่า NEXT_PUBLIC_LINE_LIFF_ID สำหรับ Preview แล้ว deploy อีกครั้ง
+              และตรวจสอบว่า URL นี้ตรงกับ LIFF Endpoint URL ที่ลงทะเบียนไว้ใน LINE Developers
+              ระหว่างนี้สามารถใช้ MINI App บนลิงก์ใช้งานจริงตามเดิมได้
             </p>
-
+          ) : (
             <button
               type="button"
               onClick={async () => {
@@ -985,42 +982,26 @@ export default function MiniAppHomePage() {
                 try { liff.logout(); } catch { /* LIFF may not be initialized */ }
                 window.location.assign("/miniapp");
               }}
-              className="w-full bg-black text-white rounded-xl px-5 py-3 font-semibold mt-5"
+              className="mt-5 min-h-12 w-full rounded-xl bg-[#02B0AF] px-5 py-3 font-bold text-white"
             >
               เข้าสู่ระบบ LINE ใหม่
             </button>
-
-            <button
-
-              type="button"
-
-              onClick={() =>
-
-                window.location.reload()
-
-              }
-
-              className="w-full border rounded-xl px-5 py-3 font-semibold mt-5"
-
-            >
-
-              ลองอีกครั้ง
-
-            </button>
-
-          </div>
-
-        </div>
-
+          )}
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-3 min-h-12 w-full rounded-xl border border-[#C8E4DE] px-5 py-3 font-bold text-[#17453F]"
+          >
+            ลองอีกครั้ง
+          </button>
+        </section>
       </main>
-
     );
-
   }
 
   // =====================================================
 
-  // NO ACCESS PROFILE
+    // NO ACCESS PROFILE
 
   // =====================================================
 
@@ -1070,11 +1051,7 @@ export default function MiniAppHomePage() {
 
         <div className="max-w-md mx-auto">
 
-          <p className="text-xl font-bold text-center mt-8">
-
-            LOTUS&apos;S B2B
-
-          </p>
+          <LotusBrand size="md" align="center" className="mt-8" />
 
           <div className="bg-white border rounded-2xl p-6 mt-6">
 
@@ -1121,168 +1098,101 @@ export default function MiniAppHomePage() {
   }
 
   // =====================================================
-
-  // CHOOSE ACCESS
-
+  // CHOOSE ACCESS — mobile-first Lotus's B2B account-type selection
   // =====================================================
 
-  if (
-
-    portal ===
-
-    "choose"
-
-  ) {
-
+  if (portal === "choose") {
     return (
+      <main className="min-h-screen bg-[#F7FAFA] pb-16 text-[#173E31]">
+        <header className="sticky top-0 z-20 border-b border-[#E1ECE7] bg-white/95 backdrop-blur-md">
+          <div className="mx-auto flex max-w-xl items-center justify-center px-4 py-3">
+            <div className="text-center">
+              <LotusBrand size="sm" align="center" />
+            </div>
+          </div>
+        </header>
 
-      <main className="min-h-screen bg-gray-100 p-5">
-
-        <div className="max-w-md mx-auto">
-
-          <div className="mt-8">
-
-            <p className="text-sm text-gray-500">
-
-              LOTUS&apos;S B2B
-
-            </p>
-
-            <h1 className="text-3xl font-bold mt-2">
-
+        <div className="mx-auto w-full max-w-xl space-y-4 px-4 pt-6 sm:px-6">
+          <section className="rounded-[24px] border border-[#D4E8E2] bg-white p-5 shadow-[0_4px_18px_rgba(0,105,100,0.05)] sm:p-6">
+            <div className="mb-4 h-1.5 w-11 rounded-full bg-[#FDBC16]" />
+            <p className="text-xs font-extrabold tracking-wide text-[#008F8D]">LOTUS’S FOR BUSINESS</p>
+            <h1 className="mt-2 text-[27px] font-black leading-tight tracking-tight text-[#17453F] sm:text-3xl">
               เลือกประเภทการใช้งาน
-
             </h1>
-
+            <p className="mt-2 text-sm leading-6 text-[#6D8D7E]">
+              บัญชี LINE ของคุณสามารถเข้าใช้งานได้มากกว่าหนึ่งประเภท
+              เลือกหน้าที่ต้องการเข้าสู่ระบบ
+            </p>
             {access.displayName && (
-
-              <p className="text-gray-500 mt-1">
-
-                {
-
-                  access.displayName
-
-                }
-
-              </p>
-
+              <div className="mt-4 inline-flex max-w-full items-center gap-2 rounded-full bg-[#ECF8F5] px-3 py-1.5 text-xs font-bold text-[#478174]">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-[#02B0AF]" />
+                <span className="truncate">บัญชี LINE: {access.displayName}</span>
+              </div>
             )}
+          </section>
 
-          </div>
-
-          <div className="space-y-4 mt-7">
-
+          <section aria-label="เลือกประเภทบัญชี" className="space-y-3">
             {access.hasCustomerAccess && (
-
               <button
-
                 type="button"
-
-                onClick={
-
-                  enterCustomerPortal
-
-                }
-
-                className="w-full bg-white border rounded-2xl p-6 text-left"
-
+                onClick={enterCustomerPortal}
+                className="group flex min-h-[116px] w-full items-center gap-3.5 rounded-[21px] border-2 border-[#D5E8E2] bg-white p-4 text-left shadow-[0_3px_13px_rgba(0,105,100,0.05)] transition hover:border-[#02B0AF] hover:bg-[#FBFEFD] active:scale-[0.99] sm:p-5"
               >
-
-                <p className="text-xl font-bold">
-
-                  ลูกค้า
-
-                </p>
-
-                <p className="text-gray-500 mt-2">
-
-                  สั่งสินค้าและดูคำสั่งซื้อ
-
-                </p>
-
-                <p className="font-semibold mt-4">
-
-                  เข้าสู่หน้าลูกค้า →
-
-                </p>
-
+                <span aria-hidden="true" className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#E7F8F5] text-[#008F8D]">
+                  <svg width="29" height="29" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3.5 10h17l-1.3-5H4.8L3.5 10Z" />
+                    <path d="M4.5 10v9h15v-9" />
+                    <path d="M9 19v-6h6v6" />
+                    <path d="M3.5 10c0 1.6 1.4 2.5 2.8 2.5 1.4 0 2.4-.9 2.4-2.5 0 1.6 1.4 2.5 3.3 2.5s3.3-.9 3.3-2.5c0 1.6 1.1 2.5 2.4 2.5 1.5 0 2.8-.9 2.8-2.5" />
+                  </svg>
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-lg font-black leading-6 text-[#17453F]">ลูกค้า</span>
+                  <span className="mt-1 block text-sm leading-5 text-[#718F84]">สั่งสินค้า ดูราคา และติดตามคำสั่งซื้อ</span>
+                  <span className="mt-2 block text-xs font-extrabold text-[#008F8D]">เข้าสู่หน้าลูกค้า</span>
+                </span>
+                <span className="shrink-0 transition group-hover:translate-x-0.5"><NavigationArrow /></span>
               </button>
-
             )}
 
-            {access.hasStaffAccess &&
-
-              access.staff && (
-
+            {access.hasStaffAccess && access.staff && (
               <button
-
                 type="button"
-
-                onClick={
-
-                  openStaffOms
-
-                }
-
-                disabled={
-
-                  openingStaff
-
-                }
-
-                className="w-full bg-white border rounded-2xl p-6 text-left disabled:opacity-50"
-
+                onClick={openStaffOms}
+                disabled={openingStaff}
+                aria-busy={openingStaff}
+                className="group flex min-h-[116px] w-full items-center gap-3.5 rounded-[21px] border-2 border-[#D5E8E2] bg-white p-4 text-left shadow-[0_3px_13px_rgba(0,105,100,0.05)] transition hover:border-[#02B0AF] hover:bg-[#FBFEFD] active:scale-[0.99] disabled:cursor-wait disabled:opacity-65 sm:p-5"
               >
-
-                <p className="text-xl font-bold">
-
-                  พนักงาน / ผู้จัดการ
-
-                </p>
-
-                <p className="text-gray-500 mt-2">
-
-                  {
-
-                    access.staff.staffName
-
-                  }
-
-                  {" · "}
-
-                  {
-
-                    access.staff.accountType
-
-                  }
-
-                </p>
-
-                <p className="font-semibold mt-4">
-
-                  {openingStaff
-
-                    ? (staffLoginStep || "กำลังเข้าสู่ระบบ...")
-
-                    : "เข้าสู่ระบบพนักงาน →"}
-
-                </p>
-
+                <span aria-hidden="true" className="relative grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#E7F8F5] text-[#008F8D]">
+                  <svg width="29" height="29" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="3" width="16" height="18" rx="2.5" />
+                    <path d="M8 3.5h8M8 10h8M8 14h8M8 18h5" />
+                  </svg>
+                  <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#FDBC16]" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-lg font-black leading-6 text-[#17453F]">พนักงาน / ผู้จัดการ</span>
+                  <span className="mt-1 block break-words text-sm leading-5 text-[#718F84]">
+                    {access.staff.staffName} · {access.staff.accountType === "manager" ? "ผู้จัดการ" : "พนักงาน"}
+                  </span>
+                  <span className="mt-2 block text-xs font-extrabold text-[#008F8D]">
+                    {openingStaff ? (staffLoginStep || "กำลังเข้าสู่ระบบ...") : "เข้าสู่ระบบจัดการคำสั่งซื้อ"}
+                  </span>
+                </span>
+                <span className="shrink-0 transition group-hover:translate-x-0.5"><NavigationArrow /></span>
               </button>
-
             )}
+          </section>
 
-          </div>
-
+          <p className="px-2 pt-2 text-center text-xs leading-5 text-[#819E91]">
+            ระบบจะแสดงข้อมูลเฉพาะบัญชีที่คุณได้รับอนุญาตเท่านั้น
+          </p>
         </div>
-
       </main>
-
     );
-
   }
 
-  // =====================================================
+    // =====================================================
 
   // STAFF-ONLY ACCESS
 
@@ -1300,7 +1210,7 @@ export default function MiniAppHomePage() {
 
     return (
 
-      <main className="min-h-screen bg-gray-100 p-5">
+      <main className="min-h-screen bg-[#F7FAFA] px-4 py-6 text-[#17453F]">
 
         <div className="max-w-md mx-auto">
 
@@ -1326,15 +1236,15 @@ export default function MiniAppHomePage() {
 
           )}
 
-          <div className="bg-white border rounded-2xl p-6 mt-6">
+          <div className="mt-6 rounded-[24px] border border-[#D3E9E3] bg-white p-6 shadow-[0_12px_30px_rgba(8,97,89,0.08)]">
 
-            <p className="text-sm text-gray-500">
+            <p className="text-xs font-extrabold tracking-wide text-[#008F8D]">
 
               ระบบพนักงาน
 
             </p>
 
-            <h1 className="text-2xl font-bold mt-2">
+            <h1 className="mt-2 text-[26px] font-black text-[#17453F]">
 
               {
 
@@ -1344,7 +1254,7 @@ export default function MiniAppHomePage() {
 
             </h1>
 
-            <p className="text-gray-500 mt-1">
+            <p className="mt-2 text-sm text-[#739287]">
 
               {
 
@@ -1378,7 +1288,7 @@ export default function MiniAppHomePage() {
 
               }
 
-              className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-6 disabled:opacity-40"
+              className="mt-6 w-full min-h-14 rounded-2xl bg-[#02B0AF] px-5 py-4 text-base font-extrabold text-white shadow-[0_8px_20px_rgba(0,151,150,0.17)] disabled:opacity-50"
 
             >
 
@@ -1425,11 +1335,7 @@ export default function MiniAppHomePage() {
         <header className="sticky top-0 z-20 border-b border-[#E2ECE7] bg-white/95 backdrop-blur-md">
           <div className="mx-auto flex max-w-xl items-center justify-center px-4 py-3">
             <div className="text-center">
-              <p className="text-xl font-black tracking-tight text-[#02B0AF]">
-                Lotus<span className="text-[#FDBC16]">’s</span>
-                <span className="ml-1 text-base text-[#17453F]">B2B</span>
-              </p>
-              <p className="text-[10px] font-medium text-[#79988B]">เพื่อธุรกิจที่ไปได้ไกลกว่า</p>
+              <LotusBrand size="sm" align="center" />
             </div>
           </div>
         </header>
@@ -1624,9 +1530,7 @@ export default function MiniAppHomePage() {
 
           <div className="mt-5 rounded-2xl border border-[#DDECE5] bg-white px-5 py-6 text-center shadow-sm">
 
-            <h1 className="text-3xl font-black tracking-tight text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span><span className="ml-2 text-xl text-[#17453F]">B2B</span></h1>
-
-            <p className="mt-1 text-xs font-semibold text-[#82968D]">สั่งซื้อง่าย เพื่อธุรกิจของคุณ</p>
+            <LotusBrand size="lg" align="center" />
 
             <p className="mt-5 truncate text-base font-extrabold text-[#315E4C]">
 
@@ -1712,28 +1616,19 @@ export default function MiniAppHomePage() {
 
               <p className="font-extrabold text-lg text-[#173E31]">
 
-                คำสั่งซื้อของฉัน
+                คำสั่งซื้อ
 
               </p>
 
               <p className="text-sm text-[#82968D] mt-1">
 
-                ติดตามสถานะคำสั่งซื้อที่กำลังดำเนินการ
+                ดูคำสั่งซื้อที่กำลังดำเนินการและประวัติคำสั่งซื้อ
 
               </p>
 
             </button>
 
-            {/* ORDER HISTORY */}
-            <button
-              type="button"
-              onClick={() => router.push(`/miniapp/orders?customer=${encodeURIComponent(selectedCustomer.customerCode)}&view=history`)}
-              className="w-full rounded-2xl border-2 border-[#C7E7DD] bg-white p-5 text-left shadow-sm transition hover:border-[#02B0AF]"
-            >
-              <div className="mb-3 flex items-center justify-between"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#FFF3D2] text-xl">🕒</span><NavigationArrow /></div>
-              <p className="text-lg font-extrabold text-[#173E31]">ประวัติคำสั่งซื้อ</p>
-              <p className="mt-1 text-sm text-[#82968D]">ดูคำสั่งซื้อที่เสร็จสิ้นหรือถูกยกเลิก</p>
-            </button>
+
 
           </div>
 

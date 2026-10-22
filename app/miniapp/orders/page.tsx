@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
+import LotusBrand from "@/components/LotusBrand";
 
 type Customer = {
   id: string;
@@ -296,7 +297,7 @@ export default function CustomerOrdersPage() {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
           <button type="button" onClick={goCustomerHome} className="min-h-11 rounded-xl px-2 text-sm font-bold text-[#426559]">‹ หน้าแรก</button>
           <div className="text-center">
-            <p className="text-xl font-black tracking-tight text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span><span className="ml-1 text-base text-[#17453F]">B2B</span></p>
+            <LotusBrand size="sm" align="center" />
             <p className="text-[10px] text-[#82968D]">คำสั่งซื้อของฉัน</p>
           </div>
           <button type="button" aria-label="รีเฟรชคำสั่งซื้อ" disabled={refreshing || !idToken} onClick={() => void loadOrders(idToken, mode, customer?.customerCode ?? customerCode)} className="grid h-11 w-11 place-items-center rounded-2xl border border-[#DDE9E2] bg-[#F6FBF8] text-xl text-[#008F8D] disabled:opacity-40">{refreshing ? "…" : "↻"}</button>

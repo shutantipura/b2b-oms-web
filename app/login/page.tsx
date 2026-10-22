@@ -1,1353 +1,249 @@
 "use client";
 
-
-
-import {
-
-  FormEvent,
-
-  useEffect,
-
-  useState,
-
-} from "react";
-
-
-
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-
-
-
-import { supabase } from "../../lib/supabase";
-
-
+import LotusLoading from "@/components/LotusLoading";
+import LotusBrand from "@/components/LotusBrand";
+import { supabase } from "@/lib/supabase";
 
 type StaffProfile = {
-
   staff_code: string;
-
   staff_name: string;
-
   account_type: string;
-
   is_active: boolean;
-
-};
-
-
-
-const TASK_STATUS_MAP:
-  Record<string, string[]> = {
-  confirmation: [
-    "awaiting_confirmation",
-  ],
-  picking: [
-    "awaiting_picking",
-    "picking",
-  ],
-  billing: [
-    "awaiting_billing",
-  ],
-  delivery: [
-    "ready_for_delivery",
-    "out_for_delivery",
-  ],
-  payment_verification: [
-    "awaiting_payment",
-    "payment_submitted",
-  ],
 };
 
 type NavigationItem = {
-
   name: string;
-
   href: string;
-
-  description?: string;
-
+  description: string;
 };
 
-
-
-export default function Home() {
-
-  const [
-
-    email,
-
-    setEmail,
-
-  ] =
-
-    useState("");
-
-
-
-  const [
-
-    password,
-
-    setPassword,
-
-  ] =
-
-    useState("");
-
-
-
-  const [
-
-    staff,
-
-    setStaff,
-
-  ] =
-
-    useState<StaffProfile | null>(
-
-      null
-
-    );
-
-
-
-  const [
-
-    activeOrderCount,
-
-    setActiveOrderCount,
-
-  ] =
-
-    useState(0);
-
-
-
-  const [
-
-    loading,
-
-    setLoading,
-
-  ] =
-
-    useState(true);
-
-
-
-  const [
-
-    message,
-
-    setMessage,
-
-  ] =
-
-    useState("");
-
-
-
-  // =====================================================
-
-  // ACTIVE ORDERS
-
-  // =====================================================
-
-
-
-  async function loadActiveOrderCount(
-    allowedStages: string[]
-  ) {
-    const allowedStatuses =
-      Array.from(
-        new Set(
-          allowedStages.flatMap(
-            (stage) =>
-              TASK_STATUS_MAP[
-                stage
-              ] ?? []
-          )
-        )
-      );
-
-    if (
-      allowedStatuses.length ===
-      0
-    ) {
-      setActiveOrderCount(0);
-      return;
-    }
-
-    const {
-
-      count,
-
-      error,
-
-    } =
-
-      await supabase
-
-        .from("orders")
-
-        .select(
-
-          "id",
-
-          {
-
-            count:
-
-              "exact",
-
-
-
-            head:
-
-              true,
-
-          }
-
-        )
-
-        .in(
-
-          "status",
-
-          allowedStatuses
-
-        );
-
-
-
-    if (error) {
-
-      console.error(
-
-        "Could not load active order count:",
-
-        error
-
-      );
-
-
-
-      setActiveOrderCount(
-
-        0
-
-      );
-
-
-
-      return;
-
-    }
-
-
-
-    setActiveOrderCount(
-
-      count ?? 0
-
-    );
-
-  }
-
-
-
-  // =====================================================
-
-  // LOAD STAFF
-
-  // =====================================================
-
-
-
-  async function loadStaff() {
-
+const TASK_STATUS_MAP: Record<string, string[]> = {
+  confirmation: ["awaiting_confirmation"],
+  picking: ["awaiting_picking", "picking"],
+  billing: ["awaiting_billing"],
+  delivery: ["ready_for_delivery", "out_for_delivery"],
+  payment_verification: ["awaiting_payment", "payment_submitted"],
+};
+
+const MANAGER_NAVIGATION: NavigationItem[] = [
+  { name: "งาน", href: "/tasks", description: "คิวงานปฏิบัติการ" },
+  { name: "คำสั่งซื้อ", href: "/orders", description: "ดูและติดตามคำสั่งซื้อ" },
+  { name: "ลูกค้า", href: "/customers", description: "จัดการบัญชีลูกค้า B2B" },
+  { name: "สินค้าและราคา", href: "/catalog", description: "สินค้า รูปภาพ และราคาพิเศษ" },
+  { name: "พนักงาน", href: "/staff", description: "บัญชีและข้อมูลพนักงาน" },
+  { name: "สิทธิ์ LINE", href: "/line-access", description: "จัดการสิทธิ์ผู้ใช้ LINE" },
+  { name: "KPI", href: "/kpi", description: "ติดตามผลการดำเนินงาน" },
+];
+
+const STAFF_NAVIGATION = MANAGER_NAVIGATION.slice(0, 2);
+
+function goToLineLogin() {
+  window.location.assign("/miniapp?portal=access");
+}
+
+export default function OmsHomePage() {
+  const [staff, setStaff] = useState<StaffProfile | null>(null);
+  const [activeOrderCount, setActiveOrderCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const loadStaff = useCallback(async () => {
     setLoading(true);
+    setMessage("");
 
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setStaff(null);
+        setActiveOrderCount(0);
+        return;
+      }
 
-
-    const {
-
-      data: { user },
-
-    } =
-
-      await supabase.auth.getUser();
-
-
-
-    if (!user) {
-
-      setStaff(
-
-        null
-
-      );
-
-
-
-      setActiveOrderCount(
-
-        0
-
-      );
-
-
-
-      setLoading(false);
-
-      return;
-
-    }
-
-
-
-    const {
-
-      data,
-
-      error,
-
-    } =
-
-      await supabase
-
+      const { data: profile, error: staffError } = await supabase
         .from("staff")
+        .select("staff_code, staff_name, account_type, is_active")
+        .eq("auth_user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
 
-        .select(`
+      if (staffError || !profile) {
+        await supabase.auth.signOut();
+        setStaff(null);
+        setActiveOrderCount(0);
+        setMessage("บัญชีนี้ยังไม่ได้รับสิทธิ์ใช้งาน OMS กรุณาติดต่อผู้จัดการ");
+        return;
+      }
 
-          staff_code,
+      setStaff(profile);
 
-          staff_name,
+      const { data: permissions, error: permissionError } =
+        await supabase.rpc("get_my_task_permissions");
 
-          account_type,
+      if (permissionError) {
+        console.error("Could not load task permissions", permissionError);
+        setActiveOrderCount(0);
+        return;
+      }
 
-          is_active
-
-        `)
-
-        .eq(
-
-          "auth_user_id",
-
-          user.id
-
-        )
-
-        .eq(
-
-          "is_active",
-
-          true
-
-        )
-
-        .single();
-
-
-
-    if (error) {
-
-      console.error(
-
-        error
-
+      const allowedStages = (permissions ?? [])
+        .map((row: { stage?: string }) => row.stage ?? "")
+        .filter(Boolean);
+      const allowedStatuses = Array.from(
+        new Set(allowedStages.flatMap((stage: string) => TASK_STATUS_MAP[stage] ?? []))
       );
 
+      if (allowedStatuses.length === 0) {
+        setActiveOrderCount(0);
+        return;
+      }
 
+      const { count, error: countError } = await supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .in("status", allowedStatuses);
 
-      await supabase.auth.signOut();
+      if (countError) {
+        console.error("Could not load active order count", countError);
+        setActiveOrderCount(0);
+        return;
+      }
 
-
-
-      setMessage(
-
-        "บัญชีนี้ไม่ได้เชื่อมกับพนักงานที่ใช้งานอยู่ใน OMS"
-
-      );
-
-
-
-      setStaff(
-
-        null
-
-      );
-
-
-
-      setLoading(false);
-
-      return;
-
-    }
-
-
-
-    setStaff(
-
-      data
-
-    );
-
-
-
-    setMessage(
-
-      ""
-
-    );
-
-
-
-    const {
-      data: permissionData,
-      error: permissionError,
-    } =
-      await supabase.rpc(
-        "get_my_task_permissions"
-      );
-
-    if (permissionError) {
-      console.error(
-        "Could not load task permissions:",
-        permissionError
-      );
-
+      setActiveOrderCount(count ?? 0);
+    } catch (error) {
+      console.error("OMS staff home initialization", error);
+      setStaff(null);
       setActiveOrderCount(0);
-    } else {
-      const allowedStages =
-        (permissionData ?? [])
-          .map(
-            (row: { stage?: string }) =>
-              row.stage ?? ""
-          )
-          .filter(Boolean);
-
-      await loadActiveOrderCount(
-        allowedStages
-      );
+      setMessage("ไม่สามารถโหลดบัญชีพนักงานได้ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setLoading(false);
     }
-
-
-
-    setLoading(false);
-
-  }
-
-
-
-  useEffect(() => {
-
-    loadStaff();
-
   }, []);
 
+  useEffect(() => {
+    void loadStaff();
+  }, [loadStaff]);
 
-
-  // =====================================================
-
-  // SIGN IN
-
-  // =====================================================
-
-
-
-  async function handleSignIn(
-
-    event:
-
-      FormEvent<HTMLFormElement>
-
-  ) {
-
-    event.preventDefault();
-
-
-
-    setMessage(
-
-      "กำลังเข้าสู่ระบบ..."
-
-    );
-
-
-
-    const {
-
-      error,
-
-    } =
-
-      await supabase.auth.signInWithPassword(
-
-        {
-
-          email,
-
-          password,
-
-        }
-
-      );
-
-
-
-    if (error) {
-
-      setMessage(
-
-        error.message
-
-      );
-
-
-
-      return;
-
-    }
-
-
-
-    await loadStaff();
-
-  }
-
-
-
-  // =====================================================
-
-  // SIGN OUT
-
-  // =====================================================
-
-
-
-  async function handleSignOut() {
-
+  async function handleSwitchMode() {
     await supabase.auth.signOut();
-
-
-
-    window.location.assign(
-
-      "/miniapp?portal=access"
-
-    );
-
+    goToLineLogin();
   }
-
-
-
-  // =====================================================
-
-  // LOADING
-
-  // =====================================================
-
-
 
   if (loading) {
-
-    return (
-
-      <main className="min-h-screen bg-gray-100 flex items-center justify-center">
-
-        <p className="text-xl">
-
-          กำลังโหลด B2B OMS...
-
-        </p>
-
-      </main>
-
-    );
-
+    return <LotusLoading message="กำลังเปิดระบบจัดการคำสั่งซื้อ..." />;
   }
-
-
-
-  // =====================================================
-
-  // LOGIN
-
-  // =====================================================
-
-
 
   if (!staff) {
-
     return (
-
-      <main className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
-
-
-
-        <div className="w-full max-w-md bg-white rounded-2xl shadow p-8">
-
-
-
-          <h1 className="text-3xl font-bold mb-2">
-
-            B2B OMS
-
-          </h1>
-
-
-
-          <p className="text-gray-500 mb-8">
-
-            เข้าสู่ระบบสำหรับพนักงานและผู้จัดการ
-
+      <main className="flex min-h-screen items-center justify-center bg-[#F3F8F7] px-4 py-8">
+        <div className="w-full max-w-md overflow-hidden rounded-[26px] border border-[#D5E8E3] bg-white p-6 shadow-[0_18px_44px_rgba(20,91,83,0.10)] sm:p-8">
+          <div className="mb-7 h-1.5 w-14 rounded-full bg-[#FDBC16]" />
+          <LotusBrand size="md" />
+          <h1 className="mt-8 text-[27px] font-black tracking-tight text-[#17453F]">ยินดีต้อนรับสู่ Lotus’s B2B</h1>
+          <p className="mt-2 text-sm leading-6 text-[#6F8982]">
+            ลูกค้าและพนักงานใช้บัญชี LINE เดียวกัน ระบบจะตรวจสอบสิทธิ์และพาไปยังหน้าที่เหมาะสมโดยอัตโนมัติ
           </p>
-
-
-
-          <form
-
-            onSubmit={
-
-              handleSignIn
-
-            }
-
-            className="space-y-5"
-
-          >
-
-
-
-            <div>
-
-
-
-              <label className="block mb-2 font-medium">
-
-                อีเมล
-
-              </label>
-
-
-
-              <input
-
-                type="email"
-
-                value={
-
-                  email
-
-                }
-
-                onChange={(
-
-                  event
-
-                ) =>
-
-                  setEmail(
-
-                    event.target
-
-                      .value
-
-                  )
-
-                }
-
-                className="w-full border rounded-lg px-4 py-3"
-
-                required
-
-              />
-
-
-
-            </div>
-
-
-
-            <div>
-
-
-
-              <label className="block mb-2 font-medium">
-
-                รหัสผ่าน
-
-              </label>
-
-
-
-              <input
-
-                type="password"
-
-                value={
-
-                  password
-
-                }
-
-                onChange={(
-
-                  event
-
-                ) =>
-
-                  setPassword(
-
-                    event.target
-
-                      .value
-
-                  )
-
-                }
-
-                className="w-full border rounded-lg px-4 py-3"
-
-                required
-
-              />
-
-
-
-            </div>
-
-
-
-            <button
-
-              type="submit"
-
-              className="w-full bg-black text-white rounded-lg py-3 font-semibold"
-
-            >
-
-              เข้าสู่ระบบ
-
-            </button>
-
-
-
-          </form>
-
-
-
           {message && (
-
-            <p className="mt-5 text-sm text-red-600">
-
+            <div role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               {message}
-
-            </p>
-
+            </div>
           )}
-
-
-
+          <button
+            type="button"
+            onClick={goToLineLogin}
+            className="mt-7 flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-[#06C755] px-5 py-3 text-base font-extrabold text-white shadow-[0_6px_16px_rgba(6,199,85,0.18)] active:scale-[0.99]"
+          >
+            <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 11a8 8 0 0 1 16 0c0 4-3.5 7-8 7-1 0-2-.1-3-.5L5 20l.7-4A7.4 7.4 0 0 1 4 11Z" />
+                <path d="M8 11h8" />
+              </svg>
+            </span>
+            เข้าใช้งาน Lotus’s B2B ด้วย LINE
+          </button>
+          <div className="mt-6 rounded-xl bg-[#F3FAF8] p-4 text-xs leading-5 text-[#69847B]">
+            <p className="font-bold text-[#19766E]">เข้าใช้งานอย่างปลอดภัย</p>
+            <p className="mt-1">ลูกค้าสามารถสั่งสินค้าและติดตามคำสั่งซื้อ ส่วนพนักงานที่ได้รับสิทธิ์จะเข้าสู่ OMS</p>
+          </div>
         </div>
-
-
-
       </main>
-
     );
-
   }
 
-
-
-  // =====================================================
-
-  // NAVIGATION
-
-  // =====================================================
-
-
-
-  const managerNavigation:
-
-    NavigationItem[] =
-
-    [
-
-      {
-
-        name:
-
-          "งาน",
-
-
-
-        href:
-
-          "/tasks",
-
-
-
-        description:
-
-          "คิวงานปฏิบัติการ",
-
-      },
-
-
-
-      {
-
-        name:
-
-          "คำสั่งซื้อ",
-
-
-
-        href:
-
-          "/orders",
-
-
-
-        description:
-
-          "ดูคำสั่งซื้อ B2B ทั้งหมด",
-
-      },
-
-
-
-      {
-
-        name:
-
-          "ศูนย์ควบคุม",
-
-
-
-        href:
-
-          "/control-tower",
-
-
-
-        description:
-
-          "ติดตามภาพรวมการปฏิบัติงานวันนี้",
-
-      },
-
-
-
-      {
-
-        name:
-
-          "KPI",
-
-
-
-        href:
-
-          "/kpi",
-
-
-
-        description:
-
-          "Operational performance",
-
-      },
-
-
-
-      {
-
-        name:
-
-          "ลูกค้า",
-
-
-
-        href:
-
-          "/customers",
-
-
-
-        description:
-
-          "จัดการข้อมูลลูกค้า B2B",
-
-      },
-
-
-
-      {
-
-        name:
-
-          "พนักงาน",
-
-
-
-        href:
-
-          "/staff",
-
-
-
-        description:
-
-          "สร้าง แก้ไข และปิดใช้งานบัญชีพนักงาน",
-
-      },
-
-
-
-      {
-
-        name:
-
-          "สิทธิ์ LINE",
-
-
-
-        href:
-
-          "/line-access",
-
-
-
-        description:
-
-          "จัดการสิทธิ์ LINE ของลูกค้าและพนักงาน",
-
-      },
-
-
-
-      {
-
-        name:
-
-          "ข้อมูลสินค้าและราคา",
-
-
-
-        href:
-
-          "/catalog",
-
-
-
-        description:
-
-          "นำเข้า Product Master ราคาปกติ ราคาพิเศษ รูปสินค้า และรายการ SKU ที่แสดงให้ลูกค้า",
-
-      },
-
-    ];
-
-
-
-  const staffNavigation:
-
-    NavigationItem[] =
-
-    [
-
-      {
-
-        name:
-
-          "งาน",
-
-        href:
-
-          "/tasks",
-
-        description:
-
-          "คิวงานปฏิบัติการตามสิทธิ์ที่ได้รับ",
-
-      },
-
-      {
-
-        name:
-
-          "คำสั่งซื้อ",
-
-        href:
-
-          "/orders",
-
-        description:
-
-          "ดูคำสั่งซื้อ B2B",
-
-      },
-
-    ];
-
-
-
-  const navigation =
-
-    staff.account_type ===
-
-    "manager"
-
-      ? managerNavigation
-
-      : staffNavigation;
-
-
-
-  // =====================================================
-
-  // HOME
-
-  // =====================================================
-
-
+  const isManager = staff.account_type === "manager";
+  const navigation = isManager ? MANAGER_NAVIGATION : STAFF_NAVIGATION;
+  const shortcuts = navigation.filter((item) => item.href !== "/tasks");
 
   return (
-
-    <main className="min-h-screen bg-gray-100 p-4 md:p-8">
-
-
-
-      <div className="max-w-6xl mx-auto">
-
-
-
-        {/* HEADER */}
-
-
-
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-10">
-
-
-
-          <div>
-
-
-
-            <h1 className="text-3xl font-bold">
-
-              สวัสดี{" "}
-
-              {
-
-                staff.staff_name
-
-              }{" "}
-
-              👋
-
-            </h1>
-
-
-
-            <p className="text-gray-500 mt-2">
-
-
-
-              {
-
-                staff.staff_code
-
-              }
-
-
-
-              {" · "}
-
-
-
-              {staff.account_type ===
-
-              "manager"
-
-                ? "Manager"
-
-                : "Staff"}
-
-
-
-            </p>
-
-
-
+    <main className="min-h-screen bg-[#F3F8F7] px-4 pb-24 pt-5 sm:px-7 sm:py-8">
+      <div className="mx-auto w-full max-w-5xl">
+        <section className="relative overflow-hidden rounded-[24px] border border-[#CDE9E3] bg-gradient-to-br from-[#E8FAF6] via-white to-white p-5 shadow-[0_5px_20px_rgba(15,91,84,0.05)] sm:p-7">
+          <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-9 rounded-full bg-[#A7EEE6]/35" aria-hidden="true" />
+          <p className="relative text-[11px] font-extrabold tracking-[0.13em] text-[#008B8B]">LOTUS’S B2B / OMS</p>
+          <div className="relative mt-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-[26px] font-black leading-tight tracking-tight text-[#17453F] sm:text-3xl">
+                สวัสดี {staff.staff_name}
+              </h1>
+              <p className="mt-2 text-sm text-[#6B8880]">
+                {staff.staff_code} · {isManager ? "ผู้จัดการ" : "พนักงาน"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSwitchMode}
+              className="min-h-11 rounded-xl border border-[#C5E3DD] bg-white px-4 py-2 text-sm font-bold text-[#3B736B]"
+            >
+              เปลี่ยนประเภทการใช้งาน
+            </button>
           </div>
+        </section>
 
+        <Link
+          href="/tasks"
+          className="mt-5 flex min-h-[128px] items-center justify-between gap-4 rounded-[22px] bg-[#02B0AF] p-5 text-white shadow-[0_9px_22px_rgba(0,153,150,0.17)] transition hover:bg-[#009A9A] sm:p-6"
+        >
+          <div>
+            <p className="text-xs font-bold text-white/80">งานที่ต้องดำเนินการ</p>
+            <p className="mt-2 text-3xl font-black">{activeOrderCount} <span className="text-base font-semibold">คำสั่งซื้อ</span></p>
+            <p className="mt-2 text-sm font-semibold text-white/90">เปิดคิวงานและตรวจสอบสถานะ</p>
+          </div>
+          <div aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/20">
+            <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14m-6-6 6 6-6 6" />
+            </svg>
+          </div>
+        </Link>
 
-
-          <button
-
-            onClick={
-
-              handleSignOut
-
-            }
-
-            className="bg-white border rounded-lg px-4 py-2"
-
-          >
-
-            ออกจากระบบ
-
-          </button>
-
-
-
+        <div className="mt-8 mb-3 flex items-center justify-between">
+          <h2 className="text-xl font-black text-[#17453F]">เมนูจัดการ</h2>
+          <span className="rounded-full bg-[#E5F6F2] px-3 py-1 text-xs font-bold text-[#008C8C]">
+            {isManager ? "Manager" : "Staff"}
+          </span>
         </div>
-
-
-
-        <h2 className="text-xl font-semibold mb-5">
-
-          B2B OMS
-
-        </h2>
-
-
-
-        {/* NAVIGATION */}
-
-
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-
-
-          {navigation.map(
-
-            (item) => {
-
-
-
-              // =========================================
-
-              // TASK CARD
-
-              // =========================================
-
-
-
-              if (
-
-                item.href ===
-
-                "/tasks"
-
-              ) {
-
-                return (
-
-                  <Link
-
-                    key={
-
-                      item.href
-
-                    }
-
-                    href={
-
-                      item.href
-
-                    }
-
-                    className="bg-white border rounded-xl p-7 hover:shadow transition"
-
-                  >
-
-
-
-                    <div className="flex justify-between items-start gap-4">
-
-
-
-                      <div>
-
-
-
-                        <p className="font-semibold text-lg">
-
-                          งาน
-
-                        </p>
-
-
-
-                        <p className="text-sm text-gray-500 mt-2">
-
-
-
-                          {activeOrderCount ===
-
-                          0
-
-                            ? "ไม่มีคำสั่งซื้อที่กำลังดำเนินการ"
-
-                            : `${activeOrderCount} คำสั่งซื้อที่กำลังดำเนินการ`}
-
-
-
-                        </p>
-
-
-
-                      </div>
-
-
-
-                      <div className="min-w-12 h-12 px-3 bg-black text-white rounded-full flex items-center justify-center font-bold text-lg">
-
-                        {
-
-                          activeOrderCount
-
-                        }
-
-                      </div>
-
-
-
-                    </div>
-
-
-
-                    <p className="text-sm font-medium mt-6">
-
-                      ดูคิวงาน →
-
-                    </p>
-
-
-
-                  </Link>
-
-                );
-
-              }
-
-
-
-              // =========================================
-
-              // NORMAL CARD
-
-              // =========================================
-
-
-
-              return (
-
-                <Link
-
-                  key={
-
-                    item.href
-
-                  }
-
-                  href={
-
-                    item.href
-
-                  }
-
-                  className="bg-white border rounded-xl p-7 hover:shadow transition min-h-40"
-
-                >
-
-
-
-                  <p className="font-semibold text-lg">
-
-                    {
-
-                      item.name
-
-                    }
-
-                  </p>
-
-
-
-                  {item.description && (
-
-                    <p className="text-sm text-gray-500 mt-2">
-
-                      {
-
-                        item.description
-
-                      }
-
-                    </p>
-
-                  )}
-
-
-
-                </Link>
-
-              );
-
-            }
-
-          )}
-
-
-
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {shortcuts.map((item, index) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="oms-dashboard-tile group flex min-h-[130px] flex-col rounded-[20px] border border-[#D8E9E5] bg-white p-4 shadow-[0_4px_16px_rgba(18,96,89,0.05)] transition hover:border-[#90D6CF] sm:p-5"
+            >
+              <span aria-hidden="true" className={index === 0 ? "mb-3 h-1.5 w-9 rounded-full bg-[#FDBC16]" : "mb-3 h-1.5 w-9 rounded-full bg-[#75D9CE]"} />
+              <span className="pr-5 text-base font-black leading-snug text-[#17453F]">{item.name}</span>
+              <span className="mt-2 pr-9 text-xs leading-5 text-[#77918A]">{item.description}</span>
+              <span
+                aria-hidden="true"
+                className="absolute bottom-4 right-4 grid h-9 w-9 place-items-center rounded-xl bg-[#E8F8F5] text-[#009F9D] transition-colors group-hover:bg-[#D7F3EE]"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7 17 17 7M8 7h9v9" />
+                </svg>
+              </span>
+            </Link>
+          ))}
         </div>
-
-
-
-        {/* CONNECTION */}
-
-
-
-        <div className="bg-white border rounded-xl p-6 mt-8">
-
-
-
-          <p className="font-semibold">
-
-            เชื่อมต่อระบบ OMS สำเร็จ
-
-          </p>
-
-
-
-          <p className="text-gray-500 mt-2">
-
-            บัญชีของคุณเชื่อมต่อกับฐานข้อมูลพนักงานของ OMS แล้ว
-
-          </p>
-
-
-
-        </div>
-
-
-
       </div>
-
-
-
     </main>
-
   );
-
 }

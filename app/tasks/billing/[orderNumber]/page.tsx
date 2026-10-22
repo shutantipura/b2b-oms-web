@@ -9,6 +9,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 import { supabase } from "../../../../lib/supabase";
+import DeliverySchedule from "../../../../components/DeliverySchedule";
+import TaskFilePicker from "../../../../components/TaskFilePicker";
 
 
 
@@ -128,17 +130,8 @@ export default function BillingPage() {
 
 
 
-  const [billFile, setBillFile] =
-
-    useState<File | null>(null);
-
-
-
-  const [qrFile, setQrFile] =
-
-    useState<File | null>(null);
-
-
+  const [billName, setBillName] = useState<string | null>(null);
+  const [qrName, setQrName] = useState<string | null>(null);
 
   const [finalAmount, setFinalAmount] =
 
@@ -429,6 +422,8 @@ export default function BillingPage() {
     setBillUploaded(Boolean(bill));
 
     setQrUploaded(Boolean(qr));
+    setBillName(bill?.original_filename ?? null);
+    setQrName(qr?.original_filename ?? null);
 
 
 
@@ -596,137 +591,37 @@ export default function BillingPage() {
 
 
 
-  async function uploadBill() {
-
-    if (!billFile) {
-
-      setMessage(
-
-        "กรุณาเลือกไฟล์บิลก่อน"
-
-      );
-
-      return;
-
-    }
-
-
-
+  async function uploadBill(file: File) {
+    if (uploadingBill || submitting) return;
     try {
-
       setUploadingBill(true);
-
       setMessage("กำลังอัปโหลดบิล...");
-
-
-
-      await uploadFile(
-
-        billFile,
-
-        "bill"
-
-      );
-
-
-
+      await uploadFile(file, "bill");
       setBillUploaded(true);
-
-      setMessage(
-
-        "อัปโหลดบิลสำเร็จ"
-
-      );
-
+      setBillName(file.name);
+      setMessage("✓ บันทึกบิลเรียบร้อยแล้ว");
     } catch (error) {
-
-      setMessage(
-
-        error instanceof Error
-
-          ? error.message
-
-          : "อัปโหลดบิลไม่สำเร็จ"
-
-      );
-
+      setMessage(error instanceof Error ? error.message : "อัปโหลดบิลไม่สำเร็จ");
     } finally {
-
       setUploadingBill(false);
-
     }
-
   }
 
-
-
-  async function uploadQr() {
-
-    if (!qrFile) {
-
-      setMessage(
-
-        "กรุณาเลือกรูป QR ชำระเงินก่อน"
-
-      );
-
-      return;
-
-    }
-
-
-
+  async function uploadQr(file: File) {
+    if (uploadingQr || submitting) return;
     try {
-
       setUploadingQr(true);
-
-      setMessage(
-
-        "กำลังอัปโหลด QR ชำระเงิน..."
-
-      );
-
-
-
-      await uploadFile(
-
-        qrFile,
-
-        "payment_qr"
-
-      );
-
-
-
+      setMessage("กำลังอัปโหลด QR ชำระเงิน...");
+      await uploadFile(file, "payment_qr");
       setQrUploaded(true);
-
-      setMessage(
-
-        "อัปโหลด QR ชำระเงินสำเร็จ"
-
-      );
-
+      setQrName(file.name);
+      setMessage("✓ บันทึก QR ชำระเงินเรียบร้อยแล้ว");
     } catch (error) {
-
-      setMessage(
-
-        error instanceof Error
-
-          ? error.message
-
-          : "อัปโหลด QR ชำระเงินไม่สำเร็จ"
-
-      );
-
+      setMessage(error instanceof Error ? error.message : "อัปโหลด QR ไม่สำเร็จ");
     } finally {
-
       setUploadingQr(false);
-
     }
-
   }
-
-
 
   async function completeBilling() {
 
@@ -1000,18 +895,11 @@ export default function BillingPage() {
 
 
 
-            <h1 className="text-3xl font-bold mt-1">
-
-              คำสั่งซื้อ #{order.order_number}
-
+            <h1 className="mt-1 text-2xl font-extrabold leading-tight text-[#17453F] md:text-3xl">
+              {order.customers?.customer_name ?? "ไม่ทราบชื่อร้าน"}
             </h1>
-
-
-
-            <p className="text-xl mt-2">
-
-              {order.customers?.customer_name}
-
+            <p className="mt-1 text-xs font-semibold text-[#82958F]">
+              คำสั่งซื้อ #{order.order_number}
             </p>
 
           </div>
@@ -1120,15 +1008,7 @@ export default function BillingPage() {
 
 
 
-              <p className="font-medium">
-
-                {order.delivery_date ?? "—"}
-
-                {" · "}
-
-                {order.delivery_slot ?? "—"}
-
-              </p>
+              <DeliverySchedule date={order.delivery_date} slot={order.delivery_slot} />
 
             </div>
 
@@ -1224,22 +1104,6 @@ export default function BillingPage() {
 
                   <th className="text-right p-4">
 
-                    จำนวนที่สั่ง
-
-                  </th>
-
-
-
-                  <th className="text-right p-4">
-
-                    จำนวนที่ยืนยัน
-
-                  </th>
-
-
-
-                  <th className="text-right p-4">
-
                     จำนวนที่หยิบจริง
 
                   </th>
@@ -1323,34 +1187,6 @@ export default function BillingPage() {
                         {item.products?.sku ??
 
                           "—"}
-
-                      </td>
-
-
-
-                      <td className="p-4 text-right">
-
-                        {Number(
-
-                          item.requested_qty
-
-                        )}{" "}
-
-                        {item.unit_snapshot}
-
-                      </td>
-
-
-
-                      <td className="p-4 text-right">
-
-                        {Number(
-
-                          item.confirmed_qty
-
-                        )}{" "}
-
-                        {item.unit_snapshot}
 
                       </td>
 
@@ -1580,65 +1416,17 @@ export default function BillingPage() {
 
 
 
-            {billUploaded ? (
-
-              <div className="font-semibold">
-
-                ✓ อัปโหลดบิลแล้ว
-
-              </div>
-
-            ) : (
-
-              <>
-
-                <input
-
-                  type="file"
-
-                  accept="image/*,.pdf"
-
-                  onChange={(event) =>
-
-                    setBillFile(
-
-                      event.target
-
-                        .files?.[0] ??
-
-                        null
-
-                    )
-
-                  }
-
-                />
-
-
-
-                <button
-
-                  onClick={uploadBill}
-
-                  disabled={uploadingBill}
-
-                  className="block mt-4 bg-white border rounded-lg px-5 py-2"
-
-                >
-
-                  {uploadingBill
-
-                    ? "กำลังอัปโหลด..."
-
-                    : "อัปโหลดบิล"}
-
-                </button>
-
-              </>
-
-            )}
-
-
+            <TaskFilePicker
+              label="ไฟล์บิล"
+              chooseLabel="เลือกและอัปโหลดบิล"
+              replaceLabel="เปลี่ยนไฟล์บิล"
+              accept="image/*,application/pdf,.pdf"
+              uploaded={billUploaded}
+              uploading={uploadingBill}
+              disabled={submitting}
+              fileName={billName}
+              onSelect={uploadBill}
+            />
 
           </div>
 
@@ -1664,65 +1452,17 @@ export default function BillingPage() {
 
 
 
-            {qrUploaded ? (
-
-              <div className="font-semibold">
-
-                ✓ อัปโหลด QR ชำระเงินแล้ว
-
-              </div>
-
-            ) : (
-
-              <>
-
-                <input
-
-                  type="file"
-
-                  accept="image/*"
-
-                  onChange={(event) =>
-
-                    setQrFile(
-
-                      event.target
-
-                        .files?.[0] ??
-
-                        null
-
-                    )
-
-                  }
-
-                />
-
-
-
-                <button
-
-                  onClick={uploadQr}
-
-                  disabled={uploadingQr}
-
-                  className="block mt-4 bg-white border rounded-lg px-5 py-2"
-
-                >
-
-                  {uploadingQr
-
-                    ? "กำลังอัปโหลด..."
-
-                    : "อัปโหลด QR ชำระเงิน"}
-
-                </button>
-
-              </>
-
-            )}
-
-
+            <TaskFilePicker
+              label="รูป QR ชำระเงิน"
+              chooseLabel="เลือกรูป QR ชำระเงิน"
+              replaceLabel="เปลี่ยนรูป QR"
+              accept="image/*"
+              uploaded={qrUploaded}
+              uploading={uploadingQr}
+              disabled={submitting}
+              fileName={qrName}
+              onSelect={uploadQr}
+            />
 
           </div>
 
@@ -1752,15 +1492,7 @@ export default function BillingPage() {
 
             onClick={completeBilling}
 
-            disabled={
-
-              submitting ||
-
-              !billUploaded ||
-
-              !qrUploaded
-
-            }
+            disabled={submitting || uploadingBill || uploadingQr || !billUploaded || !qrUploaded}
 
             className="bg-black text-white rounded-lg px-8 py-4 font-semibold disabled:opacity-30"
 

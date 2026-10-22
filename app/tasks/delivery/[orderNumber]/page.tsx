@@ -9,6 +9,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 import { supabase } from "../../../../lib/supabase";
+import DeliverySchedule from "../../../../components/DeliverySchedule";
+import TaskFilePicker from "../../../../components/TaskFilePicker";
 
 
 
@@ -106,11 +108,7 @@ export default function DeliveryPage() {
 
 
 
-  const [deliveryPhoto, setDeliveryPhoto] =
-
-    useState<File | null>(null);
-
-
+  const [deliveryPhotoName, setDeliveryPhotoName] = useState<string | null>(null);
 
   const [photoUploaded, setPhotoUploaded] =
 
@@ -329,6 +327,7 @@ export default function DeliveryPage() {
       )
 
     );
+    setDeliveryPhotoName(files.find((file) => file.file_type === "delivery_proof")?.original_filename ?? null);
 
 
 
@@ -488,157 +487,45 @@ export default function DeliveryPage() {
 
 
 
-  async function uploadDeliveryProof() {
-
-    if (!deliveryPhoto) {
-
-      setMessage(
-
-        "กรุณาเลือกรูปหลักฐานการจัดส่งก่อน"
-
-      );
-
-      return;
-
-    }
-
-
-
+  async function uploadDeliveryProof(file: File) {
+    if (uploading || submitting) return;
     setUploading(true);
+    setMessage("กำลังอัปโหลดหลักฐานการจัดส่ง...");
 
-    setMessage(
-
-      "กำลังอัปโหลดหลักฐานการจัดส่ง..."
-
-    );
-
-
-
-    const extension =
-
-      deliveryPhoto.name.split(".").pop() ||
-
-      "jpg";
-
-
-
+    const extension = file.name.split(".").pop() || "jpg";
     const storagePath =
+      `orders/${orderNumber}/delivery_proof/${crypto.randomUUID()}.${extension}`;
 
-      `orders/${orderNumber}/delivery_proof/` +
-
-      `${crypto.randomUUID()}.${extension}`;
-
-
-
-    const { error: uploadError } =
-
-      await supabase.storage
-
+    try {
+      const { error: uploadError } = await supabase.storage
         .from("order-files")
+        .upload(storagePath, file, {
+          upsert: false,
+          contentType: file.type || "image/jpeg",
+        });
+      if (uploadError) throw new Error("อัปโหลดรูปไม่สำเร็จ: " + uploadError.message);
 
-        .upload(
-
-          storagePath,
-
-          deliveryPhoto,
-
-          {
-
-            upsert: false,
-
-            contentType:
-
-              deliveryPhoto.type ||
-
-              "image/jpeg",
-
-          }
-
-        );
-
-
-
-    if (uploadError) {
-
-      setMessage(
-
-        "อัปโหลดหลักฐานการจัดส่งไม่สำเร็จ: " +
-
-          uploadError.message
-
-      );
-
-      setUploading(false);
-
-      return;
-
-    }
-
-
-
-    const { error: registerError } =
-
-      await supabase.rpc(
-
+      const { error: registerError } = await supabase.rpc(
         "register_my_order_file",
-
         {
-
           p_order_number: orderNumber,
-
           p_file_type: "delivery_proof",
-
           p_storage_path: storagePath,
-
-          p_original_filename:
-
-            deliveryPhoto.name,
-
-          p_mime_type:
-
-            deliveryPhoto.type ||
-
-            "image/jpeg",
-
+          p_original_filename: file.name,
+          p_mime_type: file.type || "image/jpeg",
         }
-
       );
+      if (registerError) throw new Error("บันทึกรูปไม่สำเร็จ: " + registerError.message);
 
-
-
-    if (registerError) {
-
-      setMessage(
-
-        "อัปโหลดรูปสำเร็จ แต่บันทึกข้อมูลไฟล์ไม่สำเร็จ: " +
-
-          registerError.message
-
-      );
-
+      setPhotoUploaded(true);
+      setDeliveryPhotoName(file.name);
+      setMessage("✓ บันทึกหลักฐานการจัดส่งเรียบร้อยแล้ว");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "อัปโหลดหลักฐานการจัดส่งไม่สำเร็จ");
+    } finally {
       setUploading(false);
-
-      return;
-
     }
-
-
-
-    setPhotoUploaded(true);
-
-    setUploading(false);
-
-
-
-    setMessage(
-
-      "อัปโหลดหลักฐานการจัดส่งสำเร็จ"
-
-    );
-
   }
-
-
 
   async function completeDelivery() {
 
@@ -868,18 +755,11 @@ export default function DeliveryPage() {
 
 
 
-            <h1 className="text-3xl font-bold mt-1">
-
-              คำสั่งซื้อ #{order.order_number}
-
+            <h1 className="mt-1 text-2xl font-extrabold leading-tight text-[#17453F] md:text-3xl">
+              {order.customers?.customer_name ?? "ไม่ทราบชื่อร้าน"}
             </h1>
-
-
-
-            <p className="text-xl mt-2">
-
-              {order.customers?.customer_name}
-
+            <p className="mt-1 text-xs font-semibold text-[#82958F]">
+              คำสั่งซื้อ #{order.order_number}
             </p>
 
           </div>
@@ -986,15 +866,7 @@ export default function DeliveryPage() {
 
 
 
-              <p className="font-medium">
-
-                {order.delivery_date ?? "—"}
-
-                {" · "}
-
-                {order.delivery_slot ?? "—"}
-
-              </p>
+              <DeliverySchedule date={order.delivery_date} slot={order.delivery_slot} />
 
             </div>
 
@@ -1248,63 +1120,17 @@ export default function DeliveryPage() {
 
 
 
-          {photoUploaded ? (
-
-            <div className="font-semibold">
-
-              ✓ อัปโหลดหลักฐานการจัดส่งแล้ว
-
-            </div>
-
-          ) : (
-
-            <>
-
-              <input
-
-                type="file"
-
-                accept="image/*"
-
-                onChange={(event) =>
-
-                  setDeliveryPhoto(
-
-                    event.target.files?.[0] ??
-
-                    null
-
-                  )
-
-                }
-
-              />
-
-
-
-              <button
-
-                onClick={uploadDeliveryProof}
-
-                disabled={uploading}
-
-                className="block mt-4 bg-white border rounded-lg px-5 py-2"
-
-              >
-
-                {uploading
-
-                  ? "กำลังอัปโหลด..."
-
-                  : "อัปโหลดหลักฐานการจัดส่ง"}
-
-              </button>
-
-            </>
-
-          )}
-
-
+          <TaskFilePicker
+            label="หลักฐานการจัดส่ง"
+            chooseLabel="ถ่ายหรือเลือกรูปการจัดส่ง"
+            replaceLabel="เปลี่ยนรูปหลักฐานการจัดส่ง"
+            accept="image/*"
+            uploaded={photoUploaded}
+            uploading={uploading}
+            disabled={submitting}
+            fileName={deliveryPhotoName}
+            onSelect={uploadDeliveryProof}
+          />
 
         </section>
 
@@ -1330,13 +1156,7 @@ export default function DeliveryPage() {
 
             onClick={completeDelivery}
 
-            disabled={
-
-              submitting ||
-
-              !photoUploaded
-
-            }
+            disabled={submitting || uploading || !photoUploaded}
 
             className="bg-black text-white rounded-lg px-8 py-4 font-semibold disabled:opacity-30"
 

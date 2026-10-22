@@ -201,16 +201,25 @@ export function getAvailableSlots(
     ];
   }
 
-  // Same day:
-  // slot must not already
-  // have started.
-  return DELIVERY_RULES
-    .slots
-    .filter(
-      (slot) =>
-        slot.startMinutes >
-        bangkok.minutes
-    );
+  // Same-day booking is possible only before 10:00 Bangkok time.
+  // The 07:00–09:00 slot requires booking before 20:00 the day before.
+  if (bangkok.minutes >= DELIVERY_RULES.sameDayCutoffMinutes) {
+    return [];
+  }
+
+  // A customer must choose the slot AFTER the current delivery window.
+  // Before the first window (e.g. 03:00), 09:00–11:00 is the earliest.
+  // At 07:30 the current window is 07:00–09:00, so 09:00–11:00 opens.
+  // At 09:50 the current window is 09:00–11:00, so 11:00–13:00 opens.
+  const currentSlotIndex = DELIVERY_RULES.slots.findIndex((slot, index) => {
+    const nextSlot = DELIVERY_RULES.slots[index + 1];
+    const end = nextSlot?.startMinutes ?? slot.startMinutes + 120;
+    return bangkok.minutes >= slot.startMinutes && bangkok.minutes < end;
+  });
+
+  // Index 0 is the restricted 07:00–09:00 slot.
+  // When no window has started yet, begin at index 1 (09:00–11:00).
+  return DELIVERY_RULES.slots.slice(Math.max(1, currentSlotIndex + 1));
 }
 
 export function getDeliveryOptions(
@@ -276,7 +285,7 @@ export function validateDeliverySelection(
     return {
       valid: false,
       message:
-        "That delivery date is not currently available.",
+        "วันที่จัดส่งนี้ไม่สามารถเลือกได้ในขณะนี้ กรุณาเลือกวันใหม่",
     };
   }
 
@@ -291,7 +300,7 @@ export function validateDeliverySelection(
     return {
       valid: false,
       message:
-        "That delivery time is no longer available. Please select another slot.",
+        "ช่วงเวลาจัดส่งนี้ไม่สามารถเลือกได้แล้ว กรุณาเลือกรอบใหม่",
     };
   }
 

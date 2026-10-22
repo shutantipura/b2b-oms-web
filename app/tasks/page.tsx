@@ -31,8 +31,9 @@ type Order = {
   delivery_date: string | null;
 
   delivery_slot: string | null;
-
-
+  customer_id: string;
+  estimated_amount: number | null;
+  estimate_uses_current_price: boolean;
 
   customers: {
 
@@ -181,26 +182,251 @@ const groups: TaskGroup[] = [
 
 
 
-function prettyStatus(
-  status: string
-) {
-  const names: Record<string, string> = {
-    awaiting_confirmation: "รอยืนยันคำสั่งซื้อ",
-    awaiting_picking: "รอจัดสินค้า",
-    picking: "กำลังจัดสินค้า",
-    awaiting_billing: "รอออกบิล",
-    ready_for_delivery: "พร้อมจัดส่ง",
-    out_for_delivery: "กำลังจัดส่ง",
-    awaiting_payment: "รอชำระเงิน",
-    payment_submitted: "ส่งหลักฐานการชำระเงินแล้ว",
-    completed: "เสร็จสิ้น",
-    cancelled: "ยกเลิก",
-  };
+// Keep task estimates consistent with the customer order-tracking page:
+// use an amount saved at order time first; only fall back to today's price
+// for historical lines without a saved price.
+type PriceRecord = Record<string, unknown>;
 
-  return names[status] ?? status;
+function validAmount(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function firstAmount(record: PriceRecord, keys: string[]): number | null {
+  for (const key of keys) {
+    const amount = validAmount(record[key]);
+    if (amount !== null) return amount;
+  }
+  return null;
+}
+
+function requestedQuantity(item: PriceRecord) {
+  return firstAmount(item, [
+    "requested_qty", "requested_quantity", "quantity", "requested",
+  ]);
+}
+
+function savedLineAmount(item: PriceRecord, quantity: number | null) {
+  const subtotal = firstAmount(item, [
+    "estimated_subtotal", "subtotal_at_order", "requested_subtotal", "line_total_at_order",
+  ]);
+  if (subtotal !== null) return subtotal;
+
+  const savedPrice = firstAmount(item, [
+    "price_per_kg_at_order", "price_per_unit_at_order", "unit_price_at_order",
+    "effective_price_at_order", "price_at_order", "agreed_price_at_order",
+    "price_per_kg", "unit_price",
+  ]);
+  return savedPrice !== null && quantity !== null ? savedPrice * quantity : null;
+}
+
+function formatBaht(amount: number) {
+  return new Intl.NumberFormat("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+
+type DeliveryUrgency = "overdue" | "at-risk" | "today" | "none";
+type BangkokClock = { date: string; minutes: number };
+
+function getBangkokClock(): BangkokClock {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const part = (kind: string) => parts.find((entry) => entry.type === kind)?.value ?? "";
+  return {
+    date: `${part("year")}-${part("month")}-${part("day")}`,
+    minutes: Number(part("hour")) * 60 + Number(part("minute")),
+  };
+}
+
+function utcDateDay(value: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const timestamp = Date.UTC(year, month - 1, day);
+  return Number.isFinite(timestamp) ? timestamp / 86_400_000 : null;
+}
+
+function deliveryDaysAway(deliveryDate: string | null, today: string): number | null {
+  if (!deliveryDate) return null;
+  const target = utcDateDay(deliveryDate);
+  const baseline = utcDateDay(today);
+  return target === null || baseline === null ? null : Math.round(target - baseline);
+}
+
+function relativeDeliveryDay(deliveryDate: string | null, today: string): string {
+  const days = deliveryDaysAway(deliveryDate, today);
+  if (days === null) return "ไม่ระบุวันที่";
+  if (days === -1) return "เมื่อวาน";
+  if (days === 0) return "วันนี้";
+  if (days === 1) return "พรุ่งนี้";
+  return days < 0 ? `${Math.abs(days)} วันที่แล้ว` : `${days} วันข้างหน้า`;
+}
+
+function deliverySlotMinutes(slot: string | null): { start: number; end: number } | null {
+  if (!slot) return null;
+  const times = [...slot.matchAll(/([01]?\d|2[0-3]):([0-5]\d)/g)]
+    .map((match) => Number(match[1]) * 60 + Number(match[2]));
+  if (times.length < 2) return null;
+  return { start: times[0], end: times[1] <= times[0] ? times[1] + 1440 : times[1] };
+}
+
+function deliveryUrgency(order: Order, now: BangkokClock): DeliveryUrgency {
+  const days = deliveryDaysAway(order.delivery_date, now.date);
+  if (days === null) return "none";
+
+  // The payment-verification queue is post-delivery; an unpaid order
+  // should not be mislabelled as a missed delivery.
+  if (order.status === "awaiting_payment" || order.status === "payment_submitted") {
+    return days === 0 ? "today" : "none";
+  }
+
+  const slot = deliverySlotMinutes(order.delivery_slot);
+  if (days < 0) return "overdue";
+  if (days === 0 && slot && now.minutes >= slot.end) return "overdue";
+
+  // Operational rule: within 2 hours of the delivery window opening,
+  // an unfinished order needs urgent attention.
+  if (slot && days <= 1) {
+    const minutesToStart = days * 1440 + slot.start - now.minutes;
+    const minutesToEnd = days * 1440 + slot.end - now.minutes;
+    if (minutesToStart <= 120 && minutesToEnd > 0) return "at-risk";
+  }
+
+  return days === 0 ? "today" : "none";
+}
+
+const urgencyAccent: Record<DeliveryUrgency, string> = {
+  overdue: "border-l-[#DC2626] bg-[#FFF7F7]",
+  "at-risk": "border-l-[#EA580C] bg-[#FFFAF3]",
+  today: "border-l-[#EAB308] bg-[#FFFDF2]",
+  none: "border-l-transparent bg-white",
+};
+
+const urgencyDayStyle: Record<DeliveryUrgency, string> = {
+  overdue: "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]",
+  "at-risk": "border-[#FED7AA] bg-[#FFF1E6] text-[#C2410C]",
+  today: "border-[#FDE68A] bg-[#FEF9C3] text-[#854D0E]",
+  none: "border-transparent bg-transparent text-[#6C877E]",
+};
+
+
+async function withEstimatedAmounts(rawOrders: Order[]): Promise<Order[]> {
+  const withoutEstimate = rawOrders.map((order) => ({
+    ...order,
+    estimated_amount: null,
+    estimate_uses_current_price: false,
+  }));
+  if (withoutEstimate.length === 0) return withoutEstimate;
+
+  const orderIds = withoutEstimate.map((order) => order.id);
+  const { data: rows, error: itemsError } = await supabase
+    .from("order_items")
+    .select("*")
+    .in("order_id", orderIds);
+
+  // Task claiming remains usable even if an estimate is unavailable.
+  if (itemsError) {
+    console.warn("Could not calculate task estimates:", itemsError.message);
+    return withoutEstimate;
+  }
+
+  const items = (rows ?? []) as PriceRecord[];
+  const productIds = [...new Set(items
+    .map((item) => String(item.product_id ?? ""))
+    .filter(Boolean))];
+  const customerIds = [...new Set(withoutEstimate.map((order) => order.customer_id).filter(Boolean))];
+
+  const [productResult, specialPriceResult] = await Promise.all([
+    productIds.length
+      ? supabase.from("products").select("id, normal_price").in("id", productIds)
+      : Promise.resolve({ data: [], error: null }),
+    productIds.length && customerIds.length
+      ? supabase.from("customer_prices")
+          .select("customer_id, product_id, agreed_price")
+          .in("customer_id", customerIds)
+          .in("product_id", productIds)
+          .eq("is_active", true)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  const regularPrices = new Map<string, number>();
+  if (!productResult.error) {
+    for (const product of productResult.data ?? []) {
+      const price = validAmount(product.normal_price);
+      if (price !== null) regularPrices.set(String(product.id), price);
+    }
+  }
+
+  const specialPrices = new Map<string, number>();
+  if (!specialPriceResult.error) {
+    for (const priceRow of specialPriceResult.data ?? []) {
+      const price = validAmount(priceRow.agreed_price);
+      if (price !== null) {
+        specialPrices.set(String(priceRow.customer_id) + ":" + String(priceRow.product_id), price);
+      }
+    }
+  }
+
+  const byOrder = new Map<string, PriceRecord[]>();
+  for (const item of items) {
+    const id = String(item.order_id ?? "");
+    const previous = byOrder.get(id) ?? [];
+    previous.push(item);
+    byOrder.set(id, previous);
+  }
+
+  return withoutEstimate.map((order) => {
+    const orderItems = byOrder.get(order.id) ?? [];
+    if (orderItems.length === 0) return order;
+
+    let total = 0;
+    let usedCurrentPrice = false;
+    for (const item of orderItems) {
+      const quantity = requestedQuantity(item);
+      const saved = savedLineAmount(item, quantity);
+      if (saved !== null) {
+        total += saved;
+        continue;
+      }
+
+      const productId = String(item.product_id ?? "");
+      const current = !specialPriceResult.error
+        ? specialPrices.get(order.customer_id + ":" + productId) ?? regularPrices.get(productId)
+        : null;
+
+      if (quantity === null || current === null || current === undefined) {
+        return { ...order, estimated_amount: null, estimate_uses_current_price: false };
+      }
+      total += current * quantity;
+      usedCurrentPrice = true;
+    }
+
+    return {
+      ...order,
+      estimated_amount: total,
+      estimate_uses_current_price: usedCurrentPrice,
+    };
+  });
 }
 
 export default function TasksPage() {
+
+  const [clock, setClock] = useState<BangkokClock>(() => getBangkokClock());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(getBangkokClock()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const [
 
@@ -512,6 +738,7 @@ export default function TasksPage() {
           status,
           delivery_date,
           delivery_slot,
+          customer_id,
           customers (customer_name)
         `)
         .in("status", allStatuses)
@@ -524,7 +751,7 @@ export default function TasksPage() {
       return;
     }
 
-    setOrders((orderData ?? []) as unknown as Order[]);
+    setOrders(await withEstimatedAmounts((orderData ?? []) as unknown as Order[]));
 
     // ---------------------------------------------------
 
@@ -1010,11 +1237,8 @@ export default function TasksPage() {
 
 
 
-            <h1 className="text-3xl font-bold mt-2">
-
-              งาน
-
-            </h1>
+            <p className="oms-page-kicker">OPERATIONS / TASK QUEUE</p>
+<h1 className="text-3xl font-bold mt-2">งาน</h1>
 
 
 
@@ -1142,7 +1366,7 @@ export default function TasksPage() {
 
                   }
 
-                  className="bg-white border rounded-2xl overflow-hidden"
+                  className="oms-task-stage bg-white border rounded-2xl overflow-hidden"
 
                 >
 
@@ -1176,7 +1400,7 @@ export default function TasksPage() {
                         aria-label={`${expanded ? "ย่อ" : "แสดง"}รายการ${group.title}`}
                         className="text-gray-500 text-sm whitespace-nowrap rounded-lg px-1.5 py-1 hover:bg-gray-100"
                       >
-                        {expanded ? "▲ ย่อ" : "▼ แสดง"}
+                        <span className="oms-stage-chevron" aria-hidden="true">{expanded ? "⌃" : "⌄"}</span><span>{expanded ? "ย่อ" : "แสดง"}</span>
                       </button>
                     </div>
                   </div>
@@ -1258,317 +1482,111 @@ export default function TasksPage() {
 
                             "awaiting_payment";
 
+                          const urgency = deliveryUrgency(order, clock);
+
 
 
                           return (
-
                             <div
-
-                              key={
-
-                                order.order_number
-
-                              }
-
-                              className="p-5 border-b last:border-b-0 flex flex-col md:flex-row md:justify-between md:items-center gap-6"
-
+                              key={order.id}
+                              className={`flex items-center justify-between gap-3 border-b border-[#E2EEEA] border-l-4 px-3 py-3 last:border-b-0 sm:px-5 sm:py-3.5 ${urgencyAccent[urgency]}`}
                             >
-
-
-
-                              {/* ORDER DETAILS */}
-
-
-
-                              <div>
-
-
-
-                                <div className="font-semibold text-lg">
-
-                                  คำสั่งซื้อ #
-
-                                  {
-
-                                    order.order_number
-
-                                  }
-
+                              <div className="min-w-0 flex-1">
+                                <div
+                                  className="truncate text-base font-extrabold leading-snug text-[#17453F]"
+                                  title={order.customers?.customer_name ?? "ไม่ทราบชื่อลูกค้า"}
+                                >
+                                  {order.customers?.customer_name ?? "ไม่ทราบชื่อลูกค้า"}
                                 </div>
 
-
-
-                                <div className="text-gray-600 mt-1">
-
-                                  {
-
-                                    order.customers
-
-                                      ?.customer_name ??
-
-                                    "ไม่ทราบชื่อลูกค้า"
-
-                                  }
-
-                                </div>
-
-
-
-                                <div className="text-sm text-gray-400 mt-1">
-
-                                  {
-
-                                    order.delivery_date ??
-
-                                    "ยังไม่ระบุวันที่"
-
-                                  }
-
-
-
-                                  {" · "}
-
-
-
-                                  {
-
-                                    order.delivery_slot ??
-
-                                    "ยังไม่ระบุช่วงเวลา"
-
-                                  }
-
-                                </div>
-
-
-
-                                <div className="text-xs text-gray-400 mt-1">
-
-                                  {prettyStatus(
-
-                                    order.status
-
+                                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                  <span
+                                    className={`inline-flex min-h-7 items-center rounded-lg border px-2 py-1 text-xs font-extrabold ${urgencyDayStyle[urgency]}`}
+                                    title={
+                                      urgency === "overdue" ? "เลยช่วงเวลาจัดส่งแล้ว"
+                                        : urgency === "at-risk" ? "เหลือไม่เกิน 2 ชั่วโมงก่อนถึงช่วงเวลาจัดส่ง"
+                                        : urgency === "today" ? "กำหนดจัดส่งวันนี้" : "กำหนดจัดส่ง"
+                                    }
+                                  >
+                                    {relativeDeliveryDay(order.delivery_date, clock.date)}
+                                  </span>
+                                  <span className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-[#CDE4DE] bg-[#EDF7F4] px-2.5 py-1 text-sm font-extrabold tracking-tight text-[#17453F]">
+                                    <svg
+                                      aria-hidden="true"
+                                      className="h-3.5 w-3.5 shrink-0 text-[#008F8D]"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <circle cx="12" cy="12" r="9" />
+                                      <path d="M12 7v5l3 2" />
+                                    </svg>
+                                    {order.delivery_slot ?? "ไม่ระบุเวลา"}
+                                  </span>
+                                  {urgency === "overdue" && (
+                                    <span className="text-[11px] font-extrabold text-[#B91C1C]">เกินกำหนด</span>
                                   )}
-
+                                  {urgency === "at-risk" && (
+                                    <span className="text-[11px] font-extrabold text-[#C2410C]">เสี่ยงล่าช้า</span>
+                                  )}
                                 </div>
 
-
-
+                                <div
+                                  className="mt-1.5 text-sm font-extrabold text-[#008F8D]"
+                                  title="มูลค่าคำสั่งซื้อโดยประมาณ ก่อนยืนยันยอดบิล"
+                                >
+                                  {order.estimated_amount !== null
+                                    ? `฿${formatBaht(order.estimated_amount)}`
+                                    : "฿ —"}
+                                </div>
+                                <p className="mt-0.5 text-[11px] font-medium text-[#8A9E97]">
+                                  คำสั่งซื้อ #{order.order_number}
+                                </p>
                               </div>
 
-
-
-                              {/* ACTION */}
-
-
-
-                              <div>
-
-
-
-                                {/* ============================== */}
-
-                                {/* AWAITING PAYMENT */}
-
-                                {/* ============================== */}
-
-
-
+                              <div className="flex shrink-0 items-center justify-end">
                                 {!canWork ? (
-                                  <div className="text-sm text-gray-500 text-right">
-                                    <div className="font-medium">ดูสถานะได้เท่านั้น</div>
-                                    <div className="mt-1">
+                                  <div className="max-w-28 text-right text-[11px] leading-snug text-[#718C84]">
+                                    <div className="font-bold">ดูสถานะเท่านั้น</div>
+                                    <div className="mt-1 break-words">
                                       {claim ? `ผู้รับงาน: ${claim.staff_name}` : "ยังไม่มีผู้รับงาน"}
                                     </div>
                                   </div>
                                 ) : isAwaitingPayment ? (
-
-
-
-                                  <div className="text-right">
-
-
-
-                                    <div className="font-semibold mb-1">
-
-                                      รอชำระเงิน
-
-                                    </div>
-
-
-
-                                    <div className="text-sm text-gray-500 mb-3">
-
-                                      พนักงานสามารถอัปโหลดสลิปการชำระเงินแทนลูกค้าได้
-
-                                    </div>
-
-
-
-                                    <Link
-
-                                      href={`/tasks/payment-verification/${order.order_number}`}
-
-                                      className="inline-block bg-black text-white rounded-lg px-5 py-3 font-semibold"
-
-                                    >
-
-                                      ชำระเงิน
-
-                                    </Link>
-
-
-
-                                  </div>
-
-
-
-                                ) : !claim ? (
-
-
-
-                                  /* ============================ */
-
-                                  /* AVAILABLE TASK */
-
-                                  /* ============================ */
-
-
-
-                                  <button
-
-                                    onClick={() =>
-
-                                      startWork(
-
-                                        order.order_number,
-
-                                        group.stage
-
-                                      )
-
-                                    }
-
-                                    className="bg-black text-white rounded-lg px-5 py-3 font-semibold"
-
+                                  <Link
+                                    href={`/tasks/payment-verification/${order.order_number}`}
+                                    className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-xl bg-[#008F8D] px-3 py-2 text-sm font-bold text-white shadow-sm"
                                   >
-
+                                    ชำระเงิน
+                                  </Link>
+                                ) : !claim ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => startWork(order.order_number, group.stage)}
+                                    className="inline-flex min-h-10 min-w-[76px] items-center justify-center whitespace-nowrap rounded-xl bg-[#008F8D] px-3 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#007C7A]"
+                                  >
                                     รับงาน
-
                                   </button>
-
-
-
                                 ) : isMine ? (
-
-
-
-                                  /* ============================ */
-
-                                  /* CURRENT STAFF OWNS TASK */
-
-                                  /* ============================ */
-
-
-
-                                  <div className="text-right">
-
-
-
-                                    <div className="font-semibold">
-
-                                      กำลังดำเนินการ
-
-                                    </div>
-
-
-
-                                    <div className="text-sm text-gray-500 mb-3">
-
-                                      คุณ ·{" "}
-
-                                      {
-
-                                        claim?.staff_name
-
-                                      }
-
-                                    </div>
-
-
-
+                                  <div className="flex flex-col items-end gap-1">
+                                    <span className="text-[11px] font-semibold text-[#52786F]">คุณรับงานแล้ว</span>
                                     <Link
-
-                                      href={taskLink(
-
-                                        group.stage,
-
-                                        order.order_number
-
-                                      )}
-
-                                      className="inline-block bg-black text-white rounded-lg px-5 py-2 font-semibold"
-
+                                      href={taskLink(group.stage, order.order_number)}
+                                      className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[#008F8D] px-3 py-2 text-sm font-bold text-white"
                                     >
-
                                       ทำต่อ
-
                                     </Link>
-
-
-
                                   </div>
-
-
-
                                 ) : (
-
-
-
-                                  /* ============================ */
-
-                                  /* SOMEONE ELSE OWNS TASK */
-
-                                  /* ============================ */
-
-
-
-                                  <div className="text-right">
-
-
-
-                                    <div className="font-semibold">
-
-                                      กำลังดำเนินการ
-
-                                    </div>
-
-
-
-                                    <div className="text-sm text-gray-500">
-
-                                      {
-
-                                        claim?.staff_name
-
-                                      }
-
-                                    </div>
-
-
-
+                                  <div className="max-w-24 text-right text-[11px] leading-snug text-[#647D75]">
+                                    <div className="font-bold">กำลังดำเนินการ</div>
+                                    <div className="mt-1 break-words">{claim.staff_name}</div>
                                   </div>
-
-
-
                                 )}
-
-
-
                               </div>
-
-
-
                             </div>
 
                           );

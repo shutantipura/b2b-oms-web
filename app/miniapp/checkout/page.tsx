@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
+import LotusBrand from "@/components/LotusBrand";
 
 type Customer = {
   id: string;
@@ -265,7 +266,19 @@ export default function MiniAppCheckoutPage() {
       });
       const data = (await response.json()) as CheckoutResponse;
       if (!response.ok) {
-        if (data.deliveryOptions) setDeliveryOptions(data.deliveryOptions);
+        if (data.deliveryOptions) {
+          const freshOptions = data.deliveryOptions;
+          setDeliveryOptions(freshOptions);
+          const selectionStillAvailable = freshOptions.some(
+            (option) => option.date === deliveryDate &&
+              option.slots.some((slot) => slot.value === deliverySlot)
+          );
+          if (!selectionStillAvailable) {
+            const firstAvailable = freshOptions.find((option) => option.slots.length > 0);
+            setDeliveryDate(firstAvailable?.date ?? "");
+            setDeliverySlot(firstAvailable?.slots[0]?.value ?? "");
+          }
+        }
         throw new Error(data.error ?? "ไม่สามารถส่งคำสั่งซื้อได้");
       }
       if (!data.orderNumber) {
@@ -334,7 +347,7 @@ export default function MiniAppCheckoutPage() {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
           <button type="button" onClick={goShop} className="min-h-11 rounded-xl px-2 text-sm font-bold text-[#426559]">‹ กลับ</button>
           <div className="text-center">
-            <div className="text-xl font-black tracking-tight text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span><span className="ml-1 text-base text-[#17453F]">B2B</span></div>
+            <LotusBrand size="sm" align="center" />
             <p className="text-[10px] font-medium text-[#82968D]">ตรวจสอบคำสั่งซื้อ</p>
           </div>
           <span className="rounded-full bg-[#E5F8F5] px-3 py-2 text-xs font-bold text-[#009F9D]">ขั้นตอนสุดท้าย</span>
@@ -414,6 +427,9 @@ export default function MiniAppCheckoutPage() {
             </select>
           </label>
           {currentSlots.length === 0 && <p className="mt-3 text-xs font-medium text-red-600">ไม่มีช่วงเวลาจัดส่งที่ว่างสำหรับวันที่เลือก</p>}
+          <p className="mt-3 text-[11px] leading-5 text-[#718F83]">
+            สั่งก่อน 10:00 น. เลือกรอบจัดส่งวันเดียวกันได้ตั้งแต่รอบถัดไป · รอบ 07:00–09:00 น. ต้องสั่งก่อน 20:00 น. ของวันก่อน
+          </p>
         </section>
 
         <section className={`${card} p-4 sm:p-5`}>

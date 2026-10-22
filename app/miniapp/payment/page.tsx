@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
+import LotusBrand from "@/components/LotusBrand";
 
 type DisplayFile = {
   fileType: string;
@@ -308,7 +309,7 @@ export default function MiniAppPaymentPage() {
             <ArrowLeftIcon />
           </button>
           <div className="text-center">
-            <p className="text-xl font-black tracking-tight text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span><span className="ml-1 text-base text-[#17453F]">B2B</span></p>
+            <LotusBrand size="sm" align="center" />
             <p className="text-[11px] font-semibold text-[#78958B]">รายละเอียดการชำระเงิน</p>
           </div>
           <button type="button" aria-label="รีเฟรชข้อมูลการชำระเงิน" disabled={refreshing || submitting} onClick={() => void refreshPayment()} className="grid h-11 w-11 place-items-center rounded-xl border border-[#E0EBE6] bg-[#F8FCFA] text-xl font-bold text-[#008F8D] disabled:opacity-40">

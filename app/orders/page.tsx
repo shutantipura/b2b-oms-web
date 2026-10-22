@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -31,12 +32,6 @@ type StatusFilter =
   | "pending"
   | "completed"
   | "cancelled";
-
-type SortOption =
-  | "delivery_soonest"
-  | "delivery_latest"
-  | "newest"
-  | "oldest";
 
 // =====================================================
 // DATE HELPERS
@@ -82,6 +77,11 @@ function getBangkokToday() {
     )?.value;
 
   return `${year}-${month}-${day}`;
+}
+
+function getBangkokTomorrow() {
+  const [year, month, day] = getBangkokToday().split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
 }
 
 function prettyDate(
@@ -188,56 +188,27 @@ function getSlotStart(
   );
 }
 
-function compareDelivery(
-  a: Order,
-  b: Order,
-  direction:
-    | "asc"
-    | "desc"
-) {
-  const aStart =
-    getSlotStart(
-      a.delivery_slot
-    );
-
-  const bStart =
-    getSlotStart(
-      b.delivery_slot
-    );
-
-  if (
-    !aStart &&
-    bStart
-  ) {
-    return 1;
+function compareDelivery(a: Order, b: Order) {
+  // Across multiple dates, the earliest date must sort before the earliest time slot.
+  if (a.delivery_date !== b.delivery_date) {
+    if (!a.delivery_date) return 1;
+    if (!b.delivery_date) return -1;
+    return a.delivery_date.localeCompare(b.delivery_date);
   }
 
-  if (
-    aStart &&
-    !bStart
-  ) {
-    return -1;
-  }
+  const aStart = getSlotStart(a.delivery_slot);
+  const bStart = getSlotStart(b.delivery_slot);
 
-  if (
-    !aStart &&
-    !bStart
-  ) {
-    return (
-      b.order_number -
-      a.order_number
-    );
-  }
+  if (!aStart && bStart) return 1;
+  if (aStart && !bStart) return -1;
 
-  const result =
-    (aStart ?? "").localeCompare(
-      bStart ?? ""
-    );
+  const slotComparison = (aStart ?? "").localeCompare(bStart ?? "");
+  if (slotComparison !== 0) return slotComparison;
 
-  return direction ===
-    "asc"
-    ? result
-    : -result;
+  const creationComparison = new Date(a.created_at).getTime()
+    - new Date(b.created_at).getTime();
+  if (creationComparison !== 0) return creationComparison;
+  return a.order_number - b.order_number;
 }
 
 function isPending(
@@ -251,6 +222,102 @@ function isPending(
   );
 }
 
+type DeliveryUrgency = "overdue" | "at-risk" | "today" | "none";
+type BangkokClock = { date: string; minutes: number };
+
+// Match the operational urgency rules on the Tasks dashboard.
+function getBangkokClock(): BangkokClock {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const part = (kind: string) =>
+    parts.find((entry) => entry.type === kind)?.value ?? "";
+  return {
+    date: `${part("year")}-${part("month")}-${part("day")}`,
+    minutes: Number(part("hour")) * 60 + Number(part("minute")),
+  };
+}
+
+function dateDayNumber(value: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const timestamp = Date.UTC(year, month - 1, day);
+  return Number.isFinite(timestamp) ? timestamp / 86_400_000 : null;
+}
+
+function deliveryDaysAway(deliveryDate: string | null, today: string): number | null {
+  if (!deliveryDate) return null;
+  const target = dateDayNumber(deliveryDate);
+  const baseline = dateDayNumber(today);
+  return target === null || baseline === null ? null : Math.round(target - baseline);
+}
+
+function relativeDeliveryDay(deliveryDate: string | null, today: string): string {
+  const days = deliveryDaysAway(deliveryDate, today);
+  if (days === null) return "ไม่ระบุวันที่";
+  if (days === -1) return "เมื่อวาน";
+  if (days === 0) return "วันนี้";
+  if (days === 1) return "พรุ่งนี้";
+  return days < 0 ? `${Math.abs(days)} วันที่แล้ว` : `${days} วันข้างหน้า`;
+}
+
+function deliverySlotMinutes(slot: string | null): { start: number; end: number } | null {
+  if (!slot) return null;
+  const times = [...slot.matchAll(/([01]?\d|2[0-3]):([0-5]\d)/g)]
+    .map((match) => Number(match[1]) * 60 + Number(match[2]));
+  if (times.length < 2) return null;
+  return { start: times[0], end: times[1] <= times[0] ? times[1] + 1440 : times[1] };
+}
+
+function deliveryUrgency(order: Order, now: BangkokClock): DeliveryUrgency {
+  if (order.status === "completed" || order.status === "cancelled") return "none";
+
+  const days = deliveryDaysAway(order.delivery_date, now.date);
+  if (days === null) return "none";
+
+  // Payment takes place after delivery; an unpaid bill is not an overdue delivery.
+  if (order.status === "awaiting_payment" || order.status === "payment_submitted") {
+    return days === 0 ? "today" : "none";
+  }
+
+  const slot = deliverySlotMinutes(order.delivery_slot);
+  if (days < 0) return "overdue";
+  if (days === 0 && slot && now.minutes >= slot.end) return "overdue";
+
+  // Warn staff within 2 hours before the delivery window begins.
+  if (slot && days <= 1) {
+    const minutesToStart = days * 1440 + slot.start - now.minutes;
+    const minutesToEnd = days * 1440 + slot.end - now.minutes;
+    if (minutesToStart <= 120 && minutesToEnd > 0) return "at-risk";
+  }
+  return days === 0 ? "today" : "none";
+}
+
+const urgencyRowStyle: Record<DeliveryUrgency, string> = {
+  overdue: "bg-[#FFF7F7]",
+  "at-risk": "bg-[#FFFAF3]",
+  today: "bg-[#FFFDF2]",
+  none: "bg-white",
+};
+const urgencyBorderStyle: Record<DeliveryUrgency, string> = {
+  overdue: "border-l-[#DC2626]",
+  "at-risk": "border-l-[#EA580C]",
+  today: "border-l-[#EAB308]",
+  none: "border-l-transparent",
+};
+const urgencyDateStyle: Record<DeliveryUrgency, string> = {
+  overdue: "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]",
+  "at-risk": "border-[#FED7AA] bg-[#FFF1E6] text-[#C2410C]",
+  today: "border-[#FDE68A] bg-[#FEF9C3] text-[#854D0E]",
+  none: "border-[#DCEAE5] bg-[#F6FAF8] text-[#6C877E]",
+};
+
 // =====================================================
 // PAGE
 // =====================================================
@@ -263,6 +330,10 @@ export default function OrdersPage() {
     useState(
       getBangkokToday()
     );
+
+  const [allDates, setAllDates] = useState(false);
+  const [clock, setClock] = useState(() => getBangkokClock());
+  const loadRequestRef = useRef(0);
 
   const [
     orders,
@@ -310,14 +381,6 @@ export default function OrdersPage() {
   ] =
     useState<StatusFilter>(
       "all"
-    );
-
-  const [
-    sortOption,
-    setSortOption,
-  ] =
-    useState<SortOption>(
-      "delivery_soonest"
     );
 
   // =====================================================
@@ -485,25 +548,22 @@ export default function OrdersPage() {
   // =====================================================
 
   async function loadOrders(
-    date: string =
-      selectedDate
+    date: string = selectedDate,
+    includeAllDates: boolean = allDates
   ) {
-    setLoading(
-      true
-    );
+    const requestId = ++loadRequestRef.current;
+    setLoading(true);
+    setMessage("");
 
-    setMessage(
-      ""
-    );
+    // Supabase queries can be capped by the project's maximum-row setting.
+    // Load in stable pages so the “all dates” choice truly includes older orders.
+    const pageSize = 500;
+    const loaded: Order[] = [];
+    let from = 0;
 
-    const {
-      data,
-      error,
-    } =
-      await supabase
-        .from(
-          "orders"
-        )
+    while (true) {
+      let query = supabase
+        .from("orders")
         .select(`
           id,
           order_number,
@@ -518,57 +578,50 @@ export default function OrdersPage() {
             phone
           )
         `)
-        .eq(
-          "delivery_date",
-          date
-        )
-        .order(
-          "order_number",
-          {
-            ascending:
-              false,
-          }
-        );
+        .order("order_number", { ascending: true })
+        .range(from, from + pageSize - 1);
 
-    if (error) {
-      setMessage(
-        "ไม่สามารถโหลดคำสั่งซื้อได้: " +
-          error.message
-      );
+      if (!includeAllDates) {
+        query = query.eq("delivery_date", date);
+      }
 
-      setOrders(
-        []
-      );
+      const { data, error } = await query;
+      // Ignore an older request if the user has already switched date modes.
+      if (requestId !== loadRequestRef.current) return;
 
-      setLoading(
-        false
-      );
+      if (error) {
+        setMessage("ไม่สามารถโหลดคำสั่งซื้อได้: " + error.message);
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
 
-      return;
+      const page = (data ?? []) as unknown as Order[];
+      loaded.push(...page);
+      if (page.length < pageSize) break;
+      from += pageSize;
     }
 
-    setOrders(
-      (data ??
-        []) as unknown as Order[]
-    );
-
-    setLoading(
-      false
-    );
+    if (requestId !== loadRequestRef.current) return;
+    setOrders(loaded);
+    setLoading(false);
   }
 
   useEffect(() => {
     void loadManagerAccess();
+    void loadOrders(selectedDate, allDates);
+    return () => {
+      loadRequestRef.current += 1;
+    };
+  }, [selectedDate, allDates]);
 
-    loadOrders(
-      selectedDate
-    );
-  }, [
-    selectedDate,
-  ]);
+  useEffect(() => {
+    const interval = window.setInterval(() => setClock(getBangkokClock()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   // =====================================================
-  // COUNTS FOR SELECTED DATE
+  // COUNTS FOR CURRENT DATE MODE
   // =====================================================
 
   const pendingCount =
@@ -616,139 +669,31 @@ export default function OrdersPage() {
     orders.length;
 
   // =====================================================
-  // FILTER + SORT
+  // FILTER + FIXED EARLIEST-DELIVERY ORDER
   // =====================================================
 
-  const filteredOrders =
-    useMemo(() => {
-      const searchText =
-        search
-          .trim()
-          .toLowerCase();
+  const filteredOrders = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-      const filtered =
-        orders.filter(
-          (
-            order
-          ) => {
-            const matchesStatus =
-              statusFilter ===
-              "all"
-                ? true
-                : statusFilter ===
-                  "pending"
-                ? isPending(
-                    order
-                  )
-                : statusFilter ===
-                  "completed"
-                ? order.status ===
-                  "completed"
-                : order.status ===
-                  "cancelled";
+    return orders
+      .filter((order) => {
+        const matchesStatus = statusFilter === "all"
+          || (statusFilter === "pending" && isPending(order))
+          || (statusFilter === "completed" && order.status === "completed")
+          || (statusFilter === "cancelled" && order.status === "cancelled");
 
-            const matchesSearch =
-              searchText ===
-                "" ||
-              String(
-                order.order_number
-              ).includes(
-                searchText
-              ) ||
-              (
-                order.customers
-                  ?.customer_name ??
-                ""
-              )
-                .toLowerCase()
-                .includes(
-                  searchText
-                ) ||
-              (
-                order.customers
-                  ?.customer_code ??
-                ""
-              )
-                .toLowerCase()
-                .includes(
-                  searchText
-                ) ||
-              (
-                order.customers
-                  ?.phone ??
-                ""
-              )
-                .toLowerCase()
-                .includes(
-                  searchText
-                );
+        const matchesSearch = !query
+          || String(order.order_number).includes(query)
+          || (order.customers?.customer_name ?? "").toLowerCase().includes(query)
+          || (order.customers?.customer_code ?? "").toLowerCase().includes(query)
+          || (order.customers?.phone ?? "").toLowerCase().includes(query);
 
-            return (
-              matchesStatus &&
-              matchesSearch
-            );
-          }
-        );
+        return matchesStatus && matchesSearch;
+      })
+      .sort(compareDelivery);
+  }, [orders, search, statusFilter]);
 
-      return [
-        ...filtered,
-      ].sort(
-        (
-          a,
-          b
-        ) => {
-          if (
-            sortOption ===
-            "delivery_soonest"
-          ) {
-            return compareDelivery(
-              a,
-              b,
-              "asc"
-            );
-          }
-
-          if (
-            sortOption ===
-            "delivery_latest"
-          ) {
-            return compareDelivery(
-              a,
-              b,
-              "desc"
-            );
-          }
-
-          if (
-            sortOption ===
-            "newest"
-          ) {
-            return (
-              new Date(
-                b.created_at
-              ).getTime() -
-              new Date(
-                a.created_at
-              ).getTime()
-            );
-          }
-
-          return (
-            new Date(
-              a.created_at
-            ).getTime() -
-            new Date(
-              b.created_at
-            ).getTime()
-          );
-        }
-      );
-    }, [
-      orders,
-      search,
-      statusFilter,
-      sortOption,
-    ]);
+  const dateScopeLabel = allDates ? "ทุกวัน" : prettyDate(selectedDate);
 
   // =====================================================
   // PAGE
@@ -761,7 +706,7 @@ export default function OrdersPage() {
 
         {/* HEADER */}
 
-        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-8">
+        <div className="mb-5 flex items-start justify-between gap-3">
 
           <div>
 
@@ -772,12 +717,11 @@ export default function OrdersPage() {
               ← กลับ
             </Link>
 
-            <h1 className="text-3xl font-bold mt-3">
-              คำสั่งซื้อ
-            </h1>
+            <p className="oms-page-kicker">ORDERS / ORDER MANAGEMENT</p>
+<h1 className="text-3xl font-bold mt-3">คำสั่งซื้อ</h1>
 
             <p className="text-gray-500 mt-1">
-              ดูคำสั่งซื้อ B2B ตามวันที่จัดส่ง
+              ดูและจัดการคำสั่งซื้อ B2B ตามวันที่จัดส่ง
             </p>
 
           </div>
@@ -792,307 +736,107 @@ export default function OrdersPage() {
             disabled={
               loading
             }
-            className="bg-white border rounded-lg px-5 py-2 disabled:opacity-50"
+            className="mt-1 inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-xl border border-[#B6DCD5] bg-white px-3 text-xs font-extrabold text-[#008F8D] shadow-sm transition hover:bg-[#F0FAF7] disabled:opacity-50 sm:px-4 sm:text-sm"
           >
             {loading
               ? "กำลังโหลด..."
-              : "รีเฟรช"}
+              : "↻ รีเฟรช"}
           </button>
 
         </div>
 
-        {/* DATE FILTER */}
-
-        <section className="bg-white border rounded-2xl p-5 mb-6">
-
-          <div className="flex flex-col md:flex-row md:items-end gap-4">
-
-            <div className="flex-1">
-
-              <label className="block text-sm font-medium mb-2">
+        {/* COMPACT DATE / SEARCH / STATUS FILTERS */}
+        <section className="mb-4 min-w-0 overflow-hidden rounded-2xl border border-[#D6E8E3] bg-white p-4 shadow-[0_3px_12px_rgba(15,95,88,0.04)] sm:p-5">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-extrabold text-[#17453F]">ค้นหาและกรองคำสั่งซื้อ</h2>
+            <span className="h-1.5 w-9 rounded-full bg-[#FDBC16]" aria-hidden="true" />
+          </div>
+          <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-[minmax(0,350px)_minmax(0,1fr)] lg:grid-cols-[minmax(0,350px)_minmax(0,1fr)_minmax(0,190px)] md:items-end">
+            <div className="min-w-0">
+              <label htmlFor="orders-delivery-date" className="mb-1.5 block text-xs font-bold text-[#52786F]">
                 วันที่จัดส่ง
               </label>
-
-              <input
-                type="date"
-                value={
-                  selectedDate
-                }
-                onChange={(
-                  event
-                ) => {
-                  setSelectedDate(
-                    event.target
-                      .value
-                  );
-
-                  setStatusFilter(
-                    "all"
-                  );
-                }}
-                className="w-full border rounded-lg px-4 py-3 bg-white"
-              />
-
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:flex-nowrap">
+                <input
+                  id="orders-delivery-date"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(event) => {
+                    if (!event.target.value) return;
+                    setSelectedDate(event.target.value);
+                    setAllDates(false);
+                  }}
+                  style={{ minWidth: 0, width: "134px", height: "44px", boxSizing: "border-box", paddingTop: 0, paddingBottom: 0, textAlign: "left" }}
+                  className="block h-11 shrink-0 rounded-xl border border-[#C8DDD8] bg-white px-2 text-left text-[13px] leading-none text-[#17453F] [color-scheme:light]"
+                  aria-label="เลือกวันที่จัดส่ง"
+                />
+                <button
+                  type="button"
+                  aria-pressed={!allDates && selectedDate === getBangkokToday()}
+                  onClick={() => {
+                    setSelectedDate(getBangkokToday());
+                    setAllDates(false);
+                  }}
+                  className={`h-11 shrink-0 whitespace-nowrap rounded-xl border px-2 text-xs font-extrabold transition ${!allDates && selectedDate === getBangkokToday() ? "border-[#02B0AF] bg-[#E6F8F5] text-[#008F8D]" : "border-[#D5E8E2] bg-white text-[#52786F] hover:bg-[#F0FAF7]"}`}
+                >
+                  วันนี้
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={!allDates && selectedDate === getBangkokTomorrow()}
+                  onClick={() => {
+                    setSelectedDate(getBangkokTomorrow());
+                    setAllDates(false);
+                  }}
+                  className={`h-11 shrink-0 whitespace-nowrap rounded-xl border px-2 text-xs font-extrabold transition ${!allDates && selectedDate === getBangkokTomorrow() ? "border-[#02B0AF] bg-[#E6F8F5] text-[#008F8D]" : "border-[#D5E8E2] bg-white text-[#52786F] hover:bg-[#F0FAF7]"}`}
+                >
+                  พรุ่งนี้
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={allDates}
+                  onClick={() => setAllDates(true)}
+                  className={`h-11 shrink-0 whitespace-nowrap rounded-xl border px-2 text-xs font-extrabold transition ${allDates ? "border-[#02B0AF] bg-[#E6F8F5] text-[#008F8D]" : "border-[#D5E8E2] bg-white text-[#52786F] hover:bg-[#F0FAF7]"}`}
+                >
+                  ทุกวัน
+                </button>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedDate(
-                  getBangkokToday()
-                );
+            <div className="min-w-0">
+              <label htmlFor="orders-number-search" className="mb-1.5 block text-xs font-bold text-[#52786F]">
+                ค้นหาเลขคำสั่งซื้อ / ลูกค้า
+              </label>
+              <input
+                id="orders-number-search"
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="เลขคำสั่งซื้อ ชื่อร้าน หรือรหัสลูกค้า"
+                className="block h-11 w-full min-w-0 max-w-full rounded-xl border border-[#C8DDD8] bg-white px-3 py-2 text-sm text-[#17453F] placeholder:text-[#9AAFA8]"
+              />
+            </div>
 
-                setStatusFilter(
-                  "all"
-                );
-              }}
-              className="bg-white border rounded-lg px-5 py-3 font-medium"
-            >
-              วันนี้
-            </button>
-
+            <div className="min-w-0">
+              <label htmlFor="orders-status-filter" className="mb-1.5 block text-xs font-bold text-[#52786F]">
+                สถานะคำสั่งซื้อ
+              </label>
+              <select
+                id="orders-status-filter"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+                className="block h-11 w-full min-w-0 max-w-full rounded-xl border border-[#C8DDD8] bg-white px-3 py-2 text-sm text-[#17453F]"
+              >
+                <option value="all">ทุกสถานะ</option>
+                <option value="pending">รอดำเนินการ</option>
+                <option value="completed">เสร็จสิ้น</option>
+                <option value="cancelled">ยกเลิก</option>
+              </select>
+            </div>
           </div>
-
-          <p className="text-sm text-gray-500 mt-3">
-            {prettyDate(
-              selectedDate
-            )}
-          </p>
-
         </section>
 
-        {/* SUMMARY CARDS */}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-
-          <button
-            type="button"
-            onClick={() =>
-              setStatusFilter(
-                "pending"
-              )
-            }
-            className={`text-left bg-white border rounded-2xl p-5 transition ${
-              statusFilter ===
-              "pending"
-                ? "ring-2 ring-black"
-                : ""
-            }`}
-          >
-
-            <p className="text-sm text-gray-500">
-              รอดำเนินการ
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {
-                pendingCount
-              }
-            </p>
-
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setStatusFilter(
-                "completed"
-              )
-            }
-            className={`text-left bg-white border rounded-2xl p-5 transition ${
-              statusFilter ===
-              "completed"
-                ? "ring-2 ring-black"
-                : ""
-            }`}
-          >
-
-            <p className="text-sm text-gray-500">
-              เสร็จสิ้น
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {
-                completedCount
-              }
-            </p>
-
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setStatusFilter(
-                "cancelled"
-              )
-            }
-            className={`text-left bg-white border rounded-2xl p-5 transition ${
-              statusFilter ===
-              "cancelled"
-                ? "ring-2 ring-black"
-                : ""
-            }`}
-          >
-
-            <p className="text-sm text-gray-500">
-              ยกเลิก
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {
-                cancelledCount
-              }
-            </p>
-
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setStatusFilter(
-                "all"
-              )
-            }
-            className={`text-left bg-white border rounded-2xl p-5 transition ${
-              statusFilter ===
-              "all"
-                ? "ring-2 ring-black"
-                : ""
-            }`}
-          >
-
-            <p className="text-sm text-gray-500">
-              ทั้งหมด
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {
-                totalCount
-              }
-            </p>
-
-          </button>
-
-        </div>
-
-        {/* SEARCH / FILTER / SORT */}
-
-        <section className="bg-white border rounded-2xl p-5 mb-6">
-
-          <div className="grid md:grid-cols-3 gap-4">
-
-            <div>
-
-              <label className="block text-sm font-medium mb-2">
-                ค้นหา
-              </label>
-
-              <input
-                type="text"
-                value={
-                  search
-                }
-                onChange={(
-                  event
-                ) =>
-                  setSearch(
-                    event.target
-                      .value
-                  )
-                }
-                placeholder="เลขคำสั่งซื้อ ชื่อลูกค้า รหัสลูกค้า หรือเบอร์โทร"
-                className="w-full border rounded-lg px-4 py-3"
-              />
-
-            </div>
-
-            <div>
-
-              <label className="block text-sm font-medium mb-2">
-                สถานะ
-              </label>
-
-              <select
-                value={
-                  statusFilter
-                }
-                onChange={(
-                  event
-                ) =>
-                  setStatusFilter(
-                    event.target
-                      .value as StatusFilter
-                  )
-                }
-                className="w-full border rounded-lg px-4 py-3 bg-white"
-              >
-
-                <option value="all">
-                  ทั้งหมด
-                </option>
-
-                <option value="pending">
-                  รอดำเนินการ
-                </option>
-
-                <option value="completed">
-                  เสร็จสิ้น
-                </option>
-
-                <option value="cancelled">
-                  ยกเลิก
-                </option>
-
-              </select>
-
-            </div>
-
-            <div>
-
-              <label className="block text-sm font-medium mb-2">
-                เรียงตาม
-              </label>
-
-              <select
-                value={
-                  sortOption
-                }
-                onChange={(
-                  event
-                ) =>
-                  setSortOption(
-                    event.target
-                      .value as SortOption
-                  )
-                }
-                className="w-full border rounded-lg px-4 py-3 bg-white"
-              >
-
-                <option value="delivery_soonest">
-                  เวลาจัดส่ง — เร็วที่สุดก่อน
-                </option>
-
-                <option value="delivery_latest">
-                  เวลาจัดส่ง — ช้าที่สุดก่อน
-                </option>
-
-                <option value="newest">
-                  คำสั่งซื้อล่าสุดก่อน
-                </option>
-
-                <option value="oldest">
-                  คำสั่งซื้อเก่าสุดก่อน
-                </option>
-
-              </select>
-
-            </div>
-
-          </div>
-
-        </section>
-
-        {/* MESSAGE */}
+                {/* MESSAGE */}
 
         {message && (
 
@@ -1102,7 +846,7 @@ export default function OrdersPage() {
 
         )}
 
-        {/* ORDERS LIST */}
+        {/* ORDERS LIST: ALWAYS BEFORE STATISTICS */}
 
         <section className="bg-white border rounded-2xl overflow-hidden">
 
@@ -1115,9 +859,7 @@ export default function OrdersPage() {
               </h2>
 
               <p className="text-sm text-gray-500 mt-1">
-                {prettyDate(
-                  selectedDate
-                )}
+                {dateScopeLabel}
               </p>
 
             </div>
@@ -1126,7 +868,7 @@ export default function OrdersPage() {
               {
                 filteredOrders.length
               }{" "}
-              รายการ
+              รายการ · เร็วที่สุดก่อน
             </span>
 
           </div>
@@ -1141,7 +883,7 @@ export default function OrdersPage() {
             0 ? (
 
             <div className="p-8 text-gray-500">
-              ไม่พบคำสั่งซื้อสำหรับวันที่และตัวกรองที่เลือก
+              ไม่พบคำสั่งซื้อที่ตรงกับตัวกรองที่เลือก
             </div>
 
           ) : (
@@ -1185,31 +927,16 @@ export default function OrdersPage() {
                 <tbody>
 
                   {filteredOrders.map(
-                    (
-                      order,
-                      index
-                    ) => {
-
-                      const urgent =
-                        statusFilter !==
-                          "completed" &&
-                        isPending(
-                          order
-                        ) &&
-                        sortOption ===
-                          "delivery_soonest" &&
-                        index <
-                          3;
+                    (order) => {
+                      const urgency = deliveryUrgency(order, clock);
 
                       return (
                         <tr
-                          key={
-                            order.id
-                          }
-                          className="border-t"
+                          key={order.id}
+                          className={`border-t border-[#E2EEEA] ${urgencyRowStyle[urgency]}`}
                         >
 
-                          <td className="p-4">
+                          <td className={`border-l-4 p-4 ${urgencyBorderStyle[urgency]}`}>
 
                             <div className="flex items-center gap-2">
 
@@ -1220,12 +947,15 @@ export default function OrdersPage() {
                                 }
                               </div>
 
-                              {urgent && (
-
-                                <span className="text-xs border rounded-full px-2 py-1">
-                                  เร่งด่วน
+                              {urgency === "overdue" && (
+                                <span className="rounded-full border border-[#FECACA] bg-[#FEF2F2] px-2 py-1 text-[11px] font-extrabold text-[#B91C1C]">
+                                  เกินกำหนด
                                 </span>
-
+                              )}
+                              {urgency === "at-risk" && (
+                                <span className="rounded-full border border-[#FED7AA] bg-[#FFF1E6] px-2 py-1 text-[11px] font-extrabold text-[#C2410C]">
+                                  เสี่ยงล่าช้า
+                                </span>
                               )}
 
                             </div>
@@ -1272,12 +1002,12 @@ export default function OrdersPage() {
                               }
                             </div>
 
-                            <div className="text-sm text-gray-500">
-                              {
-                                order.delivery_date ??
-                                "—"
-                              }
-                            </div>
+                            <span
+                              title={order.delivery_date ?? undefined}
+                              className={`mt-1 inline-flex rounded-lg border px-2 py-1 text-xs font-extrabold ${urgencyDateStyle[urgency]}`}
+                            >
+                              {relativeDeliveryDay(order.delivery_date, clock.date)}
+                            </span>
 
                           </td>
 
@@ -1404,6 +1134,31 @@ export default function OrdersPage() {
 
           )}
 
+        </section>
+
+        {/* ORDER STATISTICS — BELOW THE LIST */}
+        <section className="mt-5 pb-2" aria-label="สถิติคำสั่งซื้อ">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-extrabold text-[#17453F]">ภาพรวมคำสั่งซื้อ</h2>
+            <p className="text-xs text-[#718D84]">{dateScopeLabel}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: "รอดำเนินการ", value: pendingCount, highlight: true },
+              { label: "เสร็จสิ้น", value: completedCount, highlight: false },
+              { label: "ยกเลิก", value: cancelledCount, highlight: false },
+              { label: "ทั้งหมด", value: totalCount, highlight: false },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-2xl border border-[#D5E8E2] bg-white p-4 shadow-[0_3px_12px_rgba(15,95,88,0.04)]"
+              >
+                <div aria-hidden="true" className={stat.highlight ? "mb-3 h-1 w-8 rounded-full bg-[#FDBC16]" : "mb-3 h-1 w-8 rounded-full bg-[#A5E5DD]"} />
+                <p className="text-xs font-bold text-[#718D84]">{stat.label}</p>
+                <p className="mt-1 text-2xl font-black tabular-nums text-[#008F8D]">{stat.value}</p>
+              </div>
+            ))}
+          </div>
         </section>
 
       </div>

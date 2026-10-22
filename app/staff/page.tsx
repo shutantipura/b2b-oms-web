@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import Link from "next/link";
+import StaffResponsibilities from "@/components/StaffResponsibilities";
 
 import {
   supabase,
@@ -107,6 +108,20 @@ function formatDateTime(
 }
 
 export default function StaffManagementPage() {
+  const [activeTab, setActiveTab] = useState<"list" | "responsibilities">("list");
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "responsibilities") {
+      setActiveTab("responsibilities");
+    }
+  }, []);
+
+  function changeTab(nextTab: "list" | "responsibilities") {
+    setActiveTab(nextTab);
+    const url = nextTab === "responsibilities" ? "/staff?tab=responsibilities" : "/staff";
+    window.history.replaceState(window.history.state, "", url);
+  }
+
   const [
     staff,
     setStaff,
@@ -702,11 +717,13 @@ export default function StaffManagementPage() {
               </h1>
 
               <p className="text-gray-500 mt-2">
-                หนึ่งบัญชีต่อหนึ่งพนักงาน พร้อมกำหนดว่าสามารถทำงานประเภทใดได้บ้าง
+                {activeTab === "list"
+                  ? "หนึ่งบัญชีต่อหนึ่งพนักงาน พร้อมกำหนดว่าสามารถทำงานประเภทใดได้บ้าง"
+                  : "ตรวจสอบว่าแต่ละคนกำลังรับผิดชอบงานใด และมีใครพร้อมรับงานเพิ่ม"}
               </p>
             </div>
 
-            <button
+            {activeTab === "list" && <button
               type="button"
               onClick={
                 showCreate
@@ -721,12 +738,38 @@ export default function StaffManagementPage() {
               {showCreate
                 ? "ยกเลิก"
                 : "+ เพิ่มพนักงาน"}
-            </button>
+            </button>}
           </div>
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto p-5 space-y-6">
+      <div className="max-w-5xl mx-auto space-y-5 p-4 sm:p-5">
+        <div role="tablist" aria-label="ส่วนจัดการพนักงาน" className="grid grid-cols-2 gap-2 rounded-2xl border border-[#D7E9E4] bg-white p-1.5 shadow-sm">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "list"}
+            onClick={() => changeTab("list")}
+            className={activeTab === "list"
+              ? "min-h-12 rounded-xl bg-[#02B0AF] px-3 text-sm font-extrabold text-white"
+              : "min-h-12 rounded-xl px-3 text-sm font-extrabold text-[#52786F] hover:bg-[#EFF9F6]"}
+          >
+            รายชื่อพนักงาน
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "responsibilities"}
+            onClick={() => changeTab("responsibilities")}
+            className={activeTab === "responsibilities"
+              ? "min-h-12 rounded-xl bg-[#02B0AF] px-3 text-sm font-extrabold text-white"
+              : "min-h-12 rounded-xl px-3 text-sm font-extrabold text-[#52786F] hover:bg-[#EFF9F6]"}
+          >
+            งานที่รับผิดชอบ
+          </button>
+        </div>
+        {activeTab === "list" ? (
+          <>
         <section className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <div className="bg-white border rounded-xl p-4">
             <p className="text-sm text-gray-500">
@@ -1307,6 +1350,10 @@ export default function StaffManagementPage() {
             )}
           </div>
         </section>
+          </>
+        ) : (
+          <StaffResponsibilities staff={staff} />
+        )}
       </div>
     </main>
   );
