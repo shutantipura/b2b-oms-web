@@ -35,7 +35,6 @@ const GENERAL_NAV: NavItem[] = [
 ];
 
 const MANAGER_NAV: NavItem[] = [
-  { href: "/control-tower", label: "ศูนย์ควบคุม", icon: "tower" },
   { href: "/kpi", label: "KPI", icon: "kpi" },
   { href: "/customers", label: "ลูกค้า", icon: "customers" },
   { href: "/staff", label: "พนักงาน", icon: "staff" },
@@ -77,90 +76,31 @@ function isNavActive(pathname: string, href: string) {
     ));
 }
 
-function OmsMobileNav({ role, pathname }: { role: Role; pathname: string }) {
-  const [moreOpen, setMoreOpen] = useState(false);
-
-  useEffect(() => {
-    setMoreOpen(false);
-  }, [pathname]);
-
-  const primary = role === "manager"
-    ? [...GENERAL_NAV, MANAGER_NAV[0]]
-    : GENERAL_NAV;
-  const moreItems = role === "manager" ? MANAGER_NAV.slice(1) : [];
-  const moreActive = moreItems.some((item) => isNavActive(pathname, item.href));
+function OmsMobileNav({ pathname }: { pathname: string }) {
+  const items: NavItem[] = [
+    { href: "/tasks", label: "งาน", icon: "tasks" },
+    { href: "/login", label: "หน้าหลัก", icon: "home" },
+    { href: "/orders", label: "จัดการคำสั่งซื้อ", icon: "orders" },
+  ];
 
   return (
-    <>
-      <nav className="oms-mobile-nav" aria-label="เมนู OMS บนโทรศัพท์">
-        {primary.map((item) => {
-          const active = isNavActive(pathname, item.href);
-          return (
-            <Link
-              href={item.href}
-              key={item.href}
-              className="oms-mobile-tab"
-              aria-current={active ? "page" : undefined}
-              data-active={active ? "true" : undefined}
-            >
-              <NavIcon name={item.icon} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-        {role === "manager" && (
-          <button
-            type="button"
-            onClick={() => setMoreOpen((current) => !current)}
+    <nav className="oms-mobile-nav" aria-label="เมนู OMS บนโทรศัพท์">
+      {items.map((item) => {
+        const active = isNavActive(pathname, item.href);
+        return (
+          <Link
+            href={item.href}
+            key={item.href}
             className="oms-mobile-tab"
-            aria-expanded={moreOpen}
-            aria-label="เมนูเพิ่มเติม"
-            data-active={moreOpen || moreActive ? "true" : undefined}
+            aria-current={active ? "page" : undefined}
+            data-active={active ? "true" : undefined}
           >
-            <svg aria-hidden="true" width="21" height="21" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="5" cy="5" r="2" /><circle cx="12" cy="5" r="2" /><circle cx="19" cy="5" r="2" />
-              <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
-              <circle cx="5" cy="19" r="2" /><circle cx="12" cy="19" r="2" /><circle cx="19" cy="19" r="2" />
-            </svg>
-            <span>เพิ่มเติม</span>
-          </button>
-        )}
-      </nav>
-      {moreOpen && role === "manager" && (
-        <div className="oms-mobile-drawer-layer">
-          <button
-            type="button"
-            className="oms-mobile-drawer-backdrop"
-            onClick={() => setMoreOpen(false)}
-            aria-label="ปิดเมนูเพิ่มเติม"
-          />
-          <section className="oms-mobile-drawer" role="dialog" aria-modal="true" aria-label="เมนู OMS เพิ่มเติม">
-            <div className="oms-mobile-drawer-header">
-              <div>
-                <p className="oms-mobile-drawer-label">LOTUS’S B2B OMS</p>
-                <h2>เมนูจัดการเพิ่มเติม</h2>
-              </div>
-              <button type="button" onClick={() => setMoreOpen(false)} className="oms-mobile-drawer-close" aria-label="ปิดเมนู">×</button>
-            </div>
-            <div className="oms-mobile-drawer-grid">
-              {moreItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="oms-mobile-drawer-link"
-                  data-active={isNavActive(pathname, item.href) ? "true" : undefined}
-                  onClick={() => setMoreOpen(false)}
-                >
-                  <NavIcon name={item.icon} />
-                  <span>{item.label}</span>
-                  <span className="oms-mobile-drawer-chevron" aria-hidden="true">›</span>
-                </Link>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
-    </>
+            <NavIcon name={item.icon} />
+            <span>{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -259,7 +199,7 @@ export default function OmsWorkspace({ children }: { children: ReactNode }) {
           </div>
         </header>
       )}
-      {showNav && <OmsMobileNav role={role} pathname={pathname} />}
+      {showNav && <OmsMobileNav pathname={pathname} />}
       <div className="oms-content">
         {pathname !== "/login" && (
           <div className="mx-auto flex w-full max-w-5xl px-4 pt-3 sm:px-6 sm:pt-4">

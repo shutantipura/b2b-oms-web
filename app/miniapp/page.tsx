@@ -1632,28 +1632,19 @@ export default function MiniAppHomePage() {
 
               <p className="font-extrabold text-lg text-[#173E31]">
 
-                คำสั่งซื้อของฉัน
+                คำสั่งซื้อ
 
               </p>
 
               <p className="text-sm text-[#82968D] mt-1">
 
-                ติดตามสถานะคำสั่งซื้อที่กำลังดำเนินการ
+                ดูคำสั่งซื้อที่กำลังดำเนินการและประวัติคำสั่งซื้อ
 
               </p>
 
             </button>
 
-            {/* ORDER HISTORY */}
-            <button
-              type="button"
-              onClick={() => router.push(`/miniapp/orders?customer=${encodeURIComponent(selectedCustomer.customerCode)}&view=history`)}
-              className="w-full rounded-2xl border-2 border-[#C7E7DD] bg-white p-5 text-left shadow-sm transition hover:border-[#02B0AF]"
-            >
-              <div className="mb-3 flex items-center justify-between"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#FFF3D2] text-xl">🕒</span><NavigationArrow /></div>
-              <p className="text-lg font-extrabold text-[#173E31]">ประวัติคำสั่งซื้อ</p>
-              <p className="mt-1 text-sm text-[#82968D]">ดูคำสั่งซื้อที่เสร็จสิ้นหรือถูกยกเลิก</p>
-            </button>
+
 
           </div>
 
