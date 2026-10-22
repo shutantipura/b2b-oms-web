@@ -27,6 +27,7 @@ import {
 
 
 import { supabase } from "../../../../lib/supabase";
+import DeliverySchedule from "../../../../components/DeliverySchedule";
 
 
 
@@ -37,6 +38,8 @@ type OrderDetails = {
   order_number: number;
 
   status: string;
+  delivery_date: string | null;
+  delivery_slot: string | null;
 
   final_amount:
 
@@ -356,6 +359,8 @@ export default function PaymentVerificationPage() {
 
           status,
 
+          delivery_date,
+          delivery_slot,
           final_amount,
 
           customers (
@@ -988,31 +993,13 @@ export default function PaymentVerificationPage() {
 
 
 
-            <h1 className="text-3xl font-bold mt-1">
-
-              คำสั่งซื้อ #
-
-              {
-
-                order.order_number
-
-              }
-
+            <h1 className="mt-1 text-2xl font-extrabold leading-tight text-[#17453F] md:text-3xl">
+              {order.customers?.customer_name ?? "ไม่ทราบชื่อร้าน"}
             </h1>
-
-
-
-            <p className="text-xl mt-2">
-
-              {
-
-                order.customers
-
-                  ?.customer_name
-
-              }
-
+            <p className="mt-1 text-xs font-semibold text-[#82958F]">
+              คำสั่งซื้อ #{order.order_number}
             </p>
+            <DeliverySchedule date={order.delivery_date} slot={order.delivery_slot} delivered />
 
 
 

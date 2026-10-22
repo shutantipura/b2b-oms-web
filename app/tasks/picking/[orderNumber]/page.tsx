@@ -16,6 +16,8 @@ import {
 import {
   supabase,
 } from "../../../../lib/supabase";
+import DeliverySchedule from "../../../../components/DeliverySchedule";
+import TaskFilePicker from "../../../../components/TaskFilePicker";
 
 type OrderDetails = {
   id: string;
@@ -162,13 +164,8 @@ export default function PickingPage() {
       >
     >({});
 
-  const [
-    cartPhoto,
-    setCartPhoto,
-  ] =
-    useState<File | null>(
-      null
-    );
+  const [cartPhotoName, setCartPhotoName] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const [
     photoUploaded,
@@ -374,7 +371,7 @@ export default function PickingPage() {
           "order_files"
         )
         .select(
-          "id"
+          "id, original_filename"
         )
         .eq(
           "order_id",
@@ -396,6 +393,7 @@ export default function PickingPage() {
           existingPhoto
       )
     );
+    setCartPhotoName(!photoError ? existingPhoto?.original_filename ?? null : null);
 
     setLoading(false);
   }
@@ -640,99 +638,45 @@ export default function PickingPage() {
     await loadOrder();
   }
 
-  async function uploadCartPhoto() {
-    if (!cartPhoto) {
-      setMessage(
-        "กรุณาเลือกรูปรถเข็นสินค้าก่อน"
-      );
+  async function uploadCartPhoto(file: File) {
+    if (uploadingPhoto || submitting) return;
+    setUploadingPhoto(true);
+    setMessage("กำลังอัปโหลดรูปรถเข็นสินค้า...");
 
-      return;
-    }
-
-    setMessage(
-      "กำลังอัปโหลดรูปรถเข็นสินค้า..."
-    );
-
-    const extension =
-      cartPhoto.name
-        .split(".")
-        .pop() ||
-      "jpg";
-
+    const extension = file.name.split(".").pop() || "jpg";
     const storagePath =
-      `orders/${orderNumber}/cart_photo/` +
-      `${crypto.randomUUID()}.${extension}`;
+      `orders/${orderNumber}/cart_photo/${crypto.randomUUID()}.${extension}`;
 
-    const {
-      error:
-        uploadError,
-    } =
-      await supabase.storage
-        .from(
-          "order-files"
-        )
-        .upload(
-          storagePath,
-          cartPhoto,
-          {
-            upsert:
-              false,
-            contentType:
-              cartPhoto.type ||
-              "image/jpeg",
-          }
-        );
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("order-files")
+        .upload(storagePath, file, {
+          upsert: false,
+          contentType: file.type || "image/jpeg",
+        });
+      if (uploadError) throw new Error("อัปโหลดรูปไม่สำเร็จ: " + uploadError.message);
 
-    if (
-      uploadError
-    ) {
-      setMessage(
-        "อัปโหลดรูปไม่สำเร็จ: " +
-          uploadError.message
-      );
-
-      return;
-    }
-
-    const {
-      error:
-        registerError,
-    } =
-      await supabase.rpc(
+      const { error: registerError } = await supabase.rpc(
         "register_my_order_file",
         {
-          p_order_number:
-            orderNumber,
-          p_file_type:
-            "cart_photo",
-          p_storage_path:
-            storagePath,
-          p_original_filename:
-            cartPhoto.name,
-          p_mime_type:
-            cartPhoto.type ||
-            "image/jpeg",
+          p_order_number: orderNumber,
+          p_file_type: "cart_photo",
+          p_storage_path: storagePath,
+          p_original_filename: file.name,
+          p_mime_type: file.type || "image/jpeg",
         }
       );
+      if (registerError) throw new Error("บันทึกรูปไม่สำเร็จ: " + registerError.message);
 
-    if (
-      registerError
-    ) {
-      setMessage(
-        "อัปโหลดรูปสำเร็จ แต่บันทึกข้อมูลไฟล์ไม่สำเร็จ: " +
-          registerError.message
-      );
-
-      return;
+      // Registering a new file marks it current; the previous file stays in history.
+      setPhotoUploaded(true);
+      setCartPhotoName(file.name);
+      setMessage("✓ บันทึกรูปรถเข็นสินค้าเรียบร้อยแล้ว");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "อัปโหลดรูปไม่สำเร็จ");
+    } finally {
+      setUploadingPhoto(false);
     }
-
-    setPhotoUploaded(
-      true
-    );
-
-    setMessage(
-      "อัปโหลดรูปรถเข็นสินค้าสำเร็จ"
-    );
   }
 
   async function completePicking() {
@@ -918,17 +862,11 @@ export default function PickingPage() {
               จัดสินค้า
             </p>
 
-            <h1 className="text-2xl md:text-3xl font-bold mt-1">
-              คำสั่งซื้อ #
-              {order.order_number}
+            <h1 className="mt-1 text-2xl font-extrabold leading-tight text-[#17453F] md:text-3xl">
+              {order.customers?.customer_name ?? "ไม่ทราบชื่อร้าน"}
             </h1>
-
-            <p className="text-lg md:text-xl mt-2">
-              {
-                order
-                  .customers
-                  ?.customer_name
-              }
+            <p className="mt-1 text-xs font-semibold text-[#82958F]">
+              คำสั่งซื้อ #{order.order_number}
             </p>
           </div>
 
@@ -977,13 +915,7 @@ export default function PickingPage() {
                 การจัดส่ง
               </p>
 
-              <p className="font-medium">
-                {order.delivery_date ??
-                  "—"}
-                {" · "}
-                {order.delivery_slot ??
-                  "—"}
-              </p>
+              <DeliverySchedule date={order.delivery_date} slot={order.delivery_slot} />
             </div>
           </div>
         </section>
@@ -1153,38 +1085,17 @@ export default function PickingPage() {
             ต้องอัปโหลดรูปรถเข็นสินค้าที่จัดเสร็จแล้ว 1 รูป
           </p>
 
-          {photoUploaded ? (
-            <div className="font-semibold">
-              ✓ อัปโหลดรูปรถเข็นสินค้าแล้ว
-            </div>
-          ) : (
-            <div className="flex flex-col md:flex-row gap-4">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(
-                  event
-                ) =>
-                  setCartPhoto(
-                    event
-                      .target
-                      .files?.[0] ??
-                      null
-                  )
-                }
-              />
-
-              <button
-                type="button"
-                onClick={
-                  uploadCartPhoto
-                }
-                className="bg-white border rounded-lg px-5 py-2"
-              >
-                อัปโหลดรูปรถเข็นสินค้า
-              </button>
-            </div>
-          )}
+          <TaskFilePicker
+            label="รูปรถเข็นสินค้า"
+            chooseLabel="ถ่ายหรือเลือกรูปรถเข็น"
+            replaceLabel="เปลี่ยนรูปรถเข็น"
+            accept="image/*"
+            uploaded={photoUploaded}
+            uploading={uploadingPhoto}
+            disabled={submitting}
+            fileName={cartPhotoName}
+            onSelect={uploadCartPhoto}
+          />
         </section>
 
         {message && (
@@ -1199,9 +1110,7 @@ export default function PickingPage() {
             onClick={
               completePicking
             }
-            disabled={
-              submitting
-            }
+            disabled={submitting || uploadingPhoto || !photoUploaded}
             className="bg-black text-white rounded-lg px-8 py-4 font-semibold disabled:opacity-50"
           >
             {submitting
