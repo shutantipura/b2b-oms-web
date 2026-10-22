@@ -333,7 +333,8 @@ export default function CustomerOrdersPage() {
           <div className="space-y-4">
             {orders.map((order) => {
               const step = currentStep(order.status);
-              const expanded = Boolean(expandedOrders[order.id]);
+              // History cards keep product details visible without another tap.
+              const expanded = mode === "history" || Boolean(expandedOrders[order.id]);
               const cancelled = order.status === "cancelled";
               return (
                 <section key={order.id} className={card}>
@@ -366,7 +367,7 @@ export default function CustomerOrdersPage() {
                     </div>
                   </div>
 
-                  {cancelled ? (
+                  {mode === "active" && (cancelled ? (
                     <div className="border-b border-[#EDF2EE] p-4 sm:p-5">
                       <div className="rounded-xl border border-red-200 bg-red-50 p-3">
                         <p className="text-sm font-bold text-red-700">คำสั่งซื้อนี้ถูกยกเลิก</p>
@@ -388,16 +389,22 @@ export default function CustomerOrdersPage() {
                         <button type="button" onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(customer.customerCode)}&order=${order.orderNumber}`)} className="mt-4 min-h-12 w-full rounded-xl border-2 border-[#BDE5DF] bg-[#F3FBF8] px-4 py-3 text-sm font-bold text-[#008F8D]">ส่งหลักฐานแล้ว · ดูรายละเอียดการชำระเงิน</button>
                       )}
                     </div>
-                  )}
+                  ))}
 
-                  <button type="button" aria-expanded={expanded} onClick={() => toggleExpanded(order.id)} className="flex min-h-12 w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm font-extrabold text-[#426A57] sm:px-5">
-                    <span>ดูรายละเอียดสินค้า ({order.items.length} รายการ)</span>
-                    <span className="text-lg text-[#009F9D]">{expanded ? "⌃" : "⌄"}</span>
-                  </button>
+                  {mode === "history" ? (
+                    <div className="flex min-h-12 items-center px-4 py-3 text-left text-sm font-extrabold text-[#426A57] sm:px-5">
+                      รายการสินค้า ({order.items.length} รายการ)
+                    </div>
+                  ) : (
+                    <button type="button" aria-expanded={expanded} onClick={() => toggleExpanded(order.id)} className="flex min-h-12 w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm font-extrabold text-[#426A57] sm:px-5">
+                      <span>ดูรายละเอียดสินค้า ({order.items.length} รายการ)</span>
+                      <span className="text-lg text-[#009F9D]">{expanded ? "⌃" : "⌄"}</span>
+                    </button>
+                  )}
 
                   {expanded && (
                     <div className="border-t border-[#EAF1EC] bg-[#FCFEFD] px-4 pb-4 pt-3 sm:px-5">
-                      {!cancelled && (
+                      {mode === "active" && !cancelled && (
                         <div className="mb-4 rounded-xl bg-[#EDF8F5] p-3">
                           <p className="mb-3 text-xs font-bold text-[#4C7563]">ขั้นตอนการดำเนินการ</p>
                           <div className="space-y-2">
