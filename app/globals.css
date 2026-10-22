@@ -24,3 +24,197 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+
+/* Lotus's B2B OMS - shared staff / manager experience.
+   Scoped to the OMS only: customer miniapp styling remains unchanged. */
+.oms-workspace {
+  --oms-teal: #02b0af;
+  --oms-teal-dark: #008b8b;
+  --oms-ink: #173f3c;
+  --oms-muted: #647e7b;
+  --oms-outline: #d9e8e4;
+  --oms-canvas: #f3f8f7;
+  --oms-yellow: #fdbc16;
+  min-height: 100vh;
+  flex: 1;
+  background: var(--oms-canvas);
+  color: var(--oms-ink);
+  font-family: Arial, "Noto Sans Thai", Tahoma, sans-serif;
+}
+
+.oms-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(255, 255, 255, 0.97);
+  border-bottom: 1px solid #d8e9e5;
+  box-shadow: 0 3px 20px rgba(13, 93, 89, 0.055);
+  backdrop-filter: blur(12px);
+}
+.oms-topbar-inner {
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 14px 24px 0;
+}
+.oms-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 12px;
+}
+.oms-brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  color: var(--oms-teal);
+  text-decoration: none;
+  letter-spacing: -0.035em;
+  font-weight: 900;
+  font-size: 23px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.oms-brand:hover { color: var(--oms-teal-dark); }
+.oms-brand-apostrophe { color: var(--oms-yellow); }
+.oms-brand-b2b {
+  margin-left: 9px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--oms-ink);
+  background: #e6f7f5;
+  border: 1px solid #c8ebe7;
+  border-radius: 7px;
+  padding: 4px 7px;
+  align-self: center;
+}
+.oms-brand-caption {
+  color: #698680;
+  font-size: 12px;
+  border-left: 1px solid var(--oms-outline);
+  padding-left: 14px;
+}
+.oms-role-tag {
+  color: #826008;
+  font-size: 11px;
+  font-weight: 700;
+  background: #fff5d7;
+  border: 1px solid #f9e3a3;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.oms-nav {
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #bfdfd9 transparent;
+  padding-bottom: 0;
+}
+.oms-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  min-height: 43px;
+  padding: 10px 15px;
+  color: #597874;
+  border: 1px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-radius: 10px 10px 0 0;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  transition: color .18s ease, background-color .18s ease, border-color .18s ease;
+}
+.oms-nav-link:hover { color: var(--oms-teal-dark); background: #edf9f7; }
+.oms-nav-link[data-active="true"] {
+  color: #007e81;
+  background: #ebf9f7;
+  border-bottom-color: var(--oms-teal);
+}
+.oms-nav-link:focus-visible,
+.oms-brand:focus-visible {
+  outline: 3px solid #fdbc16;
+  outline-offset: 2px;
+}
+.oms-content { min-width: 0; width: 100%; }
+.oms-content > main { min-height: calc(100vh - 105px); }
+.oms-workspace main.bg-gray-100,
+.oms-workspace main.bg-gray-50 {
+  background: var(--oms-canvas) !important;
+}
+.oms-workspace main[class*="p-8"] { padding: 26px !important; }
+.oms-workspace main h1 {
+  color: var(--oms-ink);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+.oms-workspace main h2 { color: var(--oms-ink); }
+.oms-workspace .text-gray-500 { color: var(--oms-muted); }
+.oms-workspace .text-gray-400 { color: #819b95; }
+.oms-workspace .bg-white.border,
+.oms-workspace .bg-white.border-b,
+.oms-workspace .bg-white.border-gray-200 {
+  background: #fff;
+  border-color: var(--oms-outline);
+}
+.oms-workspace .bg-white.border.rounded-2xl,
+.oms-workspace .bg-white.border.rounded-xl {
+  box-shadow: 0 5px 21px rgba(21, 84, 78, 0.05);
+}
+.oms-workspace .bg-black {
+  background-color: var(--oms-teal) !important;
+}
+.oms-workspace .bg-black:hover { background-color: var(--oms-teal-dark) !important; }
+.oms-workspace .ring-black { --tw-ring-color: var(--oms-teal) !important; }
+.oms-workspace a.bg-white.border:hover,
+.oms-workspace button.bg-white.border:hover,
+.oms-workspace a.hover\:shadow:hover {
+  border-color: #acdcd5 !important;
+  box-shadow: 0 5px 18px rgba(15, 120, 111, 0.09);
+}
+.oms-workspace button,
+.oms-workspace a {
+  -webkit-tap-highlight-color: transparent;
+}
+.oms-workspace button:not(:disabled),
+.oms-workspace a { transition-duration: 150ms; }
+.oms-workspace input:not([type="checkbox"]):not([type="radio"]),
+.oms-workspace select,
+.oms-workspace textarea {
+  border-color: #cbded9;
+  background-color: #fff;
+  color: var(--oms-ink);
+}
+.oms-workspace input:not([type="checkbox"]):not([type="radio"]):focus,
+.oms-workspace select:focus,
+.oms-workspace textarea:focus {
+  outline: 2px solid rgba(2, 176, 175, .28);
+  outline-offset: 1px;
+  border-color: var(--oms-teal);
+}
+.oms-workspace :is(button, a, input, select, textarea):focus-visible {
+  outline-color: var(--oms-teal);
+}
+.oms-workspace .bg-gray-50 { background-color: #f7fbfa; }
+.oms-workspace .border-gray-200,
+.oms-workspace .border-gray-300 { border-color: var(--oms-outline); }
+@media (max-width: 640px) {
+  .oms-topbar-inner { padding: 12px 12px 0; }
+  .oms-brand-row { gap: 9px; padding: 0 5px 10px; }
+  .oms-brand { font-size: 21px; }
+  .oms-brand-caption { display: none; }
+  .oms-role-tag { margin-left: auto; }
+  .oms-nav { margin: 0 -4px; gap: 1px; }
+  .oms-nav-link { padding: 9px 11px; font-size: 12px; min-height: 41px; gap: 6px; }
+  .oms-nav-link svg { width: 15px; height: 15px; }
+  .oms-workspace main[class*="p-8"] { padding: 15px !important; }
+  .oms-workspace main h1 { font-size: 25px; }
+  .oms-workspace .grid.grid-cols-2 { gap: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .oms-nav-link { transition: none; }
+}
