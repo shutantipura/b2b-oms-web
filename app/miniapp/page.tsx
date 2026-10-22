@@ -1104,168 +1104,105 @@ export default function MiniAppHomePage() {
   }
 
   // =====================================================
-
-  // CHOOSE ACCESS
-
+  // CHOOSE ACCESS — mobile-first Lotus's B2B account-type selection
   // =====================================================
 
-  if (
-
-    portal ===
-
-    "choose"
-
-  ) {
-
+  if (portal === "choose") {
     return (
-
-      <main className="min-h-screen bg-gray-100 p-5">
-
-        <div className="max-w-md mx-auto">
-
-          <div className="mt-8">
-
-            <p className="text-sm text-gray-500">
-
-              LOTUS&apos;S B2B
-
-            </p>
-
-            <h1 className="text-3xl font-bold mt-2">
-
-              เลือกประเภทการใช้งาน
-
-            </h1>
-
-            {access.displayName && (
-
-              <p className="text-gray-500 mt-1">
-
-                {
-
-                  access.displayName
-
-                }
-
+      <main className="min-h-screen bg-[#F7FAFA] pb-16 text-[#173E31]">
+        <header className="sticky top-0 z-20 border-b border-[#E1ECE7] bg-white/95 backdrop-blur-md">
+          <div className="mx-auto flex max-w-xl items-center justify-center px-4 py-3">
+            <div className="text-center">
+              <p className="text-xl font-black tracking-tight text-[#02B0AF]">
+                Lotus<span className="text-[#FDBC16]">’s</span>
+                <span className="ml-1.5 rounded-lg bg-[#EAF8F5] px-2 py-0.5 align-middle text-sm text-[#17453F]">B2B</span>
               </p>
-
-            )}
-
+              <p className="mt-0.5 text-[10px] font-semibold text-[#79988B]">เพื่อธุรกิจที่ไปได้ไกลกว่า</p>
+            </div>
           </div>
+        </header>
 
-          <div className="space-y-4 mt-7">
+        <div className="mx-auto w-full max-w-xl space-y-4 px-4 pt-6 sm:px-6">
+          <section className="rounded-[24px] border border-[#D4E8E2] bg-white p-5 shadow-[0_4px_18px_rgba(0,105,100,0.05)] sm:p-6">
+            <div className="mb-4 h-1.5 w-11 rounded-full bg-[#FDBC16]" />
+            <p className="text-xs font-extrabold tracking-wide text-[#008F8D]">LOTUS’S FOR BUSINESS</p>
+            <h1 className="mt-2 text-[27px] font-black leading-tight tracking-tight text-[#17453F] sm:text-3xl">
+              เลือกประเภทการใช้งาน
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-[#6D8D7E]">
+              บัญชี LINE ของคุณสามารถเข้าใช้งานได้มากกว่าหนึ่งประเภท
+              เลือกหน้าที่ต้องการเข้าสู่ระบบ
+            </p>
+            {access.displayName && (
+              <div className="mt-4 inline-flex max-w-full items-center gap-2 rounded-full bg-[#ECF8F5] px-3 py-1.5 text-xs font-bold text-[#478174]">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-[#02B0AF]" />
+                <span className="truncate">บัญชี LINE: {access.displayName}</span>
+              </div>
+            )}
+          </section>
 
+          <section aria-label="เลือกประเภทบัญชี" className="space-y-3">
             {access.hasCustomerAccess && (
-
               <button
-
                 type="button"
-
-                onClick={
-
-                  enterCustomerPortal
-
-                }
-
-                className="w-full bg-white border rounded-2xl p-6 text-left"
-
+                onClick={enterCustomerPortal}
+                className="group flex min-h-[116px] w-full items-center gap-3.5 rounded-[21px] border-2 border-[#D5E8E2] bg-white p-4 text-left shadow-[0_3px_13px_rgba(0,105,100,0.05)] transition hover:border-[#02B0AF] hover:bg-[#FBFEFD] active:scale-[0.99] sm:p-5"
               >
-
-                <p className="text-xl font-bold">
-
-                  ลูกค้า
-
-                </p>
-
-                <p className="text-gray-500 mt-2">
-
-                  สั่งสินค้าและดูคำสั่งซื้อ
-
-                </p>
-
-                <p className="font-semibold mt-4">
-
-                  เข้าสู่หน้าลูกค้า →
-
-                </p>
-
+                <span aria-hidden="true" className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#E7F8F5] text-[#008F8D]">
+                  <svg width="29" height="29" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3.5 10h17l-1.3-5H4.8L3.5 10Z" />
+                    <path d="M4.5 10v9h15v-9" />
+                    <path d="M9 19v-6h6v6" />
+                    <path d="M3.5 10c0 1.6 1.4 2.5 2.8 2.5 1.4 0 2.4-.9 2.4-2.5 0 1.6 1.4 2.5 3.3 2.5s3.3-.9 3.3-2.5c0 1.6 1.1 2.5 2.4 2.5 1.5 0 2.8-.9 2.8-2.5" />
+                  </svg>
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-lg font-black leading-6 text-[#17453F]">ลูกค้า</span>
+                  <span className="mt-1 block text-sm leading-5 text-[#718F84]">สั่งสินค้า ดูราคา และติดตามคำสั่งซื้อ</span>
+                  <span className="mt-2 block text-xs font-extrabold text-[#008F8D]">เข้าสู่หน้าลูกค้า</span>
+                </span>
+                <span className="shrink-0 transition group-hover:translate-x-0.5"><NavigationArrow /></span>
               </button>
-
             )}
 
-            {access.hasStaffAccess &&
-
-              access.staff && (
-
+            {access.hasStaffAccess && access.staff && (
               <button
-
                 type="button"
-
-                onClick={
-
-                  openStaffOms
-
-                }
-
-                disabled={
-
-                  openingStaff
-
-                }
-
-                className="w-full bg-white border rounded-2xl p-6 text-left disabled:opacity-50"
-
+                onClick={openStaffOms}
+                disabled={openingStaff}
+                aria-busy={openingStaff}
+                className="group flex min-h-[116px] w-full items-center gap-3.5 rounded-[21px] border-2 border-[#D5E8E2] bg-white p-4 text-left shadow-[0_3px_13px_rgba(0,105,100,0.05)] transition hover:border-[#02B0AF] hover:bg-[#FBFEFD] active:scale-[0.99] disabled:cursor-wait disabled:opacity-65 sm:p-5"
               >
-
-                <p className="text-xl font-bold">
-
-                  พนักงาน / ผู้จัดการ
-
-                </p>
-
-                <p className="text-gray-500 mt-2">
-
-                  {
-
-                    access.staff.staffName
-
-                  }
-
-                  {" · "}
-
-                  {
-
-                    access.staff.accountType
-
-                  }
-
-                </p>
-
-                <p className="font-semibold mt-4">
-
-                  {openingStaff
-
-                    ? (staffLoginStep || "กำลังเข้าสู่ระบบ...")
-
-                    : "เข้าสู่ระบบพนักงาน →"}
-
-                </p>
-
+                <span aria-hidden="true" className="relative grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#E7F8F5] text-[#008F8D]">
+                  <svg width="29" height="29" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="3" width="16" height="18" rx="2.5" />
+                    <path d="M8 3.5h8M8 10h8M8 14h8M8 18h5" />
+                  </svg>
+                  <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#FDBC16]" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-lg font-black leading-6 text-[#17453F]">พนักงาน / ผู้จัดการ</span>
+                  <span className="mt-1 block break-words text-sm leading-5 text-[#718F84]">
+                    {access.staff.staffName} · {access.staff.accountType === "manager" ? "ผู้จัดการ" : "พนักงาน"}
+                  </span>
+                  <span className="mt-2 block text-xs font-extrabold text-[#008F8D]">
+                    {openingStaff ? (staffLoginStep || "กำลังเข้าสู่ระบบ...") : "เข้าสู่ระบบจัดการคำสั่งซื้อ"}
+                  </span>
+                </span>
+                <span className="shrink-0 transition group-hover:translate-x-0.5"><NavigationArrow /></span>
               </button>
-
             )}
+          </section>
 
-          </div>
-
+          <p className="px-2 pt-2 text-center text-xs leading-5 text-[#819E91]">
+            ระบบจะแสดงข้อมูลเฉพาะบัญชีที่คุณได้รับอนุญาตเท่านั้น
+          </p>
         </div>
-
       </main>
-
     );
-
   }
 
-  // =====================================================
+    // =====================================================
 
   // STAFF-ONLY ACCESS
 
