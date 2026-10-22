@@ -79,6 +79,11 @@ function getBangkokToday() {
   return `${year}-${month}-${day}`;
 }
 
+function getBangkokTomorrow() {
+  const [year, month, day] = getBangkokToday().split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+}
+
 function prettyDate(
   value: string
 ) {
@@ -746,22 +751,12 @@ export default function OrdersPage() {
             <h2 className="text-sm font-extrabold text-[#17453F]">ค้นหาและกรองคำสั่งซื้อ</h2>
             <span className="h-1.5 w-9 rounded-full bg-[#FDBC16]" aria-hidden="true" />
           </div>
-          <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-[minmax(0,200px)_minmax(0,1fr)_minmax(0,210px)] md:items-end">
+          <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-[minmax(0,350px)_minmax(0,1fr)] lg:grid-cols-[minmax(0,350px)_minmax(0,1fr)_minmax(0,190px)] md:items-end">
             <div className="min-w-0">
-              <div className="mb-1.5 flex items-center justify-between gap-2">
-                <label htmlFor="orders-delivery-date" className="block text-xs font-bold text-[#52786F]">
-                  วันที่จัดส่ง
-                </label>
-                <button
-                  type="button"
-                  aria-pressed={allDates}
-                  onClick={() => setAllDates((current) => !current)}
-                  className={`shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-extrabold transition ${allDates ? "border-[#02B0AF] bg-[#E6F8F5] text-[#008F8D]" : "border-[#D5E8E2] bg-white text-[#52786F] hover:bg-[#F0FAF7]"}`}
-                >
-                  ทุกวัน {allDates ? "✓" : ""}
-                </button>
-              </div>
-              <div className="flex min-w-0 items-center gap-2">
+              <label htmlFor="orders-delivery-date" className="mb-1.5 block text-xs font-bold text-[#52786F]">
+                วันที่จัดส่ง
+              </label>
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:flex-nowrap">
                 <input
                   id="orders-delivery-date"
                   type="date"
@@ -771,23 +766,41 @@ export default function OrdersPage() {
                     setSelectedDate(event.target.value);
                     setAllDates(false);
                   }}
-                  style={{ minWidth: 0, maxWidth: "11.5rem", width: "100%", height: "44px", minHeight: "44px", maxHeight: "44px", boxSizing: "border-box", paddingTop: 0, paddingBottom: 0 }}
-                  className="block h-11 min-h-11 max-h-11 flex-1 rounded-xl border border-[#C8DDD8] bg-white px-2 text-sm text-[#17453F] [color-scheme:light]"
+                  style={{ minWidth: 0, width: "134px", height: "44px", boxSizing: "border-box", paddingTop: 0, paddingBottom: 0, textAlign: "left" }}
+                  className="block h-11 shrink-0 rounded-xl border border-[#C8DDD8] bg-white px-2 text-left text-[13px] leading-none text-[#17453F] [color-scheme:light]"
+                  aria-label="เลือกวันที่จัดส่ง"
                 />
                 <button
                   type="button"
+                  aria-pressed={!allDates && selectedDate === getBangkokToday()}
                   onClick={() => {
                     setSelectedDate(getBangkokToday());
                     setAllDates(false);
                   }}
-                  className="h-11 shrink-0 rounded-xl border border-[#B9DDD6] bg-[#F0FAF7] px-3 text-xs font-extrabold text-[#008F8D]"
+                  className={`h-11 shrink-0 whitespace-nowrap rounded-xl border px-2 text-xs font-extrabold transition ${!allDates && selectedDate === getBangkokToday() ? "border-[#02B0AF] bg-[#E6F8F5] text-[#008F8D]" : "border-[#D5E8E2] bg-white text-[#52786F] hover:bg-[#F0FAF7]"}`}
                 >
                   วันนี้
                 </button>
+                <button
+                  type="button"
+                  aria-pressed={!allDates && selectedDate === getBangkokTomorrow()}
+                  onClick={() => {
+                    setSelectedDate(getBangkokTomorrow());
+                    setAllDates(false);
+                  }}
+                  className={`h-11 shrink-0 whitespace-nowrap rounded-xl border px-2 text-xs font-extrabold transition ${!allDates && selectedDate === getBangkokTomorrow() ? "border-[#02B0AF] bg-[#E6F8F5] text-[#008F8D]" : "border-[#D5E8E2] bg-white text-[#52786F] hover:bg-[#F0FAF7]"}`}
+                >
+                  พรุ่งนี้
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={allDates}
+                  onClick={() => setAllDates(true)}
+                  className={`h-11 shrink-0 whitespace-nowrap rounded-xl border px-2 text-xs font-extrabold transition ${allDates ? "border-[#02B0AF] bg-[#E6F8F5] text-[#008F8D]" : "border-[#D5E8E2] bg-white text-[#52786F] hover:bg-[#F0FAF7]"}`}
+                >
+                  ทุกวัน
+                </button>
               </div>
-              {allDates && (
-                <p className="mt-1.5 text-[11px] font-semibold text-[#008F8D]">แสดงทุกวันที่จัดส่ง</p>
-              )}
             </div>
 
             <div className="min-w-0">
