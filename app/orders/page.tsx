@@ -603,7 +603,7 @@ export default function OrdersPage() {
 
         {/* HEADER */}
 
-        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-8">
+        <div className="mb-5 flex items-start justify-between gap-3">
 
           <div>
 
@@ -633,11 +633,11 @@ export default function OrdersPage() {
             disabled={
               loading
             }
-            className="bg-white border rounded-lg px-5 py-2 disabled:opacity-50"
+            className="mt-1 inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-xl border border-[#B6DCD5] bg-white px-3 text-xs font-extrabold text-[#008F8D] shadow-sm transition hover:bg-[#F0FAF7] disabled:opacity-50 sm:px-4 sm:text-sm"
           >
             {loading
               ? "กำลังโหลด..."
-              : "รีเฟรช"}
+              : "↻ รีเฟรช"}
           </button>
 
         </div>
@@ -662,8 +662,8 @@ export default function OrdersPage() {
                     setSelectedDate(event.target.value);
                     setStatusFilter("all");
                   }}
-                  style={{ minWidth: 0, maxWidth: "11.5rem", width: "100%", boxSizing: "border-box" }}
-                  className="block h-11 flex-1 rounded-xl border border-[#C8DDD8] bg-white px-2 py-2 text-sm text-[#17453F]"
+                  style={{ minWidth: 0, maxWidth: "11.5rem", width: "100%", height: "44px", minHeight: "44px", maxHeight: "44px", boxSizing: "border-box", paddingTop: 0, paddingBottom: 0 }}
+                  className="block h-11 min-h-11 max-h-11 flex-1 rounded-xl border border-[#C8DDD8] bg-white px-2 text-sm text-[#17453F] [color-scheme:light]"
                 />
                 <button
                   type="button"
