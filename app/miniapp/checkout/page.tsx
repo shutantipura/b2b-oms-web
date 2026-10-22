@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import LotusLoading from "../../../components/LotusLoading";
 
 type Customer = {
   id: string;
@@ -286,15 +287,7 @@ export default function MiniAppCheckoutPage() {
   const field = "mt-2 min-h-12 w-full rounded-xl border-2 border-[#D9E8E1] bg-white px-4 py-3 text-sm font-semibold text-[#173E31] outline-none focus:border-[#02B0AF] focus:ring-4 focus:ring-[#02B0AF]/10";
 
   if (loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#F7FAFA] p-5">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#D9EAE4] border-t-[#02B0AF]" />
-          <p className="mt-5 text-xl font-extrabold text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span> B2B</p>
-          <p className="mt-2 text-sm text-[#82968D]">กำลังโหลดข้อมูลคำสั่งซื้อ...</p>
-        </div>
-      </main>
-    );
+    return <LotusLoading message="กำลังตรวจสอบรายการสินค้า..." />;
   }
 
   if (!customer) {

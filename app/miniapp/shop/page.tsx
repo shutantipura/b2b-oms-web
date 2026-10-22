@@ -22,6 +22,8 @@ import {
 
 } from "next/navigation";
 
+import LotusLoading from "../../../components/LotusLoading";
+
 
 
 type Customer = {
@@ -2896,31 +2898,7 @@ export default function MiniAppShopPage() {
 
   if (loading) {
 
-    return (
-
-      <main className="min-h-screen bg-gray-50 flex items-center justify-center p-5">
-
-        <div className="text-center">
-
-          <div className="w-12 h-12 rounded-full border-4 border-gray-200 border-t-black animate-spin mx-auto" />
-
-          <p className="font-bold text-lg mt-5">
-
-            LOTUS&apos;S B2B
-
-          </p>
-
-          <p className="text-gray-500 mt-2">
-
-            กำลังโหลดสินค้า...
-
-          </p>
-
-        </div>
-
-      </main>
-
-    );
+    return <LotusLoading message="กำลังโหลดสินค้า..." />;
 
   }
 

@@ -22,6 +22,8 @@ import {
 
 } from "../../lib/supabase";
 
+import LotusLoading from "../../components/LotusLoading";
+
 type Customer = {
 
   id: string;
@@ -936,29 +938,7 @@ export default function MiniAppHomePage() {
 
   if (loading) {
 
-    return (
-
-      <main className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
-
-        <div className="text-center">
-
-          <p className="text-xl font-bold">
-
-            LOTUS&apos;S B2B
-
-          </p>
-
-          <p className="text-gray-500 mt-3">
-
-            กำลังตรวจสอบสิทธิ์การใช้งาน LINE...
-
-          </p>
-
-        </div>
-
-      </main>
-
-    );
+    return <LotusLoading message="กำลังตรวจสอบสิทธิ์การใช้งาน LINE..." />;
 
   }
 

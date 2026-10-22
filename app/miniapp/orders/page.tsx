@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import LotusLoading from "../../../components/LotusLoading";
 
 type Customer = {
   id: string;
@@ -251,15 +252,7 @@ export default function CustomerOrdersPage() {
   }
 
   if (loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#F7FAFA] p-6">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#D9EAE4] border-t-[#02B0AF]" />
-          <p className="mt-5 text-xl font-black text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span> B2B</p>
-          <p className="mt-2 text-sm text-[#81978C]">กำลังโหลดคำสั่งซื้อ...</p>
-        </div>
-      </main>
-    );
+    return <LotusLoading message="กำลังโหลดคำสั่งซื้อ..." />;
   }
 
   if (message && !customer) {
