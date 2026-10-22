@@ -3104,7 +3104,7 @@ export default function MiniAppShopPage() {
                       {product.imageUrl && !hideImage && (
                         <img src={product.imageUrl} alt={product.productName} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full bg-white object-contain p-3 transition duration-300 group-hover:scale-[1.03]" onError={(event) => { event.currentTarget.style.display = "none"; }} />
                       )}
-                      {product.hasSpecialPrice && <span className="absolute left-2 top-2 rounded-lg bg-[#FFF3CF] px-2 py-1 text-[10px] font-extrabold text-[#9D6500]">ราคาพิเศษ</span>}
+                      {(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) && <span className="absolute left-2 top-2 rounded-lg bg-[#FFF3CF] px-2 py-1 text-[10px] font-extrabold text-[#9D6500]">ราคาพิเศษ</span>}
                       <button
                         type="button"
                         disabled={favouriteBusy}
@@ -3117,8 +3117,8 @@ export default function MiniAppShopPage() {
                       <p className="mb-1 min-h-10 line-clamp-2 text-[13px] font-bold leading-5 text-[#1D4034] sm:text-sm">{product.productName}</p>
                       <p className="truncate text-[10px] text-[#95A69A]">SKU {product.sku}</p>
                       <div className="mt-2">
-                        <p className="text-[18px] font-extrabold leading-tight sm:text-xl"><span className={product.hasSpecialPrice ? "text-[#DC2626]" : "text-[#009F9D]"}>฿{formatPrice(product.effectivePrice)}</span> <span className="text-[11px] font-semibold text-[#708878]">/ {product.unit}</span></p>
-                        {product.hasSpecialPrice && <p className="mt-1 text-[11px] text-[#9AACA0] line-through">ปกติ ฿{formatPrice(product.normalPrice)}</p>}
+                        <p className="text-[18px] font-extrabold leading-tight sm:text-xl"><span className={(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) ? "text-[#DC2626]" : "text-[#009F9D]"}>฿{formatPrice(product.effectivePrice)}</span> <span className="text-[11px] font-semibold text-[#708878]">/ {product.unit}</span></p>
+                        {(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) && <p className="mt-1 text-[11px] text-[#9AACA0] line-through">ปกติ ฿{formatPrice(product.normalPrice)}</p>}
                       </div>
                       <div className="mt-auto pt-2.5">
                         {quantity > 0 ? (
@@ -3211,14 +3211,14 @@ export default function MiniAppShopPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-bold leading-5 text-[#274937]">{product.productName}</p>
-                        <p className="mt-1 text-xs text-[#8E9D91]"><span className={product.hasSpecialPrice ? "font-bold text-[#DC2626]" : ""}>฿{formatPrice(product.effectivePrice)}</span> / {product.unit}</p>
+                        <p className="mt-1 text-xs text-[#8E9D91]"><span className={(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) ? "font-bold text-[#DC2626]" : ""}>฿{formatPrice(product.effectivePrice)}</span> / {product.unit}</p>
                         <div className="mt-3 inline-flex h-9 items-center overflow-hidden rounded-lg border border-[#D3E7D9]">
                           <button type="button" onClick={() => changeQuantity(product, -1)} aria-label={`ลดจำนวน ${product.productName}`} className="h-full w-9 bg-[#EEF7EF] text-lg font-bold text-[#0D8466]">−</button>
                           <span className="min-w-14 px-2 text-center text-xs font-extrabold">{formatQuantity(product.quantity)}</span>
                           <button type="button" onClick={() => changeQuantity(product, 1)} aria-label={`เพิ่มจำนวน ${product.productName}`} className="h-full w-9 bg-[#00886B] text-lg font-bold text-white">+</button>
                         </div>
                       </div>
-                      <p className={`shrink-0 text-sm font-extrabold ${product.hasSpecialPrice ? "text-[#DC2626]" : "text-[#009F9D]"}`}>฿{formatPrice(product.quantity * product.effectivePrice)}</p>
+                      <p className={`shrink-0 text-sm font-extrabold ${(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) ? "text-[#DC2626]" : "text-[#009F9D]"}`}>฿{formatPrice(product.quantity * product.effectivePrice)}</p>
                     </div>
                   ))}
                 </div>
