@@ -218,3 +218,96 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .oms-nav-link { transition: none; }
 }
+
+/* Page-specific polish; all data loading and actions remain in their pages. */
+.oms-page-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .11em;
+  color: #008c8c;
+}
+.oms-page-kicker::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fdbc16;
+}
+.oms-workspace .oms-dashboard-tile {
+  position: relative;
+  min-height: 148px;
+  border-radius: 18px;
+  border-color: #d7e9e5;
+  background: #fff;
+  box-shadow: 0 6px 21px rgba(22, 95, 90, .045);
+}
+.oms-dashboard-tile::after {
+  content: "↗";
+  position: absolute;
+  right: 21px;
+  bottom: 16px;
+  font-size: 19px;
+  line-height: 1;
+  font-weight: 700;
+  color: #00a8a7;
+}
+.oms-workspace .oms-dashboard-tile:hover {
+  transform: translateY(-2px);
+  border-color: #9ddbd5;
+  box-shadow: 0 11px 28px rgba(9, 115, 111, .12);
+}
+.oms-workspace .oms-dashboard-tile .bg-black {
+  color: white;
+  background: var(--oms-teal) !important;
+}
+.oms-workspace .oms-login-card {
+  border: 1px solid #d5e8e4;
+  border-top: 4px solid var(--oms-teal);
+  border-radius: 22px;
+  box-shadow: 0 16px 42px rgba(22, 81, 79, .11);
+}
+.oms-login-wordmark {
+  font-size: 25px;
+  font-weight: 900;
+  letter-spacing: -.04em;
+  color: var(--oms-teal);
+  margin-bottom: 20px;
+}
+.oms-login-wordmark > span { color: #fdbc16; }
+.oms-login-wordmark > small {
+  letter-spacing: 0;
+  font-size: 12px;
+  color: var(--oms-ink);
+  background: #ecf8f6;
+  border-radius: 6px;
+  padding: 4px 7px;
+  margin-left: 6px;
+}
+.oms-workspace .oms-task-stage {
+  border-color: #d5e5e2;
+  box-shadow: 0 6px 23px rgba(24, 92, 87, .055);
+}
+.oms-workspace .oms-task-stage > div:first-child {
+  border-bottom-color: #e2eeeb;
+  background: linear-gradient(90deg, #eefaf8, #fff 46%);
+}
+.oms-stage-chevron {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 18px;
+  line-height: 12px;
+  margin-right: 3px;
+  color: #039c9d;
+}
+.oms-workspace .bg-white.border .text-3xl.font-bold {
+  color: #008c8f;
+}
+@media (prefers-reduced-motion: reduce) {
+  .oms-workspace .oms-dashboard-tile:hover { transform: none; }
+}

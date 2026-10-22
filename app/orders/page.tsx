@@ -772,9 +772,8 @@ export default function OrdersPage() {
               ← กลับ
             </Link>
 
-            <h1 className="text-3xl font-bold mt-3">
-              คำสั่งซื้อ
-            </h1>
+            <p className="oms-page-kicker">ORDERS / ORDER MANAGEMENT</p>
+<h1 className="text-3xl font-bold mt-3">คำสั่งซื้อ</h1>
 
             <p className="text-gray-500 mt-1">
               ดูคำสั่งซื้อ B2B ตามวันที่จัดส่ง

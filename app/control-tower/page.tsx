@@ -2534,11 +2534,8 @@ export default function ControlTowerPage() {
 
 
 
-            <h1 className="text-3xl font-bold mt-3">
-
-              ศูนย์ควบคุม
-
-            </h1>
+            <p className="oms-page-kicker">OPERATIONS / CONTROL TOWER</p>
+<h1 className="text-3xl font-bold mt-3">ศูนย์ควบคุม</h1>
 
 
 

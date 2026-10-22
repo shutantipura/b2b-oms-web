@@ -322,11 +322,8 @@ const inactiveCount =
 
 
 
-            <h1 className="text-3xl font-bold mt-3">
-
-              ลูกค้า
-
-            </h1>
+            <p className="oms-page-kicker">CUSTOMERS / ACCOUNT MANAGEMENT</p>
+<h1 className="text-3xl font-bold mt-3">ลูกค้า</h1>
 
 
 

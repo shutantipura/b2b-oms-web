@@ -1010,11 +1010,8 @@ export default function TasksPage() {
 
 
 
-            <h1 className="text-3xl font-bold mt-2">
-
-              งาน
-
-            </h1>
+            <p className="oms-page-kicker">OPERATIONS / TASK QUEUE</p>
+<h1 className="text-3xl font-bold mt-2">งาน</h1>
 
 
 
@@ -1142,7 +1139,7 @@ export default function TasksPage() {
 
                   }
 
-                  className="bg-white border rounded-2xl overflow-hidden"
+                  className="oms-task-stage bg-white border rounded-2xl overflow-hidden"
 
                 >
 
@@ -1176,7 +1173,7 @@ export default function TasksPage() {
                         aria-label={`${expanded ? "ย่อ" : "แสดง"}รายการ${group.title}`}
                         className="text-gray-500 text-sm whitespace-nowrap rounded-lg px-1.5 py-1 hover:bg-gray-100"
                       >
-                        {expanded ? "▲ ย่อ" : "▼ แสดง"}
+                        <span className="oms-stage-chevron" aria-hidden="true">{expanded ? "⌃" : "⌄"}</span><span>{expanded ? "ย่อ" : "แสดง"}</span>
                       </button>
                     </div>
                   </div>

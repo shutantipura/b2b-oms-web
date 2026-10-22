@@ -588,15 +588,12 @@ export default function Home() {
 
 
 
-        <div className="w-full max-w-md bg-white rounded-2xl shadow p-8">
+        <div className="oms-login-card w-full max-w-md bg-white rounded-2xl shadow p-8">
 
 
 
-          <h1 className="text-3xl font-bold mb-2">
-
-            B2B OMS
-
-          </h1>
+          <p className="oms-login-wordmark">Lotus<span>’s</span> <small>B2B</small></p>
+<h1 className="text-3xl font-bold mb-2">เข้าสู่ระบบ OMS</h1>
 
 
 
@@ -1040,9 +1037,8 @@ export default function Home() {
 
 
 
-            <h1 className="text-3xl font-bold">
-
-              สวัสดี{" "}
+            <p className="oms-page-kicker">LOTUS’S B2B / WORKSPACE</p>
+<h1 className="text-3xl font-bold">สวัสดี{" "}
 
               {
 
@@ -1166,7 +1162,7 @@ export default function Home() {
 
                     }
 
-                    className="bg-white border rounded-xl p-7 hover:shadow transition"
+                    className="oms-dashboard-tile bg-white border rounded-xl p-7 hover:shadow transition"
 
                   >
 
@@ -1266,7 +1262,7 @@ export default function Home() {
 
                   }
 
-                  className="bg-white border rounded-xl p-7 hover:shadow transition min-h-40"
+                  className="oms-dashboard-tile bg-white border rounded-xl p-7 hover:shadow transition min-h-40"
 
                 >
 
