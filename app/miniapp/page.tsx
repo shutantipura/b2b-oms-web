@@ -401,7 +401,7 @@ export default function MiniAppHomePage() {
       }
 
       setStaffLoginStep("กำลังเปิดระบบ OMS...");
-      window.location.assign("/tasks");
+      window.location.assign("/login");
     } catch (error) {
       clearTimeout(serverTimeout);
       console.error("[LINE Staff Login]", {
@@ -1300,7 +1300,7 @@ export default function MiniAppHomePage() {
 
     return (
 
-      <main className="min-h-screen bg-gray-100 p-5">
+      <main className="min-h-screen bg-[#F7FAFA] px-4 py-6 text-[#17453F]">
 
         <div className="max-w-md mx-auto">
 
@@ -1326,15 +1326,15 @@ export default function MiniAppHomePage() {
 
           )}
 
-          <div className="bg-white border rounded-2xl p-6 mt-6">
+          <div className="mt-6 rounded-[24px] border border-[#D3E9E3] bg-white p-6 shadow-[0_12px_30px_rgba(8,97,89,0.08)]">
 
-            <p className="text-sm text-gray-500">
+            <p className="text-xs font-extrabold tracking-wide text-[#008F8D]">
 
               ระบบพนักงาน
 
             </p>
 
-            <h1 className="text-2xl font-bold mt-2">
+            <h1 className="mt-2 text-[26px] font-black text-[#17453F]">
 
               {
 
@@ -1344,7 +1344,7 @@ export default function MiniAppHomePage() {
 
             </h1>
 
-            <p className="text-gray-500 mt-1">
+            <p className="mt-2 text-sm text-[#739287]">
 
               {
 
@@ -1378,7 +1378,7 @@ export default function MiniAppHomePage() {
 
               }
 
-              className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-6 disabled:opacity-40"
+              className="mt-6 w-full min-h-14 rounded-2xl bg-[#02B0AF] px-5 py-4 text-base font-extrabold text-white shadow-[0_8px_20px_rgba(0,151,150,0.17)] disabled:opacity-50"
 
             >
 
