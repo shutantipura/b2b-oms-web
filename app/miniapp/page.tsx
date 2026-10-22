@@ -947,35 +947,33 @@ export default function MiniAppHomePage() {
   // =====================================================
 
   // ERROR
-
   // =====================================================
 
   if (message) {
-
+    const missingLiffId = message.includes("ไม่พบ LINE LIFF ID");
     return (
-
-      <main className="min-h-screen bg-gray-100 p-5">
-
-        <div className="max-w-md mx-auto">
-
-          <div className="bg-white border rounded-2xl p-6 mt-8">
-
-            <h1 className="text-xl font-bold">
-
-              ไม่สามารถเปิด MINI App ได้
-
-            </h1>
-
-            <p className="text-red-600 mt-3">
-
-              {
-
-                message
-
-              }
-
+      <main className="flex min-h-screen items-center justify-center bg-[#F3F8F7] px-4 py-8">
+        <section className="w-full max-w-md rounded-[26px] border border-[#D5E8E3] bg-white p-6 shadow-[0_18px_44px_rgba(20,91,83,0.1)]">
+          <div className="mb-6 h-1.5 w-14 rounded-full bg-[#FDBC16]" />
+          <p className="text-2xl font-black text-[#02B0AF]">
+            Lotus<span className="text-[#FDBC16]">’s</span>
+            <span className="ml-2 text-base text-[#17453F]">B2B</span>
+          </p>
+          <h1 className="mt-6 text-xl font-black text-[#17453F]">
+            {missingLiffId ? "ลิงก์ทดสอบยังไม่ได้ตั้งค่า LINE" : "ไม่สามารถเปิด MINI App ได้"}
+          </h1>
+          <p role="alert" className="mt-3 rounded-xl bg-[#FFF7E4] p-4 text-sm leading-6 text-[#704F11]">
+            {missingLiffId
+              ? "เว็บไซต์ทดสอบนี้ยังไม่มีการตั้งค่า LINE LIFF ID ใน Vercel (Preview) จึงยังไม่สามารถตรวจสอบสิทธิ์ลูกค้าหรือพนักงานได้"
+              : message}
+          </p>
+          {missingLiffId ? (
+            <p className="mt-4 text-sm leading-6 text-[#69847B]">
+              กรุณาให้ผู้ดูแลตั้งค่า NEXT_PUBLIC_LINE_LIFF_ID สำหรับ Preview แล้ว deploy อีกครั้ง
+              และตรวจสอบว่า URL นี้ตรงกับ LIFF Endpoint URL ที่ลงทะเบียนไว้ใน LINE Developers
+              ระหว่างนี้สามารถใช้ MINI App บนลิงก์ใช้งานจริงตามเดิมได้
             </p>
-
+          ) : (
             <button
               type="button"
               onClick={async () => {
@@ -985,42 +983,26 @@ export default function MiniAppHomePage() {
                 try { liff.logout(); } catch { /* LIFF may not be initialized */ }
                 window.location.assign("/miniapp");
               }}
-              className="w-full bg-black text-white rounded-xl px-5 py-3 font-semibold mt-5"
+              className="mt-5 min-h-12 w-full rounded-xl bg-[#02B0AF] px-5 py-3 font-bold text-white"
             >
               เข้าสู่ระบบ LINE ใหม่
             </button>
-
-            <button
-
-              type="button"
-
-              onClick={() =>
-
-                window.location.reload()
-
-              }
-
-              className="w-full border rounded-xl px-5 py-3 font-semibold mt-5"
-
-            >
-
-              ลองอีกครั้ง
-
-            </button>
-
-          </div>
-
-        </div>
-
+          )}
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-3 min-h-12 w-full rounded-xl border border-[#C8E4DE] px-5 py-3 font-bold text-[#17453F]"
+          >
+            ลองอีกครั้ง
+          </button>
+        </section>
       </main>
-
     );
-
   }
 
   // =====================================================
 
-  // NO ACCESS PROFILE
+    // NO ACCESS PROFILE
 
   // =====================================================
 
