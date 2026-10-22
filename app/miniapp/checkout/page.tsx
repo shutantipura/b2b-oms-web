@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
+import LotusBrand from "@/components/LotusBrand";
 
 type Customer = {
   id: string;
@@ -346,7 +347,7 @@ export default function MiniAppCheckoutPage() {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
           <button type="button" onClick={goShop} className="min-h-11 rounded-xl px-2 text-sm font-bold text-[#426559]">‹ กลับ</button>
           <div className="text-center">
-            <div className="text-xl font-black tracking-tight text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span><span className="ml-1 text-base text-[#17453F]">B2B</span></div>
+            <LotusBrand size="sm" align="center" />
             <p className="text-[10px] font-medium text-[#82968D]">ตรวจสอบคำสั่งซื้อ</p>
           </div>
           <span className="rounded-full bg-[#E5F8F5] px-3 py-2 text-xs font-bold text-[#009F9D]">ขั้นตอนสุดท้าย</span>

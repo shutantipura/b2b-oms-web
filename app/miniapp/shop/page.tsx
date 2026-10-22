@@ -23,6 +23,7 @@ import {
 } from "next/navigation";
 
 import LotusLoading from "../../../components/LotusLoading";
+import LotusBrand from "@/components/LotusBrand";
 
 
 
@@ -2970,8 +2971,7 @@ export default function MiniAppShopPage() {
               <span>หน้าแรก</span>
             </button>
             <div className="text-center">
-              <div className="text-xl font-black tracking-tight text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span><span className="ml-1.5 text-base font-bold text-[#17453F]">B2B</span></div>
-              <div className="text-[10px] font-medium tracking-wide text-[#82968D]">เพื่อธุรกิจที่ไปได้ไกลกว่า</div>
+              <LotusBrand size="sm" align="center" />
             </div>
             <button
               type="button"

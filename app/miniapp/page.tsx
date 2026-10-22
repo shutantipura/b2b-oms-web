@@ -23,6 +23,7 @@ import {
 } from "../../lib/supabase";
 
 import LotusLoading from "../../components/LotusLoading";
+import LotusBrand from "@/components/LotusBrand";
 
 type Customer = {
 
@@ -956,10 +957,7 @@ export default function MiniAppHomePage() {
       <main className="flex min-h-screen items-center justify-center bg-[#F3F8F7] px-4 py-8">
         <section className="w-full max-w-md rounded-[26px] border border-[#D5E8E3] bg-white p-6 shadow-[0_18px_44px_rgba(20,91,83,0.1)]">
           <div className="mb-6 h-1.5 w-14 rounded-full bg-[#FDBC16]" />
-          <p className="text-2xl font-black text-[#02B0AF]">
-            Lotus<span className="text-[#FDBC16]">’s</span>
-            <span className="ml-2 text-base text-[#17453F]">B2B</span>
-          </p>
+          <LotusBrand size="md" />
           <h1 className="mt-6 text-xl font-black text-[#17453F]">
             {missingLiffId ? "ลิงก์ทดสอบยังไม่ได้ตั้งค่า LINE" : "ไม่สามารถเปิด MINI App ได้"}
           </h1>
@@ -1053,11 +1051,7 @@ export default function MiniAppHomePage() {
 
         <div className="max-w-md mx-auto">
 
-          <p className="text-xl font-bold text-center mt-8">
-
-            LOTUS&apos;S B2B
-
-          </p>
+          <LotusBrand size="md" align="center" className="mt-8" />
 
           <div className="bg-white border rounded-2xl p-6 mt-6">
 
@@ -1113,11 +1107,7 @@ export default function MiniAppHomePage() {
         <header className="sticky top-0 z-20 border-b border-[#E1ECE7] bg-white/95 backdrop-blur-md">
           <div className="mx-auto flex max-w-xl items-center justify-center px-4 py-3">
             <div className="text-center">
-              <p className="text-xl font-black tracking-tight text-[#02B0AF]">
-                Lotus<span className="text-[#FDBC16]">’s</span>
-                <span className="ml-1.5 rounded-lg bg-[#EAF8F5] px-2 py-0.5 align-middle text-sm text-[#17453F]">B2B</span>
-              </p>
-              <p className="mt-0.5 text-[10px] font-semibold text-[#79988B]">เพื่อธุรกิจที่ไปได้ไกลกว่า</p>
+              <LotusBrand size="sm" align="center" />
             </div>
           </div>
         </header>
@@ -1345,11 +1335,7 @@ export default function MiniAppHomePage() {
         <header className="sticky top-0 z-20 border-b border-[#E2ECE7] bg-white/95 backdrop-blur-md">
           <div className="mx-auto flex max-w-xl items-center justify-center px-4 py-3">
             <div className="text-center">
-              <p className="text-xl font-black tracking-tight text-[#02B0AF]">
-                Lotus<span className="text-[#FDBC16]">’s</span>
-                <span className="ml-1 text-base text-[#17453F]">B2B</span>
-              </p>
-              <p className="text-[10px] font-medium text-[#79988B]">เพื่อธุรกิจที่ไปได้ไกลกว่า</p>
+              <LotusBrand size="sm" align="center" />
             </div>
           </div>
         </header>
@@ -1544,9 +1530,7 @@ export default function MiniAppHomePage() {
 
           <div className="mt-5 rounded-2xl border border-[#DDECE5] bg-white px-5 py-6 text-center shadow-sm">
 
-            <h1 className="text-3xl font-black tracking-tight text-[#02B0AF]">Lotus<span className="text-[#FDBC16]">’s</span><span className="ml-2 text-xl text-[#17453F]">B2B</span></h1>
-
-            <p className="mt-1 text-xs font-semibold text-[#82968D]">สั่งซื้อง่าย เพื่อธุรกิจของคุณ</p>
+            <LotusBrand size="lg" align="center" />
 
             <p className="mt-5 truncate text-base font-extrabold text-[#315E4C]">
 

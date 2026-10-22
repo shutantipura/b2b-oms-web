@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import LotusBrand from "@/components/LotusBrand";
 
 type Role = "manager" | "staff" | null;
 type NavIconName = "home" | "tasks" | "orders" | "tower" | "kpi" | "customers" | "staff" | "line" | "catalog";
@@ -168,10 +169,8 @@ export default function OmsWorkspace({ children }: { children: ReactNode }) {
           <div className="oms-topbar-inner">
             <div className="oms-brand-row">
               <Link href="/login" className="oms-brand" aria-label="Lotus's B2B OMS หน้าหลัก">
-                Lotus<span className="oms-brand-apostrophe">’s</span>
-                <span className="oms-brand-b2b">B2B</span>
+                <LotusBrand size="sm" />
               </Link>
-              <span className="oms-brand-caption">ระบบจัดการคำสั่งซื้อ</span>
               {role === "manager" && <span className="oms-role-tag">Manager</span>}
             </div>
             <nav className="oms-nav" aria-label="เมนูจัดการ OMS">

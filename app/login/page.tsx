@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import LotusLoading from "@/components/LotusLoading";
+import LotusBrand from "@/components/LotusBrand";
 import { supabase } from "@/lib/supabase";
 
 type StaffProfile = {
@@ -124,7 +125,7 @@ export default function OmsHomePage() {
     void loadStaff();
   }, [loadStaff]);
 
-  async function handleSignOut() {
+  async function handleSwitchMode() {
     await supabase.auth.signOut();
     goToLineLogin();
   }
@@ -138,11 +139,7 @@ export default function OmsHomePage() {
       <main className="flex min-h-screen items-center justify-center bg-[#F3F8F7] px-4 py-8">
         <div className="w-full max-w-md overflow-hidden rounded-[26px] border border-[#D5E8E3] bg-white p-6 shadow-[0_18px_44px_rgba(20,91,83,0.10)] sm:p-8">
           <div className="mb-7 h-1.5 w-14 rounded-full bg-[#FDBC16]" />
-          <div className="text-[28px] font-black tracking-tight text-[#02B0AF]">
-            Lotus<span className="text-[#FDBC16]">’s</span>
-            <span className="ml-2 rounded-lg bg-[#EAF8F5] px-2 py-1 align-middle text-sm tracking-normal text-[#17453F]">B2B</span>
-          </div>
-          <p className="mt-1 text-xs font-medium text-[#779087]">ระบบจัดการคำสั่งซื้อสำหรับธุรกิจ</p>
+          <LotusBrand size="md" />
           <h1 className="mt-8 text-[27px] font-black tracking-tight text-[#17453F]">ยินดีต้อนรับสู่ Lotus’s B2B</h1>
           <p className="mt-2 text-sm leading-6 text-[#6F8982]">
             ลูกค้าและพนักงานใช้บัญชี LINE เดียวกัน ระบบจะตรวจสอบสิทธิ์และพาไปยังหน้าที่เหมาะสมโดยอัตโนมัติ
@@ -195,10 +192,10 @@ export default function OmsHomePage() {
             </div>
             <button
               type="button"
-              onClick={handleSignOut}
+              onClick={handleSwitchMode}
               className="min-h-11 rounded-xl border border-[#C5E3DD] bg-white px-4 py-2 text-sm font-bold text-[#3B736B]"
             >
-              สลับบัญชี LINE
+              เปลี่ยนประเภทการใช้งาน
             </button>
           </div>
         </section>

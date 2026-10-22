@@ -1,3 +1,5 @@
+import LotusBrand from "@/components/LotusBrand";
+
 type LotusLoadingProps = {
   message?: string;
   fullScreen?: boolean;
@@ -17,13 +19,7 @@ export default function LotusLoading({
         fullScreen ? "min-h-screen" : "min-h-48 rounded-2xl"
       }`}
     >
-      <div className="text-3xl font-black tracking-tight text-[#02B0AF]">
-        Lotus<span className="text-[#FDBC16]">’s</span>
-        <span className="ml-2 text-xl text-[#17453F]">B2B</span>
-      </div>
-      <p className="mt-1 text-xs font-medium text-[#82968D]">
-        เพื่อธุรกิจที่ไปได้ไกลกว่า
-      </p>
+      <LotusBrand size="lg" align="center" />
 
       <div aria-hidden="true" className="mt-8 flex items-center gap-3">
         <span
