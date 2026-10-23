@@ -150,24 +150,11 @@ export function getEarliestDeliveryDate(
     return bangkok.date;
   }
 
-  // 10:00–19:59:
-  // earliest is tomorrow.
-  if (
-    bangkok.minutes <
-    DELIVERY_RULES
-      .nextDayCutoffMinutes
-  ) {
-    return addDays(
-      bangkok.date,
-      1
-    );
-  }
-
-  // 20:00 onwards:
-  // earliest is day after tomorrow.
+  // After 10:00, next-day delivery remains available.
+  // The 20:00 cutoff affects only the next-day 07:00–09:00 slot.
   return addDays(
     bangkok.date,
-    2
+    1
   );
 }
 
@@ -190,15 +177,17 @@ export function getAvailableSlots(
     return [];
   }
 
-  // Future dates:
-  // all slots available.
-  if (
-    deliveryDate !==
-    bangkok.date
-  ) {
-    return [
-      ...DELIVERY_RULES.slots,
-    ];
+  // For tomorrow after 20:00, exclude only the early 07:00–09:00 slot.
+  // All later slots remain available; dates further away have every slot.
+  if (deliveryDate !== bangkok.date) {
+    const tomorrow = addDays(bangkok.date, 1);
+    if (
+      deliveryDate === tomorrow &&
+      bangkok.minutes >= DELIVERY_RULES.nextDayCutoffMinutes
+    ) {
+      return DELIVERY_RULES.slots.slice(1);
+    }
+    return [...DELIVERY_RULES.slots];
   }
 
   // Same-day booking is possible only before 10:00 Bangkok time.
