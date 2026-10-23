@@ -596,48 +596,24 @@ export default function ConfirmationPage() {
   async function completeConfirmation() {
     setMessage("");
 
-    const invalidItem =
-      items.find(
-        (item) => {
-          const requested =
-            Number(
-              item.requested_qty
-            );
+    const invalidItem = items.find((item) => {
+      const rawValue = confirmed[item.id];
+      const value = Number(rawValue);
 
-          const value =
-            Number(
-              confirmed[
-                item.id
-              ]
-            );
-
-          return (
-            Number.isNaN(
-              value
-            ) ||
-            value < 0 ||
-            value >
-              requested
-          );
-        }
+      // Confirmed quantities may exceed what the customer ordered.
+      // Reject blank, negative, and non-finite values only.
+      return (
+        rawValue === undefined ||
+        String(rawValue).trim() === "" ||
+        !Number.isFinite(value) ||
+        value < 0
       );
+    });
 
     if (invalidItem) {
-      const addedByStaff =
-        Boolean(
-          invalidItem.staff_note?.startsWith(
-            "Added by staff during"
-          )
-        );
-
       setMessage(
-        `${invalidItem.product_name_snapshot}: ${
-          addedByStaff
-            ? "จำนวนที่ยืนยันต้องอยู่ระหว่าง 0 ถึงจำนวนที่เพิ่มเข้ามา"
-            : "จำนวนที่ยืนยันต้องอยู่ระหว่าง 0 ถึงจำนวนที่ลูกค้าสั่ง"
-        }`
+        `${invalidItem.product_name_snapshot}: กรุณากรอกจำนวนที่ยืนยันให้ถูกต้อง (0 หรือมากกว่า)`
       );
-
       return;
     }
 
@@ -1025,9 +1001,6 @@ export default function ConfirmationPage() {
                             <input
                               type="number"
                               min="0"
-                              max={
-                                requested
-                              }
                               step="0.001"
                               value={
                                 confirmed[
