@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
@@ -30,12 +30,20 @@ type DeliveryOption = {
   slots: { value: string; label: string }[];
 };
 
+type MergeCandidate = {
+  orderNumber: number;
+  deliveryDate: string;
+  deliverySlot: string;
+};
+
 type CheckoutResponse = {
   customer?: Customer;
   items?: CheckoutItem[];
   deliveryOptions?: DeliveryOption[];
   success?: boolean;
   orderNumber?: number;
+  merged?: boolean;
+  mergeCandidates?: MergeCandidate[];
   error?: string;
 };
 
@@ -88,6 +96,13 @@ export default function MiniAppCheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [createdOrderNumber, setCreatedOrderNumber] = useState<number | null>(null);
+  const [wasMerged, setWasMerged] = useState(false);
+  const [mergeCandidates, setMergeCandidates] = useState<MergeCandidate[]>([]);
+  const [mergeIntoOrderNumber, setMergeIntoOrderNumber] = useState<number | null>(null);
+  const [loadingMergeOptions, setLoadingMergeOptions] = useState(false);
+  const [mergeOptionsError, setMergeOptionsError] = useState("");
+  const [mergeRefreshTick, setMergeRefreshTick] = useState(0);
+  const mergeRequestIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +226,56 @@ export default function MiniAppCheckoutPage() {
     [deliveryOptions, deliveryDate]
   );
 
+  // Prompt for combining deliveries when the selected date already has
+  // a confirmed/picked order whose billing task has never been claimed.
+  // Candidates may become ineligible after this check; the submit RPC
+  // always rechecks inside the same transaction as the merge.
+  useEffect(() => {
+    if (!idToken || !customer || !deliveryDate) return;
+    const controller = new AbortController();
+    setLoadingMergeOptions(true);
+    setMergeOptionsError("");
+    setMergeCandidates([]);
+    setMergeIntoOrderNumber(null);
+    mergeRequestIdRef.current = null;
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/line/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            action: "merge-options",
+            idToken,
+            customerCode: customer.customerCode,
+            deliveryDate,
+            cart,
+          }),
+        });
+        const data = (await response.json()) as CheckoutResponse;
+        if (!response.ok) throw new Error(data.error ?? "ไม่สามารถตรวจสอบคำสั่งซื้อเดิมได้");
+        if (!controller.signal.aborted) setMergeCandidates(data.mergeCandidates ?? []);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setMergeOptionsError(error instanceof Error ? error.message : "ไม่สามารถตรวจสอบคำสั่งซื้อเดิมได้");
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoadingMergeOptions(false);
+      }
+    })();
+
+    return () => controller.abort();
+  }, [idToken, customer, deliveryDate, cart, mergeRefreshTick]);
+
+  // Only offer the same primary delivery slot when that slot is still
+  // selectable under the existing customer checkout cutoff rules.
+  const selectableMergeCandidates = useMemo(
+    () => mergeCandidates.filter((candidate) =>
+      currentSlots.some((slot) => slot.value === candidate.deliverySlot)),
+    [mergeCandidates, currentSlots]
+  );
+
   const estimatedTotal = useMemo(
     () => items.reduce((total, item) => total + item.estimatedSubtotal, 0),
     [items]
@@ -218,8 +283,18 @@ export default function MiniAppCheckoutPage() {
 
   function changeDate(value: string) {
     setDeliveryDate(value);
+    setMergeIntoOrderNumber(null);
     const option = deliveryOptions.find((item) => item.date === value);
     setDeliverySlot(option?.slots[0]?.value ?? "");
+  }
+
+  function chooseMerge(candidate: MergeCandidate | null) {
+    setMergeIntoOrderNumber(candidate?.orderNumber ?? null);
+    mergeRequestIdRef.current = null;
+    if (candidate) {
+      // One delivery means we retain the PRIMARY order's time slot.
+      setDeliverySlot(candidate.deliverySlot);
+    }
   }
 
   function goShop() {
@@ -246,7 +321,21 @@ export default function MiniAppCheckoutPage() {
       return;
     }
 
-    if (!window.confirm(`ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)} หรือไม่?`)) return;
+    if (loadingMergeOptions) {
+      setMessage("กำลังตรวจสอบคำสั่งซื้อเดิม กรุณาลองอีกครั้ง");
+      return;
+    }
+    const chosenMerge = selectableMergeCandidates.find((candidate) => candidate.orderNumber === mergeIntoOrderNumber);
+    if (mergeIntoOrderNumber && !chosenMerge) {
+      setMessage("คำสั่งซื้อเดิมไม่สามารถรวมกับช่วงเวลาที่เลือกได้");
+      return;
+    }
+
+    const confirmation = chosenMerge
+      ? `รวมสินค้าใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เข้ากับคำสั่งซื้อ #${chosenMerge.orderNumber} ใช่หรือไม่?\nทีมงานจะต้องจัดสินค้าอีกครั้ง และส่งพร้อมกันตามรอบเดิม`
+      : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)} หรือไม่?`;
+    if (!window.confirm(confirmation)) return;
+    if (chosenMerge && !mergeRequestIdRef.current) mergeRequestIdRef.current = crypto.randomUUID();
     setSubmitting(true);
 
     try {
@@ -262,6 +351,8 @@ export default function MiniAppCheckoutPage() {
           deliverySlot,
           deliveryAddress: deliveryAddress.trim(),
           notes: notes.trim(),
+          mergeIntoOrderNumber: chosenMerge?.orderNumber ?? null,
+          requestId: chosenMerge ? mergeRequestIdRef.current : null,
         }),
       });
       const data = (await response.json()) as CheckoutResponse;
@@ -287,6 +378,7 @@ export default function MiniAppCheckoutPage() {
 
       // Preserve the existing behavior: clear the basket only after success.
       localStorage.removeItem(`b2b-cart-${customer.customerCode}`);
+      setWasMerged(Boolean(data.merged));
       setCreatedOrderNumber(data.orderNumber);
     } catch (error) {
       console.error("Submit order:", error);
@@ -324,12 +416,18 @@ export default function MiniAppCheckoutPage() {
         <div className="mx-auto max-w-md">
           <div className={`${card} p-6 text-center sm:p-8`}>
             <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#E1F8F1] text-5xl font-black text-[#009F9D]">✓</div>
-            <h1 className="mt-5 text-2xl font-extrabold">ได้รับคำสั่งซื้อแล้ว!</h1>
-            <p className="mt-2 text-sm leading-6 text-[#748C80]">ทีมงานได้รับคำสั่งซื้อและกำลังตรวจสอบสินค้าเพื่อยืนยันรายการ</p>
+            <h1 className="mt-5 text-2xl font-extrabold">{wasMerged ? "รวมคำสั่งซื้อเรียบร้อยแล้ว!" : "ได้รับคำสั่งซื้อแล้ว!"}</h1>
+            <p className="mt-2 text-sm leading-6 text-[#748C80]">
+              {wasMerged
+                ? "สินค้าเพิ่มเติมถูกรวมในคำสั่งซื้อเดิมแล้ว ทีมงานจะตรวจสอบและจัดสินค้าอีกครั้ง ก่อนออกบิลรวมและจัดส่งพร้อมกัน"
+                : "ทีมงานได้รับคำสั่งซื้อและกำลังตรวจสอบสินค้าเพื่อยืนยันรายการ"}
+            </p>
             <div className="mt-6 rounded-2xl border border-[#BDEAE3] bg-[#EDFAF8] p-5">
               <p className="text-xs font-semibold text-[#668B81]">หมายเลขคำสั่งซื้อ</p>
               <p className="mt-1 text-4xl font-black text-[#008F8D]">#{createdOrderNumber}</p>
-              <span className="mt-3 inline-block rounded-full bg-[#FFF2C9] px-3 py-1 text-xs font-bold text-[#906300]">รอการยืนยันจากทีมงาน</span>
+              <span className="mt-3 inline-block rounded-full bg-[#FFF2C9] px-3 py-1 text-xs font-bold text-[#906300]">
+                {wasMerged ? "รอจัดสินค้าเพิ่มเติม" : "รอการยืนยันจากทีมงาน"}
+              </span>
             </div>
             <p className="mt-5 text-xs leading-5 text-[#82968D]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการยืนยันและการหยิบสินค้า</p>
             <button type="button" onClick={() => router.push(`/miniapp/orders?customer=${encodeURIComponent(customer.customerCode)}&view=active`)} className="mt-6 min-h-12 w-full rounded-xl bg-[#02B0AF] px-5 py-3 font-extrabold text-white">ติดตามคำสั่งซื้อ →</button>
@@ -419,9 +517,45 @@ export default function MiniAppCheckoutPage() {
               {deliveryOptions.map((option) => <option key={option.date} value={option.date}>{prettyDate(option.date)}</option>)}
             </select>
           </label>
+          {loadingMergeOptions && (
+            <p className="mt-3 text-xs text-[#718F83]">กำลังตรวจสอบคำสั่งซื้อที่จัดส่งวันเดียวกัน...</p>
+          )}
+          {mergeOptionsError && (
+            <div role="alert" className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+              <span>ตรวจสอบคำสั่งซื้อเดิมไม่สำเร็จ หากไม่ต้องการแยกการจัดส่ง กรุณาลองใหม่</span>
+              <button type="button" className="shrink-0 rounded-lg border border-amber-300 px-3 py-2 font-bold" onClick={() => setMergeRefreshTick((tick) => tick + 1)}>ลองใหม่</button>
+            </div>
+          )}
+          {selectableMergeCandidates.length > 0 && !loadingMergeOptions && (
+            <fieldset className="mt-4 rounded-2xl border-2 border-[#B8EAE5] bg-[#F0FAF8] p-4">
+              <legend className="px-2 text-sm font-extrabold text-[#006F6A]">มีคำสั่งซื้อเดิมในวันเดียวกัน</legend>
+              <p className="mb-3 text-xs leading-5 text-[#4D6F65]">
+                ต้องการเพิ่มสินค้าลงในคำสั่งซื้อเดิมเพื่อจัดส่งพร้อมกันหรือไม่?
+                หากรวม ระบบจะใช้เวลาจัดส่งเดิม และให้ทีมงานจัดสินค้าใหม่ก่อนออกบิล
+              </p>
+              <label className="mb-2 flex cursor-pointer items-center gap-3 rounded-xl border border-[#D6E8E3] bg-white p-3 text-sm font-bold">
+                <input type="radio" name="merge-choice" checked={mergeIntoOrderNumber === null} onChange={() => chooseMerge(null)} />
+                แยกเป็นคำสั่งซื้อใหม่
+              </label>
+              {selectableMergeCandidates.map((candidate) => (
+                <label key={candidate.orderNumber} className="mt-2 flex cursor-pointer items-center gap-3 rounded-xl border border-[#B8EAE5] bg-white p-3 text-sm font-bold">
+                  <input
+                    type="radio"
+                    name="merge-choice"
+                    checked={mergeIntoOrderNumber === candidate.orderNumber}
+                    onChange={() => chooseMerge(candidate)}
+                  />
+                  <span>
+                    รวมกับคำสั่งซื้อ #{candidate.orderNumber}
+                    <span className="mt-1 block text-xs font-normal text-[#678575]">รอบจัดส่งเดิม {candidate.deliverySlot}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          )}
           <label className="mt-4 block">
             <span className="text-xs font-bold text-[#537566]">ช่วงเวลาจัดส่ง</span>
-            <select value={deliverySlot} onChange={(event) => setDeliverySlot(event.target.value)} className={field}>
+            <select value={deliverySlot} disabled={mergeIntoOrderNumber !== null} onChange={(event) => { setDeliverySlot(event.target.value); setMergeIntoOrderNumber(null); }} className={field}>
               {currentSlots.length === 0 && <option value="">ไม่มีช่วงเวลาที่ว่าง</option>}
               {currentSlots.map((slot) => <option key={slot.value} value={slot.value}>{slot.label}</option>)}
             </select>
@@ -459,12 +593,12 @@ export default function MiniAppCheckoutPage() {
           <button
             type="button"
             onClick={() => void submitOrder()}
-            disabled={submitting || !deliveryDate || !deliverySlot || items.length === 0}
+            disabled={submitting || loadingMergeOptions || !deliveryDate || !deliverySlot || items.length === 0}
             className="flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl bg-[#02B0AF] px-5 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span>
-              <span className="block text-sm font-extrabold">{submitting ? "กำลังส่งคำสั่งซื้อ..." : "ยืนยันคำสั่งซื้อ"}</span>
-              <span className="mt-1 block text-[11px] text-white/80">{submitting ? "กรุณารอสักครู่" : "ส่งรายการให้ทีมงานตรวจสอบ →"}</span>
+              <span className="block text-sm font-extrabold">{submitting ? "กำลังส่งคำสั่งซื้อ..." : mergeIntoOrderNumber ? "ยืนยันการรวมคำสั่งซื้อ" : "ยืนยันคำสั่งซื้อ"}</span>
+              <span className="mt-1 block text-[11px] text-white/80">{submitting ? "กรุณารอสักครู่" : mergeIntoOrderNumber ? "เพิ่มสินค้าในคำสั่งซื้อเดิม →" : "ส่งรายการให้ทีมงานตรวจสอบ →"}</span>
             </span>
             <span className="text-right text-xl font-black">~฿{formatMoney(estimatedTotal)}</span>
           </button>
