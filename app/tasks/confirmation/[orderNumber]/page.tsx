@@ -21,6 +21,7 @@ import DeliverySchedule from "../../../../components/DeliverySchedule";
 type OrderDetails = {
   id: string;
   order_number: number;
+  adjustment_count: number;
   delivery_date: string | null;
   delivery_slot: string | null;
   delivery_address: string | null;
@@ -267,6 +268,7 @@ export default function ConfirmationPage() {
         .select(`
           id,
           order_number,
+          adjustment_count,
           delivery_date,
           delivery_slot,
           delivery_address,
@@ -787,6 +789,11 @@ export default function ConfirmationPage() {
             <p className="mt-1 text-xs font-semibold text-[#82958F]">
               คำสั่งซื้อ #{order.order_number}
             </p>
+            {order.adjustment_count > 0 && (
+              <p className="mt-2 inline-flex rounded-lg border border-[#E7C978] bg-[#FFF4CB] px-3 py-2 text-xs font-extrabold text-[#745200]">
+                ปรับคำสั่งซื้อแล้ว · ยืนยันสินค้าทุกรายการใหม่
+              </p>
+            )
           </div>
 
           <button
