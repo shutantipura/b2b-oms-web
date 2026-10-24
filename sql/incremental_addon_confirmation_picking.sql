@@ -462,7 +462,7 @@ begin
   );
 
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.complete_picking(p_order_number bigint, p_staff_code text, p_items jsonb)
  RETURNS jsonb
@@ -714,7 +714,7 @@ begin
   );
 
 end;
-$function$
+$function$;
 
 -- Staff-added SKUs during an add-on pass become incremental lines as well.
 CREATE OR REPLACE FUNCTION public.add_product_to_my_order(p_order_number bigint, p_product_id uuid, p_qty numeric)
@@ -968,7 +968,7 @@ begin
   );
 
 end;
-$function$
+$function$;
 
 -- This RPC remains restricted to service_role via its existing grants.
 CREATE OR REPLACE FUNCTION public.merge_customer_order(p_customer_id uuid, p_primary_order_number bigint, p_delivery_date date, p_delivery_slot text, p_customer_notes text, p_items jsonb, p_line_user_id uuid, p_request_id uuid)
@@ -1189,7 +1189,7 @@ BEGIN
     )
   );
 END;
-$function$
+$function$;
 
 -- Revoke direct addon worker access: the owning staff must use the
 -- existing complete_my_confirmation / complete_my_picking authenticated RPCs.
