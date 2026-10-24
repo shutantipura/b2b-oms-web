@@ -91,6 +91,8 @@ type OrderFile = {
 
 
 
+type BillingMode = "normal" | "suspended" | "no_cv";
+
 export default function BillingPage() {
 
   const params = useParams();
@@ -130,7 +132,7 @@ export default function BillingPage() {
   const [qrUploaded, setQrUploaded] =
 
     useState(false);
-  const [suspendedMode, setSuspendedMode] = useState(false);
+  const [billingMode, setBillingMode] = useState<BillingMode>("normal");
   const [cvCardUrl, setCvCardUrl] = useState<string | null>(null);
   const [cvCardPreviewError, setCvCardPreviewError] = useState("");
 
@@ -717,35 +719,24 @@ export default function BillingPage() {
 
 
 
-    if (!suspendedMode && !billUploaded) {
-
-      setMessage(
-
-        "ต้องอัปโหลดบิลก่อนจึงจะปิดงานออกบิลได้"
-
-      );
-
+    // All modes except suspended-account need a bill. A no-CV customer
+    // specifically needs a photographed POS parked bill (not a PDF).
+    if (billingMode !== "suspended" && !billUploaded) {
+      setMessage("ต้องอัปโหลดรูปบิลก่อนจึงจะปิดงานออกบิลได้");
       return;
-
     }
 
-
-
-    if (!suspendedMode && !qrUploaded) {
-
-      setMessage(
-
-        "ต้องอัปโหลด QR ชำระเงินก่อนจึงจะปิดงานออกบิลได้"
-
-      );
-
+    if (billingMode === "no_cv" && !billMimeType?.startsWith("image/")) {
+      setMessage("กรุณาถ่ายรูปพักบิลจากเครื่อง POS และอัปโหลดรูปภาพ (ไม่ใช่ PDF)");
       return;
-
     }
 
+    if (billingMode === "normal" && !qrUploaded) {
+      setMessage("ต้องอัปโหลด QR ชำระเงินก่อนจึงจะปิดงานออกบิลได้");
+      return;
+    }
 
-
-    if (suspendedMode && (!order?.customers?.cv_card_storage_path || !cvCardUrl)) {
+    if (billingMode === "suspended" && (!order?.customers?.cv_card_storage_path || !cvCardUrl)) {
       setMessage("ต้องบันทึกรูป CV card ในข้อมูลลูกค้าให้สำเร็จก่อนปิดงานแบบบัญชีถูกระงับ");
       return;
     }
@@ -754,7 +745,9 @@ export default function BillingPage() {
 
     const { error } = await supabase.rpc(
 
-      suspendedMode ? "complete_my_billing_suspended" : "complete_my_billing",
+      billingMode === "suspended" ? "complete_my_billing_suspended"
+        : billingMode === "no_cv" ? "complete_my_billing_no_cv"
+        : "complete_my_billing",
 
       {
 
@@ -1457,37 +1450,44 @@ export default function BillingPage() {
 
 
 
-        <section className="mb-6 rounded-2xl border border-[#B8EAE5] bg-[#F4FBFA] p-5 sm:p-6">
-          <button
-            type="button"
-            aria-pressed={suspendedMode}
-            onClick={() => {
-              setSuspendedMode((previous) => !previous);
-              setMessage("");
-            }}
-            disabled={submitting || uploadingBill || uploadingQr}
-            className={`min-h-12 rounded-xl border-2 px-5 py-3 text-sm font-extrabold transition disabled:opacity-40 ${suspendedMode
-              ? "border-[#007F79] bg-[#00BCB4] text-[#173F3C]"
-              : "border-[#B8EAE5] bg-white text-[#173F3C]"}`}
-          >
-            {suspendedMode ? "✓ บัญชีลูกค้าถูกระงับ" : "บัญชีลูกค้าถูกระงับ"}
-          </button>
+        <section className="mb-6 rounded-2xl border border-[#B8EAE5] bg-[#F4FBFA] p-4 sm:p-5">
+          <h2 className="mb-3 text-sm font-bold text-[#173F3C]">ประเภทการออกบิล</h2>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="ประเภทการออกบิล">
+            {([
+              { value: "normal", label: "CV ปกติ" },
+              { value: "suspended", label: "บัญชีถูกระงับ" },
+              { value: "no_cv", label: "ลูกค้าไม่มีCV" },
+            ] as const).map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={billingMode === value}
+                onClick={() => { setBillingMode(value); setMessage(""); }}
+                disabled={submitting || uploadingBill || uploadingQr}
+                className={`min-h-9 rounded-lg border px-3 py-1.5 text-xs font-bold transition sm:text-sm disabled:opacity-40 ${billingMode === value
+                  ? "border-[#007F79] bg-[#00BCB4] text-[#173F3C]"
+                  : "border-[#C6DDDA] bg-white text-[#355C56] hover:border-[#00BCB4]"}`}
+              >
+                {billingMode === value ? "✓ " : ""}{label}
+              </button>
+            ))}
+          </div>
           <p className="mt-3 text-sm text-[#526F69]">
-            {suspendedMode
-              ? "โหมดบัญชีถูกระงับ: ไม่บังคับแนบบิล และจะใช้รูป CV card ของลูกค้าแทนรูป QR ชำระเงินเมื่อปิดงาน"
-              : "กรณีออกบิลตามปกติ ต้องแนบทั้งบิลและ QR ชำระเงิน"}
+            {billingMode === "normal"
+              ? "CV ปกติ: ต้องแนบรูปบิลและรูป QR ชำระเงิน"
+              : billingMode === "suspended"
+                ? "บัญชีถูกระงับ: ไม่บังคับรูปบิล และใช้ CV card ของลูกค้าแทนรูป QR"
+                : "ลูกค้าไม่มีCV: ต้องแนบรูปพักบิลจาก POS เท่านั้น ไม่ต้องแนบ QR"}
           </p>
-          {suspendedMode && !order.customers?.cv_card_storage_path && (
+          {billingMode === "suspended" && !order.customers?.cv_card_storage_path && (
             <p className="mt-3 rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
-              ยังไม่มี CV card สำหรับลูกค้ารายนี้ กรุณาอัปโหลดจาก
-              {" "}
+              ยังไม่มี CV card สำหรับลูกค้ารายนี้ กรุณาอัปโหลดจาก{" "}
               <Link href={`/customers/${order.customers?.customer_code ?? ""}`} className="underline">
                 ข้อมูลลูกค้า
-              </Link>
-              {" "}ก่อนปิดงาน
+              </Link>{" "}ก่อนปิดงาน
             </p>
           )}
-          {suspendedMode && cvCardPreviewError && (
+          {billingMode === "suspended" && cvCardPreviewError && (
             <p className="mt-3 text-sm font-semibold text-red-600">{cvCardPreviewError}</p>
           )}
         </section>
@@ -1506,21 +1506,26 @@ export default function BillingPage() {
 
             <p className="text-sm text-gray-500 mt-1 mb-4">
 
-              {suspendedMode ? "โหมดบัญชีถูกระงับ: ไม่ต้องแนบบิล" : "อัปโหลดบิลที่ออกจากระบบภายนอก OMS"}
+              {billingMode === "suspended" ? "บัญชีถูกระงับ: ไม่ต้องแนบบิล" : "อัปโหลดบิลที่ออกจากระบบภายนอก OMS"}
 
             </p>
 
-            {!suspendedMode && <TaskFilePicker
+            {billingMode !== "suspended" && <TaskFilePicker
               label="ไฟล์บิล"
               chooseLabel="เลือกและอัปโหลดบิล"
               replaceLabel="เปลี่ยนไฟล์บิล"
-              accept="image/*,application/pdf,.pdf"
+              accept={billingMode === "no_cv" ? "image/*" : "image/*,application/pdf,.pdf"}
               uploaded={billUploaded}
               uploading={uploadingBill}
               disabled={submitting}
               fileName={billName}
               onSelect={uploadBill}
             />}
+            {billingMode === "no_cv" && (
+              <p className="mt-3 rounded-lg border border-[#F6D795] bg-[#FFF8E8] px-3 py-3 text-sm font-bold text-[#8B5300]">
+                กรุณาคิดเงินหน้าเครื่องPOS และถ่ายรูปพักบิล
+              </p>
+            )}
             {billPreviewUrl && (
               <div className="mt-4 rounded-xl border bg-gray-50 p-3">
                 <p className="mb-2 text-sm font-semibold text-[#17453F]">ตัวอย่างบิลที่บันทึกไว้</p>
@@ -1547,7 +1552,7 @@ export default function BillingPage() {
 
             <h2 className="font-bold text-lg">
 
-              QR ชำระเงิน
+              {billingMode === "suspended" ? "CV card ลูกค้า" : "QR ชำระเงิน"}
 
             </h2>
 
@@ -1555,11 +1560,13 @@ export default function BillingPage() {
 
             <p className="text-sm text-gray-500 mt-1 mb-4">
 
-              {suspendedMode ? "ใช้รูป CV card ที่บันทึกไว้ในข้อมูลลูกค้าโดยอัตโนมัติ" : "อัปโหลด QR ชำระเงินสำหรับให้ลูกค้าใช้ชำระเงิน"}
+              {billingMode === "suspended" ? "ใช้รูป CV card ที่บันทึกไว้ในข้อมูลลูกค้าโดยอัตโนมัติ"
+                : billingMode === "no_cv" ? "ไม่ต้องอัปโหลด QR ชำระเงินสำหรับลูกค้าไม่มี CV"
+                : "อัปโหลด QR ชำระเงินสำหรับให้ลูกค้าใช้ชำระเงิน"}
 
             </p>
 
-            {suspendedMode ? (
+            {billingMode === "suspended" ? (
               cvCardUrl ? (
                 <div className="rounded-xl border border-[#B8EAE5] bg-[#F4FBFA] p-3">
                   <p className="mb-2 text-sm font-semibold text-[#007F79]">✓ CV card ที่จะใช้แทน QR</p>
@@ -1570,6 +1577,10 @@ export default function BillingPage() {
                   ยังไม่มีรูป CV card ที่พร้อมใช้งาน
                 </p>
               )
+            ) : billingMode === "no_cv" ? (
+              <div className="rounded-xl border border-dashed border-[#D2E1DC] bg-[#F8FBFA] p-4 text-sm text-[#526F69]">
+                ลูกค้าไม่มีCV — ไม่ต้องแนบรูป QR ชำระเงิน
+              </div>
             ) : (
             <TaskFilePicker
               label="รูป QR ชำระเงิน"
@@ -1583,7 +1594,7 @@ export default function BillingPage() {
               onSelect={uploadQr}
             />
             )}
-            {!suspendedMode && qrPreviewUrl && (
+            {billingMode === "normal" && qrPreviewUrl && (
               <div className="mt-4 rounded-xl border bg-gray-50 p-3">
                 <p className="mb-2 text-sm font-semibold text-[#17453F]">ตัวอย่าง QR ที่บันทึกไว้</p>
                 <a href={qrPreviewUrl} target="_blank" rel="noreferrer">
@@ -1622,7 +1633,11 @@ export default function BillingPage() {
             onClick={completeBilling}
 
             disabled={submitting || uploadingBill || uploadingQr ||
-              (suspendedMode ? !cvCardUrl : !billUploaded || !qrUploaded)}
+              (billingMode === "suspended"
+                ? !cvCardUrl
+                : billingMode === "no_cv"
+                  ? !billUploaded || !billMimeType?.startsWith("image/")
+                  : !billUploaded || !qrUploaded)}
 
             className="bg-black text-white rounded-lg px-8 py-4 font-semibold disabled:opacity-30"
 
