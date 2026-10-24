@@ -816,6 +816,8 @@ export async function POST(
           id,
 
           order_number,
+          group_root_order_id,
+          group_sequence,
 
           status,
 
@@ -922,9 +924,16 @@ export async function POST(
 
 
 
-    const orders =
-
-      orderData ?? [];
+    const orders = orderData ?? [];
+    const groupRootIds = [...new Set(orders
+      .map(o => o.group_root_order_id as string | null)
+      .filter((id): id is string => Boolean(id)))];
+    const { data: rootRows, error: rootError } = groupRootIds.length
+      ? await supabaseAdmin.from("orders").select("id,order_number,final_amount")
+          .in("id",groupRootIds).eq("customer_id",selectedCustomer.id)
+      : {data:[],error:null};
+    if (rootError) throw new Error("Could not resolve grouped orders: "+rootError.message);
+    const rootsById = new Map((rootRows??[]).map(o=>[o.id,o]));
 
 
 
@@ -1416,6 +1425,16 @@ export async function POST(
             orderNumber:
 
               order.order_number,
+            displayNumber: order.group_root_order_id
+              ? `${rootsById.get(order.group_root_order_id)?.order_number ?? order.order_number}/${order.group_sequence ?? 1}`
+              : String(order.order_number),
+            groupRootNumber: order.group_root_order_id
+              ? (rootsById.get(order.group_root_order_id)?.order_number ?? order.order_number)
+              : null,
+            groupSequence: order.group_sequence,
+            paymentRootOrderNumber: order.group_root_order_id
+              ? (rootsById.get(order.group_root_order_id)?.order_number ?? order.order_number)
+              : order.order_number,
 
 
 
