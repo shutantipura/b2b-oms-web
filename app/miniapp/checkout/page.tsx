@@ -269,7 +269,7 @@ export default function MiniAppCheckoutPage() {
   }, [idToken, customer, deliveryDate, cart, mergeRefreshTick]);
 
   // Only offer the same primary delivery slot when that slot is still
-  // selectable under the existing customer checkout cutoff rules.
+  // selectable under the current two-hour delivery lead-time rule.
   const selectableMergeCandidates = useMemo(
     () => mergeCandidates.filter((candidate) =>
       currentSlots.some((slot) => slot.value === candidate.deliverySlot)),
@@ -562,7 +562,7 @@ export default function MiniAppCheckoutPage() {
           </label>
           {currentSlots.length === 0 && <p className="mt-3 text-xs font-medium text-red-600">ไม่มีช่วงเวลาจัดส่งที่ว่างสำหรับวันที่เลือก</p>}
           <p className="mt-3 text-[11px] leading-5 text-[#718F83]">
-            สั่งก่อน 10:00 น. เลือกรอบจัดส่งวันเดียวกันได้ตั้งแต่รอบถัดไป · รอบ 07:00–09:00 น. ต้องสั่งก่อน 20:00 น. ของวันก่อน
+            สั่งซื้อได้ตลอด 24 ชั่วโมง · เลือกรอบจัดส่งที่เริ่มอย่างน้อย 2 ชั่วโมงหลังเวลายืนยันคำสั่งซื้อ (เวลาไทย)
           </p>
         </section>
 
