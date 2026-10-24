@@ -825,7 +825,7 @@ export default function CheckoutPage() {
                 onChange={(event) => {
                   setDeliveryDate(event.target.value);
                   setDeliverySlot("");
-                }
+                }}
                 className="w-full border rounded-xl px-4 py-3"
               />
 
