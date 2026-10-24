@@ -20,6 +20,8 @@ type OrderDetails = {
 
   status: string;
 
+  adjustment_count: number;
+
   order_source: string | null;
 
   delivery_date: string | null;
@@ -305,6 +307,8 @@ export default function OrderDetailsPage() {
         order_number,
 
         status,
+
+        adjustment_count,
 
         order_source,
 
@@ -978,6 +982,11 @@ export default function OrderDetailsPage() {
               คำสั่งซื้อ #{order.order_number}
 
             </h1>
+            {order.adjustment_count > 0 && (
+              <p className="mt-3 inline-flex rounded-lg border border-[#E7C978] bg-[#FFF4CB] px-3 py-2 text-sm font-extrabold text-[#745200]">
+                ปรับคำสั่งซื้อแล้ว {order.adjustment_count > 1 ? `(${order.adjustment_count} ครั้ง)` : ""}
+              </p>
+            )
 
 
 
