@@ -67,6 +67,8 @@ type DisplayFile = {
   mimeType: string | null;
 };
 
+type CartPhoto = DisplayFile & { orderLabel: string };
+
 function safeWebUrl(
   value: string | null | undefined
 ) {
@@ -116,9 +118,8 @@ export default function DeliveryPage() {
 
 
 
-  const [cartPhoto, setCartPhoto] =
-
-    useState<DisplayFile | null>(null);
+  const [cartPhotos, setCartPhotos] = useState<CartPhoto[]>([]);
+  const [missingCartLabels, setMissingCartLabels] = useState<string[]>([]);
 
 
 
@@ -163,6 +164,10 @@ export default function DeliveryPage() {
     setLoading(true);
 
     setMessage("");
+    setCartPhotos([]);
+    setMissingCartLabels([]);
+    setBill(null);
+    setPaymentQr(null);
 
 
 
@@ -408,43 +413,62 @@ export default function DeliveryPage() {
 
 
 
-    const [
+    // Every /x member has its own picked cart and its own photo.
+    // Do not rely on the grouped root's legacy cart_photo.
+    const { data: members, error: membersError } = await supabase
+      .from("orders")
+      .select("id, order_number, group_sequence")
+      .eq("group_root_order_id", orderData.id)
+      .neq("status", "cancelled")
+      .order("group_sequence", { ascending: true });
+    if (membersError) {
+      setMessage("ไม่สามารถโหลดรายการรถเข็นของกลุ่มได้: " + membersError.message);
+      setLoading(false);
+      return;
+    }
 
-      loadedCartPhoto,
+    const memberIds = (members ?? []).map((member) => member.id);
+    let groupCartPhotos: CartPhoto[] = [];
+    if (memberIds.length > 0) {
+      const { data: memberFiles, error: memberFilesError } = await supabase
+        .from("order_files")
+        .select("order_id, file_type, storage_path, original_filename, mime_type")
+        .in("order_id", memberIds)
+        .eq("file_type", "cart_photo")
+        .eq("is_current", true);
+      if (memberFilesError) {
+        setMessage("ไม่สามารถโหลดรูปรถเข็นของคำสั่งซื้อย่อยได้: " + memberFilesError.message);
+        setLoading(false);
+        return;
+      }
+      const fileByOrder = new Map((memberFiles ?? []).map((file) => [file.order_id, file]));
+      const photos = await Promise.all((members ?? []).map(async (member): Promise<CartPhoto | null> => {
+        const file = fileByOrder.get(member.id);
+        if (!file) return null;
+        const { data, error } = await supabase.storage.from("order-files")
+          .createSignedUrl(file.storage_path, 60 * 60);
+        if (error || !data) return null;
+        return {
+          url: data.signedUrl,
+          name: file.original_filename ?? "รูปรถเข็น",
+          mimeType: file.mime_type,
+          orderLabel: `${orderData.order_number}/${member.group_sequence ?? "?"}`,
+        };
+      }));
+      groupCartPhotos = photos.filter((photo): photo is CartPhoto => photo !== null);
+      setMissingCartLabels((members ?? [])
+        .filter((_, index) => photos[index] === null)
+        .map((member) => `${orderData.order_number}/${member.group_sequence ?? "?"}`));
+    } else {
+      const singleCart = await getDisplayFile("cart_photo");
+      if (singleCart) groupCartPhotos = [{ ...singleCart, orderLabel: String(orderData.order_number) }];
+    }
+    setCartPhotos(groupCartPhotos);
 
-      loadedBill,
-
-      loadedPaymentQr,
-
-    ] = await Promise.all([
-
-      getDisplayFile(
-
-        "cart_photo"
-
-      ),
-
-      getDisplayFile(
-
-        "bill"
-
-      ),
-
-      getDisplayFile(
-
-        "payment_qr"
-
-      ),
-
+    const [loadedBill, loadedPaymentQr] = await Promise.all([
+      getDisplayFile("bill"),
+      getDisplayFile("payment_qr"),
     ]);
-
-
-
-    setCartPhoto(
-
-      loadedCartPhoto
-
-    );
 
 
 
@@ -1031,31 +1055,31 @@ export default function DeliveryPage() {
                 รูปรถเข็นสินค้า
               </p>
 
-              {!cartPhoto ? (
-                <p className="text-sm text-gray-500">
-                  ยังไม่มีรูปรถเข็นสินค้า
+              {missingCartLabels.length > 0 && (
+                <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700">
+                  ไม่พบรูปรถเข็นสำหรับออเดอร์: {missingCartLabels.join(", ")} กรุณาตรวจสอบก่อนจัดส่ง
                 </p>
-              ) : isImage(cartPhoto) ? (
-                <a
-                  href={cartPhoto.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <img
-                    src={cartPhoto.url}
-                    alt="รูปรถเข็นสินค้า"
-                    className="w-full h-56 object-contain border rounded-xl bg-gray-50"
-                  />
-                </a>
+              )}
+              {cartPhotos.length === 0 ? (
+                <p className="text-sm text-red-600">ยังไม่มีรูปรถเข็นสินค้า กรุณาตรวจสอบก่อนจัดส่ง</p>
               ) : (
-                <a
-                  href={cartPhoto.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline text-sm"
-                >
-                  เปิดไฟล์รูปรถเข็นสินค้า
-                </a>
+                <div className="space-y-4">
+                  {cartPhotos.map((photo) => (
+                    <div key={photo.orderLabel} className="rounded-xl border border-[#D6E8E2] p-3">
+                      <p className="mb-2 text-sm font-bold text-[#007F79]">ออเดอร์ #{photo.orderLabel}</p>
+                      {isImage(photo) ? (
+                        <a href={photo.url} target="_blank" rel="noreferrer">
+                          <img src={photo.url} alt={`รูปรถเข็นออเดอร์ ${photo.orderLabel}`}
+                            className="h-48 w-full rounded-lg bg-gray-50 object-contain" />
+                        </a>
+                      ) : (
+                        <a href={photo.url} target="_blank" rel="noreferrer" className="text-sm underline">
+                          เปิดไฟล์รูปรถเข็นออเดอร์ #{photo.orderLabel}
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
