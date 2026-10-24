@@ -164,14 +164,10 @@ export default function PickingPage() {
       >
     >({});
 
-  const [cartPhotoName, setCartPhotoName] = useState<string | null>(null);
+  const [cartPhotoNames, setCartPhotoNames] = useState<(string | null)[]>([null, null]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  const [
-    photoUploaded,
-    setPhotoUploaded,
-  ] =
-    useState(false);
+  const [photoUploaded, setPhotoUploaded] = useState<boolean[]>([false, false]);
 
   const [
     loading,
@@ -362,38 +358,20 @@ export default function PickingPage() {
       initialActual
     );
 
-    const {
-      data: existingPhoto,
-      error: photoError,
-    } =
-      await supabase
-        .from(
-          "order_files"
-        )
-        .select(
-          "id, original_filename"
-        )
-        .eq(
-          "order_id",
-          orderData.id
-        )
-        .eq(
-          "file_type",
-          "cart_photo"
-        )
-        .eq(
-          "is_current",
-          true
-        )
-        .maybeSingle();
+    const { data: existingPhotos, error: photoError } = await supabase
+      .from("order_files")
+      .select("file_type, original_filename")
+      .eq("order_id", orderData.id)
+      .in("file_type", ["cart_photo", "cart_photo_2"])
+      .eq("is_current", true);
 
-    setPhotoUploaded(
-      Boolean(
-        !photoError &&
-          existingPhoto
-      )
-    );
-    setCartPhotoName(!photoError ? existingPhoto?.original_filename ?? null : null);
+    const firstPhoto = existingPhotos?.find((file) => file.file_type === "cart_photo");
+    const secondPhoto = existingPhotos?.find((file) => file.file_type === "cart_photo_2");
+    setPhotoUploaded([Boolean(!photoError && firstPhoto), Boolean(!photoError && secondPhoto)]);
+    setCartPhotoNames([
+      !photoError ? firstPhoto?.original_filename ?? null : null,
+      !photoError ? secondPhoto?.original_filename ?? null : null,
+    ]);
 
     setLoading(false);
   }
@@ -638,14 +616,15 @@ export default function PickingPage() {
     await loadOrder();
   }
 
-  async function uploadCartPhoto(file: File) {
+  async function uploadCartPhoto(file: File, index: 0 | 1) {
     if (uploadingPhoto || submitting) return;
     setUploadingPhoto(true);
-    setMessage("กำลังอัปโหลดรูปรถเข็นสินค้า...");
+    setMessage(`กำลังอัปโหลดรูปรถเข็นสินค้า ${index + 1}...`);
 
+    const fileType = index === 0 ? "cart_photo" : "cart_photo_2";
     const extension = file.name.split(".").pop() || "jpg";
     const storagePath =
-      `orders/${orderNumber}/cart_photo/${crypto.randomUUID()}.${extension}`;
+      `orders/${orderNumber}/${fileType}/${crypto.randomUUID()}.${extension}`;
 
     try {
       const { error: uploadError } = await supabase.storage
@@ -660,7 +639,7 @@ export default function PickingPage() {
         "register_my_order_file",
         {
           p_order_number: orderNumber,
-          p_file_type: "cart_photo",
+          p_file_type: fileType,
           p_storage_path: storagePath,
           p_original_filename: file.name,
           p_mime_type: file.type || "image/jpeg",
@@ -668,10 +647,13 @@ export default function PickingPage() {
       );
       if (registerError) throw new Error("บันทึกรูปไม่สำเร็จ: " + registerError.message);
 
-      // Registering a new file marks it current; the previous file stays in history.
-      setPhotoUploaded(true);
-      setCartPhotoName(file.name);
-      setMessage("✓ บันทึกรูปรถเข็นสินค้าเรียบร้อยแล้ว");
+      setPhotoUploaded((previous) => previous.map((uploaded, photoIndex) =>
+        photoIndex === index ? true : uploaded
+      ));
+      setCartPhotoNames((previous) => previous.map((name, photoIndex) =>
+        photoIndex === index ? file.name : name
+      ));
+      setMessage(`✓ บันทึกรูปรถเข็นสินค้า ${index + 1} เรียบร้อยแล้ว`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "อัปโหลดรูปไม่สำเร็จ");
     } finally {
@@ -683,7 +665,7 @@ export default function PickingPage() {
     setMessage("");
 
     if (
-      !photoUploaded
+      !photoUploaded[0]
     ) {
       setMessage(
         "ต้องอัปโหลดรูปรถเข็นสินค้าก่อนปิดงานจัดสินค้า"
@@ -1077,25 +1059,26 @@ export default function PickingPage() {
         </section>
 
         <section className="bg-white border rounded-2xl p-6">
-          <h2 className="font-bold text-lg">
-            รูปรถเข็นสินค้า
-          </h2>
-
+          <h2 className="font-bold text-lg">รูปรถเข็นสินค้า (2 รูป)</h2>
           <p className="text-sm text-gray-500 mt-1 mb-4">
-            ต้องอัปโหลดรูปรถเข็นสินค้าที่จัดเสร็จแล้ว 1 รูป
+            ต้องมีรูปแรกอย่างน้อย 1 รูป และสามารถเพิ่มรูปที่สองได้ (ไม่บังคับ)
           </p>
-
-          <TaskFilePicker
-            label="รูปรถเข็นสินค้า"
-            chooseLabel="ถ่ายหรือเลือกรูปรถเข็น"
-            replaceLabel="เปลี่ยนรูปรถเข็น"
-            accept="image/*"
-            uploaded={photoUploaded}
-            uploading={uploadingPhoto}
-            disabled={submitting}
-            fileName={cartPhotoName}
-            onSelect={uploadCartPhoto}
-          />
+          <div className="space-y-4">
+            {([0, 1] as const).map((index) => (
+              <TaskFilePicker
+                key={index}
+                label={`รูปรถเข็นสินค้า ${index + 1}${index === 1 ? " (ไม่บังคับ)" : ""}`}
+                chooseLabel={`ถ่ายหรือเลือกรูปที่ ${index + 1}`}
+                replaceLabel={`เปลี่ยนรูปที่ ${index + 1}`}
+                accept="image/*"
+                uploaded={photoUploaded[index]}
+                uploading={uploadingPhoto}
+                disabled={submitting}
+                fileName={cartPhotoNames[index]}
+                onSelect={(file) => uploadCartPhoto(file, index)}
+              />
+            ))}
+          </div>
         </section>
 
         {message && (
@@ -1110,7 +1093,7 @@ export default function PickingPage() {
             onClick={
               completePicking
             }
-            disabled={submitting || uploadingPhoto || !photoUploaded}
+            disabled={submitting || uploadingPhoto || !photoUploaded[0]}
             className="bg-black text-white rounded-lg px-8 py-4 font-semibold disabled:opacity-50"
           >
             {submitting

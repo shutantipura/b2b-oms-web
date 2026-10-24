@@ -188,7 +188,9 @@ function fileLabel(type: string) {
 
   const labels: Record<string, string> = {
 
-    cart_photo: "รูปรถเข็นสินค้า",
+    cart_photo: "รูปรถเข็นสินค้า 1",
+
+    cart_photo_2: "รูปรถเข็นสินค้า 2",
 
     bill: "บิล",
 
@@ -251,6 +253,12 @@ export default function OrderDetailsPage() {
   const [message, setMessage] =
 
     useState("");
+
+  const [isManager, setIsManager] = useState(false);
+  const [editedFinalAmount, setEditedFinalAmount] = useState("");
+  const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [savingAmount, setSavingAmount] = useState(false);
+  const [amountMessage, setAmountMessage] = useState("");
 
 
 
@@ -349,6 +357,7 @@ export default function OrderDetailsPage() {
 
 
     setOrder(loadedOrder);
+    setEditedFinalAmount(loadedOrder.final_amount === null ? "" : String(loadedOrder.final_amount));
 
 
 
@@ -821,6 +830,49 @@ export default function OrderDetailsPage() {
 
 
   useEffect(() => {
+    async function checkManager() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setIsManager(false); return; }
+      const { data, error } = await supabase.from("staff")
+        .select("account_type")
+        .eq("auth_user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      setIsManager(!error && data?.account_type === "manager");
+    }
+    void checkManager();
+  }, []);
+
+  async function saveFinalAmount() {
+    const rawAmount = editedFinalAmount.trim();
+    const amount = Number(rawAmount);
+    if (!rawAmount || !Number.isFinite(amount) || amount < 0 || !/^\d+(?:\.\d{1,2})?$/.test(rawAmount)) {
+      setAmountMessage("กรุณากรอกยอดเงินที่ถูกต้อง (ทศนิยมไม่เกิน 2 ตำแหน่ง)");
+      return;
+    }
+    if (!adjustmentReason.trim()) {
+      setAmountMessage("กรุณาระบุเหตุผลในการปรับยอดบิล");
+      return;
+    }
+    if (!window.confirm(`ยืนยันการปรับยอดบิลเป็น ฿${amount.toFixed(2)}?`)) return;
+    setSavingAmount(true);
+    setAmountMessage("");
+    const { error } = await supabase.rpc("manager_adjust_final_amount", {
+      p_order_number: orderNumber,
+      p_new_amount: amount,
+      p_reason: adjustmentReason.trim(),
+    });
+    if (error) {
+      setAmountMessage("ไม่สามารถปรับยอดบิลได้: " + error.message);
+    } else {
+      setAdjustmentReason("");
+      setAmountMessage("✓ บันทึกยอดบิลใหม่แล้ว");
+      await loadOrder();
+    }
+    setSavingAmount(false);
+  }
+
+  useEffect(() => {
 
     if (!Number.isNaN(orderNumber)) {
 
@@ -961,6 +1013,28 @@ export default function OrderDetailsPage() {
         </div>
 
 
+
+        {isManager && order.final_amount !== null && order.status !== "cancelled" && (
+          <section className="mb-6 rounded-2xl border border-[#B8DEDA] bg-white p-5">
+            <h2 className="text-xl font-bold text-[#17453F]">ปรับยอดบิลสุดท้าย (ผู้จัดการ)</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              ปรับยอดหลังออกบิล โดยบันทึกเหตุผลและประวัติผู้แก้ไข ไม่เปลี่ยนรูปบิลหรือ QR ที่อัปโหลด
+            </p>
+            <label className="mt-4 block text-sm font-semibold">ยอดบิลสุดท้าย (บาท)</label>
+            <input type="number" min="0" step="0.01" value={editedFinalAmount}
+              onChange={(e) => setEditedFinalAmount(e.target.value)}
+              className="mt-2 w-full max-w-sm rounded-xl border p-3 text-lg" />
+            <label className="mt-4 block text-sm font-semibold">เหตุผลในการปรับยอด</label>
+            <textarea value={adjustmentReason} onChange={(e) => setAdjustmentReason(e.target.value)}
+              rows={2} placeholder="เช่น ยอดบนบิลจริงไม่ตรงกับยอดที่บันทึก"
+              className="mt-2 w-full rounded-xl border p-3" />
+            {amountMessage && <p role="status" className="mt-3 text-sm">{amountMessage}</p>}
+            <button onClick={() => void saveFinalAmount()} disabled={savingAmount}
+              className="mt-4 rounded-xl bg-[#009F9D] px-5 py-3 font-bold text-white disabled:opacity-50">
+              {savingAmount ? "กำลังบันทึก..." : "บันทึกการปรับยอดบิล"}
+            </button>
+          </section>
+        )}
 
         {message && (
 
