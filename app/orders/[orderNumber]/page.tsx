@@ -31,6 +31,7 @@ type OrderDetails = {
   customer_notes: string | null;
 
   final_amount: number | string | null;
+  billing_account_suspended: boolean;
 
   created_at: string;
 
@@ -184,7 +185,8 @@ function prettyText(value: string | null) {
 
 
 
-function fileLabel(type: string) {
+function fileLabel(type: string, suspendedBilling = false) {
+  if (type === "payment_qr" && suspendedBilling) return "CV card ลูกค้า";
 
   const labels: Record<string, string> = {
 
@@ -309,6 +311,7 @@ export default function OrderDetailsPage() {
         customer_notes,
 
         final_amount,
+        billing_account_suspended,
 
         created_at,
 
@@ -1540,7 +1543,8 @@ export default function OrderDetailsPage() {
 
                     {fileLabel(
 
-                      file.file_type
+                      file.file_type,
+                      order.billing_account_suspended
 
                     )}
 
@@ -1578,7 +1582,8 @@ export default function OrderDetailsPage() {
 
                           alt={fileLabel(
 
-                            file.file_type
+                            file.file_type,
+                            order.billing_account_suspended
 
                           )}
 
