@@ -305,14 +305,14 @@ function deliveryUrgency(order: Order, now: BangkokClock): DeliveryUrgency {
 
 const urgencyAccent: Record<DeliveryUrgency, string> = {
   overdue: "border-l-[#DC2626] bg-[#FFF7F7]",
-  "at-risk": "border-l-[#EA580C] bg-[#FFFAF3]",
+  "at-risk": "border-l-[#F59E0B] bg-[#FFFBEB]",
   today: "border-l-[#EAB308] bg-[#FFFDF2]",
   none: "border-l-transparent bg-white",
 };
 
 const urgencyDayStyle: Record<DeliveryUrgency, string> = {
   overdue: "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]",
-  "at-risk": "border-[#FED7AA] bg-[#FFF1E6] text-[#C2410C]",
+  "at-risk": "border-[#FCD34D] bg-[#FEF3C7] text-[#92400E]",
   today: "border-[#FDE68A] bg-[#FEF9C3] text-[#854D0E]",
   none: "border-transparent bg-transparent text-[#6C877E]",
 };
@@ -1567,7 +1567,7 @@ export default function TasksPage() {
                                     <span className="text-[11px] font-extrabold text-[#B91C1C]">เกินกำหนด</span>
                                   )}
                                   {urgency === "at-risk" && (
-                                    <span className="text-[11px] font-extrabold text-[#C2410C]">อยู่ในช่วงจัดส่ง</span>
+                                    <span className="text-[11px] font-extrabold text-[#B45309]">อยู่ในช่วงจัดส่ง</span>
                                   )}
                                 </div>
 
