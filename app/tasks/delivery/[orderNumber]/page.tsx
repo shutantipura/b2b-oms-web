@@ -1137,27 +1137,36 @@ export default function DeliveryPage() {
 
           <p className="text-sm text-gray-500 mt-1 mb-5">
 
-            อัปโหลดหลักฐานการจัดส่งอย่างน้อย 1 รูป โดยรูปที่ 2 ไม่บังคับ
+            ถ่ายหลักฐานการจัดส่งอย่างน้อย 1 รูป หลังบันทึกรูปแรกแล้วสามารถเพิ่มรูปที่ 2 ได้ (ไม่บังคับ)
 
           </p>
 
-
-
           <div className="space-y-4">
-            {([0, 1] as const).map((index) => (
+            <TaskFilePicker
+              label="หลักฐานการจัดส่ง 1"
+              chooseLabel="ถ่ายหรือเลือกหลักฐานการจัดส่ง"
+              replaceLabel="เปลี่ยนรูปที่ 1"
+              accept="image/*"
+              uploaded={photoUploaded[0]}
+              uploading={uploading}
+              disabled={submitting}
+              fileName={deliveryPhotoNames[0]}
+              onSelect={(file) => uploadDeliveryProof(file, 0)}
+            />
+            {photoUploaded[0] && (
               <TaskFilePicker
-                key={index}
-                label={`หลักฐานการจัดส่ง ${index + 1}${index === 1 ? " (ไม่บังคับ)" : ""}`}
-                chooseLabel={`ถ่ายหรือเลือกรูปที่ ${index + 1}`}
-                replaceLabel={`เปลี่ยนรูปที่ ${index + 1}`}
+                label="หลักฐานการจัดส่ง 2 (ไม่บังคับ)"
+                chooseLabel="เพิ่มหลักฐานอีก 1 รูป (ไม่บังคับ)"
+                replaceLabel="เปลี่ยนรูปที่ 2"
+                appearance={photoUploaded[1] ? "default" : "add"}
                 accept="image/*"
-                uploaded={photoUploaded[index]}
+                uploaded={photoUploaded[1]}
                 uploading={uploading}
                 disabled={submitting}
-                fileName={deliveryPhotoNames[index]}
-                onSelect={(file) => uploadDeliveryProof(file, index)}
+                fileName={deliveryPhotoNames[1]}
+                onSelect={(file) => uploadDeliveryProof(file, 1)}
               />
-            ))}
+            )}
           </div>
 
         </section>
