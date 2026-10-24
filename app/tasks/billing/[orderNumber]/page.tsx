@@ -252,14 +252,11 @@ export default function BillingPage() {
 
 
 
-    setOrder(
-
-      orderData as unknown as OrderDetails
-
-    );
+    const loadedOrder = orderData as unknown as OrderDetails;
+    setOrder(loadedOrder);
     setCvCardUrl(null);
     setCvCardPreviewError("");
-    const cvCardPath = orderData.customers?.cv_card_storage_path;
+    const cvCardPath = loadedOrder.customers?.cv_card_storage_path;
     if (cvCardPath) {
       const { data: cvSigned, error: cvError } = await supabase.storage
         .from("order-files")
