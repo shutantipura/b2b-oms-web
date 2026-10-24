@@ -300,6 +300,7 @@ export default function BillingPage() {
     const { data: members, error: memberError } = grouped
       ? await supabase.from("orders").select("id,order_number,group_sequence")
           .eq("group_root_order_id",loadedOrder.id)
+          .neq("status","cancelled")
           .order("group_sequence",{ascending:true})
       : {data:[],error:null};
     if (memberError) {
