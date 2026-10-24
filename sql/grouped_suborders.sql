@@ -139,7 +139,8 @@ BEGIN
  ) OR EXISTS (
    SELECT 1 FROM public.orders child
    WHERE child.group_root_order_id=v_root.id
-      AND (child.status NOT IN ('awaiting_confirmation','awaiting_picking','picking','awaiting_billing')
+      AND child.status <> 'cancelled'
+     AND (child.status NOT IN ('awaiting_confirmation','awaiting_picking','picking','awaiting_billing')
            OR child.final_amount IS NOT NULL)
  ) THEN
    RAISE EXCEPTION 'Billing has begun for this delivery; create a separate order';
@@ -216,8 +217,8 @@ BEGIN
  IF EXISTS (
    SELECT 1 FROM public.orders member
    WHERE member.group_root_order_id=v_root.id
+     AND member.status<>'cancelled'
      AND (member.status<>'awaiting_billing'
-          OR member.cancelled_at IS NOT NULL
           OR EXISTS(SELECT 1 FROM public.order_items oi
                     WHERE oi.order_id=member.id AND oi.actual_qty IS NULL))
  ) THEN
@@ -257,6 +258,7 @@ BEGIN
  JOIN public.order_items oi ON oi.order_id=member.id
  JOIN public.products p ON p.id=oi.product_id
  WHERE member.group_root_order_id=v_root.id
+   AND member.status<>'cancelled'
  GROUP BY oi.product_id;
 
  INSERT INTO public.order_history(order_id,action,stage,note,details)
@@ -989,6 +991,128 @@ begin
     'new_status', 'ready_for_delivery',
     'billing_mode', 'account_suspended',
     'payment_qr_file_id', v_file_id
+  );
+end;
+$function$;
+
+-- Prevent late child cancellations from contradicting a frozen group bill.
+CREATE OR REPLACE FUNCTION public.manager_cancel_order(p_order_number bigint, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_order public.orders%rowtype;
+  v_manager public.staff%rowtype;
+  v_stage text;
+  v_reason text;
+begin
+  select *
+  into v_manager
+  from public.staff
+  where auth_user_id = auth.uid()
+    and is_active = true
+    and account_type = 'manager'
+  limit 1;
+
+  if not found then
+    raise exception 'Manager access required';
+  end if;
+
+  select *
+  into v_order
+  from public.orders
+  where order_number = p_order_number
+  for update;
+
+  if not found then
+    raise exception 'Order % does not exist', p_order_number;
+  end if;
+
+  if v_order.status in ('completed', 'cancelled') then
+    raise exception
+      'Order % is already %',
+      p_order_number,
+      v_order.status;
+  end if;
+
+  -- Once the group Billing task has been claimed, a suborder cannot be
+  -- cancelled independently. The financial snapshot already includes it.
+  IF v_order.group_root_order_id IS NOT NULL
+     AND v_order.group_root_order_id <> v_order.id
+     AND EXISTS(
+       SELECT 1 FROM public.task_claims
+       WHERE order_id=v_order.group_root_order_id AND stage='billing'
+     ) THEN
+       RAISE EXCEPTION 'Grouped delivery already entered Billing; cancel the whole group if necessary';
+  END IF;
+
+  v_reason := trim(coalesce(p_reason, ''));
+
+  if v_reason = '' then
+    raise exception 'Cancellation reason is required';
+  end if;
+
+  v_stage :=
+    case
+      when v_order.status = 'awaiting_confirmation'
+        then 'confirmation'
+      when v_order.status in ('awaiting_picking', 'picking')
+        then 'picking'
+      when v_order.status = 'awaiting_billing'
+        then 'billing'
+      when v_order.status in ('ready_for_delivery', 'out_for_delivery')
+        then 'delivery'
+      when v_order.status in ('awaiting_payment', 'payment_submitted')
+        then 'payment_verification'
+      else null
+    end;
+
+  update public.task_claims
+  set
+    claim_status = 'released',
+    released_at = now()
+  where order_id = v_order.id
+    and claim_status = 'active';
+
+  update public.orders
+  set
+    status = 'cancelled',
+    cancellation_reason = v_reason,
+    updated_at = now()
+  where id = v_order.id;
+
+  insert into public.order_history (
+    order_id,
+    action,
+    stage,
+    from_status,
+    to_status,
+    performed_by_staff_id,
+    note,
+    details
+  )
+  values (
+    v_order.id,
+    'manager_cancelled',
+    v_stage,
+    v_order.status,
+    'cancelled',
+    v_manager.id,
+    'Order cancelled by Manager',
+    jsonb_build_object(
+      'reason', v_reason,
+      'manager_name', v_manager.staff_name
+    )
+  );
+
+  return jsonb_build_object(
+    'success', true,
+    'order_number', p_order_number,
+    'new_status', 'cancelled',
+    'cancelled_by', v_manager.staff_name,
+    'reason', v_reason
   );
 end;
 $function$;
