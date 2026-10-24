@@ -355,6 +355,21 @@ export default function StaffPaymentPage() {
     router.refresh();
   }
 
+  async function releasePaymentTask() {
+    if (!window.confirm("ปล่อยงานตรวจสอบการชำระเงินให้พนักงานคนอื่นรับต่อหรือไม่?")) return;
+    setSubmitting(true);
+    const { error } = await supabase.rpc("release_my_task", {
+      p_order_number: orderNumber,
+    });
+    if (error) {
+      setMessage("ไม่สามารถปล่อยงานได้: " + error.message);
+      setSubmitting(false);
+      return;
+    }
+    router.push("/tasks");
+    router.refresh();
+  }
+
   async function verifyPayment() {
     if (!order || order.status !== "payment_submitted" || !existingSlip) return;
     if (!window.confirm("ตรวจสอบยอดและหลักฐานการชำระเงินแล้ว ยืนยันปิดคำสั่งซื้อนี้หรือไม่?")) return;
@@ -564,6 +579,10 @@ export default function StaffPaymentPage() {
               disabled={submitting || !existingSlip || !slipUrl}
               className="mt-4 rounded-xl bg-[#00BCB4] px-5 py-3 font-extrabold text-[#173F3C] disabled:cursor-not-allowed disabled:opacity-50">
               {submitting ? "กำลังตรวจสอบ..." : "ยืนยันการชำระเงินและปิดออเดอร์"}
+            </button>
+            <button type="button" onClick={() => void releasePaymentTask()} disabled={submitting}
+              className="ml-3 mt-4 rounded-xl border border-gray-300 px-4 py-3 text-sm font-semibold disabled:opacity-50">
+              ปล่อยงาน
             </button>
           </section>
         )}
