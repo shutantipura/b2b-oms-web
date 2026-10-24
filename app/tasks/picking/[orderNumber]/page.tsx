@@ -44,6 +44,8 @@ type OrderItem = {
     | number
     | string
     | null;
+  addon_requested_qty: number | string;
+  addon_confirmed_qty: number | string | null;
   unit_snapshot: string;
   staff_note: string | null;
   products: {
@@ -161,6 +163,14 @@ export default function PickingPage() {
     useState<OrderItem[]>(
       []
     );
+
+  const addonMode = items.some((item) => Number(item.addon_requested_qty) > 0);
+  const actionableItems = addonMode
+    ? items.filter((item) => Number(item.addon_requested_qty) > 0)
+    : items;
+  const previouslyCompletedItems = addonMode
+    ? items.filter((item) => Number(item.addon_requested_qty) === 0)
+    : [];
 
   const [
     actual,
@@ -317,6 +327,8 @@ export default function PickingPage() {
           product_name_snapshot,
           confirmed_qty,
           actual_qty,
+          addon_requested_qty,
+          addon_confirmed_qty,
           unit_snapshot,
           staff_note,
           products (
@@ -365,8 +377,9 @@ export default function PickingPage() {
           item.id
         ] =
           String(
-            item.actual_qty ??
-              item.confirmed_qty
+            Number(item.addon_requested_qty) > 0
+              ? (item.addon_confirmed_qty ?? 0)
+              : (item.actual_qty ?? item.confirmed_qty)
           );
       }
     );
@@ -738,7 +751,7 @@ export default function PickingPage() {
     }
 
     const invalidItem =
-      items.find(
+      actionableItems.find(
         (item) => {
           const value =
             Number(
@@ -770,7 +783,7 @@ export default function PickingPage() {
     }
 
     const missingSku =
-      items.find(
+      actionableItems.find(
         (item) =>
           !item.products
             ?.sku
@@ -785,7 +798,7 @@ export default function PickingPage() {
     }
 
     const payload =
-      items.map(
+      actionableItems.map(
         (item) => ({
           sku:
             item.products!
@@ -930,8 +943,8 @@ export default function PickingPage() {
           <div role="status" className="mb-6 rounded-2xl border-2 border-[#FFB74D] bg-[#FFF3E0] p-4 text-[#894600]">
             <p className="font-extrabold">📦 ลูกค้าเพิ่มสินค้าเข้าคำสั่งซื้อเดิม</p>
             <p className="mt-1 text-sm leading-6">
-              คำสั่งซื้อนี้ถูกส่งกลับมาจัดสินค้าอีกครั้ง รูปที่ถ่ายไว้ก่อนรวมคำสั่งซื้อยังคงเก็บอยู่
-              กรุณาตรวจสอบจำนวนสินค้ารวมใหม่ทั้งหมด และเพิ่มรูปรถเข็นใหม่อย่างน้อย 1 รูปก่อนส่งไปออกบิล
+              จำนวนยืนยันและหยิบสินค้ารอบเดิมยังคงอยู่ ไม่ต้องจัดซ้ำ
+              กรุณาจัดเฉพาะรายการที่เพิ่มเข้ามา และถ่ายรูปรถเข็นเพิ่มเติมอย่างน้อย 1 รูปก่อนส่งไปออกบิล
             </p>
           </div>
         )}
@@ -1026,7 +1039,7 @@ export default function PickingPage() {
               </thead>
 
               <tbody>
-                {items.map(
+                {actionableItems.map(
                   (item) => {
                     const addedByStaff =
                       Boolean(
@@ -1066,6 +1079,14 @@ export default function PickingPage() {
                                   item.product_name_snapshot
                                 }
                               </div>
+                              {addonMode && (
+                                <div className="mt-1 text-xs font-bold text-[#A34D00]">
+                                  เพิ่มใหม่ {Number(item.addon_requested_qty)} {item.unit_snapshot}
+                                  {item.actual_qty !== null
+                                    ? ` · เดิมหยิบแล้ว ${Number(item.actual_qty)} ${item.unit_snapshot}`
+                                    : ""}
+                                </div>
+                              )
 
                               {addedByStaff && (
                                 <div className="inline-block text-xs font-semibold bg-blue-50 text-blue-700 rounded-full px-2 py-1 mt-1">
@@ -1085,7 +1106,7 @@ export default function PickingPage() {
 
                         <td className="p-4 text-right whitespace-nowrap">
                           {Number(
-                            item.confirmed_qty
+                            addonMode ? item.addon_confirmed_qty : item.confirmed_qty
                           )}{" "}
                           {
                             item.unit_snapshot
@@ -1135,6 +1156,22 @@ export default function PickingPage() {
             </table>
           </div>
         </section>
+
+        {addonMode && previouslyCompletedItems.length > 0 && (
+          <section className="mb-6 rounded-2xl border bg-[#F8FAF9] p-5">
+            <h3 className="text-sm font-extrabold text-[#315E50]">สินค้าที่จัดแล้วในรอบก่อน (ไม่ต้องจัดซ้ำ)</h3>
+            <div className="mt-3 space-y-2">
+              {previouslyCompletedItems.map((item) => (
+                <div key={item.id} className="flex justify-between gap-3 text-xs">
+                  <span>{item.product_name_snapshot}</span>
+                  <span className="shrink-0 font-semibold">
+                    หยิบแล้ว {Number(item.actual_qty ?? 0)} {item.unit_snapshot}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="bg-white border rounded-2xl p-6">
           <h2 className="font-bold text-lg">รูปรถเข็นสินค้า</h2>
