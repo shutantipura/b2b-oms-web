@@ -34,7 +34,18 @@ type MergeCandidate = {
   orderNumber: number;
   deliveryDate: string;
   deliverySlot: string;
+  status: string;
 };
+
+function mergeStatusLabel(status: string) {
+  switch (status) {
+    case "awaiting_confirmation": return "รอยืนยันสินค้า";
+    case "awaiting_picking": return "รอจัดสินค้า";
+    case "picking": return "กำลังจัดสินค้า";
+    case "awaiting_billing": return "รอออกบิล";
+    default: return "ยังไม่เริ่มออกบิล";
+  }
+}
 
 type CheckoutResponse = {
   customer?: Customer;
@@ -99,6 +110,9 @@ export default function MiniAppCheckoutPage() {
   const [wasMerged, setWasMerged] = useState(false);
   const [mergeCandidates, setMergeCandidates] = useState<MergeCandidate[]>([]);
   const [mergeIntoOrderNumber, setMergeIntoOrderNumber] = useState<number | null>(null);
+  // When a same-day order exists, customers MUST explicitly choose to merge
+  // or keep separate. Otherwise the old checkout silently created another order.
+  const [mergeDecisionMade, setMergeDecisionMade] = useState(false);
   const [loadingMergeOptions, setLoadingMergeOptions] = useState(false);
   const [mergeOptionsError, setMergeOptionsError] = useState("");
   const [mergeRefreshTick, setMergeRefreshTick] = useState(0);
@@ -227,7 +241,8 @@ export default function MiniAppCheckoutPage() {
   );
 
   // Prompt for combining deliveries when the selected date already has
-  // a confirmed/picked order whose billing task has never been claimed.
+  // an order in Confirmation, Picking or awaiting Billing which has never
+  // had its Billing task claimed.
   // Candidates may become ineligible after this check; the submit RPC
   // always rechecks inside the same transaction as the merge.
   useEffect(() => {
@@ -237,6 +252,7 @@ export default function MiniAppCheckoutPage() {
     setMergeOptionsError("");
     setMergeCandidates([]);
     setMergeIntoOrderNumber(null);
+    setMergeDecisionMade(false);
     mergeRequestIdRef.current = null;
 
     void (async () => {
@@ -284,12 +300,14 @@ export default function MiniAppCheckoutPage() {
   function changeDate(value: string) {
     setDeliveryDate(value);
     setMergeIntoOrderNumber(null);
+    setMergeDecisionMade(false);
     const option = deliveryOptions.find((item) => item.date === value);
     setDeliverySlot(option?.slots[0]?.value ?? "");
   }
 
   function chooseMerge(candidate: MergeCandidate | null) {
     setMergeIntoOrderNumber(candidate?.orderNumber ?? null);
+    setMergeDecisionMade(true);
     mergeRequestIdRef.current = null;
     if (candidate) {
       // One delivery means we retain the PRIMARY order's time slot.
@@ -325,6 +343,14 @@ export default function MiniAppCheckoutPage() {
       setMessage("กำลังตรวจสอบคำสั่งซื้อเดิม กรุณาลองอีกครั้ง");
       return;
     }
+    if (mergeOptionsError) {
+      setMessage("ไม่สามารถตรวจสอบคำสั่งซื้อเดิมได้ กรุณากดลองใหม่ก่อนยืนยันคำสั่งซื้อ");
+      return;
+    }
+    if (selectableMergeCandidates.length > 0 && !mergeDecisionMade) {
+      setMessage("กรุณาเลือกว่าจะรวมคำสั่งซื้อกับคำสั่งซื้อเดิมหรือแยกจัดส่ง");
+      return;
+    }
     const chosenMerge = selectableMergeCandidates.find((candidate) => candidate.orderNumber === mergeIntoOrderNumber);
     if (mergeIntoOrderNumber && !chosenMerge) {
       setMessage("คำสั่งซื้อเดิมไม่สามารถรวมกับช่วงเวลาที่เลือกได้");
@@ -332,7 +358,7 @@ export default function MiniAppCheckoutPage() {
     }
 
     const confirmation = chosenMerge
-      ? `รวมสินค้าใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เข้ากับคำสั่งซื้อ #${chosenMerge.orderNumber} ใช่หรือไม่?\nทีมงานจะยืนยันและจัดเฉพาะสินค้าเพิ่มเติม แล้วออกบิลรวมและส่งตามรอบเดิม`
+      ? `รวมสินค้าใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เข้ากับคำสั่งซื้อ #${chosenMerge.orderNumber} ใช่หรือไม่?\nทีมงานจะยืนยันสินค้าที่เพิ่ม และจัดเฉพาะรายการที่ยังไม่ได้จัด แล้วออกบิลรวมและส่งตามรอบเดิม`
       : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)} หรือไม่?`;
     if (!window.confirm(confirmation)) return;
     if (chosenMerge && !mergeRequestIdRef.current) mergeRequestIdRef.current = crypto.randomUUID();
@@ -419,7 +445,7 @@ export default function MiniAppCheckoutPage() {
             <h1 className="mt-5 text-2xl font-extrabold">{wasMerged ? "รวมคำสั่งซื้อเรียบร้อยแล้ว!" : "ได้รับคำสั่งซื้อแล้ว!"}</h1>
             <p className="mt-2 text-sm leading-6 text-[#748C80]">
               {wasMerged
-                ? "สินค้าเพิ่มเติมถูกรวมในคำสั่งซื้อเดิมแล้ว ทีมงานจะยืนยันและจัดเฉพาะสินค้าใหม่ โดยไม่ต้องจัดสินค้าเดิมซ้ำ ก่อนออกบิลรวมและจัดส่งพร้อมกัน"
+                ? "สินค้าเพิ่มเติมถูกรวมในคำสั่งซื้อเดิมแล้ว ทีมงานจะยืนยันสินค้าเพิ่มและจัดเฉพาะสินค้าที่ยังไม่ได้จัด โดยรักษารายการที่จัดแล้ว ก่อนออกบิลรวมและจัดส่งพร้อมกัน"
                 : "ทีมงานได้รับคำสั่งซื้อและกำลังตรวจสอบสินค้าเพื่อยืนยันรายการ"}
             </p>
             <div className="mt-6 rounded-2xl border border-[#BDEAE3] bg-[#EDFAF8] p-5">
@@ -522,21 +548,25 @@ export default function MiniAppCheckoutPage() {
           )}
           {mergeOptionsError && (
             <div role="alert" className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
-              <span>ตรวจสอบคำสั่งซื้อเดิมไม่สำเร็จ หากไม่ต้องการแยกการจัดส่ง กรุณาลองใหม่</span>
+              <span>ยังตรวจสอบคำสั่งซื้อเดิมไม่ได้ กรุณาลองใหม่ก่อนยืนยันเพื่อป้องกันการสั่งซ้ำ</span>
               <button type="button" className="shrink-0 rounded-lg border border-amber-300 px-3 py-2 font-bold" onClick={() => setMergeRefreshTick((tick) => tick + 1)}>ลองใหม่</button>
             </div>
           )}
           {selectableMergeCandidates.length > 0 && !loadingMergeOptions && (
             <fieldset className="mt-4 rounded-2xl border-2 border-[#B8EAE5] bg-[#F0FAF8] p-4">
               <legend className="px-2 text-sm font-extrabold text-[#006F6A]">มีคำสั่งซื้อเดิมในวันเดียวกัน</legend>
-              <p className="mb-3 text-xs leading-5 text-[#4D6F65]">
-                ต้องการเพิ่มสินค้าลงในคำสั่งซื้อเดิมเพื่อจัดส่งพร้อมกันหรือไม่?
-                หากรวม ระบบจะใช้เวลาจัดส่งเดิม โดยทีมงานจะยืนยันและจัดเฉพาะสินค้าเพิ่มเติมก่อนออกบิลรวม
+              <p className="mb-3 text-sm leading-6 font-semibold text-[#17453F]">
+                ต้องการรวมสินค้าใหม่กับคำสั่งซื้อเดิมเพื่อจัดส่งพร้อมกันหรือไม่?
               </p>
-              <label className="mb-2 flex cursor-pointer items-center gap-3 rounded-xl border border-[#D6E8E3] bg-white p-3 text-sm font-bold">
-                <input type="radio" name="merge-choice" checked={mergeIntoOrderNumber === null} onChange={() => chooseMerge(null)} />
-                แยกเป็นคำสั่งซื้อใหม่
-              </label>
+              <p className="mb-3 text-xs leading-5 text-[#4D6F65]">
+                หากรวม ระบบจะใช้รอบจัดส่งเดิมและส่งรายการกลับไปยืนยันสินค้า
+                รวมถึงจัดเฉพาะสินค้าที่เหลือ โดยเก็บจำนวนและรูปถ่ายที่จัดไว้แล้ว
+              </p>
+              {!mergeDecisionMade && (
+                <p role="status" className="mb-3 rounded-lg bg-[#FFF3D4] px-3 py-2 text-xs font-extrabold text-[#8A6000]">
+                  กรุณาเลือกอย่างใดอย่างหนึ่งก่อนยืนยันคำสั่งซื้อ
+                </p>
+              )}
               {selectableMergeCandidates.map((candidate) => (
                 <label key={candidate.orderNumber} className="mt-2 flex cursor-pointer items-center gap-3 rounded-xl border border-[#B8EAE5] bg-white p-3 text-sm font-bold">
                   <input
@@ -547,10 +577,16 @@ export default function MiniAppCheckoutPage() {
                   />
                   <span>
                     รวมกับคำสั่งซื้อ #{candidate.orderNumber}
-                    <span className="mt-1 block text-xs font-normal text-[#678575]">รอบจัดส่งเดิม {candidate.deliverySlot}</span>
+                    <span className="mt-1 block text-xs font-normal text-[#678575]">
+                      รอบจัดส่งเดิม {candidate.deliverySlot} · {mergeStatusLabel(candidate.status)}
+                    </span>
                   </span>
                 </label>
               ))}
+              <label className="mt-3 flex cursor-pointer items-center gap-3 rounded-xl border border-[#D6E8E3] bg-white p-3 text-sm font-bold">
+                <input type="radio" name="merge-choice" checked={mergeDecisionMade && mergeIntoOrderNumber === null} onChange={() => chooseMerge(null)} />
+                <span>ไม่รวม — แยกเป็นคำสั่งซื้อใหม่</span>
+              </label>
             </fieldset>
           )}
           <label className="mt-4 block">
