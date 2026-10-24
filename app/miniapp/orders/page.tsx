@@ -365,7 +365,12 @@ export default function CustomerOrdersPage() {
                         {order.deliverySlot && <p className="mt-0.5 text-[11px] text-[#728D7C]">{order.deliverySlot}</p>}
                       </div>
                       <div className="text-right">
-                        {order.status === "awaiting_payment" && customer && (!order.groupSequence || order.groupSequence===1) ? (
+                        {order.groupSequence && order.groupSequence>1 &&
+                             ["ready_for_delivery","out_for_delivery","awaiting_payment","payment_submitted","completed"].includes(order.status) ? (
+                           <div className="rounded-lg bg-[#F0FAF8] p-2 text-xs font-bold text-[#007F79]">
+                             ออกบิลและชำระรวมกลุ่ม #{order.groupRootNumber}
+                           </div>
+                         ) : order.status === "awaiting_payment" && customer && (!order.groupSequence || order.groupSequence===1) ? (
                           <button type="button" onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(customer.customerCode)}&order=${order.paymentRootOrderNumber ?? order.orderNumber}`)} className="w-full rounded-xl bg-[#FDBC16] px-2 py-3 text-sm font-black text-[#5B4200] shadow-sm">ชำระเงินตอนนี้ →</button>
                         ) : (
                           <>
