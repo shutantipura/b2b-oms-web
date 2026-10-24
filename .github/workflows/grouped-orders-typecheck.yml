@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - feature/grouped-suborders-consolidated-billing
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
