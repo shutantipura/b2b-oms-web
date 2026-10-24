@@ -1352,7 +1352,7 @@ export default function TasksPage() {
                       <p className="text-xs text-gray-500">{person.account_type === "manager" ? "Manager" : "Staff"}</p>
                       <p className="text-sm text-gray-600">{person.phone || "ยังไม่มีเบอร์โทรศัพท์"}</p>
                     </div>
-                    {person.phone ? <a href={`tel:${person.phone}`} className="shrink-0 bg-green-600 text-white rounded-xl px-4 py-3 font-semibold">📞 โทร</a>
+                    {person.phone ? <a href={`tel:${person.phone}`} className="shrink-0 bg-[#00BCB4] text-[#173F3C] rounded-xl px-4 py-3 font-semibold">📞 โทร</a>
                       : <span className="text-xs text-gray-400">โทรไม่ได้</span>}
                   </div>
                 ))}</div>}
@@ -1426,7 +1426,7 @@ export default function TasksPage() {
                       <button
                         type="button"
                         onClick={() => void openStaffDirectory(group.stage)}
-                        className="text-xs sm:text-sm bg-green-50 border border-green-200 text-green-700 rounded-full px-2.5 sm:px-3 py-1 font-medium whitespace-nowrap hover:bg-green-100"
+                        className="text-xs sm:text-sm bg-[#E7FAF8] border border-[#B8EAE5] text-[#007F79] rounded-full px-2.5 sm:px-3 py-1 font-medium whitespace-nowrap hover:bg-[#CFF4F0]"
                       >
                         📞 เรียกพนักงาน
                       </button>
@@ -1530,7 +1530,7 @@ export default function TasksPage() {
                             >
                               <div className="min-w-0 flex-1">
                                 <div
-                                  className="truncate text-base font-extrabold leading-snug text-[#17453F]"
+                                  className="truncate text-base font-extrabold leading-snug text-[#424242]"
                                   title={order.customers?.customer_name ?? "ไม่ทราบชื่อลูกค้า"}
                                 >
                                   {order.customers?.customer_name ?? "ไม่ทราบชื่อลูกค้า"}
@@ -1547,10 +1547,10 @@ export default function TasksPage() {
                                   >
                                     {relativeDeliveryDay(order.delivery_date, clock.date)}
                                   </span>
-                                  <span className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-[#CDE4DE] bg-[#EDF7F4] px-2.5 py-1 text-sm font-extrabold tracking-tight text-[#17453F]">
+                                  <span className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-[#B8EAE5] bg-[#E7FAF8] px-2.5 py-1 text-sm font-extrabold tracking-tight text-[#424242]">
                                     <svg
                                       aria-hidden="true"
-                                      className="h-3.5 w-3.5 shrink-0 text-[#008F8D]"
+                                      className="h-3.5 w-3.5 shrink-0 text-[#007F79]"
                                       viewBox="0 0 24 24"
                                       fill="none"
                                       stroke="currentColor"
@@ -1572,7 +1572,7 @@ export default function TasksPage() {
                                 </div>
 
                                 <div
-                                  className="mt-1.5 text-sm font-extrabold text-[#008F8D]"
+                                  className="mt-1.5 text-sm font-extrabold text-[#007F79]"
                                   title={order.final_amount !== null
                                     ? "ยอดบิลสุดท้าย (อัปเดตล่าสุด)"
                                     : "มูลค่าคำสั่งซื้อโดยประมาณ ก่อนยืนยันยอดบิล"}
@@ -1615,7 +1615,7 @@ export default function TasksPage() {
                                 ) : isAwaitingPayment ? (
                                   <Link
                                     href={`/orders/${order.order_number}/payment`}
-                                    className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-xl bg-[#008F8D] px-3 py-2 text-sm font-bold text-white shadow-sm"
+                                    className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-xl bg-[#00BCB4] px-3 py-2 text-sm font-bold text-[#173F3C] shadow-sm"
                                   >
                                     ชำระเงิน
                                   </Link>
@@ -1623,7 +1623,7 @@ export default function TasksPage() {
                                   <button
                                     type="button"
                                     onClick={() => startWork(order.order_number, group.stage)}
-                                    className="inline-flex min-h-10 min-w-[76px] items-center justify-center whitespace-nowrap rounded-xl bg-[#008F8D] px-3 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#007C7A]"
+                                    className="inline-flex min-h-10 min-w-[76px] items-center justify-center whitespace-nowrap rounded-xl bg-[#00BCB4] px-3 py-2 text-sm font-bold text-[#173F3C] shadow-sm transition hover:bg-[#00AFA8]"
                                   >
                                     รับงาน
                                   </button>
@@ -1632,7 +1632,7 @@ export default function TasksPage() {
                                     <span className="text-[11px] font-semibold text-[#52786F]">คุณรับงานแล้ว</span>
                                     <Link
                                       href={taskLink(group.stage, order.order_number)}
-                                      className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[#008F8D] px-3 py-2 text-sm font-bold text-white"
+                                      className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[#00BCB4] px-3 py-2 text-sm font-bold text-[#173F3C]"
                                     >
                                       ทำต่อ
                                     </Link>
