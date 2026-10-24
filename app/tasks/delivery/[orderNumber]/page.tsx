@@ -108,11 +108,9 @@ export default function DeliveryPage() {
 
 
 
-  const [deliveryPhotoName, setDeliveryPhotoName] = useState<string | null>(null);
+  const [deliveryPhotoNames, setDeliveryPhotoNames] = useState<(string | null)[]>([null, null]);
 
-  const [photoUploaded, setPhotoUploaded] =
-
-    useState(false);
+  const [photoUploaded, setPhotoUploaded] = useState<boolean[]>([false, false]);
 
 
 
@@ -284,6 +282,8 @@ export default function DeliveryPage() {
 
           "delivery_proof",
 
+          "delivery_proof_2",
+
         ]
 
       );
@@ -314,22 +314,13 @@ export default function DeliveryPage() {
 
 
 
-    setPhotoUploaded(
-
-      files.some(
-
-        (file) =>
-
-          file.file_type ===
-
-          "delivery_proof"
-
-      )
-
-    );
-    setDeliveryPhotoName(files.find((file) => file.file_type === "delivery_proof")?.original_filename ?? null);
-
-
+    const firstProof = files.find((file) => file.file_type === "delivery_proof");
+    const secondProof = files.find((file) => file.file_type === "delivery_proof_2");
+    setPhotoUploaded([Boolean(firstProof), Boolean(secondProof)]);
+    setDeliveryPhotoNames([
+      firstProof?.original_filename ?? null,
+      secondProof?.original_filename ?? null,
+    ]);
 
     async function getDisplayFile(
 
@@ -487,14 +478,14 @@ export default function DeliveryPage() {
 
 
 
-  async function uploadDeliveryProof(file: File) {
+  async function uploadDeliveryProof(file: File, index: 0 | 1) {
     if (uploading || submitting) return;
     setUploading(true);
-    setMessage("กำลังอัปโหลดหลักฐานการจัดส่ง...");
-
+    setMessage(`กำลังอัปโหลดหลักฐานการจัดส่ง ${index + 1}...`);
+    const fileType = index === 0 ? "delivery_proof" : "delivery_proof_2";
     const extension = file.name.split(".").pop() || "jpg";
     const storagePath =
-      `orders/${orderNumber}/delivery_proof/${crypto.randomUUID()}.${extension}`;
+      `orders/${orderNumber}/${fileType}/${crypto.randomUUID()}.${extension}`;
 
     try {
       const { error: uploadError } = await supabase.storage
@@ -509,7 +500,7 @@ export default function DeliveryPage() {
         "register_my_order_file",
         {
           p_order_number: orderNumber,
-          p_file_type: "delivery_proof",
+          p_file_type: fileType,
           p_storage_path: storagePath,
           p_original_filename: file.name,
           p_mime_type: file.type || "image/jpeg",
@@ -517,9 +508,13 @@ export default function DeliveryPage() {
       );
       if (registerError) throw new Error("บันทึกรูปไม่สำเร็จ: " + registerError.message);
 
-      setPhotoUploaded(true);
-      setDeliveryPhotoName(file.name);
-      setMessage("✓ บันทึกหลักฐานการจัดส่งเรียบร้อยแล้ว");
+      setPhotoUploaded((previous) =>
+        previous.map((uploaded, photoIndex) => photoIndex === index ? true : uploaded)
+      );
+      setDeliveryPhotoNames((previous) =>
+        previous.map((name, photoIndex) => photoIndex === index ? file.name : name)
+      );
+      setMessage(`✓ บันทึกหลักฐานการจัดส่ง ${index + 1} เรียบร้อยแล้ว`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "อัปโหลดหลักฐานการจัดส่งไม่สำเร็จ");
     } finally {
@@ -533,7 +528,7 @@ export default function DeliveryPage() {
 
 
 
-    if (!photoUploaded) {
+    if (!photoUploaded[0]) {
 
       setMessage(
 
@@ -1114,23 +1109,28 @@ export default function DeliveryPage() {
 
           <p className="text-sm text-gray-500 mt-1 mb-5">
 
-            อัปโหลดรูป 1 รูปเพื่อยืนยันว่าจัดส่งสินค้าเรียบร้อยแล้ว
+            อัปโหลดหลักฐานการจัดส่งอย่างน้อย 1 รูป โดยรูปที่ 2 ไม่บังคับ
 
           </p>
 
 
 
-          <TaskFilePicker
-            label="หลักฐานการจัดส่ง"
-            chooseLabel="ถ่ายหรือเลือกรูปการจัดส่ง"
-            replaceLabel="เปลี่ยนรูปหลักฐานการจัดส่ง"
-            accept="image/*"
-            uploaded={photoUploaded}
-            uploading={uploading}
-            disabled={submitting}
-            fileName={deliveryPhotoName}
-            onSelect={uploadDeliveryProof}
-          />
+          <div className="space-y-4">
+            {([0, 1] as const).map((index) => (
+              <TaskFilePicker
+                key={index}
+                label={`หลักฐานการจัดส่ง ${index + 1}${index === 1 ? " (ไม่บังคับ)" : ""}`}
+                chooseLabel={`ถ่ายหรือเลือกรูปที่ ${index + 1}`}
+                replaceLabel={`เปลี่ยนรูปที่ ${index + 1}`}
+                accept="image/*"
+                uploaded={photoUploaded[index]}
+                uploading={uploading}
+                disabled={submitting}
+                fileName={deliveryPhotoNames[index]}
+                onSelect={(file) => uploadDeliveryProof(file, index)}
+              />
+            ))}
+          </div>
 
         </section>
 
@@ -1156,7 +1156,7 @@ export default function DeliveryPage() {
 
             onClick={completeDelivery}
 
-            disabled={submitting || uploading || !photoUploaded}
+            disabled={submitting || uploading || !photoUploaded[0]}
 
             className="bg-black text-white rounded-lg px-8 py-4 font-semibold disabled:opacity-30"
 
