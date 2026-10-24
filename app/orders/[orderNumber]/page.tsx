@@ -196,7 +196,9 @@ function fileLabel(type: string) {
 
     payment_qr: "QR ชำระเงิน",
 
-    delivery_proof: "หลักฐานการจัดส่ง",
+    delivery_proof: "หลักฐานการจัดส่ง 1",
+
+    delivery_proof_2: "หลักฐานการจัดส่ง 2",
 
     payment_slip: "สลิปการชำระเงิน",
 
