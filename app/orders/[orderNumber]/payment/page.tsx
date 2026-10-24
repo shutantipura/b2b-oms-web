@@ -78,6 +78,7 @@ export default function StaffPaymentPage() {
 
   const [existingSlip, setExistingSlip] =
     useState(false);
+  const [slipUrl, setSlipUrl] = useState<string | null>(null);
 
   const [loading, setLoading] =
     useState(true);
@@ -117,6 +118,7 @@ export default function StaffPaymentPage() {
     setQrUrl(null);
     setBillName(null);
     setExistingSlip(false);
+    setSlipUrl(null);
 
     const {
       data: orderData,
@@ -229,9 +231,8 @@ export default function StaffPaymentPage() {
       setQrUrl(url);
     }
 
-    setExistingSlip(
-      Boolean(slip)
-    );
+    setExistingSlip(Boolean(slip));
+    if (slip) setSlipUrl(await createFileUrl(slip.storage_path));
 
     setLoading(false);
   }
@@ -344,13 +345,30 @@ export default function StaffPaymentPage() {
     }
 
     setMessage(
-      "บันทึกสลิปและปิดคำสั่งซื้อเรียบร้อยแล้ว"
+      "บันทึกสลิปเรียบร้อยแล้ว รอพนักงานตรวจสอบการชำระเงิน"
     );
 
     router.push(
       "/tasks"
     );
 
+    router.refresh();
+  }
+
+  async function verifyPayment() {
+    if (!order || order.status !== "payment_submitted" || !existingSlip) return;
+    if (!window.confirm("ตรวจสอบยอดและหลักฐานการชำระเงินแล้ว ยืนยันปิดคำสั่งซื้อนี้หรือไม่?")) return;
+    setSubmitting(true);
+    setMessage("กำลังยืนยันการชำระเงิน...");
+    const { error } = await supabase.rpc("verify_my_payment", {
+      p_order_number: orderNumber,
+    });
+    if (error) {
+      setMessage("ไม่สามารถยืนยันการชำระเงินได้: " + error.message);
+      setSubmitting(false);
+      return;
+    }
+    router.push("/tasks");
     router.refresh();
   }
 
@@ -510,8 +528,16 @@ export default function StaffPaymentPage() {
           </p>
 
           {existingSlip ? (
-            <div className="font-semibold text-[#008F8D]">
-              ✓ บันทึกสลิปการชำระเงินเรียบร้อยแล้ว
+            <div className="space-y-3">
+              <p className="font-semibold text-[#008F8D]">✓ บันทึกสลิปการชำระเงินเรียบร้อยแล้ว</p>
+              {slipUrl ? (
+                <a href={slipUrl} target="_blank" rel="noreferrer"
+                  className="inline-flex rounded-lg border px-4 py-2 font-semibold underline">
+                  เปิดสลิปเพื่อตรวจสอบ
+                </a>
+              ) : (
+                <p className="text-red-600">ไม่สามารถเปิดสลิปได้ กรุณาตรวจสอบไฟล์ก่อนยืนยัน</p>
+              )}
             </div>
           ) : (
             <TaskFilePicker
@@ -526,6 +552,21 @@ export default function StaffPaymentPage() {
             />
           )}
         </section>
+
+        {order.status === "payment_submitted" && (
+          <section className="mt-6 rounded-2xl border-2 border-[#00BCB4] bg-white p-6">
+            <h2 className="text-lg font-extrabold text-[#17453F]">ตรวจสอบการชำระเงิน</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              ตรวจสอบว่าสลิปตรงกับยอดบิล ฿{formatAmount(order.final_amount)} และได้รับเงินจริงแล้ว
+              จากนั้นยืนยันเพื่อปิดคำสั่งซื้อ (ต้องรับงานตรวจสอบการชำระเงินก่อน)
+            </p>
+            <button type="button" onClick={() => void verifyPayment()}
+              disabled={submitting || !existingSlip || !slipUrl}
+              className="mt-4 rounded-xl bg-[#00BCB4] px-5 py-3 font-extrabold text-[#173F3C] disabled:cursor-not-allowed disabled:opacity-50">
+              {submitting ? "กำลังตรวจสอบ..." : "ยืนยันการชำระเงินและปิดออเดอร์"}
+            </button>
+          </section>
+        )}
 
         {message && (
           <div className="mt-6 bg-white border rounded-lg p-4">
