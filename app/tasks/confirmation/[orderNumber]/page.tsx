@@ -36,6 +36,9 @@ type OrderItem = {
   id: string;
   product_name_snapshot: string;
   requested_qty: number | string;
+  addon_requested_qty: number | string;
+  addon_confirmed_qty: number | string | null;
+  actual_qty: number | string | null;
   confirmed_qty:
     | number
     | string
@@ -149,6 +152,14 @@ export default function ConfirmationPage() {
     useState<OrderItem[]>(
       []
     );
+
+  const addonMode = items.some((item) => Number(item.addon_requested_qty) > 0);
+  const actionableItems = addonMode
+    ? items.filter((item) => Number(item.addon_requested_qty) > 0)
+    : items;
+  const previouslyCompletedItems = addonMode
+    ? items.filter((item) => Number(item.addon_requested_qty) === 0)
+    : [];
 
   const [
     confirmed,
@@ -292,6 +303,9 @@ export default function ConfirmationPage() {
           product_name_snapshot,
           requested_qty,
           confirmed_qty,
+          actual_qty,
+          addon_requested_qty,
+          addon_confirmed_qty,
           unit_snapshot,
           staff_note,
           products (
@@ -340,8 +354,9 @@ export default function ConfirmationPage() {
           item.id
         ] =
           String(
-            item.confirmed_qty ??
-              item.requested_qty
+            Number(item.addon_requested_qty) > 0
+              ? (item.addon_confirmed_qty ?? item.addon_requested_qty)
+              : (item.confirmed_qty ?? item.requested_qty)
           );
       }
     );
@@ -596,7 +611,7 @@ export default function ConfirmationPage() {
   async function completeConfirmation() {
     setMessage("");
 
-    const invalidItem = items.find((item) => {
+    const invalidItem = actionableItems.find((item) => {
       const rawValue = confirmed[item.id];
       const value = Number(rawValue);
 
@@ -618,7 +633,7 @@ export default function ConfirmationPage() {
     }
 
     const missingSku =
-      items.find(
+      actionableItems.find(
         (item) =>
           !item.products
             ?.sku
@@ -633,7 +648,7 @@ export default function ConfirmationPage() {
     }
 
     const payload =
-      items.map(
+      actionableItems.map(
         (item) => ({
           sku:
             item.products!
@@ -863,11 +878,13 @@ export default function ConfirmationPage() {
           <div className="p-6 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold">
-                ยืนยันจำนวนสินค้า
+                {addonMode ? "ยืนยันสินค้าเพิ่มเติม" : "ยืนยันจำนวนสินค้า"}
               </h2>
 
               <p className="text-gray-500 text-sm mt-1">
-                ลดจำนวนสินค้าเดิมได้ และสามารถเพิ่มสินค้าทดแทนได้เมื่อจำเป็น
+                {addonMode
+                  ? "ยืนยันเฉพาะสินค้าเพิ่มเติม จำนวนยืนยันและหยิบเดิมจะไม่เปลี่ยนแปลง"
+                  : "ลดจำนวนสินค้าเดิมได้ และสามารถเพิ่มสินค้าทดแทนได้เมื่อจำเป็น"}
               </p>
             </div>
 
@@ -910,11 +927,11 @@ export default function ConfirmationPage() {
               </thead>
 
               <tbody>
-                {items.map(
+                {actionableItems.map(
                   (item) => {
                     const requested =
                       Number(
-                        item.requested_qty
+                        addonMode ? item.addon_requested_qty : item.requested_qty
                       );
 
                     const confirmedValue =
@@ -1039,6 +1056,27 @@ export default function ConfirmationPage() {
             </table>
           </div>
         </section>
+
+        {addonMode && (
+          <section className="mt-4 rounded-2xl border border-[#FCD34D] bg-[#FFFBEB] p-5">
+            <h3 className="font-bold text-[#92400E]">ยืนยันสินค้าเพิ่มเติมเท่านั้น</h3>
+            <p className="mt-1 text-sm text-[#785600]">
+              จำนวนยืนยันและหยิบสินค้าจากรอบเดิมยังคงเดิม แม้เป็น SKU เดียวกันกับที่เพิ่มใหม่
+            </p>
+            {previouslyCompletedItems.length > 0 && (
+              <div className="mt-3 space-y-2 border-t border-[#F6DA65] pt-3">
+                {previouslyCompletedItems.map((item) => (
+                  <div key={item.id} className="flex justify-between gap-3 text-xs">
+                    <span>{item.product_name_snapshot}</span>
+                    <span className="shrink-0 font-semibold">
+                      เดิมยืนยัน {Number(item.confirmed_qty ?? 0)} · หยิบ {Number(item.actual_qty ?? 0)} {item.unit_snapshot}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {message && (
           <div className="mt-6 border bg-white rounded-lg p-4 text-red-600">

@@ -217,7 +217,7 @@ function savedLineAmount(item: PriceRecord, quantity: number | null) {
   const savedPrice = firstAmount(item, [
     "price_per_kg_at_order", "price_per_unit_at_order", "unit_price_at_order",
     "effective_price_at_order", "price_at_order", "agreed_price_at_order",
-    "price_per_kg", "unit_price",
+    "unit_price_snapshot", "price_per_kg", "unit_price",
   ]);
   return savedPrice !== null && quantity !== null ? savedPrice * quantity : null;
 }
