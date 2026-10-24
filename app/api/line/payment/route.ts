@@ -732,6 +732,11 @@ async function submitPayment(
     );
   }
 
+  if (order.group_root_order_id && order.group_root_order_id !== order.id) {
+    return NextResponse.json({
+      error: "คำสั่งซื้อย่อยไม่รับสลิปแยก กรุณาชำระเงินผ่านคำสั่งซื้อหลัก",
+    }, { status: 409 });
+  }
   if (
     order.status !==
     "awaiting_payment"
