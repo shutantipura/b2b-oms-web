@@ -1079,7 +1079,7 @@ export default function TasksPage() {
 
   async function takeOverTask(orderNumber: number, stage: string, currentOwnerId: string, currentOwnerName: string) {
     const proceed = window.confirm(
-      `⚠️ ยืนยันการรับงานแทนพนักงานคนอื่น?\\n\\nคำสั่งซื้อ #${orderNumber}\\nผู้รับงานปัจจุบัน: ${currentOwnerName}\\n\\nหากยืนยัน พนักงานเดิมจะเสียสิทธิ์ดำเนินงานนี้ทันที และคุณจะเป็นผู้รับงานใหม่ กรุณาตรวจสอบงานที่ทำไปแล้วก่อนทำต่อ`
+      `⚠️ ยืนยันการรับงานแทนพนักงานคนอื่น?\n\nคำสั่งซื้อ #${orderNumber}\nผู้รับงานปัจจุบัน: ${currentOwnerName}\n\nหากยืนยัน พนักงานเดิมจะเสียสิทธิ์ดำเนินงานนี้ทันที และคุณจะเป็นผู้รับงานใหม่ กรุณาตรวจสอบงานที่ทำไปแล้วก่อนทำต่อ`
     );
     if (!proceed) return;
 
