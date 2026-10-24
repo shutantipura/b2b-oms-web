@@ -31,6 +31,8 @@ type OrderDetails = {
   customer_notes: string | null;
 
   final_amount: number | string | null;
+  billing_account_suspended: boolean;
+  billing_no_cv: boolean;
 
 
 
@@ -191,6 +193,8 @@ export default function DeliveryPage() {
         customer_notes,
 
         final_amount,
+        billing_account_suspended,
+        billing_no_cv,
 
         customers (
 
@@ -779,6 +783,25 @@ export default function DeliveryPage() {
 
 
 
+        {(order.billing_account_suspended || order.billing_no_cv) && (
+          <section role="status" aria-live="polite"
+            className="mb-6 rounded-2xl border-2 border-[#F0BD59] bg-[#FFF7E3] p-4 shadow-sm sm:p-5">
+            <div className="flex items-start gap-3">
+              <span aria-hidden="true" className="text-2xl">⚠️</span>
+              <div>
+                <h2 className="text-base font-extrabold text-[#8A4A00]">
+                  แจ้งไรเดอร์: {order.billing_account_suspended ? "บัญชีถูกระงับ" : "ลูกค้าไม่มีCV"}
+                </h2>
+                <p className="mt-2 text-sm font-semibold leading-6 text-[#795323]">
+                  {order.billing_account_suspended
+                    ? "ออเดอร์นี้ใช้รูป CV card ของลูกค้าแทน QR ชำระเงิน และอาจไม่มีรูปบิล กรุณาตรวจสอบเอกสารก่อนจัดส่ง"
+                    : "ออเดอร์นี้ไม่มี CV พนักงานออกบิลที่เครื่อง POS และถ่ายรูปพักบิลแล้ว ไม่มี QR ชำระเงิน กรุณาตรวจสอบรูปพักบิลก่อนจัดส่ง"}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
         <section className="bg-white border rounded-2xl p-6 mb-6">
 
 
@@ -994,7 +1017,11 @@ export default function DeliveryPage() {
           </h2>
 
           <p className="text-sm text-gray-500 mt-1 mb-5">
-            ตรวจสอบรูปรถเข็น บิล และ QR ชำระเงินก่อนออกจัดส่ง
+            {order.billing_account_suspended
+              ? "ตรวจสอบรูปรถเข็นและรูป CV card (บิลไม่บังคับ)"
+              : order.billing_no_cv
+                ? "ตรวจสอบรูปรถเข็นและรูปพักบิลจาก POS (ไม่ต้องใช้ QR)"
+                : "ตรวจสอบรูปรถเข็น บิล และ QR ชำระเงินก่อนออกจัดส่ง"}
           </p>
 
           <div className="grid md:grid-cols-3 gap-5">
@@ -1034,12 +1061,12 @@ export default function DeliveryPage() {
 
             <div className="border rounded-2xl p-4">
               <p className="font-semibold mb-3">
-                บิล
+                {order.billing_no_cv ? "รูปพักบิล (POS)" : "บิล"}
               </p>
 
               {!bill ? (
                 <p className="text-sm text-gray-500">
-                  ยังไม่มีบิล
+                  {order.billing_account_suspended ? "บัญชีถูกระงับ: ไม่บังคับรูปบิล" : "ยังไม่มีรูปบิล"}
                 </p>
               ) : isImage(bill) ? (
                 <a
@@ -1067,12 +1094,13 @@ export default function DeliveryPage() {
 
             <div className="border rounded-2xl p-4">
               <p className="font-semibold mb-3">
-                QR ชำระเงิน
+                {order.billing_account_suspended ? "CV card ลูกค้า"
+                  : order.billing_no_cv ? "QR ชำระเงิน (ไม่ต้องใช้)" : "QR ชำระเงิน"}
               </p>
 
               {!paymentQr ? (
                 <p className="text-sm text-gray-500">
-                  ยังไม่มี QR ชำระเงิน
+                  {order.billing_no_cv ? "ลูกค้าไม่มี CV: ไม่ต้องใช้ QR ชำระเงิน" : "ยังไม่มี QR ชำระเงิน"}
                 </p>
               ) : (
                 <a
@@ -1082,7 +1110,7 @@ export default function DeliveryPage() {
                 >
                   <img
                     src={paymentQr.url}
-                    alt="QR ชำระเงิน"
+                    alt={order.billing_account_suspended ? "CV card ลูกค้า" : "QR ชำระเงิน"}
                     className="w-full h-56 object-contain border rounded-xl bg-gray-50"
                   />
                 </a>
