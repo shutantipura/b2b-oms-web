@@ -29,13 +29,13 @@ body {
 /* Lotus's B2B OMS - shared staff / manager experience.
    Scoped to the OMS only: customer miniapp styling remains unchanged. */
 .oms-workspace {
-  --oms-teal: #02b0af;
-  --oms-teal-dark: #008b8b;
-  --oms-ink: #173f3c;
-  --oms-muted: #647e7b;
-  --oms-outline: #d9e8e4;
-  --oms-canvas: #f3f8f7;
-  --oms-yellow: #fdbc16;
+  --oms-teal: #00BCB4;
+  --oms-teal-dark: #008E88;
+  --oms-ink: #424242;
+  --oms-muted: #687674;
+  --oms-outline: #DFE9E7;
+  --oms-canvas: #F8FAF9;
+  --oms-yellow: #FFE500;
   min-height: 100vh;
   flex: 1;
   background: var(--oms-canvas);
@@ -82,7 +82,7 @@ body {
   font-size: 13px;
   letter-spacing: 0.02em;
   color: var(--oms-ink);
-  background: #e6f7f5;
+  background: #E7FAF8;
   border: 1px solid #c8ebe7;
   border-radius: 7px;
   padding: 4px 7px;
@@ -129,15 +129,15 @@ body {
   font-weight: 700;
   transition: color .18s ease, background-color .18s ease, border-color .18s ease;
 }
-.oms-nav-link:hover { color: var(--oms-teal-dark); background: #edf9f7; }
+.oms-nav-link:hover { color: var(--oms-teal-dark); background: #E7FAF8; }
 .oms-nav-link[data-active="true"] {
-  color: #007e81;
-  background: #ebf9f7;
+  color: #007F79;
+  background: #E7FAF8;
   border-bottom-color: var(--oms-teal);
 }
 .oms-nav-link:focus-visible,
 .oms-brand:focus-visible {
-  outline: 3px solid #fdbc16;
+  outline: 3px solid #FFE500;
   outline-offset: 2px;
 }
 .oms-content { min-width: 0; width: 100%; }
@@ -167,6 +167,7 @@ body {
 }
 .oms-workspace .bg-black {
   background-color: var(--oms-teal) !important;
+  color: var(--oms-ink) !important;
 }
 .oms-workspace .bg-black:hover { background-color: var(--oms-teal-dark) !important; }
 .oms-workspace .ring-black { --tw-ring-color: var(--oms-teal) !important; }
@@ -192,14 +193,14 @@ body {
 .oms-workspace input:not([type="checkbox"]):not([type="radio"]):focus,
 .oms-workspace select:focus,
 .oms-workspace textarea:focus {
-  outline: 2px solid rgba(2, 176, 175, .28);
+  outline: 2px solid rgba(0, 188, 180, .28);
   outline-offset: 1px;
   border-color: var(--oms-teal);
 }
 .oms-workspace :is(button, a, input, select, textarea):focus-visible {
   outline-color: var(--oms-teal);
 }
-.oms-workspace .bg-gray-50 { background-color: #f7fbfa; }
+.oms-workspace .bg-gray-50 { background-color: #F8FAF9; }
 .oms-workspace .border-gray-200,
 .oms-workspace .border-gray-300 { border-color: var(--oms-outline); }
 @media (max-width: 640px) {
@@ -228,7 +229,7 @@ body {
   font-size: 10px;
   font-weight: 800;
   letter-spacing: .11em;
-  color: #008c8c;
+  color: #008E88;
 }
 .oms-page-kicker::before {
   content: "";
@@ -236,7 +237,7 @@ body {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #fdbc16;
+  background: #FFE500;
 }
 .oms-workspace .oms-dashboard-tile {
   position: relative;
@@ -251,8 +252,8 @@ body {
   border-color: #9ddbd5;
   box-shadow: 0 11px 28px rgba(9, 115, 111, .12);
 }
-.oms-workspace .oms-dashboard-tile .bg-black {
-  color: white;
+ .oms-workspace .oms-dashboard-tile .bg-black {
+  color: var(--oms-ink);
   background: var(--oms-teal) !important;
 }
 .oms-workspace .oms-login-card {
@@ -268,12 +269,12 @@ body {
   color: var(--oms-teal);
   margin-bottom: 20px;
 }
-.oms-login-wordmark > span { color: #fdbc16; }
+.oms-login-wordmark > span { color: #FFE500; }
 .oms-login-wordmark > small {
   letter-spacing: 0;
   font-size: 12px;
   color: var(--oms-ink);
-  background: #ecf8f6;
+  background: #E7FAF8;
   border-radius: 6px;
   padding: 4px 7px;
   margin-left: 6px;
@@ -284,7 +285,7 @@ body {
 }
 .oms-workspace .oms-task-stage > div:first-child {
   border-bottom-color: #e2eeeb;
-  background: linear-gradient(90deg, #eefaf8, #fff 46%);
+  background: linear-gradient(90deg, #E7FAF8, #fff 46%);
 }
 .oms-stage-chevron {
   display: inline-flex;
@@ -293,10 +294,10 @@ body {
   font-size: 18px;
   line-height: 12px;
   margin-right: 3px;
-  color: #039c9d;
+  color: #00BCB4;
 }
 .oms-workspace .bg-white.border .text-3xl.font-bold {
-  color: #008c8f;
+  color: #008E88;
 }
 @media (prefers-reduced-motion: reduce) {
   .oms-workspace .oms-dashboard-tile:hover { transform: none; }
@@ -379,8 +380,8 @@ body {
   .oms-mobile-tab svg { width: 24px; height: 24px; }
   .oms-mobile-tab:nth-child(2) svg { width: 26px; height: 26px; }
   .oms-mobile-tab[data-active="true"] {
-    color: #008c8c;
-    background: #e9f8f5;
+    color: #008E88;
+    background: #E7FAF8;
   }
   .oms-mobile-tab[data-active="true"]::before {
     content: "";
@@ -389,11 +390,11 @@ body {
     width: 20px;
     height: 3px;
     border-radius: 0 0 3px 3px;
-    background: #fdbc16;
+    background: #FFE500;
   }
   .oms-mobile-tab:focus-visible,
   .oms-mobile-drawer :is(a,button):focus-visible {
-    outline: 3px solid #fdbc16;
+    outline: 3px solid #FFE500;
     outline-offset: 2px;
   }
   .oms-mobile-drawer-layer {
@@ -419,7 +420,7 @@ body {
     overflow: auto;
     padding: 18px 18px calc(22px + env(safe-area-inset-bottom, 0px));
     border-radius: 26px 26px 0 0;
-    background: #f8fbfa;
+    background: #F8FAF9;
     box-shadow: 0 -12px 38px rgba(0, 44, 40, .16);
   }
   .oms-mobile-drawer-header {
@@ -430,14 +431,14 @@ body {
     padding-bottom: 17px;
   }
   .oms-mobile-drawer-label {
-    color: #039b99;
+    color: #008E88;
     font-size: 10px;
     font-weight: 800;
     letter-spacing: .1em;
   }
   .oms-mobile-drawer-header h2 {
     margin-top: 3px;
-    color: #17453f;
+    color: #424242;
     font-size: 20px;
     font-weight: 800;
   }
@@ -448,7 +449,7 @@ body {
     height: 40px;
     border-radius: 12px;
     background: #e8f3f0;
-    color: #285e56;
+    color: #424242;
     font-size: 28px;
     line-height: 1;
   }
@@ -462,14 +463,14 @@ body {
     background: white;
     border: 1px solid #dcebe7;
     border-radius: 14px;
-    color: #17453f;
+    color: #424242;
     text-decoration: none;
     font-size: 14px;
     font-weight: 700;
   }
-  .oms-mobile-drawer-link svg { color: #00a6a4; }
+  .oms-mobile-drawer-link svg { color: #00BCB4; }
   .oms-mobile-drawer-link[data-active="true"] {
-    background: #eaf9f6;
+    background: #E7FAF8;
     border-color: #8edbd3;
   }
   .oms-mobile-drawer-chevron {
