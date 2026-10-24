@@ -282,3 +282,714 @@ GRANT EXECUTE ON FUNCTION public.create_group_suborder(uuid,bigint,date,text,tex
 REVOKE ALL ON FUNCTION public.prepare_group_billing(bigint,text)
  FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.prepare_group_billing(bigint,text) TO authenticated;
+
+
+-- Child statuses follow root ONLY after the group has been billed.
+-- Independent item/photos remain attached to each original suborder.
+CREATE OR REPLACE FUNCTION public.sync_group_delivery_status()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=public,pg_temp AS $group_status$
+BEGIN
+ IF NEW.group_root_order_id=NEW.id
+    AND NEW.status IS DISTINCT FROM OLD.status
+    AND NEW.status IN ('ready_for_delivery','out_for_delivery',
+         'awaiting_payment','payment_submitted','completed','cancelled') THEN
+   UPDATE public.orders member SET status=NEW.status,updated_at=now()
+   WHERE member.group_root_order_id=NEW.id AND member.id<>NEW.id
+     AND member.status<>'cancelled';
+ END IF;
+ RETURN NEW;
+END;
+$group_status$;
+DROP TRIGGER IF EXISTS sync_group_delivery_status_trigger ON public.orders;
+CREATE TRIGGER sync_group_delivery_status_trigger
+ AFTER UPDATE OF status ON public.orders
+ FOR EACH ROW EXECUTE FUNCTION public.sync_group_delivery_status();
+
+CREATE OR REPLACE FUNCTION public.claim_task(p_order_number bigint, p_staff_code text, p_stage text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+AS $function$
+declare
+  v_order public.orders%rowtype;
+  v_staff public.staff%rowtype;
+
+  v_expected_status text;
+  v_new_status text;
+
+  v_claim_id uuid;
+begin
+
+  -- Find and lock the order
+  select *
+  into v_order
+  from public.orders
+  where order_number = p_order_number
+  for update;
+
+  if not found then
+    raise exception 'Order % does not exist', p_order_number;
+  end if;
+
+
+  -- Find active staff member
+  select *
+  into v_staff
+  from public.staff
+  where staff_code = p_staff_code
+    and is_active = true;
+
+  if not found then
+    raise exception 'Active staff member % does not exist', p_staff_code;
+  end if;
+
+
+  -- Define which order status is allowed for each stage
+  case p_stage
+
+    when 'confirmation' then
+      v_expected_status := 'awaiting_confirmation';
+      v_new_status := 'awaiting_confirmation';
+
+    when 'picking' then
+      v_expected_status := 'awaiting_picking';
+      v_new_status := 'picking';
+
+    when 'billing' then
+      v_expected_status := 'awaiting_billing';
+      v_new_status := 'awaiting_billing';
+
+    when 'delivery' then
+      v_expected_status := 'ready_for_delivery';
+      v_new_status := 'out_for_delivery';
+
+    when 'payment_verification' then
+      v_expected_status := 'payment_submitted';
+      v_new_status := 'payment_submitted';
+
+    else
+      raise exception 'Invalid task stage: %', p_stage;
+
+  end case;
+
+
+  -- Make sure the order is actually ready for this task
+  if v_order.status <> v_expected_status then
+    raise exception
+      'Order % has status %, so % cannot be started',
+      p_order_number,
+      v_order.status,
+      p_stage;
+  end if;
+
+
+  -- Check whether somebody already owns this stage
+  if exists (
+    select 1
+    from public.task_claims
+    where order_id = v_order.id
+      and stage = p_stage
+      and claim_status = 'active'
+  ) then
+    raise exception
+      'This task is already being worked on by another staff member';
+  end if;
+
+
+  -- Check whether this staff member already has another task
+  if exists (
+    select 1
+    from public.task_claims
+    where staff_id = v_staff.id
+      and claim_status = 'active'
+  ) then
+    raise exception
+      'Staff member % already has an active task',
+      v_staff.staff_name;
+  end if;
+
+
+  -- Billing can only be claimed by a group root after every member
+  -- has completed Picking. This order row is locked against new suborders.
+  if p_stage in ('billing','delivery','payment_verification')
+    and v_order.group_root_order_id is not null
+    and v_order.group_root_order_id<>v_order.id then
+    raise exception 'Use group primary for billing and delivery';
+  end if;
+  if p_stage='billing' and v_order.group_root_order_id=v_order.id then
+    perform public.prepare_group_billing(p_order_number,p_staff_code);
+  end if;
+
+  -- Claim the task
+  insert into public.task_claims (
+    order_id,
+    stage,
+    staff_id
+  )
+  values (
+    v_order.id,
+    p_stage,
+    v_staff.id
+  )
+  returning id into v_claim_id;
+
+
+  -- Some stages change order status immediately on START WORK
+  if v_new_status <> v_order.status then
+
+    update public.orders
+    set
+      status = v_new_status,
+      updated_at = now()
+    where id = v_order.id;
+
+  end if;
+
+
+  -- Audit trail
+  insert into public.order_history (
+    order_id,
+    action,
+    stage,
+    from_status,
+    to_status,
+    performed_by_staff_id,
+    note
+  )
+  values (
+    v_order.id,
+    'task_started',
+    p_stage,
+    v_order.status,
+    v_new_status,
+    v_staff.id,
+    p_stage || ' task started'
+  );
+
+
+  return jsonb_build_object(
+    'success', true,
+    'order_number', p_order_number,
+    'stage', p_stage,
+    'staff', v_staff.staff_name,
+    'claim_id', v_claim_id,
+    'status', v_new_status
+  );
+
+
+exception
+  when unique_violation then
+    raise exception
+      'Task could not be claimed because it was claimed by someone else at the same time';
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.complete_billing(p_order_number bigint, p_staff_code text, p_final_amount numeric)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+AS $function$
+declare
+  v_order public.orders%rowtype;
+  v_staff public.staff%rowtype;
+  v_claim public.task_claims%rowtype;
+
+  v_expected_amount numeric(12,2);
+  v_difference numeric(12,2);
+
+begin
+
+  ------------------------------------------------------------
+  -- 1. Find and lock the order
+  ------------------------------------------------------------
+  select *
+  into v_order
+  from public.orders
+  where order_number = p_order_number
+  for update;
+
+  if not found then
+    raise exception
+      'Order % does not exist',
+      p_order_number;
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 2. Order must currently be Awaiting Billing
+  ------------------------------------------------------------
+  if v_order.status <> 'awaiting_billing' then
+    raise exception
+      'Order % is currently %, not awaiting_billing',
+      p_order_number,
+      v_order.status;
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 3. Find active staff member
+  ------------------------------------------------------------
+  select *
+  into v_staff
+  from public.staff
+  where staff_code = p_staff_code
+    and is_active = true;
+
+  if not found then
+    raise exception
+      'Active staff member % does not exist',
+      p_staff_code;
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 4. Staff must own the active Billing task
+  ------------------------------------------------------------
+  select *
+  into v_claim
+  from public.task_claims
+  where order_id = v_order.id
+    and stage = 'billing'
+    and staff_id = v_staff.id
+    and claim_status = 'active'
+  limit 1;
+
+  if not found then
+    raise exception
+      '% does not own the active Billing task for Order %',
+      v_staff.staff_name,
+      p_order_number;
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 5. Final bill amount must be valid
+  ------------------------------------------------------------
+  if p_final_amount is null then
+    raise exception
+      'Final bill amount is required';
+  end if;
+
+  if p_final_amount < 0 then
+    raise exception
+      'Final bill amount cannot be negative';
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 6. Sanity check: Picking must contain actual quantities
+  ------------------------------------------------------------
+  if exists (
+    select 1
+    from public.order_items oi
+    join public.orders m on m.id=oi.order_id
+    where ((m.id=v_order.id and v_order.group_root_order_id is null)
+        or (m.group_root_order_id=v_order.id and m.status<>'cancelled'))
+      and oi.actual_qty is null
+  ) then
+    raise exception
+      'All Actual Picked quantities must be available before Billing can be completed';
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 7. Bill must have been uploaded by Billing worker
+  ------------------------------------------------------------
+  if not exists (
+    select 1
+    from public.order_files
+    where order_id = v_order.id
+      and file_type = 'bill'
+      and is_current = true
+      -- Current bill/QR can come from an earlier authorized billing worker.
+  ) then
+    raise exception
+      'A current Bill uploaded by the Billing worker is required';
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 8. Payment QR must have been uploaded by Billing worker
+  ------------------------------------------------------------
+  if not exists (
+    select 1
+    from public.order_files
+    where order_id = v_order.id
+      and file_type = 'payment_qr'
+      and is_current = true
+      -- Current bill/QR can come from an earlier authorized billing worker.
+  ) then
+    raise exception
+      'A current Payment QR uploaded by the Billing worker is required';
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 9. Calculate expected amount for comparison only
+  --
+  -- IMPORTANT:
+  -- This DOES NOT determine the official bill amount.
+  -- The staff-entered bill amount remains authoritative.
+  ------------------------------------------------------------
+  if v_order.group_root_order_id=v_order.id then
+    select round(coalesce(sum(line_total),0),2) into v_expected_amount
+    from public.group_billing_lines where root_order_id=v_order.id;
+  else
+    select round(coalesce(sum(actual_qty*unit_price_snapshot),0),2)
+    into v_expected_amount from public.order_items where order_id=v_order.id;
+  end if;
+
+
+  v_difference :=
+    round(p_final_amount - v_expected_amount, 2);
+
+
+  ------------------------------------------------------------
+  -- 10. Save official manually-entered bill amount
+  ------------------------------------------------------------
+  update public.orders
+  set
+    final_amount = p_final_amount,
+    status = 'ready_for_delivery',
+    updated_at = now()
+  where id = v_order.id;
+
+
+  ------------------------------------------------------------
+  -- 11. Complete Billing task
+  ------------------------------------------------------------
+  update public.task_claims
+  set
+    claim_status = 'completed',
+    completed_at = now()
+  where id = v_claim.id;
+
+
+  ------------------------------------------------------------
+  -- 12. Write audit history
+  ------------------------------------------------------------
+  insert into public.order_history (
+    order_id,
+    action,
+    stage,
+    from_status,
+    to_status,
+    performed_by_staff_id,
+    note,
+    details
+  )
+  values (
+    v_order.id,
+    'billing_completed',
+    'billing',
+    'awaiting_billing',
+    'ready_for_delivery',
+    v_staff.id,
+    'Final bill amount entered; Bill and Payment QR verified',
+    jsonb_build_object(
+      'final_bill_amount', p_final_amount,
+      'expected_amount', v_expected_amount,
+      'difference', v_difference
+    )
+  );
+
+
+  ------------------------------------------------------------
+  -- 13. Return useful information to OMS
+  ------------------------------------------------------------
+  return jsonb_build_object(
+    'success', true,
+    'order_number', p_order_number,
+    'billing_completed_by', v_staff.staff_name,
+    'final_bill_amount', p_final_amount,
+    'expected_amount', v_expected_amount,
+    'difference', v_difference,
+    'new_status', 'ready_for_delivery'
+  );
+
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.complete_my_billing_no_cv(p_order_number bigint, p_final_amount numeric)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_order public.orders%rowtype;
+  v_staff public.staff%rowtype;
+  v_claim public.task_claims%rowtype;
+  v_bill public.order_files%rowtype;
+  v_expected_amount numeric(12,2);
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  select * into v_staff
+  from public.staff
+  where auth_user_id = auth.uid() and is_active = true
+  limit 1;
+  if not found then
+    raise exception 'No active staff account is linked to the logged-in user';
+  end if;
+
+  select * into v_order
+  from public.orders
+  where order_number = p_order_number
+  for update;
+  if not found then
+    raise exception 'Order % does not exist', p_order_number;
+  end if;
+  if v_order.status <> 'awaiting_billing' then
+    raise exception 'Order % is not awaiting billing', p_order_number;
+  end if;
+
+  select * into v_claim
+  from public.task_claims
+  where order_id = v_order.id
+    and stage = 'billing'
+    and staff_id = v_staff.id
+    and claim_status = 'active'
+  limit 1;
+  if not found then
+    raise exception 'You do not own the active Billing task for Order %', p_order_number;
+  end if;
+
+  if p_final_amount is null or p_final_amount < 0
+    or p_final_amount > 9999999999.99
+    or round(p_final_amount, 2) <> p_final_amount then
+    raise exception 'Enter a valid non-negative final bill amount (two decimals maximum)';
+  end if;
+
+  if exists (
+    select 1 from public.order_items oi
+    join public.orders m on m.id=oi.order_id
+    where ((m.id=v_order.id and v_order.group_root_order_id is null)
+        or (m.group_root_order_id=v_order.id and m.status<>'cancelled'))
+      and oi.actual_qty is null
+  ) then
+    raise exception 'All actual picked quantities must be available before billing';
+  end if;
+
+  select * into v_bill
+  from public.order_files
+  where order_id = v_order.id
+    and file_type = 'bill'
+    and is_current = true;
+  if not found then
+    raise exception 'A POS parked-bill photo is required for customers without CV';
+  end if;
+  if v_bill.mime_type is null or v_bill.mime_type not like 'image/%' then
+    raise exception 'Upload a picture of the POS parked bill (not a PDF)';
+  end if;
+
+  -- Prevent any earlier QR for this order from being shown as current
+  -- after selecting the no-CV mode.
+  update public.order_files
+  set is_current = false
+  where order_id = v_order.id
+    and file_type = 'payment_qr'
+    and is_current = true;
+
+  if v_order.group_root_order_id=v_order.id then
+    select round(coalesce(sum(line_total),0),2) into v_expected_amount
+    from public.group_billing_lines where root_order_id=v_order.id;
+  else
+    select round(coalesce(sum(actual_qty*unit_price_snapshot),0),2)
+    into v_expected_amount from public.order_items where order_id=v_order.id;
+  end if;
+
+  update public.orders
+  set final_amount = p_final_amount,
+      billing_no_cv = true,
+      billing_account_suspended = false,
+      status = 'ready_for_delivery',
+      updated_at = now()
+  where id = v_order.id;
+
+  update public.task_claims
+  set claim_status = 'completed',
+      completed_at = now()
+  where id = v_claim.id;
+
+  insert into public.order_history (
+    order_id, action, stage, from_status, to_status,
+    performed_by_staff_id, note, details
+  ) values (
+    v_order.id, 'billing_completed', 'billing',
+    'awaiting_billing', 'ready_for_delivery',
+    v_staff.id,
+    'No-CV billing: POS parked-bill photo recorded; payment QR not required; rider notified',
+    jsonb_build_object(
+      'billing_mode', 'no_cv',
+      'bill_required', true,
+      'payment_qr_required', false,
+      'bill_file_id', v_bill.id,
+      'rider_notice', 'ลูกค้าไม่มีCV',
+      'final_bill_amount', p_final_amount,
+      'expected_amount', v_expected_amount,
+      'difference', round(p_final_amount - v_expected_amount, 2)
+    )
+  );
+
+  return jsonb_build_object(
+    'success', true,
+    'order_number', p_order_number,
+    'new_status', 'ready_for_delivery',
+    'billing_mode', 'no_cv',
+    'bill_file_id', v_bill.id,
+    'final_bill_amount', p_final_amount
+  );
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.complete_my_billing_suspended(p_order_number bigint, p_final_amount numeric)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_order public.orders%rowtype;
+  v_staff public.staff%rowtype;
+  v_claim public.task_claims%rowtype;
+  v_cv_path text;
+  v_cv_mime text;
+  v_expected_prefix text;
+  v_expected_amount numeric(12,2);
+  v_file_id uuid;
+  v_old_status text;
+begin
+  -- Authenticate the staff member before looking at any customer's files.
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+  select * into v_staff
+  from public.staff
+  where auth_user_id = auth.uid() and is_active = true
+  limit 1;
+  if not found then
+    raise exception 'No active staff account is linked to the logged-in user';
+  end if;
+
+  select * into v_order
+  from public.orders
+  where order_number = p_order_number
+  for update;
+  if not found then
+    raise exception 'Order % does not exist', p_order_number;
+  end if;
+  if v_order.status <> 'awaiting_billing' then
+    raise exception 'Order % is not awaiting billing', p_order_number;
+  end if;
+
+  select * into v_claim
+  from public.task_claims
+  where order_id = v_order.id and stage = 'billing'
+    and staff_id = v_staff.id and claim_status = 'active'
+  limit 1;
+  if not found then
+    raise exception 'You do not own the active Billing task for Order %', p_order_number;
+  end if;
+
+  if p_final_amount is null or p_final_amount < 0 or p_final_amount > 9999999999.99
+     or round(p_final_amount, 2) <> p_final_amount then
+    raise exception 'Enter a valid non-negative final bill amount (two decimals maximum)';
+  end if;
+
+  if exists (
+    select 1 from public.order_items oi
+    join public.orders m on m.id=oi.order_id
+    where ((m.id=v_order.id and v_order.group_root_order_id is null)
+        or (m.group_root_order_id=v_order.id and m.status<>'cancelled'))
+      and oi.actual_qty is null
+  ) then
+    raise exception 'All actual picked quantities must be available before billing';
+  end if;
+
+  select cv_card_storage_path into v_cv_path
+  from public.customers
+  where id = v_order.customer_id;
+  if v_cv_path is null or btrim(v_cv_path) = '' then
+    raise exception 'Customer CV card is missing. Upload it in the customer profile first.';
+  end if;
+
+  v_expected_prefix := 'customer-cv/' || v_order.customer_id::text || '/';
+  if left(v_cv_path, length(v_expected_prefix)) <> v_expected_prefix then
+    raise exception 'Customer CV card storage path is invalid';
+  end if;
+  select metadata ->> 'mimetype' into v_cv_mime
+  from storage.objects
+  where bucket_id = 'order-files' and name = v_cv_path;
+  if v_cv_mime is null then
+    raise exception 'Customer CV card image cannot be found in storage';
+  end if;
+  if v_cv_mime not in ('image/jpeg','image/png','image/webp') then
+    raise exception 'Customer CV card must be a JPG, PNG or WebP image';
+  end if;
+
+  if v_order.group_root_order_id=v_order.id then
+    select round(coalesce(sum(line_total),0),2) into v_expected_amount
+    from public.group_billing_lines where root_order_id=v_order.id;
+  else
+    select round(coalesce(sum(actual_qty*unit_price_snapshot),0),2)
+    into v_expected_amount from public.order_items where order_id=v_order.id;
+  end if;
+
+  -- The private CV card is attached to THIS order's payment_qr slot.
+  -- A fresh order_files row preserves the historical image even if
+  -- the customer's CV card is subsequently replaced.
+  update public.order_files
+  set is_current = false
+  where order_id = v_order.id
+    and file_type = 'payment_qr'
+    and is_current = true;
+
+  insert into public.order_files (
+    order_id, file_type, storage_path,
+    original_filename, mime_type, uploaded_by_staff_id, is_current
+  ) values (
+    v_order.id, 'payment_qr', v_cv_path,
+    'CV card - ' || v_order.customer_id::text, v_cv_mime, v_staff.id, true
+  ) returning id into v_file_id;
+
+  update public.orders
+  set final_amount = p_final_amount,
+      billing_account_suspended = true,
+      status = 'ready_for_delivery',
+      updated_at = now()
+  where id = v_order.id;
+
+  update public.task_claims
+  set claim_status = 'completed', completed_at = now()
+  where id = v_claim.id;
+
+  insert into public.order_history (
+    order_id, action, stage, from_status, to_status,
+    performed_by_staff_id, note, details
+  ) values (
+    v_order.id, 'billing_completed', 'billing',
+    'awaiting_billing', 'ready_for_delivery',
+    v_staff.id,
+    'Billing completed under suspended-account exception; CV card used instead of QR; bill photo optional',
+    jsonb_build_object(
+      'billing_mode', 'account_suspended',
+      'bill_optional', true,
+      'payment_qr_source', 'customer_cv_card',
+      'cv_card_file_id', v_file_id,
+      'final_bill_amount', p_final_amount,
+      'expected_amount', v_expected_amount,
+      'difference', round(p_final_amount - v_expected_amount, 2)
+    )
+  );
+
+  return jsonb_build_object(
+    'success', true,
+    'order_number', p_order_number,
+    'new_status', 'ready_for_delivery',
+    'billing_mode', 'account_suspended',
+    'payment_qr_file_id', v_file_id
+  );
+end;
+$function$;
