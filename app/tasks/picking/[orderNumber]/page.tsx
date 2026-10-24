@@ -126,6 +126,10 @@ function formatPrice(
   ).format(number);
 }
 
+function formatPickingQuantity(value: number) {
+  return new Intl.NumberFormat("th-TH", { maximumFractionDigits: 3 }).format(value);
+}
+
 function ProductThumbnail({
   imageUrl,
   alt,
@@ -1083,21 +1087,21 @@ export default function PickingPage() {
                     <div className="rounded-xl bg-[#F3F7F5] p-3">
                       <p className="text-xs font-semibold text-[#647E73]">จำนวนที่ยืนยัน</p>
                       <p className="mt-2 text-lg font-extrabold text-[#21463A]">
-                        {formatPrice(amounts.confirmed)}
+                        {formatPickingQuantity(amounts.confirmed)}
                         <span className="ml-1 text-xs font-normal">{item.unit_snapshot}</span>
                       </p>
                     </div>
                     <div className="rounded-xl bg-[#F3F7F5] p-3">
                       <p className="text-xs font-semibold text-[#647E73]">จำนวนที่หยิบแล้ว</p>
                       <p className="mt-2 text-lg font-extrabold text-[#21463A]">
-                        {formatPrice(amounts.alreadyPicked)}
+                        {formatPickingQuantity(amounts.alreadyPicked)}
                         <span className="ml-1 text-xs font-normal">{item.unit_snapshot}</span>
                       </p>
                     </div>
                     <div className="rounded-xl bg-[#FFF6DF] p-3">
                       <p className="text-xs font-semibold text-[#8C671A]">จำนวนที่ต้องหยิบเพิ่ม</p>
                       <p className="mt-2 text-lg font-extrabold text-[#8C671A]">
-                        {formatPrice(amounts.additionalToPick)}
+                        {formatPickingQuantity(amounts.additionalToPick)}
                         <span className="ml-1 text-xs font-normal">{item.unit_snapshot}</span>
                       </p>
                     </div>
