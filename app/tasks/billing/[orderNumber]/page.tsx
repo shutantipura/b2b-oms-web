@@ -926,7 +926,7 @@ export default function BillingPage() {
               <p className="mt-2 rounded-lg border border-[#B8EAE5] bg-[#E9FAF7] px-3 py-2 text-xs font-bold text-[#007F79]">
                 ออกบิลรวม: {groupLabels.join(" + ")} · รวมยอดหยิบจริงทุกรายการ
               </p>
-            )
+            )}
 
           </div>
 
