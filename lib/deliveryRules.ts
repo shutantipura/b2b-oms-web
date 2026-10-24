@@ -75,7 +75,7 @@ export function getAvailableSlots(deliveryDate: string, now = new Date()) {
 
 export function getEarliestDeliveryDate(now = new Date()): string {
   const today = bangkokToday(now);
-  // At or after the final delivery-window start (15:00), tomorrow is first.
+  // Once the final window's start time (15:00) has passed, tomorrow is first.
   return getAvailableSlots(today, now).length > 0 ? today : addDays(today, 1);
 }
 
