@@ -293,12 +293,11 @@ function deliveryUrgency(order: Order, now: BangkokClock): DeliveryUrgency {
   if (days < 0) return "overdue";
   if (days === 0 && slot && now.minutes >= slot.end) return "overdue";
 
-  // Operational rule: within 2 hours of the delivery window opening,
-  // an unfinished order needs urgent attention.
-  if (slot && days <= 1) {
-    const minutesToStart = days * 1440 + slot.start - now.minutes;
-    const minutesToEnd = days * 1440 + slot.end - now.minutes;
-    if (minutesToStart <= 120 && minutesToEnd > 0) return "at-risk";
+  // Orange only while today's delivery slot is in progress.
+  // Before the slot starts, today's tasks remain yellow; from the slot end,
+  // unfinished tasks are red (handled above).
+  if (days === 0 && slot && now.minutes >= slot.start && now.minutes < slot.end) {
+    return "at-risk";
   }
 
   return days === 0 ? "today" : "none";
@@ -1524,7 +1523,7 @@ export default function TasksPage() {
                                     className={`inline-flex min-h-7 items-center rounded-lg border px-2 py-1 text-xs font-extrabold ${urgencyDayStyle[urgency]}`}
                                     title={
                                       urgency === "overdue" ? "เลยช่วงเวลาจัดส่งแล้ว"
-                                        : urgency === "at-risk" ? "เหลือไม่เกิน 2 ชั่วโมงก่อนถึงช่วงเวลาจัดส่ง"
+                                        : urgency === "at-risk" ? "อยู่ระหว่างช่วงเวลาจัดส่ง"
                                         : urgency === "today" ? "กำหนดจัดส่งวันนี้" : "กำหนดจัดส่ง"
                                     }
                                   >
