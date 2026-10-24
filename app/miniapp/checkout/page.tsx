@@ -35,6 +35,7 @@ type MergeCandidate = {
   deliveryDate: string;
   deliverySlot: string;
   status: string;
+  deliveryAddress?: string;
 };
 
 function mergeStatusLabel(status: string) {
@@ -54,6 +55,8 @@ type CheckoutResponse = {
   success?: boolean;
   orderNumber?: number;
   merged?: boolean;
+  grouped?: boolean;
+  displayNumber?: string;
   mergeCandidates?: MergeCandidate[];
   error?: string;
 };
@@ -108,6 +111,7 @@ export default function MiniAppCheckoutPage() {
   const [message, setMessage] = useState("");
   const [createdOrderNumber, setCreatedOrderNumber] = useState<number | null>(null);
   const [wasMerged, setWasMerged] = useState(false);
+  const [createdDisplayNumber, setCreatedDisplayNumber] = useState<string | null>(null);
   const [mergeCandidates, setMergeCandidates] = useState<MergeCandidate[]>([]);
   const [mergeIntoOrderNumber, setMergeIntoOrderNumber] = useState<number | null>(null);
   // When a same-day order exists, customers MUST explicitly choose to merge
@@ -358,7 +362,7 @@ export default function MiniAppCheckoutPage() {
     }
 
     const confirmation = chosenMerge
-      ? `รวมสินค้าใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เข้ากับคำสั่งซื้อ #${chosenMerge.orderNumber} ใช่หรือไม่?\nทีมงานจะยืนยันสินค้าที่เพิ่ม และจัดเฉพาะรายการที่ยังไม่ได้จัด แล้วออกบิลรวมและส่งตามรอบเดิม`
+      ? `สร้างคำสั่งซื้อใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เพื่อจัดส่งร่วมกับกลุ่ม #${chosenMerge.orderNumber} ใช่หรือไม่?\nสินค้าใหม่จะยืนยันและหยิบแยกต่างหาก แล้วออกบิลและจัดส่งรวมครั้งเดียว`
       : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)} หรือไม่?`;
     if (!window.confirm(confirmation)) return;
     if (chosenMerge && !mergeRequestIdRef.current) mergeRequestIdRef.current = crypto.randomUUID();
@@ -404,7 +408,8 @@ export default function MiniAppCheckoutPage() {
 
       // Preserve the existing behavior: clear the basket only after success.
       localStorage.removeItem(`b2b-cart-${customer.customerCode}`);
-      setWasMerged(Boolean(data.merged));
+      setWasMerged(Boolean(data.grouped));
+      setCreatedDisplayNumber(data.displayNumber ?? String(data.orderNumber));
       setCreatedOrderNumber(data.orderNumber);
     } catch (error) {
       console.error("Submit order:", error);
@@ -442,17 +447,17 @@ export default function MiniAppCheckoutPage() {
         <div className="mx-auto max-w-md">
           <div className={`${card} p-6 text-center sm:p-8`}>
             <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#E1F8F1] text-5xl font-black text-[#009F9D]">✓</div>
-            <h1 className="mt-5 text-2xl font-extrabold">{wasMerged ? "รวมคำสั่งซื้อเรียบร้อยแล้ว!" : "ได้รับคำสั่งซื้อแล้ว!"}</h1>
+            <h1 className="mt-5 text-2xl font-extrabold">{wasMerged ? "สร้างคำสั่งซื้อร่วมจัดส่งเรียบร้อยแล้ว!" : "ได้รับคำสั่งซื้อแล้ว!"}</h1>
             <p className="mt-2 text-sm leading-6 text-[#748C80]">
               {wasMerged
-                ? "สินค้าเพิ่มเติมถูกรวมในคำสั่งซื้อเดิมแล้ว ทีมงานจะยืนยันสินค้าเพิ่มและจัดเฉพาะสินค้าที่ยังไม่ได้จัด โดยรักษารายการที่จัดแล้ว ก่อนออกบิลรวมและจัดส่งพร้อมกัน"
+                ? "สร้างคำสั่งซื้อย่อยสำเร็จแล้ว สินค้าจะยืนยันและจัดแยกจากคำสั่งซื้อเดิม เมื่อทุกคำสั่งซื้อจัดครบแล้วจึงออกบิลรวมและจัดส่งพร้อมกัน"
                 : "ทีมงานได้รับคำสั่งซื้อและกำลังตรวจสอบสินค้าเพื่อยืนยันรายการ"}
             </p>
             <div className="mt-6 rounded-2xl border border-[#BDEAE3] bg-[#EDFAF8] p-5">
               <p className="text-xs font-semibold text-[#668B81]">หมายเลขคำสั่งซื้อ</p>
-              <p className="mt-1 text-4xl font-black text-[#008F8D]">#{createdOrderNumber}</p>
+              <p className="mt-1 text-4xl font-black text-[#008F8D]">#{createdDisplayNumber ?? createdOrderNumber}</p>
               <span className="mt-3 inline-block rounded-full bg-[#FFF2C9] px-3 py-1 text-xs font-bold text-[#906300]">
-                {wasMerged ? "รอยืนยันสินค้าเพิ่มเติม" : "รอการยืนยันจากทีมงาน"}
+                {wasMerged ? "รอยืนยันสินค้าของคำสั่งซื้อย่อย" : "รอการยืนยันจากทีมงาน"}
               </span>
             </div>
             <p className="mt-5 text-xs leading-5 text-[#82968D]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการยืนยันและการหยิบสินค้า</p>
@@ -556,11 +561,11 @@ export default function MiniAppCheckoutPage() {
             <fieldset className="mt-4 rounded-2xl border-2 border-[#B8EAE5] bg-[#F0FAF8] p-4">
               <legend className="px-2 text-sm font-extrabold text-[#006F6A]">มีคำสั่งซื้อเดิมในวันเดียวกัน</legend>
               <p className="mb-3 text-sm leading-6 font-semibold text-[#17453F]">
-                ต้องการรวมสินค้าใหม่กับคำสั่งซื้อเดิมเพื่อจัดส่งพร้อมกันหรือไม่?
+                ต้องการให้คำสั่งซื้อใหม่นี้จัดส่งพร้อมกับคำสั่งซื้อเดิมหรือไม่?
               </p>
               <p className="mb-3 text-xs leading-5 text-[#4D6F65]">
-                หากรวม ระบบจะใช้รอบจัดส่งเดิมและส่งรายการกลับไปยืนยันสินค้า
-                รวมถึงจัดเฉพาะสินค้าที่เหลือ โดยเก็บจำนวนและรูปถ่ายที่จัดไว้แล้ว
+                หากเลือกจัดส่งพร้อมกัน ระบบจะสร้างคำสั่งซื้อย่อยแยกต่างหาก (เช่น #50/2)
+                ทุกคำสั่งซื้อย่อยต้องหยิบเสร็จก่อนเริ่มออกบิลรวม โดยไม่กระทบรูปและจำนวนที่จัดไว้แล้ว
               </p>
               {!mergeDecisionMade && (
                 <p role="status" className="mb-3 rounded-lg bg-[#FFF3D4] px-3 py-2 text-xs font-extrabold text-[#8A6000]">
@@ -576,7 +581,7 @@ export default function MiniAppCheckoutPage() {
                     onChange={() => chooseMerge(candidate)}
                   />
                   <span>
-                    รวมกับคำสั่งซื้อ #{candidate.orderNumber}
+                    จัดส่งร่วมกับกลุ่ม #{candidate.orderNumber}
                     <span className="mt-1 block text-xs font-normal text-[#678575]">
                       รอบจัดส่งเดิม {candidate.deliverySlot} · {mergeStatusLabel(candidate.status)}
                     </span>
@@ -585,7 +590,7 @@ export default function MiniAppCheckoutPage() {
               ))}
               <label className="mt-3 flex cursor-pointer items-center gap-3 rounded-xl border border-[#D6E8E3] bg-white p-3 text-sm font-bold">
                 <input type="radio" name="merge-choice" checked={mergeDecisionMade && mergeIntoOrderNumber === null} onChange={() => chooseMerge(null)} />
-                <span>ไม่รวม — แยกเป็นคำสั่งซื้อใหม่</span>
+                <span>ไม่จัดส่งร่วม — สร้างคำสั่งซื้ออิสระ</span>
               </label>
             </fieldset>
           )}
@@ -633,8 +638,8 @@ export default function MiniAppCheckoutPage() {
             className="flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl bg-[#02B0AF] px-5 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span>
-              <span className="block text-sm font-extrabold">{submitting ? "กำลังส่งคำสั่งซื้อ..." : mergeIntoOrderNumber ? "ยืนยันการรวมคำสั่งซื้อ" : "ยืนยันคำสั่งซื้อ"}</span>
-              <span className="mt-1 block text-[11px] text-white/80">{submitting ? "กรุณารอสักครู่" : mergeIntoOrderNumber ? "เพิ่มสินค้าในคำสั่งซื้อเดิม →" : "ส่งรายการให้ทีมงานตรวจสอบ →"}</span>
+              <span className="block text-sm font-extrabold">{submitting ? "กำลังส่งคำสั่งซื้อ..." : mergeIntoOrderNumber ? "ยืนยันการจัดส่งร่วมกัน" : "ยืนยันคำสั่งซื้อ"}</span>
+              <span className="mt-1 block text-[11px] text-white/80">{submitting ? "กรุณารอสักครู่" : mergeIntoOrderNumber ? "สร้างคำสั่งซื้อย่อย →" : "ส่งรายการให้ทีมงานตรวจสอบ →"}</span>
             </span>
             <span className="text-right text-xl font-black">~฿{formatMoney(estimatedTotal)}</span>
           </button>
