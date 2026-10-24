@@ -3,14 +3,14 @@
 DO $test$
 DECLARE
   c uuid; lu uuid; st uuid; au uuid:=gen_random_uuid();
-  sku uuid; staff_code text; customer_code text;
+  v_product_id uuid; staff_code text; customer_code text;
   root jsonb; child2 jsonb; child3 jsonb; res jsonb;
   root_id uuid; id2 uuid; id3 uuid; root_no bigint;
   d date:=timezone('Asia/Bangkok',clock_timestamp())::date+1;
   request_id uuid:=gen_random_uuid();
   blocked boolean; total_qty numeric; member_count integer;
 BEGIN
-  SELECT id INTO STRICT sku FROM public.products
+  SELECT id INTO STRICT v_product_id FROM public.products
   WHERE is_active AND is_customer_visible AND normal_price>0 LIMIT 1;
   staff_code:='S'||lpad((floor(random()*1000000000))::text,9,'0');
   customer_code:='9'||lpad((floor(random()*1000000000))::text,9,'0');
@@ -27,27 +27,27 @@ BEGIN
   INSERT INTO public.customer_line_users(customer_id,line_user_id,can_order) VALUES(c,lu,true);
 
   root:=public.create_customer_order(customer_code,d,'13:00–15:00','ROLLBACK PRIMARY ADDRESS','original',
-    jsonb_build_array(jsonb_build_object('product_id',sku,'quantity',2)));
+    jsonb_build_array(jsonb_build_object('product_id',v_product_id,'quantity',2)));
   root_id:=(root->>'order_id')::uuid;
   root_no:=(root->>'order_number')::bigint;
   UPDATE public.order_items SET confirmed_qty=2,actual_qty=2 WHERE order_id=root_id;
   UPDATE public.orders SET status='awaiting_billing' WHERE id=root_id;
 
   child2:=public.create_group_suborder(c,root_no,d,'13:00–15:00','ignore this address','addition 2',
-    jsonb_build_array(jsonb_build_object('product_id',sku,'quantity',3)),lu,request_id);
+    jsonb_build_array(jsonb_build_object('product_id',v_product_id,'quantity',3)),lu,request_id);
   id2:=(child2->>'order_id')::uuid;
   IF child2->>'display_number' <> root_no||'/2' THEN
     RAISE EXCEPTION 'Incorrect first child display number: %',child2;
   END IF;
   res:=public.create_group_suborder(c,root_no,d,'13:00–15:00','ignore this address','retry',
-    jsonb_build_array(jsonb_build_object('product_id',sku,'quantity',3)),lu,request_id);
+    jsonb_build_array(jsonb_build_object('product_id',v_product_id,'quantity',3)),lu,request_id);
   IF res->>'already_processed'<>'true' OR res->>'order_id' <> child2->>'order_id'
     THEN RAISE EXCEPTION 'Duplicate suborder was created'; END IF;
   IF (SELECT delivery_address FROM public.orders WHERE id=id2)<>'ROLLBACK PRIMARY ADDRESS'
     THEN RAISE EXCEPTION 'Grouped delivery address differs from primary'; END IF;
 
   child3:=public.create_group_suborder(c,root_no,d,'13:00–15:00','ignore this address','addition 3',
-    jsonb_build_array(jsonb_build_object('product_id',sku,'quantity',4)),lu,gen_random_uuid());
+    jsonb_build_array(jsonb_build_object('product_id',v_product_id,'quantity',4)),lu,gen_random_uuid());
   id3:=(child3->>'order_id')::uuid;
   IF child3->>'display_number' <> root_no||'/3' THEN
     RAISE EXCEPTION 'Incorrect third suborder number %',child3;
@@ -80,13 +80,13 @@ BEGIN
   EXECUTE 'RESET ROLE';
 
   SELECT actual_qty INTO total_qty FROM public.group_billing_lines
-  WHERE root_order_id=root_id AND product_id=sku;
+  WHERE root_order_id=root_id AND product_id=v_product_id;
   IF total_qty<>9 THEN RAISE EXCEPTION 'Expected 9 combined picked units, got %',total_qty; END IF;
 
   blocked:=false;
   BEGIN
     PERFORM public.create_group_suborder(c,root_no,d,'13:00–15:00','ROLLBACK','too late',
-       jsonb_build_array(jsonb_build_object('product_id',sku,'quantity',1)),lu,gen_random_uuid());
+       jsonb_build_array(jsonb_build_object('product_id',v_product_id,'quantity',1)),lu,gen_random_uuid());
   EXCEPTION WHEN OTHERS THEN blocked:=true;
   END;
   IF NOT blocked THEN RAISE EXCEPTION 'Additional suborder admitted after Billing started'; END IF;
