@@ -422,8 +422,26 @@ export default function TasksPage() {
   const [clock, setClock] = useState<BangkokClock>(() => getBangkokClock());
 
   useEffect(() => {
-    const timer = window.setInterval(() => setClock(getBangkokClock()), 60_000);
-    return () => window.clearInterval(timer);
+    // Refresh promptly when a delivery window starts/ends, including after a
+    // backgrounded mobile browser resumes. Using a 60-second interval could
+    // leave a task yellow for almost a minute after its slot started.
+    const updateClock = () => {
+      const next = getBangkokClock();
+      setClock((previous) =>
+        previous.date === next.date && previous.minutes === next.minutes
+          ? previous
+          : next
+      );
+    };
+    updateClock();
+    const timer = window.setInterval(updateClock, 5_000);
+    window.addEventListener("focus", updateClock);
+    document.addEventListener("visibilitychange", updateClock);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", updateClock);
+      document.removeEventListener("visibilitychange", updateClock);
+    };
   }, []);
 
   const [
