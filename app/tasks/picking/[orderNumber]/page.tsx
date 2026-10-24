@@ -1113,6 +1113,35 @@ export default function PickingPage() {
                     </div>
                   </div>
 
+                  {!addonMode ? (
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <div className="min-w-0 rounded-xl bg-[#F3F7F5] px-3 py-3 text-center">
+                        <p className="text-xs font-semibold text-[#647E73]">จำนวนที่ยืนยัน</p>
+                        <p className="mt-2 text-xl font-extrabold text-[#21463A]">
+                          {formatPickingQuantity(amounts.confirmed)}
+                        </p>
+                      </div>
+                      <label className="min-w-0 rounded-xl border-2 border-[#62C8C2] bg-[#F0FBFA] px-3 py-2 text-center">
+                        <span className="block text-xs font-extrabold text-[#007C76]">จำนวนที่หยิบจริง</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="0.001"
+                          required
+                          aria-label={`จำนวนที่หยิบจริงของ ${item.product_name_snapshot}`}
+                          value={actual[item.id] ?? ""}
+                          onChange={(event) =>
+                            setActual((previous) => ({
+                              ...previous,
+                              [item.id]: event.target.value,
+                            }))
+                          }
+                          className="mt-1 block w-full min-w-0 rounded-lg border border-[#9ADBD7] bg-white px-2 py-1.5 text-center text-xl font-extrabold text-[#006E6A]"
+                        />
+                      </label>
+                    </div>
+                  ) : (
                   <div className="mt-3 grid grid-cols-4 gap-1 sm:gap-2">
                     <div className="min-w-0 rounded-lg bg-[#F3F7F5] px-1.5 py-2 text-center sm:px-3">
                       <p className="min-h-7 text-[10px] font-semibold leading-[14px] text-[#647E73] sm:text-xs"
@@ -1169,6 +1198,7 @@ export default function PickingPage() {
                       )}
                     </label>
                   </div>
+                  )}
                   <p className="mt-1 text-right text-[10px] text-[#71877E]">
                     หน่วย: {item.unit_snapshot}
                   </p>
