@@ -1059,25 +1059,36 @@ export default function PickingPage() {
         </section>
 
         <section className="bg-white border rounded-2xl p-6">
-          <h2 className="font-bold text-lg">รูปรถเข็นสินค้า (2 รูป)</h2>
+          <h2 className="font-bold text-lg">รูปรถเข็นสินค้า</h2>
           <p className="text-sm text-gray-500 mt-1 mb-4">
-            ต้องมีรูปแรกอย่างน้อย 1 รูป และสามารถเพิ่มรูปที่สองได้ (ไม่บังคับ)
+            ถ่ายรูปรถเข็นอย่างน้อย 1 รูป หลังบันทึกรูปแรกแล้วสามารถเพิ่มรูปที่ 2 ได้ (ไม่บังคับ)
           </p>
           <div className="space-y-4">
-            {([0, 1] as const).map((index) => (
+            <TaskFilePicker
+              label="รูปรถเข็นสินค้า 1"
+              chooseLabel="ถ่ายหรือเลือกรูปรถเข็น"
+              replaceLabel="เปลี่ยนรูปที่ 1"
+              accept="image/*"
+              uploaded={photoUploaded[0]}
+              uploading={uploadingPhoto}
+              disabled={submitting}
+              fileName={cartPhotoNames[0]}
+              onSelect={(file) => uploadCartPhoto(file, 0)}
+            />
+            {photoUploaded[0] && (
               <TaskFilePicker
-                key={index}
-                label={`รูปรถเข็นสินค้า ${index + 1}${index === 1 ? " (ไม่บังคับ)" : ""}`}
-                chooseLabel={`ถ่ายหรือเลือกรูปที่ ${index + 1}`}
-                replaceLabel={`เปลี่ยนรูปที่ ${index + 1}`}
+                label="รูปรถเข็นสินค้า 2 (ไม่บังคับ)"
+                chooseLabel="เพิ่มรูปรถเข็นอีก 1 รูป (ไม่บังคับ)"
+                replaceLabel="เปลี่ยนรูปที่ 2"
+                appearance={photoUploaded[1] ? "default" : "add"}
                 accept="image/*"
-                uploaded={photoUploaded[index]}
+                uploaded={photoUploaded[1]}
                 uploading={uploadingPhoto}
                 disabled={submitting}
-                fileName={cartPhotoNames[index]}
-                onSelect={(file) => uploadCartPhoto(file, index)}
+                fileName={cartPhotoNames[1]}
+                onSelect={(file) => uploadCartPhoto(file, 1)}
               />
-            ))}
+            )}
           </div>
         </section>
 
