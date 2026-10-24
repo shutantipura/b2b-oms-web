@@ -369,6 +369,8 @@ async function loadPayment(
       .select(`
         id,
         order_number,
+        group_root_order_id,
+        group_sequence,
         status,
         final_amount,
         billing_account_suspended,
@@ -402,6 +404,12 @@ async function loadPayment(
         status: 404,
       }
     );
+  }
+
+  if (order.group_root_order_id && order.group_root_order_id !== order.id) {
+    return NextResponse.json({
+      error: "คำสั่งซื้อย่อยต้องชำระเงินผ่านคำสั่งซื้อหลัก",
+    }, { status: 409 });
   }
 
   const {
@@ -695,6 +703,8 @@ async function submitPayment(
       .from("orders")
       .select(`
         id,
+        group_root_order_id,
+        group_sequence,
         status
       `)
       .eq(
