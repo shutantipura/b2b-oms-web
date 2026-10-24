@@ -358,7 +358,7 @@ export default function MiniAppCheckoutPage() {
     }
 
     const confirmation = chosenMerge
-      ? `รวมสินค้าใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เข้ากับคำสั่งซื้อ #${chosenMerge.orderNumber} ใช่หรือไม่?\nทีมงานจะยืนยันสินค้าที่เพิ่ม และจัดเฉพาะรายการที่ยังไม่ได้จัด แล้วออกบิลรวมและส่งตามรอบเดิม`
+      ? `รวมสินค้าใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เข้ากับคำสั่งซื้อ #${chosenMerge.orderNumber} ใช่หรือไม่?\nทีมงานจะยืนยันและจัดสินค้าใหม่ทั้งหมดอีกครั้ง ต้องถ่ายรูปรถเข็นใหม่ แล้วจึงออกบิลรวมเพื่อจัดส่งรอบเดิม`
       : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)} หรือไม่?`;
     if (!window.confirm(confirmation)) return;
     if (chosenMerge && !mergeRequestIdRef.current) mergeRequestIdRef.current = crypto.randomUUID();
@@ -445,14 +445,14 @@ export default function MiniAppCheckoutPage() {
             <h1 className="mt-5 text-2xl font-extrabold">{wasMerged ? "รวมคำสั่งซื้อเรียบร้อยแล้ว!" : "ได้รับคำสั่งซื้อแล้ว!"}</h1>
             <p className="mt-2 text-sm leading-6 text-[#748C80]">
               {wasMerged
-                ? "สินค้าเพิ่มเติมถูกรวมในคำสั่งซื้อเดิมแล้ว ทีมงานจะยืนยันสินค้าเพิ่มและจัดเฉพาะสินค้าที่ยังไม่ได้จัด โดยรักษารายการที่จัดแล้ว ก่อนออกบิลรวมและจัดส่งพร้อมกัน"
+                ? "ปรับคำสั่งซื้อเดิมเรียบร้อยแล้ว ทีมงานจะยืนยันและจัดสินค้าทุกรายการใหม่ พร้อมถ่ายรูปรถเข็นใหม่ แล้วจึงออกบิลรวมและจัดส่งพร้อมกัน"
                 : "ทีมงานได้รับคำสั่งซื้อและกำลังตรวจสอบสินค้าเพื่อยืนยันรายการ"}
             </p>
             <div className="mt-6 rounded-2xl border border-[#BDEAE3] bg-[#EDFAF8] p-5">
               <p className="text-xs font-semibold text-[#668B81]">หมายเลขคำสั่งซื้อ</p>
               <p className="mt-1 text-4xl font-black text-[#008F8D]">#{createdOrderNumber}</p>
               <span className="mt-3 inline-block rounded-full bg-[#FFF2C9] px-3 py-1 text-xs font-bold text-[#906300]">
-                {wasMerged ? "รอยืนยันสินค้าเพิ่มเติม" : "รอการยืนยันจากทีมงาน"}
+                {wasMerged ? "ปรับคำสั่งซื้อแล้ว · รอยืนยันใหม่" : "รอการยืนยันจากทีมงาน"}
               </span>
             </div>
             <p className="mt-5 text-xs leading-5 text-[#82968D]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการยืนยันและการหยิบสินค้า</p>
@@ -559,8 +559,8 @@ export default function MiniAppCheckoutPage() {
                 ต้องการรวมสินค้าใหม่กับคำสั่งซื้อเดิมเพื่อจัดส่งพร้อมกันหรือไม่?
               </p>
               <p className="mb-3 text-xs leading-5 text-[#4D6F65]">
-                หากรวม ระบบจะใช้รอบจัดส่งเดิมและส่งรายการกลับไปยืนยันสินค้า
-                รวมถึงจัดเฉพาะสินค้าที่เหลือ โดยเก็บจำนวนและรูปถ่ายที่จัดไว้แล้ว
+                หากรวม ระบบจะใช้รอบจัดส่งเดิม แต่ต้องยืนยันและจัดสินค้าทุกชิ้นใหม่ทั้งหมด
+                รูปรถเข็นเดิมจะถูกลบและต้องถ่ายรูปใหม่ก่อนออกบิลรวม
               </p>
               {!mergeDecisionMade && (
                 <p role="status" className="mb-3 rounded-lg bg-[#FFF3D4] px-3 py-2 text-xs font-extrabold text-[#8A6000]">
