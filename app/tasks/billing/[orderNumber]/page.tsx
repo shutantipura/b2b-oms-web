@@ -1341,7 +1341,7 @@ export default function BillingPage() {
               </div>
             ) : (
               <p className="text-gray-500">ไม่มีรูปรถเข็นสินค้า</p>
-            )
+            )}
 
 
 
