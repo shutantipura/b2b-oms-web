@@ -25,6 +25,8 @@ type Order = {
   id: string;
 
   order_number: number;
+  group_root_order_id: string | null;
+  group_sequence: number | null;
 
   status: string;
 
@@ -772,6 +774,8 @@ export default function TasksPage() {
         .select(`
           id,
           order_number,
+          group_root_order_id,
+          group_sequence,
           status,
           delivery_date,
           delivery_slot,
@@ -1402,17 +1406,19 @@ export default function TasksPage() {
 
               const groupOrders =
 
-                orders.filter(
-
-                  (order) =>
-
-                    group.statuses.includes(
-
-                      order.status
-
-                    )
-
-                );
+                orders.filter((order) => {
+                  if (!group.statuses.includes(order.status)) return false;
+                  // Only the group primary owns Billing, Delivery and Payment.
+                  const downstream = ["billing","delivery","payment_verification"].includes(group.stage);
+                  if (downstream && order.group_root_order_id && order.group_root_order_id!==order.id)
+                    return false;
+                  // A root is not billable until every active suborder is picked.
+                  if (group.stage==="billing" && order.group_root_order_id===order.id) {
+                    const members = orders.filter(member=>member.group_root_order_id===order.id);
+                    if (!members.every(member=>member.status==="awaiting_billing")) return false;
+                  }
+                  return true;
+                });
 
 
 
@@ -1617,15 +1623,23 @@ export default function TasksPage() {
                                 >
                                   {order.final_amount !== null
                                     ? `฿${formatBaht(Number(order.final_amount))}`
-                                    : order.estimated_amount !== null
-                                      ? `฿${formatBaht(order.estimated_amount)}`
-                                      : "฿ —"}
+                                    : (() => {
+                                        const candidates = group.stage==="billing" &&
+                                          order.group_root_order_id===order.id
+                                          ? orders.filter(o=>o.group_root_order_id===order.id)
+                                          : [order];
+                                        return candidates.every(o=>o.estimated_amount!==null)
+                                          ? `฿${formatBaht(candidates.reduce((sum,o)=>sum+Number(o.estimated_amount),0))}`
+                                          : "฿ —";
+                                      })()}
                                   <span className="ml-2 text-[10px] font-semibold text-[#718C84]">
                                     {order.final_amount !== null ? "ยอดบิลจริง" : "ประมาณการ"}
                                   </span>
                                 </div>
                                 <p className="mt-0.5 text-[11px] font-medium text-[#8A9E97]">
-                                  คำสั่งซื้อ #{order.order_number}
+                                  คำสั่งซื้อ #{order.group_root_order_id
+                                     ? `${orders.find(root=>root.id===order.group_root_order_id)?.order_number ?? order.order_number}/${order.group_sequence ?? 1}`
+                                     : order.order_number}
                                 </p>
                               </div>
 
