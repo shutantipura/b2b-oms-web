@@ -665,7 +665,7 @@ export default function PickingPage() {
     setMessage("");
 
     if (
-      !photoUploaded.every(Boolean)
+      !photoUploaded[0]
     ) {
       setMessage(
         "ต้องอัปโหลดรูปรถเข็นสินค้าก่อนปิดงานจัดสินค้า"
@@ -1061,13 +1061,13 @@ export default function PickingPage() {
         <section className="bg-white border rounded-2xl p-6">
           <h2 className="font-bold text-lg">รูปรถเข็นสินค้า (2 รูป)</h2>
           <p className="text-sm text-gray-500 mt-1 mb-4">
-            กรุณาอัปโหลดรูปรถเข็นสินค้า 2 รูปก่อนปิดงาน สามารถเปลี่ยนรูปแต่ละช่องได้
+            ต้องมีรูปแรกอย่างน้อย 1 รูป และสามารถเพิ่มรูปที่สองได้ (ไม่บังคับ)
           </p>
           <div className="space-y-4">
             {([0, 1] as const).map((index) => (
               <TaskFilePicker
                 key={index}
-                label={`รูปรถเข็นสินค้า ${index + 1}`}
+                label={`รูปรถเข็นสินค้า ${index + 1}${index === 1 ? " (ไม่บังคับ)" : ""}`}
                 chooseLabel={`ถ่ายหรือเลือกรูปที่ ${index + 1}`}
                 replaceLabel={`เปลี่ยนรูปที่ ${index + 1}`}
                 accept="image/*"
@@ -1093,7 +1093,7 @@ export default function PickingPage() {
             onClick={
               completePicking
             }
-            disabled={submitting || uploadingPhoto || !photoUploaded.every(Boolean)}
+            disabled={submitting || uploadingPhoto || !photoUploaded[0]}
             className="bg-black text-white rounded-lg px-8 py-4 font-semibold disabled:opacity-50"
           >
             {submitting
