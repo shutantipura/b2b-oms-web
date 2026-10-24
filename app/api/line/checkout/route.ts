@@ -344,8 +344,8 @@ async function verifyLineAndCustomer(
 
   return {
     supabase,
-    customer:
-      selectedCustomer,
+    customer: selectedCustomer,
+    verifiedLineUserId: lineUser.id,
   };
 }
 
@@ -702,6 +702,51 @@ function extractOrderNumber(
 }
 
 // =====================================================
+// MERGE CANDIDATES
+// =====================================================
+
+// This is only a preview. The database RPC repeats all checks
+// while locking the primary order so billing cannot start mid-merge.
+async function findMergeCandidates(supabase: any, customerId: string, deliveryDate: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate)) return [];
+
+  const { data: orders, error: orderError } = await supabase
+    .from("orders")
+    .select("id, order_number, delivery_date, delivery_slot, created_at")
+    .eq("customer_id", customerId)
+    .eq("delivery_date", deliveryDate)
+    .eq("status", "awaiting_billing")
+    .is("final_amount", null)
+    .order("created_at", { ascending: true })
+    .limit(20);
+
+  if (orderError) throw new Error("Could not check existing deliveries: " + orderError.message);
+  if (!orders?.length) return [];
+
+  const ids: string[] = orders.map((order: { id: string }) => order.id);
+  const [claimResult, fileResult] = await Promise.all([
+    supabase.from("task_claims").select("order_id").in("order_id", ids).eq("stage", "billing"),
+    supabase.from("order_files").select("order_id").in("order_id", ids).in("file_type", ["bill", "payment_qr"]),
+  ]);
+  if (claimResult.error || fileResult.error) {
+    throw new Error("Could not verify whether an existing order has entered billing.");
+  }
+
+  const blocked = new Set<string>([
+    ...(claimResult.data ?? []).map((claim: { order_id: string }) => claim.order_id),
+    ...(fileResult.data ?? []).map((file: { order_id: string }) => file.order_id),
+  ]);
+
+  return orders.filter((order: { id: string }) => !blocked.has(order.id)).map(
+    (order: { order_number: number; delivery_date: string; delivery_slot: string }) => ({
+      orderNumber: order.order_number,
+      deliveryDate: order.delivery_date,
+      deliverySlot: order.delivery_slot,
+    })
+  );
+}
+
+// =====================================================
 // POST
 // =====================================================
 
@@ -716,13 +761,10 @@ export async function POST(
     // ACTION
     // -------------------------------------------------
 
-    const action:
-      | "load"
-      | "submit" =
-      body.action ===
-      "submit"
-        ? "submit"
-        : "load";
+    const action: "load" | "submit" | "merge-options" =
+      body.action === "submit" ? "submit"
+        : body.action === "merge-options" ? "merge-options"
+          : "load";
 
     // -------------------------------------------------
     // LINE TOKEN
@@ -817,6 +859,7 @@ export async function POST(
     const {
       supabase,
       customer,
+      verifiedLineUserId,
     } =
       await verifyLineAndCustomer(
         idToken,
@@ -863,6 +906,16 @@ export async function POST(
         deliveryOptions:
           getDeliveryOptions(),
       });
+    }
+
+    // =================================================
+    // LOAD POSSIBLE SAME-DAY MERGES
+    // =================================================
+
+    if (action === "merge-options") {
+      const date = typeof body.deliveryDate === "string" ? body.deliveryDate : "";
+      const mergeCandidates = await findMergeCandidates(supabase, customer.id, date);
+      return NextResponse.json({ mergeCandidates });
     }
 
     // =================================================
@@ -970,49 +1023,50 @@ export async function POST(
     // already been verified as authorized for it.
     // -------------------------------------------------
 
-    const {
-      data:
-        orderData,
-      error:
-        orderError,
-    } =
-      await supabase.rpc(
-        "create_customer_order",
-        {
-          p_customer_code:
-            customer.customer_code,
+    // A merge updates the original order atomically; no second order is created.
+    // LINE authorization above is compulsory for both code paths.
+    const mergeIntoOrderNumber = Number(body.mergeIntoOrderNumber);
+    const merging = Number.isSafeInteger(mergeIntoOrderNumber) && mergeIntoOrderNumber > 0;
+    const requestId = typeof body.requestId === "string" ? body.requestId : "";
 
-          p_delivery_date:
-            deliveryDate,
+    if (merging && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)) {
+      return NextResponse.json({ error: "Missing merge request reference. Please try again." }, { status: 400 });
+    }
 
-          p_delivery_slot:
-            deliverySlot,
-
-          p_delivery_address:
-            deliveryAddress,
-
-          p_customer_notes:
-            notes,
-
-          p_items:
-            orderItems,
-        }
-      );
+    const { data: orderData, error: orderError } = merging
+      ? await supabase.rpc("merge_customer_order", {
+          p_customer_id: customer.id,
+          p_primary_order_number: mergeIntoOrderNumber,
+          p_delivery_date: deliveryDate,
+          p_delivery_slot: deliverySlot,
+          p_customer_notes: notes,
+          p_items: orderItems,
+          p_line_user_id: verifiedLineUserId,
+          p_request_id: requestId,
+        })
+      : await supabase.rpc("create_customer_order", {
+          p_customer_code: customer.customer_code,
+          p_delivery_date: deliveryDate,
+          p_delivery_slot: deliverySlot,
+          p_delivery_address: deliveryAddress,
+          p_customer_notes: notes,
+          p_items: orderItems,
+        });
 
     if (orderError) {
       console.error(
-        "create_customer_order:",
+        merging ? "merge_customer_order:" : "create_customer_order:",
         orderError
       );
 
       return NextResponse.json(
         {
           error:
-            "Could not submit order: " +
+            (merging ? "ไม่สามารถรวมคำสั่งซื้อได้: " : "Could not submit order: ") +
             orderError.message,
         },
         {
-          status: 500,
+          status: merging ? 409 : 500,
         }
       );
     }
@@ -1055,6 +1109,7 @@ export async function POST(
         true,
 
       orderNumber,
+      merged: merging,
     });
   } catch (error) {
     console.error(
