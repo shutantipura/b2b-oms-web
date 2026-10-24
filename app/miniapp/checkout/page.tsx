@@ -101,6 +101,7 @@ export default function MiniAppCheckoutPage() {
   const [mergeIntoOrderNumber, setMergeIntoOrderNumber] = useState<number | null>(null);
   const [loadingMergeOptions, setLoadingMergeOptions] = useState(false);
   const [mergeOptionsError, setMergeOptionsError] = useState("");
+  const [mergeRefreshTick, setMergeRefreshTick] = useState(0);
   const mergeRequestIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -265,7 +266,7 @@ export default function MiniAppCheckoutPage() {
     })();
 
     return () => controller.abort();
-  }, [idToken, customer, deliveryDate, cart]);
+  }, [idToken, customer, deliveryDate, cart, mergeRefreshTick]);
 
   // Only offer the same primary delivery slot when that slot is still
   // selectable under the existing customer checkout cutoff rules.
@@ -324,11 +325,7 @@ export default function MiniAppCheckoutPage() {
       setMessage("กำลังตรวจสอบคำสั่งซื้อเดิม กรุณาลองอีกครั้ง");
       return;
     }
-    if (mergeOptionsError) {
-      setMessage("ไม่สามารถตรวจสอบว่ามีคำสั่งซื้อเดิมที่รวมได้หรือไม่ กรุณาลองอีกครั้ง");
-      return;
-    }
-    const chosenMerge = selectableMergeCandidates.find((candidate) => candidate.orderNumber === mergeIntoOrderNumber);
+     const chosenMerge = selectableMergeCandidates.find((candidate) => candidate.orderNumber === mergeIntoOrderNumber);
     if (mergeIntoOrderNumber && !chosenMerge) {
       setMessage("คำสั่งซื้อเดิมไม่สามารถรวมกับช่วงเวลาที่เลือกได้");
       return;
@@ -524,9 +521,10 @@ export default function MiniAppCheckoutPage() {
             <p className="mt-3 text-xs text-[#718F83]">กำลังตรวจสอบคำสั่งซื้อที่จัดส่งวันเดียวกัน...</p>
           )}
           {mergeOptionsError && (
-            <p role="alert" className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
-              ไม่สามารถตรวจสอบคำสั่งซื้อเดิมได้ กรุณาเปลี่ยนวันที่และเลือกใหม่อีกครั้ง
-            </p>
+            <div role="alert" className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+              <span>ตรวจสอบคำสั่งซื้อเดิมไม่สำเร็จ หากไม่ต้องการแยกการจัดส่ง กรุณาลองใหม่</span>
+              <button type="button" className="shrink-0 rounded-lg border border-amber-300 px-3 py-2 font-bold" onClick={() => setMergeRefreshTick((tick) => tick + 1)}>ลองใหม่</button>
+            </div>
           )}
           {selectableMergeCandidates.length > 0 && !loadingMergeOptions && (
             <fieldset className="mt-4 rounded-2xl border-2 border-[#B8EAE5] bg-[#F0FAF8] p-4">
@@ -595,7 +593,7 @@ export default function MiniAppCheckoutPage() {
           <button
             type="button"
             onClick={() => void submitOrder()}
-            disabled={submitting || loadingMergeOptions || Boolean(mergeOptionsError) || !deliveryDate || !deliverySlot || items.length === 0}
+            disabled={submitting || loadingMergeOptions || !deliveryDate || !deliverySlot || items.length === 0}
             className="flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl bg-[#02B0AF] px-5 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span>
