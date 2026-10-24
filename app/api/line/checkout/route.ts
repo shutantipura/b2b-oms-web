@@ -712,10 +712,10 @@ async function findMergeCandidates(supabase: any, customerId: string, deliveryDa
 
   const { data: orders, error: orderError } = await supabase
     .from("orders")
-    .select("id, order_number, delivery_date, delivery_slot, created_at")
+    .select("id, order_number, delivery_date, delivery_slot, status, created_at")
     .eq("customer_id", customerId)
     .eq("delivery_date", deliveryDate)
-    .eq("status", "awaiting_billing")
+    .in("status", ["awaiting_confirmation", "awaiting_picking", "picking", "awaiting_billing"])
     .is("final_amount", null)
     .order("created_at", { ascending: true })
     .limit(20);
@@ -742,6 +742,7 @@ async function findMergeCandidates(supabase: any, customerId: string, deliveryDa
       orderNumber: order.order_number,
       deliveryDate: order.delivery_date,
       deliverySlot: order.delivery_slot,
+      status: (order as { status: string }).status,
     })
   );
 }
