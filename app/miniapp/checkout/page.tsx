@@ -343,6 +343,10 @@ export default function MiniAppCheckoutPage() {
       setMessage("กำลังตรวจสอบคำสั่งซื้อเดิม กรุณาลองอีกครั้ง");
       return;
     }
+    if (mergeOptionsError) {
+      setMessage("ไม่สามารถตรวจสอบคำสั่งซื้อเดิมได้ กรุณากดลองใหม่ก่อนยืนยันคำสั่งซื้อ");
+      return;
+    }
     if (selectableMergeCandidates.length > 0 && !mergeDecisionMade) {
       setMessage("กรุณาเลือกว่าจะรวมคำสั่งซื้อกับคำสั่งซื้อเดิมหรือแยกจัดส่ง");
       return;
@@ -354,7 +358,7 @@ export default function MiniAppCheckoutPage() {
     }
 
     const confirmation = chosenMerge
-      ? `รวมสินค้าใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เข้ากับคำสั่งซื้อ #${chosenMerge.orderNumber} ใช่หรือไม่?\nทีมงานจะยืนยันและจัดเฉพาะสินค้าเพิ่มเติม แล้วออกบิลรวมและส่งตามรอบเดิม`
+      ? `รวมสินค้าใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เข้ากับคำสั่งซื้อ #${chosenMerge.orderNumber} ใช่หรือไม่?\nทีมงานจะยืนยันสินค้าที่เพิ่ม และจัดเฉพาะรายการที่ยังไม่ได้จัด แล้วออกบิลรวมและส่งตามรอบเดิม`
       : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)} หรือไม่?`;
     if (!window.confirm(confirmation)) return;
     if (chosenMerge && !mergeRequestIdRef.current) mergeRequestIdRef.current = crypto.randomUUID();
@@ -441,7 +445,7 @@ export default function MiniAppCheckoutPage() {
             <h1 className="mt-5 text-2xl font-extrabold">{wasMerged ? "รวมคำสั่งซื้อเรียบร้อยแล้ว!" : "ได้รับคำสั่งซื้อแล้ว!"}</h1>
             <p className="mt-2 text-sm leading-6 text-[#748C80]">
               {wasMerged
-                ? "สินค้าเพิ่มเติมถูกรวมในคำสั่งซื้อเดิมแล้ว ทีมงานจะยืนยันและจัดเฉพาะสินค้าใหม่ โดยไม่ต้องจัดสินค้าเดิมซ้ำ ก่อนออกบิลรวมและจัดส่งพร้อมกัน"
+                ? "สินค้าเพิ่มเติมถูกรวมในคำสั่งซื้อเดิมแล้ว ทีมงานจะยืนยันสินค้าเพิ่มและจัดเฉพาะสินค้าที่ยังไม่ได้จัด โดยรักษารายการที่จัดแล้ว ก่อนออกบิลรวมและจัดส่งพร้อมกัน"
                 : "ทีมงานได้รับคำสั่งซื้อและกำลังตรวจสอบสินค้าเพื่อยืนยันรายการ"}
             </p>
             <div className="mt-6 rounded-2xl border border-[#BDEAE3] bg-[#EDFAF8] p-5">
@@ -544,7 +548,7 @@ export default function MiniAppCheckoutPage() {
           )}
           {mergeOptionsError && (
             <div role="alert" className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
-              <span>ตรวจสอบคำสั่งซื้อเดิมไม่สำเร็จ หากไม่ต้องการแยกการจัดส่ง กรุณาลองใหม่</span>
+              <span>ยังตรวจสอบคำสั่งซื้อเดิมไม่ได้ กรุณาลองใหม่ก่อนยืนยันเพื่อป้องกันการสั่งซ้ำ</span>
               <button type="button" className="shrink-0 rounded-lg border border-amber-300 px-3 py-2 font-bold" onClick={() => setMergeRefreshTick((tick) => tick + 1)}>ลองใหม่</button>
             </div>
           )}
@@ -555,8 +559,8 @@ export default function MiniAppCheckoutPage() {
                 ต้องการรวมสินค้าใหม่กับคำสั่งซื้อเดิมเพื่อจัดส่งพร้อมกันหรือไม่?
               </p>
               <p className="mb-3 text-xs leading-5 text-[#4D6F65]">
-                หากรวม ระบบจะใช้รอบจัดส่งเดิมและส่งรายการเพิ่มกลับไปยืนยันสินค้า
-                โดยไม่ลบจำนวนที่ยืนยัน/จัดแล้วหรือภาพถ่ายเดิม
+                หากรวม ระบบจะใช้รอบจัดส่งเดิมและส่งรายการกลับไปยืนยันสินค้า
+                รวมถึงจัดเฉพาะสินค้าที่เหลือ โดยเก็บจำนวนและรูปถ่ายที่จัดไว้แล้ว
               </p>
               {!mergeDecisionMade && (
                 <p role="status" className="mb-3 rounded-lg bg-[#FFF3D4] px-3 py-2 text-xs font-extrabold text-[#8A6000]">
