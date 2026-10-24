@@ -94,6 +94,10 @@ type OrderFile = {
 
   mime_type: string | null;
 
+  is_current: boolean;
+
+  created_at: string;
+
 };
 
 
@@ -479,13 +483,14 @@ export default function OrderDetailsPage() {
 
         original_filename,
 
-        mime_type
+        mime_type,
+        is_current,
+        created_at
 
       `)
 
       .eq("order_id", loadedOrder.id)
-
-      .eq("is_current", true);
+      .order("created_at", { ascending: true });
 
 
 
@@ -509,9 +514,13 @@ export default function OrderDetailsPage() {
 
 
 
-    const rawFiles =
-
-      (fileData ?? []) as OrderFile[];
+    // Historical picking photos are retained after merges and must remain
+    // visible alongside the latest ones. Keep other document types current-only.
+    const rawFiles = ((fileData ?? []) as OrderFile[]).filter(
+      (file) => file.is_current ||
+        file.file_type === "cart_photo" ||
+        file.file_type === "cart_photo_2"
+    );
 
 
 
@@ -1563,6 +1572,14 @@ export default function OrderDetailsPage() {
                   </p>
 
 
+
+                  {(file.file_type === "cart_photo" || file.file_type === "cart_photo_2") && (
+                    <p className={file.is_current
+                      ? "mt-2 text-xs font-extrabold text-[#007F79]"
+                      : "mt-2 text-xs font-extrabold text-[#946200]"}>
+                      {file.is_current ? "รูปรอบล่าสุด" : "รูปเดิมจากการจัดสินค้าก่อนหน้า (เก็บไว้)"}
+                    </p>
+                  )}
 
                   <p className="text-sm text-gray-500 mt-1 mb-4 truncate">
 
