@@ -91,6 +91,14 @@ type OrderFile = {
 
 
 
+type CartPhoto = {
+  id: string;
+  file_type: string;
+  original_filename: string | null;
+  is_current: boolean;
+  url: string | null;
+};
+
 type BillingMode = "normal" | "suspended" | "no_cv";
 
 export default function BillingPage() {
@@ -117,9 +125,7 @@ export default function BillingPage() {
 
 
 
-  const [cartPhotoUrl, setCartPhotoUrl] =
-
-    useState<string | null>(null);
+  const [cartPhotos, setCartPhotos] = useState<CartPhoto[]>([]);
 
 
 
@@ -378,13 +384,12 @@ export default function BillingPage() {
 
         original_filename,
 
-        mime_type
-
+        mime_type,
+        created_at,
+        is_current
       `)
-
       .eq("order_id", orderData.id)
-
-      .eq("is_current", true);
+      .order("created_at", { ascending: true });
 
 
 
@@ -408,39 +413,36 @@ export default function BillingPage() {
 
 
 
-    const files =
+    const files = (fileData ?? []) as (OrderFile & {
+      is_current: boolean;
+      created_at: string;
+    })[];
 
-      (fileData ?? []) as OrderFile[];
-
-
-
-    const cartPhoto = files.find(
-
-      (file) =>
-
-        file.file_type === "cart_photo"
-
+    // Retain original and subsequent cart photos across picking rounds.
+    // Non-current billing/QR files are deliberately not considered active.
+    const cartFiles = files.filter((file) =>
+      file.file_type === "cart_photo" || file.file_type === "cart_photo_2"
     );
+    const allCartPhotos = await Promise.all(cartFiles.map(async (file): Promise<CartPhoto> => {
+      const { data, error } = await supabase.storage.from("order-files")
+        .createSignedUrl(file.storage_path, 60 * 60);
+      return {
+        id: file.id,
+        file_type: file.file_type,
+        original_filename: file.original_filename,
+        is_current: file.is_current,
+        url: !error && data ? data.signedUrl : null,
+      };
+    }));
+    setCartPhotos(allCartPhotos);
 
 
 
-    const bill = files.find(
-
-      (file) =>
-
-        file.file_type === "bill"
-
-    );
+    const bill = files.find((file) => file.file_type === "bill" && file.is_current);
 
 
 
-    const qr = files.find(
-
-      (file) =>
-
-        file.file_type === "payment_qr"
-
-    );
+    const qr = files.find((file) => file.file_type === "payment_qr" && file.is_current);
 
 
 
@@ -464,39 +466,7 @@ export default function BillingPage() {
 
 
 
-    if (cartPhoto) {
 
-      const {
-
-        data: signedData,
-
-        error: signedError,
-
-      } = await supabase.storage
-
-        .from("order-files")
-
-        .createSignedUrl(
-
-          cartPhoto.storage_path,
-
-          60 * 60
-
-        );
-
-
-
-      if (!signedError && signedData) {
-
-        setCartPhotoUrl(
-
-          signedData.signedUrl
-
-        );
-
-      }
-
-    }
 
 
 
@@ -1343,33 +1313,34 @@ export default function BillingPage() {
 
 
             <h2 className="font-bold text-lg mb-4">
-
-              รูปรถเข็นจากผู้จัดสินค้า
-
+              รูปรถเข็นจากผู้จัดสินค้า ({cartPhotos.length} รูป)
             </h2>
 
-
-
-            {cartPhotoUrl ? (
-
-              <img
-
-                src={cartPhotoUrl}
-
-                alt="รูปรถเข็นสินค้าที่จัดเสร็จแล้ว"
-
-                className="w-full max-h-96 object-contain rounded-lg border"
-
-              />
-
+            {cartPhotos.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {cartPhotos.map((photo) => (
+                  <div key={photo.id} className="rounded-xl border border-[#E2EEEA] p-2">
+                    <p className={photo.is_current
+                      ? "mb-2 text-xs font-extrabold text-[#007F79]"
+                      : "mb-2 text-xs font-extrabold text-[#8A6000]"}>
+                      {photo.is_current ? "รูปรอบล่าสุด" : "รูปเดิม (เก็บไว้)"}
+                    </p>
+                    {photo.url ? (
+                      <a href={photo.url} target="_blank" rel="noopener noreferrer">
+                        <img src={photo.url} alt="รูปรถเข็นสินค้าของคำสั่งซื้อ" loading="lazy"
+                          className="h-48 w-full rounded-lg border object-contain" />
+                      </a>
+                    ) : (
+                      <p className="rounded-lg bg-gray-100 p-3 text-sm text-gray-500">ไม่สามารถเปิดภาพได้</p>
+                    )}
+                    <p className="mt-2 truncate text-xs text-gray-500">
+                      {photo.original_filename ?? "รูปรถเข็น"}
+                    </p>
+                  </div>
+                ))}
+              </div>
             ) : (
-
-              <p className="text-gray-500">
-
-                ไม่มีรูปรถเข็นสินค้า
-
-              </p>
-
+              <p className="text-gray-500">ไม่มีรูปรถเข็นสินค้า</p>
             )}
 
 
