@@ -157,8 +157,13 @@ export default function ConfirmationPage() {
   const actionableItems = addonMode
     ? items.filter((item) => Number(item.addon_requested_qty) > 0)
     : items;
-  const previouslyCompletedItems = addonMode
-    ? items.filter((item) => Number(item.addon_requested_qty) === 0)
+  // A SKU can appear in both sections if the customer added more of an
+  // originally ordered product. The original portion is always shown below,
+  // while only the additional quantity is editable in the new-items table.
+  const originalItems = addonMode
+    ? items.filter((item) =>
+        Number(item.requested_qty) - Number(item.addon_requested_qty) > 0
+      )
     : [];
 
   const [
@@ -878,7 +883,9 @@ export default function ConfirmationPage() {
           <div className="p-6 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold">
-                {addonMode ? "ยืนยันสินค้าเพิ่มเติม" : "ยืนยันจำนวนสินค้า"}
+                {addonMode
+                  ? `สินค้าเพิ่มเติมที่ต้องยืนยัน (${actionableItems.length} รายการ)`
+                  : "ยืนยันจำนวนสินค้า"}
               </h2>
 
               <p className="text-gray-500 text-sm mt-1">
@@ -1058,22 +1065,63 @@ export default function ConfirmationPage() {
         </section>
 
         {addonMode && (
-          <section className="mt-4 rounded-2xl border border-[#FCD34D] bg-[#FFFBEB] p-5">
-            <h3 className="font-bold text-[#92400E]">ยืนยันสินค้าเพิ่มเติมเท่านั้น</h3>
-            <p className="mt-1 text-sm text-[#785600]">
-              จำนวนยืนยันและหยิบสินค้าจากรอบเดิมยังคงเดิม แม้เป็น SKU เดียวกันกับที่เพิ่มใหม่
-            </p>
-            {previouslyCompletedItems.length > 0 && (
-              <div className="mt-3 space-y-2 border-t border-[#F6DA65] pt-3">
-                {previouslyCompletedItems.map((item) => (
-                  <div key={item.id} className="flex justify-between gap-3 text-xs">
-                    <span>{item.product_name_snapshot}</span>
-                    <span className="shrink-0 font-semibold">
-                      เดิมยืนยัน {Number(item.confirmed_qty ?? 0)} · หยิบ {Number(item.actual_qty ?? 0)} {item.unit_snapshot}
-                    </span>
-                  </div>
-                ))}
+          <section className="mt-5 overflow-hidden rounded-2xl border border-[#CFE3DD] bg-white">
+            <div className="border-b border-[#DCE9E4] bg-[#F0F7F4] px-5 py-4">
+              <h3 className="text-base font-extrabold text-[#234C40]">
+                สินค้าในคำสั่งซื้อเดิม ({originalItems.length} รายการ)
+              </h3>
+              <p className="mt-1 text-sm leading-6 text-[#577268]">
+                ดูจำนวนที่สั่ง ยืนยัน และหยิบไว้ก่อนหน้าได้ที่นี่ โดยไม่ต้องยืนยันซ้ำ
+                ถ้าลูกค้าเพิ่ม SKU เดิม สินค้านั้นจะแสดงทั้งสองส่วน แต่แยกจำนวนเดิมกับจำนวนเพิ่ม
+              </p>
+            </div>
+            {originalItems.length > 0 ? (
+              <div className="divide-y divide-[#E5EFEB]">
+                {originalItems.map((item) => {
+                  const originalRequested = Math.max(
+                    0, Number(item.requested_qty) - Number(item.addon_requested_qty)
+                  );
+                  return (
+                    <div key={item.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <ProductThumbnail
+                          imageUrl={item.products?.image_url}
+                          alt={item.product_name_snapshot}
+                        />
+                        <div className="min-w-0">
+                          <p className="font-semibold text-[#24473F]">{item.product_name_snapshot}</p>
+                          <p className="mt-1 text-xs text-[#71877E]">SKU {item.products?.sku ?? "—"}</p>
+                          {Number(item.addon_requested_qty) > 0 && (
+                            <span className="mt-2 inline-block rounded-full bg-[#FFF3D4] px-2 py-1 text-xs font-bold text-[#8A6000]">
+                              สินค้าเดียวกับรายการเพิ่มเติมด้านบน
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 rounded-xl bg-[#F6FAF8] px-3 py-3 text-center sm:min-w-[280px]">
+                        <div>
+                          <p className="text-xs text-[#72877D]">สั่งเดิม</p>
+                          <p className="mt-1 text-sm font-bold">{originalRequested} {item.unit_snapshot}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[#72877D]">ยืนยันเดิม</p>
+                          <p className="mt-1 text-sm font-bold">
+                            {item.confirmed_qty === null ? "ยังไม่ยืนยัน" : `${Number(item.confirmed_qty)} ${item.unit_snapshot}`}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[#72877D]">หยิบเดิม</p>
+                          <p className="mt-1 text-sm font-bold">
+                            {item.actual_qty === null ? "ยังไม่หยิบ" : `${Number(item.actual_qty)} ${item.unit_snapshot}`}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+            ) : (
+              <p className="p-5 text-sm text-[#71877E]">คำสั่งซื้อเดิมยังไม่มีสินค้าอื่น</p>
             )}
           </section>
         )}
