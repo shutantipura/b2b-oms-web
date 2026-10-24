@@ -22,6 +22,7 @@ import TaskFilePicker from "../../../../components/TaskFilePicker";
 type OrderDetails = {
   id: string;
   order_number: number;
+  adjustment_count: number;
   delivery_date: string | null;
   delivery_slot: string | null;
   delivery_address: string | null;
@@ -337,6 +338,7 @@ export default function PickingPage() {
         .select(`
           id,
           order_number,
+          adjustment_count,
           delivery_date,
           delivery_slot,
           delivery_address,
@@ -957,6 +959,11 @@ export default function PickingPage() {
             <p className="mt-1 text-xs font-semibold text-[#82958F]">
               คำสั่งซื้อ #{order.order_number}
             </p>
+            {order.adjustment_count > 0 && (
+              <p className="mt-2 inline-flex rounded-lg border border-[#E7C978] bg-[#FFF4CB] px-3 py-2 text-xs font-extrabold text-[#745200]">
+                ปรับคำสั่งซื้อแล้ว · หยิบสินค้าทุกรายการใหม่
+              </p>
+            )
           </div>
 
           <button
@@ -970,7 +977,7 @@ export default function PickingPage() {
           </button>
         </div>
 
-        {mergeAddedQuantities !== null && (
+        {order.adjustment_count === 0 && mergeAddedQuantities !== null && (
           <div role="status" className="mb-6 rounded-2xl border-2 border-[#FFB74D] bg-[#FFF3E0] p-4 text-[#894600]">
             <p className="font-extrabold">📦 ลูกค้าเพิ่มสินค้าเข้าคำสั่งซื้อเดิม</p>
             <p className="mt-1 text-sm leading-6">
@@ -1171,7 +1178,7 @@ export default function PickingPage() {
 
         <section className="bg-white border rounded-2xl p-6">
           <h2 className="font-bold text-lg">รูปรถเข็นสินค้า</h2>
-          {archivedCartPhotos.length > 0 && (
+          {order.adjustment_count === 0 && archivedCartPhotos.length > 0 && (
             <div className="mt-4 mb-5 rounded-xl border border-[#B8EAE5] bg-[#F0FAF8] p-4">
               <h3 className="font-extrabold text-[#006F6A]">
                 รูปรถเข็นที่บันทึกไว้ก่อนหน้านี้ ({archivedCartPhotos.length} รูป)
@@ -1200,14 +1207,16 @@ export default function PickingPage() {
             <p role="alert" className="mt-3 mb-4 text-sm text-red-700">{photoHistoryError}</p>
           )}
           <p className="text-sm text-gray-500 mt-1 mb-4">
-            {mergeAddedQuantities !== null
-              ? "เพิ่มรูปรถเข็นจากการจัดสินค้ารอบใหม่อย่างน้อย 1 รูป (เพิ่มรูปที่ 2 ได้ ไม่บังคับ) รูปเดิมจะยังคงอยู่"
-              : "ถ่ายรูปรถเข็นอย่างน้อย 1 รูป หลังบันทึกรูปแรกแล้วสามารถเพิ่มรูปที่ 2 ได้ (ไม่บังคับ)"}
+            {order.adjustment_count > 0
+              ? "คำสั่งซื้อนี้ถูกปรับแล้ว ต้องถ่ายรูปรถเข็นใหม่อย่างน้อย 1 รูป (เพิ่มรูปที่ 2 ได้) รูปเก่าไม่ถูกนำมาใช้"
+              : mergeAddedQuantities !== null
+                ? "เพิ่มรูปรถเข็นจากการจัดสินค้ารอบใหม่อย่างน้อย 1 รูป (เพิ่มรูปที่ 2 ได้ ไม่บังคับ)"
+                : "ถ่ายรูปรถเข็นอย่างน้อย 1 รูป หลังบันทึกรูปแรกแล้วสามารถเพิ่มรูปที่ 2 ได้ (ไม่บังคับ)"}
           </p>
           <div className="space-y-4">
             <TaskFilePicker
-              label={mergeAddedQuantities !== null ? "รูปรถเข็นเพิ่มเติม 1 (จำเป็น)" : "รูปรถเข็นสินค้า 1"}
-              chooseLabel={mergeAddedQuantities !== null ? "เพิ่มรูปรถเข็นใหม่" : "ถ่ายหรือเลือกรูปรถเข็น"}
+              label={order.adjustment_count > 0 ? "รูปรถเข็นใหม่ 1 (จำเป็น)" : mergeAddedQuantities !== null ? "รูปรถเข็นเพิ่มเติม 1 (จำเป็น)" : "รูปรถเข็นสินค้า 1"}
+              chooseLabel={order.adjustment_count > 0 ? "ถ่ายรูปรถเข็นใหม่" : mergeAddedQuantities !== null ? "เพิ่มรูปรถเข็นใหม่" : "ถ่ายหรือเลือกรูปรถเข็น"}
               replaceLabel="เปลี่ยนรูปที่ 1"
               accept="image/*"
               uploaded={photoUploaded[0]}
