@@ -1073,7 +1073,7 @@ export async function POST(
     }
 
     // -------------------------------------------------
-    // ORDER NUMBER
+    // ORDER NUMBER + RETIRED CART PHOTO CLEANUP
     // -------------------------------------------------
 
     const orderNumber =
@@ -1101,6 +1101,68 @@ export async function POST(
       );
     }
 
+    // The merge RPC atomically resets ALL confirmed/picked quantities and
+    // archives the previous cart images. Now delete the obsolete originals
+    // from Supabase Storage AND remove their file rows from the active order.
+    // The retry UUID makes it safe to repeat checkout if Storage temporarily
+    // fails: the same basket is NOT added a second time.
+    if (merging) {
+      type RetiredPhoto = { id: string; storage_path: string };
+      const responseObject = orderData && typeof orderData === "object"
+        ? orderData as Record<string, unknown>
+        : {};
+      const retired = Array.isArray(responseObject.retired_cart_photos)
+        ? responseObject.retired_cart_photos as RetiredPhoto[]
+        : [];
+      const photos = retired.filter(
+        (photo): photo is RetiredPhoto =>
+          photo !== null &&
+          typeof photo === "object" &&
+          typeof photo.id === "string" &&
+          typeof photo.storage_path === "string" &&
+          photo.storage_path.length > 0
+      );
+
+      if (photos.length > 0) {
+        const expectedPrefix = `orders/${orderNumber}/`;
+        const safePaths = photos
+          .map((photo) => photo.storage_path)
+          .filter((path) => path.startsWith(expectedPrefix));
+        if (safePaths.length !== photos.length) {
+          console.error("Unsafe obsolete cart photo path for order", orderNumber);
+          return NextResponse.json({
+            error: "ปรับคำสั่งซื้อแล้ว แต่การลบรูปเก่าติดปัญหา กรุณากดยืนยันคำสั่งซื้ออีกครั้ง (ระบบจะไม่เพิ่มรายการซ้ำ)",
+          }, { status: 503 });
+        }
+
+        const { error: removeError } = await supabase.storage
+          .from("order-files")
+          .remove([...new Set(safePaths)]);
+        if (removeError) {
+          console.error("Could not delete superseded cart photos:", removeError);
+          return NextResponse.json({
+            error: "ปรับคำสั่งซื้อแล้ว แต่ยังลบรูปรถเข็นเดิมไม่สำเร็จ กรุณากดยืนยันอีกครั้ง (ไม่เพิ่มสินค้าเป็นครั้งที่สอง)",
+          }, { status: 503 });
+        }
+
+        // Delete only the precise obsolete file rows returned by the locked
+        // merge operation. Never delete a photo uploaded by a new picker.
+        const { error: metadataError } = await supabase
+          .from("order_files")
+          .delete()
+          .eq("order_id", (responseObject.order_id as string))
+          .in("file_type", ["cart_photo", "cart_photo_2"])
+          .in("id", photos.map((photo) => photo.id));
+
+        if (metadataError) {
+          console.error("Could not clear obsolete cart file metadata:", metadataError);
+          return NextResponse.json({
+            error: "ปรับคำสั่งซื้อแล้ว แต่ยังลบข้อมูลรูปเก่าไม่สมบูรณ์ กรุณายืนยันอีกครั้ง (ไม่เพิ่มสินค้าเป็นครั้งที่สอง)",
+          }, { status: 503 });
+        }
+      }
+    }
+
     // -------------------------------------------------
     // SUCCESS
     // -------------------------------------------------
@@ -1111,6 +1173,7 @@ export async function POST(
 
       orderNumber,
       merged: merging,
+      adjusted: merging,
     });
   } catch (error) {
     console.error(
