@@ -332,7 +332,7 @@ export default function MiniAppCheckoutPage() {
     }
 
     const confirmation = chosenMerge
-      ? `รวมสินค้าใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เข้ากับคำสั่งซื้อ #${chosenMerge.orderNumber} ใช่หรือไม่?\nทีมงานจะต้องจัดสินค้าอีกครั้ง และส่งพร้อมกันตามรอบเดิม`
+      ? `รวมสินค้าใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เข้ากับคำสั่งซื้อ #${chosenMerge.orderNumber} ใช่หรือไม่?\nทีมงานจะยืนยันและจัดเฉพาะสินค้าเพิ่มเติม แล้วออกบิลรวมและส่งตามรอบเดิม`
       : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)} หรือไม่?`;
     if (!window.confirm(confirmation)) return;
     if (chosenMerge && !mergeRequestIdRef.current) mergeRequestIdRef.current = crypto.randomUUID();
@@ -419,14 +419,14 @@ export default function MiniAppCheckoutPage() {
             <h1 className="mt-5 text-2xl font-extrabold">{wasMerged ? "รวมคำสั่งซื้อเรียบร้อยแล้ว!" : "ได้รับคำสั่งซื้อแล้ว!"}</h1>
             <p className="mt-2 text-sm leading-6 text-[#748C80]">
               {wasMerged
-                ? "สินค้าเพิ่มเติมถูกรวมในคำสั่งซื้อเดิมแล้ว ทีมงานจะตรวจสอบและจัดสินค้าอีกครั้ง ก่อนออกบิลรวมและจัดส่งพร้อมกัน"
+                ? "สินค้าเพิ่มเติมถูกรวมในคำสั่งซื้อเดิมแล้ว ทีมงานจะยืนยันและจัดเฉพาะสินค้าใหม่ โดยไม่ต้องจัดสินค้าเดิมซ้ำ ก่อนออกบิลรวมและจัดส่งพร้อมกัน"
                 : "ทีมงานได้รับคำสั่งซื้อและกำลังตรวจสอบสินค้าเพื่อยืนยันรายการ"}
             </p>
             <div className="mt-6 rounded-2xl border border-[#BDEAE3] bg-[#EDFAF8] p-5">
               <p className="text-xs font-semibold text-[#668B81]">หมายเลขคำสั่งซื้อ</p>
               <p className="mt-1 text-4xl font-black text-[#008F8D]">#{createdOrderNumber}</p>
               <span className="mt-3 inline-block rounded-full bg-[#FFF2C9] px-3 py-1 text-xs font-bold text-[#906300]">
-                {wasMerged ? "รอจัดสินค้าเพิ่มเติม" : "รอการยืนยันจากทีมงาน"}
+                {wasMerged ? "รอยืนยันสินค้าเพิ่มเติม" : "รอการยืนยันจากทีมงาน"}
               </span>
             </div>
             <p className="mt-5 text-xs leading-5 text-[#82968D]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการยืนยันและการหยิบสินค้า</p>
@@ -531,7 +531,7 @@ export default function MiniAppCheckoutPage() {
               <legend className="px-2 text-sm font-extrabold text-[#006F6A]">มีคำสั่งซื้อเดิมในวันเดียวกัน</legend>
               <p className="mb-3 text-xs leading-5 text-[#4D6F65]">
                 ต้องการเพิ่มสินค้าลงในคำสั่งซื้อเดิมเพื่อจัดส่งพร้อมกันหรือไม่?
-                หากรวม ระบบจะใช้เวลาจัดส่งเดิม และให้ทีมงานจัดสินค้าใหม่ก่อนออกบิล
+                หากรวม ระบบจะใช้เวลาจัดส่งเดิม โดยทีมงานจะยืนยันและจัดเฉพาะสินค้าเพิ่มเติมก่อนออกบิลรวม
               </p>
               <label className="mb-2 flex cursor-pointer items-center gap-3 rounded-xl border border-[#D6E8E3] bg-white p-3 text-sm font-bold">
                 <input type="radio" name="merge-choice" checked={mergeIntoOrderNumber === null} onChange={() => chooseMerge(null)} />
