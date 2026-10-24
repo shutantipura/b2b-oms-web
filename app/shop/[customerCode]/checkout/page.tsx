@@ -449,7 +449,7 @@ export default function CheckoutPage() {
 
     // The chosen time may have expired while the checkout page was open.
     if (!getAvailableSlots(deliveryDate, new Date()).some((slot) => slot.value === deliverySlot)) {
-      setMessage("Delivery must start at least 2 hours after submitting your order. Please choose a later slot.");
+      setMessage("The selected delivery window has already started. Please choose the next available slot.");
       return;
     }
 
@@ -866,7 +866,7 @@ export default function CheckoutPage() {
 
               </select>
               <p className="mt-2 text-xs text-gray-500">
-                Orders can be placed at any time. The selected delivery slot must begin at least 2 hours after submission (Bangkok time).
+                Order at any time. Choose the next two-hour delivery window that has not started (Bangkok time).
               </p>
             </div>
 

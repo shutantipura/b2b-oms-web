@@ -1,9 +1,8 @@
-// Customer ordering is allowed at any hour, including after midnight.
-// The ONLY lead-time rule is that the requested delivery slot must begin
-// at least two full hours after the order is submitted (Bangkok time).
+// Customer ordering is available 24 hours a day.
+// A slot is selectable until its start time (Bangkok time); once started,
+// offer the next scheduled two-hour delivery window, or tomorrow's first slot.
 export const DELIVERY_RULES = {
   timezone: "Asia/Bangkok",
-  minLeadTimeMinutes: 120,
   daysToShow: 7,
   slots: [
     { value: "07:00–09:00", label: "07:00–09:00", startMinutes: 7 * 60 },
@@ -41,9 +40,8 @@ function bangkokToday(now = new Date()): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-// Both numbers use the same Bangkok wall-clock basis (expressed as
-// UTC-milliseconds for easy subtraction). This also works across midnight.
-// Keep the current millisecond part so 1h 59m 59.999s is never rounded up.
+// Compare slot starts and current time in the same Bangkok wall-clock basis.
+// Keep milliseconds so a slot that has just started is no longer offered.
 function bangkokWallClockMs(now: Date): number {
   const { year, month, day, hour, minute, second } = bangkokDateParts(now);
   return Date.UTC(year, month - 1, day, hour, minute, second, now.getMilliseconds());
@@ -67,19 +65,17 @@ export function getAvailableSlots(deliveryDate: string, now = new Date()) {
   const deliveryDayMs = dateStartWallClockMs(deliveryDate);
   if (deliveryDayMs === null) return [];
 
-  const earliestStartMs = bangkokWallClockMs(now) +
-    DELIVERY_RULES.minLeadTimeMinutes * 60_000;
+  const submittedAtMs = bangkokWallClockMs(now);
 
   return DELIVERY_RULES.slots.filter((slot) => {
     const slotStartMs = deliveryDayMs + slot.startMinutes * 60_000;
-    return slotStartMs >= earliestStartMs;
+    return slotStartMs >= submittedAtMs;
   });
 }
 
 export function getEarliestDeliveryDate(now = new Date()): string {
   const today = bangkokToday(now);
-  // If every today's slot has started or is fewer than two hours away,
-  // the first selectable delivery date is tomorrow.
+  // Once the final window's start time (15:00) has passed, tomorrow is first.
   return getAvailableSlots(today, now).length > 0 ? today : addDays(today, 1);
 }
 
@@ -113,7 +109,7 @@ export function validateDeliverySelection(
   if (!option.slots.some((slot) => slot.value === deliverySlot)) {
     return {
       valid: false,
-      message: "กรุณาเลือกช่วงเวลาจัดส่งที่เริ่มอย่างน้อย 2 ชั่วโมงหลังเวลาสั่งซื้อ",
+      message: "รอบจัดส่งที่เลือกเริ่มไปแล้ว กรุณาเลือกรอบถัดไป",
     };
   }
   return { valid: true, message: "" };
