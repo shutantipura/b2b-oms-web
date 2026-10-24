@@ -33,6 +33,7 @@ type Customer = {
   rider_note: string | null;
 
   is_active: boolean;
+  cv_card_storage_path: string | null;
 
 };
 
@@ -270,6 +271,8 @@ export default function CustomerDetailPage() {
   const [saving, setSaving] =
 
     useState(false);
+  const [cvCardUrl, setCvCardUrl] = useState<string | null>(null);
+  const [cvCardUploading, setCvCardUploading] = useState(false);
 
 
 
@@ -324,6 +327,7 @@ export default function CustomerDetailPage() {
         delivery_map_url,
 
         rider_note,
+        cv_card_storage_path,
 
         is_active
 
@@ -362,6 +366,15 @@ export default function CustomerDetailPage() {
 
 
     setCustomer(loadedCustomer);
+    setCvCardUrl(null);
+    if (loadedCustomer.cv_card_storage_path) {
+      const { data: cvSigned, error: cvError } = await supabase.storage
+        .from("order-files")
+        .createSignedUrl(loadedCustomer.cv_card_storage_path, 3600);
+      if (!cvError) {
+        setCvCardUrl(cvSigned?.signedUrl ?? null);
+      }
+    }
 
 
 
@@ -1009,6 +1022,66 @@ export default function CustomerDetailPage() {
 
     await loadCustomer();
 
+  }
+
+
+  async function uploadCvCard(file: File) {
+    if (!customer || cvCardUploading) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setMessage("กรุณาใช้รูป JPG, PNG หรือ WebP");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setMessage("รูป CV card ต้องมีขนาดไม่เกิน 10 MB");
+      return;
+    }
+
+    setCvCardUploading(true);
+    setMessage("");
+    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const path = `customer-cv/${customer.id}/${crypto.randomUUID()}.${ext}`;
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("order-files")
+        .upload(path, file, { upsert: false, contentType: file.type });
+      if (uploadError) throw uploadError;
+
+      const { data, error: saveError } = await supabase
+        .from("customers")
+        .update({ cv_card_storage_path: path })
+        .eq("id", customer.id)
+        .select("id")
+        .single();
+      if (saveError || !data) {
+        // The upload and database update are separate operations.
+        // Delete this unused new upload if the manager-only update failed.
+        await supabase.storage.from("order-files").remove([path]);
+        throw saveError ?? new Error("ไม่สามารถบันทึก CV card ลงข้อมูลลูกค้าได้");
+      }
+
+      await loadCustomer();
+      setMessage("✓ บันทึกรูป CV card ของลูกค้าแล้ว");
+    } catch (error) {
+      setMessage("ไม่สามารถบันทึก CV card: " + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setCvCardUploading(false);
+    }
+  }
+
+  async function removeCvCard() {
+    if (!customer || !customer.cv_card_storage_path || cvCardUploading) return;
+    if (!window.confirm("นำ CV card ออกจากข้อมูลลูกค้านี้หรือไม่? รูปที่แนบในคำสั่งซื้อเดิมจะยังคงอยู่")) return;
+    setCvCardUploading(true);
+    const { error } = await supabase.from("customers")
+      .update({ cv_card_storage_path: null })
+      .eq("id", customer.id);
+    if (error) {
+      setMessage("ไม่สามารถนำ CV card ออกได้: " + error.message);
+    } else {
+      await loadCustomer();
+      setMessage("นำ CV card ออกจากข้อมูลลูกค้าแล้ว");
+    }
+    setCvCardUploading(false);
   }
 
   async function toggleCustomerStatus() {
@@ -2096,6 +2169,45 @@ export default function CustomerDetailPage() {
         </section>
 
 
+
+        {/* Customer CV card - kept in private storage, available to billing workers. */}
+        <section className="bg-white border rounded-2xl p-6 mb-6">
+          <h2 className="font-bold text-lg">CV card (รูปบัตรลูกค้า)</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            รูปนี้จะถูกใช้แทน QR ในงานออกบิลเมื่อเลือก “บัญชีลูกค้าถูกระงับ”
+          </p>
+          {cvCardUrl ? (
+            <a href={cvCardUrl} target="_blank" rel="noreferrer"
+              className="mt-4 block max-w-sm rounded-xl border bg-gray-50 p-3">
+              <img src={cvCardUrl} alt="CV card ของลูกค้า" className="max-h-64 w-full object-contain" />
+            </a>
+          ) : (
+            <p className="mt-4 text-sm text-gray-500">
+              {customer.cv_card_storage_path ? "มีไฟล์บันทึกแล้ว แต่ไม่สามารถแสดงตัวอย่างได้" : "ยังไม่ได้อัปโหลด CV card"}
+            </p>
+          )}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className={`inline-flex min-h-11 cursor-pointer items-center rounded-xl bg-[#00BCB4] px-4 py-2 text-sm font-bold text-[#173F3C] ${cvCardUploading ? "pointer-events-none opacity-50" : ""}`}>
+              {cvCardUploading ? "กำลังอัปโหลด..." : customer.cv_card_storage_path ? "เปลี่ยนรูป CV card" : "อัปโหลดรูป CV card"}
+              <input type="file" accept="image/jpeg,image/png,image/webp" disabled={cvCardUploading}
+                className="sr-only" onChange={(event) => {
+                  const selected = event.currentTarget.files?.[0];
+                  if (selected) void uploadCvCard(selected);
+                  event.currentTarget.value = "";
+                }} />
+            </label>
+            {customer.cv_card_storage_path && (
+              <button type="button" onClick={() => void removeCvCard()}
+                disabled={cvCardUploading}
+                className="min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50">
+                นำรูปออก
+              </button>
+            )}
+          </div>
+          <p className="mt-3 text-xs text-gray-500">
+            รองรับ JPG, PNG, WebP ไม่เกิน 10 MB · การเปลี่ยนรูปจะไม่แก้ไขภาพที่ใช้ในคำสั่งซื้อเก่า
+          </p>
+        </section>
 
         {/* LINE ACCOUNTS */}
 
