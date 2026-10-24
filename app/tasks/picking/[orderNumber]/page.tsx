@@ -52,6 +52,14 @@ type OrderItem = {
   } | null;
 };
 
+type ArchivedCartPhoto = {
+  id: string;
+  file_type: string;
+  original_filename: string | null;
+  created_at: string;
+  url: string | null;
+};
+
 type SearchProduct = {
   product_id: string;
   sku: string;
@@ -169,6 +177,10 @@ export default function PickingPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const [photoUploaded, setPhotoUploaded] = useState<boolean[]>([false, false]);
+  // Superseded photos are retained in Storage and shown here for comparison.
+  // They NEVER satisfy the fresh-photo requirement for the new picking run.
+  const [archivedCartPhotos, setArchivedCartPhotos] = useState<ArchivedCartPhoto[]>([]);
+  const [photoHistoryError, setPhotoHistoryError] = useState("");
 
   const [
     loading,
@@ -365,18 +377,43 @@ export default function PickingPage() {
 
     const { data: existingPhotos, error: photoError } = await supabase
       .from("order_files")
-      .select("file_type, original_filename")
+      .select("id, file_type, storage_path, original_filename, created_at, is_current")
       .eq("order_id", orderData.id)
       .in("file_type", ["cart_photo", "cart_photo_2"])
-      .eq("is_current", true);
+      .order("created_at", { ascending: true });
 
-    const firstPhoto = existingPhotos?.find((file) => file.file_type === "cart_photo");
-    const secondPhoto = existingPhotos?.find((file) => file.file_type === "cart_photo_2");
+    const currentPhotos = (existingPhotos ?? []).filter((photo) => photo.is_current);
+    const firstPhoto = currentPhotos.find((photo) => photo.file_type === "cart_photo");
+    const secondPhoto = currentPhotos.find((photo) => photo.file_type === "cart_photo_2");
     setPhotoUploaded([Boolean(!photoError && firstPhoto), Boolean(!photoError && secondPhoto)]);
     setCartPhotoNames([
       !photoError ? firstPhoto?.original_filename ?? null : null,
       !photoError ? secondPhoto?.original_filename ?? null : null,
     ]);
+
+    // A merged order archives the old cart images (is_current=false), it does
+    // not delete the database rows or the Storage objects. Display those
+    // historical images and ask for NEW photos for the new picking pass.
+    if (photoError) {
+      setArchivedCartPhotos([]);
+      setPhotoHistoryError("ไม่สามารถโหลดรูปรถเข็นเดิมได้: " + photoError.message);
+    } else {
+      const archived = (existingPhotos ?? []).filter((photo) => !photo.is_current);
+      const signed = await Promise.all(archived.map(async (photo) => {
+        const { data, error } = await supabase.storage
+          .from("order-files")
+          .createSignedUrl(photo.storage_path, 60 * 60);
+        return {
+          id: photo.id,
+          file_type: photo.file_type,
+          original_filename: photo.original_filename,
+          created_at: photo.created_at,
+          url: !error && data ? data.signedUrl : null,
+        } satisfies ArchivedCartPhoto;
+      }));
+      setArchivedCartPhotos(signed);
+      setPhotoHistoryError("");
+    }
 
     const { data: latestMerge } = await supabase
       .from("order_history")
@@ -893,8 +930,8 @@ export default function PickingPage() {
           <div role="status" className="mb-6 rounded-2xl border-2 border-[#FFB74D] bg-[#FFF3E0] p-4 text-[#894600]">
             <p className="font-extrabold">📦 ลูกค้าเพิ่มสินค้าเข้าคำสั่งซื้อเดิม</p>
             <p className="mt-1 text-sm leading-6">
-              คำสั่งซื้อนี้ถูกส่งกลับมาจัดสินค้าอีกครั้ง กรุณาตรวจสอบจำนวนสินค้ารวมใหม่ทั้งหมด
-              และถ่ายรูปรถเข็นใหม่ก่อนส่งไปออกบิล
+              คำสั่งซื้อนี้ถูกส่งกลับมาจัดสินค้าอีกครั้ง รูปที่ถ่ายไว้ก่อนรวมคำสั่งซื้อยังคงเก็บอยู่
+              กรุณาตรวจสอบจำนวนสินค้ารวมใหม่ทั้งหมด และเพิ่มรูปรถเข็นใหม่อย่างน้อย 1 รูปก่อนส่งไปออกบิล
             </p>
           </div>
         )}
@@ -1101,13 +1138,43 @@ export default function PickingPage() {
 
         <section className="bg-white border rounded-2xl p-6">
           <h2 className="font-bold text-lg">รูปรถเข็นสินค้า</h2>
+          {archivedCartPhotos.length > 0 && (
+            <div className="mt-4 mb-5 rounded-xl border border-[#B8EAE5] bg-[#F0FAF8] p-4">
+              <h3 className="font-extrabold text-[#006F6A]">
+                รูปรถเข็นที่บันทึกไว้ก่อนหน้านี้ ({archivedCartPhotos.length} รูป)
+              </h3>
+              <p className="mt-1 text-sm text-[#47675D]">
+                รูปเดิมไม่ได้ถูกลบ และจะยังปรากฏในประวัติคำสั่งซื้อ กรุณาเพิ่มรูปจากการจัดสินค้ารอบนี้
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {archivedCartPhotos.map((photo, i) => (
+                  <div key={photo.id} className="rounded-lg border border-[#CEE7E0] bg-white p-2">
+                    {photo.url ? (
+                      <a href={photo.url} target="_blank" rel="noopener noreferrer">
+                        <img src={photo.url} alt={`รูปรถเข็นเดิม ${i + 1}`} loading="lazy" className="h-28 w-full rounded-md object-contain" />
+                      </a>
+                    ) : (
+                      <div className="flex h-28 items-center justify-center rounded-md bg-gray-100 text-xs text-gray-500">ไม่สามารถเปิดภาพได้</div>
+                    )}
+                    <p className="mt-2 text-xs font-semibold text-[#315E50]">รูปเดิม #{i + 1}</p>
+                    <p className="mt-1 truncate text-[11px] text-gray-500">{photo.original_filename ?? "รูปรถเข็น"}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {photoHistoryError && (
+            <p role="alert" className="mt-3 mb-4 text-sm text-red-700">{photoHistoryError}</p>
+          )}
           <p className="text-sm text-gray-500 mt-1 mb-4">
-            ถ่ายรูปรถเข็นอย่างน้อย 1 รูป หลังบันทึกรูปแรกแล้วสามารถเพิ่มรูปที่ 2 ได้ (ไม่บังคับ)
+            {mergeAddedQuantities !== null
+              ? "เพิ่มรูปรถเข็นจากการจัดสินค้ารอบใหม่อย่างน้อย 1 รูป (เพิ่มรูปที่ 2 ได้ ไม่บังคับ) รูปเดิมจะยังคงอยู่"
+              : "ถ่ายรูปรถเข็นอย่างน้อย 1 รูป หลังบันทึกรูปแรกแล้วสามารถเพิ่มรูปที่ 2 ได้ (ไม่บังคับ)"}
           </p>
           <div className="space-y-4">
             <TaskFilePicker
-              label="รูปรถเข็นสินค้า 1"
-              chooseLabel="ถ่ายหรือเลือกรูปรถเข็น"
+              label={mergeAddedQuantities !== null ? "รูปรถเข็นเพิ่มเติม 1 (จำเป็น)" : "รูปรถเข็นสินค้า 1"}
+              chooseLabel={mergeAddedQuantities !== null ? "เพิ่มรูปรถเข็นใหม่" : "ถ่ายหรือเลือกรูปรถเข็น"}
               replaceLabel="เปลี่ยนรูปที่ 1"
               accept="image/*"
               uploaded={photoUploaded[0]}
@@ -1118,7 +1185,7 @@ export default function PickingPage() {
             />
             {photoUploaded[0] && (
               <TaskFilePicker
-                label="รูปรถเข็นสินค้า 2 (ไม่บังคับ)"
+                label={mergeAddedQuantities !== null ? "รูปรถเข็นเพิ่มเติม 2 (ไม่บังคับ)" : "รูปรถเข็นสินค้า 2 (ไม่บังคับ)"}
                 chooseLabel="เพิ่มรูปรถเข็นอีก 1 รูป (ไม่บังคับ)"
                 replaceLabel="เปลี่ยนรูปที่ 2"
                 appearance={photoUploaded[1] ? "default" : "add"}
