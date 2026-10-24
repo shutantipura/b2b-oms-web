@@ -32,6 +32,7 @@ type OrderDetails = {
 
   final_amount: number | string | null;
   billing_account_suspended: boolean;
+  billing_no_cv: boolean;
 
   created_at: string;
 
@@ -185,7 +186,8 @@ function prettyText(value: string | null) {
 
 
 
-function fileLabel(type: string, suspendedBilling = false) {
+function fileLabel(type: string, suspendedBilling = false, noCvBilling = false) {
+  if (type === "bill" && noCvBilling) return "รูปพักบิล (POS)";
   if (type === "payment_qr" && suspendedBilling) return "CV card ลูกค้า";
 
   const labels: Record<string, string> = {
@@ -312,6 +314,7 @@ export default function OrderDetailsPage() {
 
         final_amount,
         billing_account_suspended,
+        billing_no_cv,
 
         created_at,
 
@@ -975,6 +978,14 @@ export default function OrderDetailsPage() {
 
             </p>
 
+            {(order.billing_account_suspended || order.billing_no_cv) && (
+              <p className="mt-3 inline-flex rounded-lg border border-[#F0BD59] bg-[#FFF7E3] px-3 py-2 text-xs font-bold text-[#8A4A00]">
+                {order.billing_account_suspended
+                  ? "บัญชีถูกระงับ · ใช้ CV card แทน QR"
+                  : "ลูกค้าไม่มีCV · ใช้รูปพักบิลจาก POS ไม่ต้องใช้ QR"}
+              </p>
+            )}
+
 
 
           </div>
@@ -1544,7 +1555,8 @@ export default function OrderDetailsPage() {
                     {fileLabel(
 
                       file.file_type,
-                      order.billing_account_suspended
+                      order.billing_account_suspended,
+                      order.billing_no_cv
 
                     )}
 
@@ -1583,7 +1595,8 @@ export default function OrderDetailsPage() {
                           alt={fileLabel(
 
                             file.file_type,
-                            order.billing_account_suspended
+                            order.billing_account_suspended,
+                            order.billing_no_cv
 
                           )}
 
