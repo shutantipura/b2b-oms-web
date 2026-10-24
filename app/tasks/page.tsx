@@ -1169,7 +1169,7 @@ export default function TasksPage() {
 
     ) {
 
-      return `/tasks/payment-verification/${orderNumber}`;
+      return `/orders/${orderNumber}/payment`;
 
     }
 
@@ -1597,7 +1597,7 @@ export default function TasksPage() {
                                   </div>
                                 ) : isAwaitingPayment ? (
                                   <Link
-                                    href={`/tasks/payment-verification/${order.order_number}`}
+                                    href={`/orders/${order.order_number}/payment`}
                                     className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-xl bg-[#008F8D] px-3 py-2 text-sm font-bold text-white shadow-sm"
                                   >
                                     ชำระเงิน
