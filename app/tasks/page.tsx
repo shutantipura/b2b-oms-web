@@ -1077,6 +1077,26 @@ export default function TasksPage() {
 
 
 
+  async function takeOverTask(orderNumber: number, stage: string, currentOwnerId: string, currentOwnerName: string) {
+    const proceed = window.confirm(
+      `⚠️ ยืนยันการรับงานแทนพนักงานคนอื่น?\\n\\nคำสั่งซื้อ #${orderNumber}\\nผู้รับงานปัจจุบัน: ${currentOwnerName}\\n\\nหากยืนยัน พนักงานเดิมจะเสียสิทธิ์ดำเนินงานนี้ทันที และคุณจะเป็นผู้รับงานใหม่ กรุณาตรวจสอบงานที่ทำไปแล้วก่อนทำต่อ`
+    );
+    if (!proceed) return;
+
+    setMessage(`กำลังรับงานแทนสำหรับคำสั่งซื้อ #${orderNumber}...`);
+    const { error } = await supabase.rpc("take_over_my_task", {
+      p_order_number: orderNumber,
+      p_stage: stage,
+      p_expected_staff_id: currentOwnerId,
+    });
+    if (error) {
+      await loadData();
+      setMessage("ไม่สามารถรับงานแทนได้: " + error.message);
+      return;
+    }
+    window.location.assign(taskLink(stage, orderNumber));
+  }
+
   // =====================================================
 
   // CONTINUE LINK
@@ -1557,7 +1577,20 @@ export default function TasksPage() {
                               </div>
 
                               <div className="flex shrink-0 items-center justify-end">
-                                {!canWork ? (
+                                {claim && !isMine ? (
+                                  <div className="flex max-w-40 flex-col items-end gap-1.5 text-right">
+                                    <span className="text-[11px] font-semibold text-[#647D75]">
+                                      กำลังดำเนินการ: {claim.staff_name}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => void takeOverTask(order.order_number, group.stage, claim.staff_id, claim.staff_name)}
+                                      className="inline-flex min-h-10 items-center justify-center rounded-xl border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-extrabold text-orange-800 hover:bg-orange-100"
+                                    >
+                                      รับงานแทน
+                                    </button>
+                                  </div>
+                                ) : !canWork ? (
                                   <div className="max-w-28 text-right text-[11px] leading-snug text-[#718C84]">
                                     <div className="font-bold">ดูสถานะเท่านั้น</div>
                                     <div className="mt-1 break-words">
