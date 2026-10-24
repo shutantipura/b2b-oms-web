@@ -188,7 +188,9 @@ function fileLabel(type: string) {
 
   const labels: Record<string, string> = {
 
-    cart_photo: "รูปรถเข็นสินค้า",
+    cart_photo: "รูปรถเข็นสินค้า 1",
+
+    cart_photo_2: "รูปรถเข็นสินค้า 2",
 
     bill: "บิล",
 
@@ -1012,7 +1014,7 @@ export default function OrderDetailsPage() {
 
 
 
-        {isManager && order.final_amount !== null && (
+        {isManager && order.final_amount !== null && order.status !== "cancelled" && (
           <section className="mb-6 rounded-2xl border border-[#B8DEDA] bg-white p-5">
             <h2 className="text-xl font-bold text-[#17453F]">ปรับยอดบิลสุดท้าย (ผู้จัดการ)</h2>
             <p className="mt-1 text-sm text-gray-500">
