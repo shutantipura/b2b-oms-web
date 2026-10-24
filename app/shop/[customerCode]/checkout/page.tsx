@@ -14,6 +14,7 @@ import {
 } from "next/navigation";
 
 import { supabase } from "../../../../lib/supabase";
+import { getAvailableSlots, getEarliestDeliveryDate } from "../../../../lib/deliveryRules";
 
 type Customer = {
   id: string;
@@ -43,22 +44,6 @@ type CheckoutItem = Product & {
 };
 
 type Cart = Record<string, number>;
-
-function getLocalToday() {
-  const now = new Date();
-
-  const localDate =
-    new Date(
-      now.getTime() -
-        now.getTimezoneOffset() *
-          60 *
-          1000
-    );
-
-  return localDate
-    .toISOString()
-    .split("T")[0];
-}
 
 export default function CheckoutPage() {
   const params = useParams();
@@ -127,8 +112,15 @@ export default function CheckoutPage() {
       null
     );
 
-  const today =
-    getLocalToday();
+  const [clock, setClock] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setClock(new Date()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const today = getEarliestDeliveryDate(clock);
+  const availableSlots = getAvailableSlots(deliveryDate, clock);
 
   // =====================================================
   // LOAD CHECKOUT
@@ -452,6 +444,12 @@ export default function CheckoutPage() {
       setMessage(
         "Please select a delivery time."
       );
+      return;
+    }
+
+    // The chosen time may have expired while the checkout page was open.
+    if (!getAvailableSlots(deliveryDate, new Date()).some((slot) => slot.value === deliverySlot)) {
+      setMessage("Delivery must start at least 2 hours after submitting your order. Please choose a later slot.");
       return;
     }
 
@@ -824,13 +822,9 @@ export default function CheckoutPage() {
                 value={
                   deliveryDate
                 }
-                onChange={(
-                  event
-                ) =>
-                  setDeliveryDate(
-                    event.target
-                      .value
-                  )
+                onChange={(event) => {
+                  setDeliveryDate(event.target.value);
+                  setDeliverySlot("");
                 }
                 className="w-full border rounded-xl px-4 py-3"
               />
@@ -864,28 +858,16 @@ export default function CheckoutPage() {
                   Select delivery time
                 </option>
 
-                <option value="07:00 - 09:00">
-                  07:00 - 09:00
-                </option>
-
-                <option value="09:00 - 11:00">
-                  09:00 - 11:00
-                </option>
-
-                <option value="11:00 - 13:00">
-                  11:00 - 13:00
-                </option>
-
-                <option value="13:00 - 15:00">
-                  13:00 - 15:00
-                </option>
-
-                <option value="15:00 - 17:00">
-                  15:00 - 17:00
-                </option>
+                {availableSlots.map((slot) => (
+                  <option key={slot.value} value={slot.value}>
+                    {slot.label}
+                  </option>
+                ))}
 
               </select>
-
+              <p className="mt-2 text-xs text-gray-500">
+                Orders can be placed at any time. The selected delivery slot must begin at least 2 hours after submission (Bangkok time).
+              </p>
             </div>
 
             {/* DELIVERY ADDRESS */}
