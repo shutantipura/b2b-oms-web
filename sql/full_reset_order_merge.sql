@@ -72,6 +72,7 @@ BEGIN
       'success', true,
       'merged', true,
       'order_number', v_order.order_number,
+      'order_id', v_order.id,
       'new_status', v_order.status,
       'already_processed', true,
       'retired_cart_photos', coalesce(h.details->'previous_cart_photos', '[]'::jsonb)
@@ -256,6 +257,7 @@ BEGIN
   RETURN jsonb_build_object(
     'success', true, 'merged', true,
     'order_number', v_order.order_number,
+    'order_id', v_order.id,
     'new_status', 'awaiting_confirmation',
     'added_item_count', v_item_count,
     'released_active_tasks', v_released_tasks,
