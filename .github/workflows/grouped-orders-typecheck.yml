@@ -28,5 +28,5 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: '1'
           NEXT_PUBLIC_SUPABASE_URL: 'https://example.supabase.co'
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder_for_ci'
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'placeholder_for_ci'
           NEXT_PUBLIC_LINE_LIFF_ID: '1234567890-placeholder'
