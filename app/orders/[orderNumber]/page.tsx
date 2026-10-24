@@ -17,6 +17,8 @@ type OrderDetails = {
   id: string;
 
   order_number: number;
+  group_root_order_id: string | null;
+  group_sequence: number | null;
 
   status: string;
 
@@ -303,6 +305,8 @@ export default function OrderDetailsPage() {
         id,
 
         order_number,
+        group_root_order_id,
+        group_sequence,
 
         status,
 
@@ -975,7 +979,7 @@ export default function OrderDetailsPage() {
 
             <h1 className="text-3xl font-bold mt-1">
 
-              คำสั่งซื้อ #{order.order_number}
+              คำสั่งซื้อ #{order.order_number}{order.group_sequence ? `/${order.group_sequence}` : ""}
 
             </h1>
 
