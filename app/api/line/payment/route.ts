@@ -371,6 +371,7 @@ async function loadPayment(
         order_number,
         status,
         final_amount,
+        billing_account_suspended,
         delivery_date,
         delivery_slot
       `)
@@ -516,6 +517,8 @@ async function loadPayment(
 
       status:
         order.status,
+
+      billingAccountSuspended: order.billing_account_suspended === true,
 
       finalAmount:
         order.final_amount ===
