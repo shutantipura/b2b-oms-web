@@ -1646,7 +1646,7 @@ export default function TasksPage() {
                                   )}
                                   {group.stage === "delivery" && (order.billing_account_suspended || order.billing_no_cv) && (
                                     <span className="inline-flex min-h-7 items-center rounded-lg border border-[#F0BD59] bg-[#FFF0CB] px-2 py-1 text-[11px] font-extrabold text-[#8A4A00]">
-                                      ⚠ {order.billing_account_suspended ? "บัญชีถูกระงับ" : "ลูกค้าไม่มีCV"}
+                                      ⚠ {order.billing_account_suspended ? "CV Card" : "พักบิล"}
                                     </span>
                                   )}
                                 </div>

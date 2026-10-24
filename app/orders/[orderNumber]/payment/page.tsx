@@ -11,6 +11,8 @@ type OrderDetails = {
   id: string;
   order_number: number;
   status: string;
+  billing_account_suspended: boolean;
+  billing_no_cv: boolean;
   final_amount: number | string | null;
   delivery_date: string | null;
   delivery_slot: string | null;
@@ -110,6 +112,11 @@ export default function StaffPaymentPage() {
   async function loadOrder() {
     setLoading(true);
     setMessage("");
+    setOrder(null);
+    setBillUrl(null);
+    setQrUrl(null);
+    setBillName(null);
+    setExistingSlip(false);
 
     const {
       data: orderData,
@@ -120,6 +127,8 @@ export default function StaffPaymentPage() {
         id,
         order_number,
         status,
+        billing_account_suspended,
+        billing_no_cv,
         final_amount,
         delivery_date,
         delivery_slot,
@@ -437,11 +446,11 @@ export default function StaffPaymentPage() {
         <div className="grid md:grid-cols-2 gap-6 mb-6">
           <section className="bg-white border rounded-2xl p-6">
             <h2 className="font-bold text-lg">
-              ใบเสร็จ / ใบแจ้งหนี้
+              {order.billing_no_cv ? "รูปพักบิล (POS)" : "ใบเสร็จ / ใบแจ้งหนี้"}
             </h2>
 
             <p className="text-sm text-gray-500 mt-1 mb-4">
-              ไฟล์ที่อัปโหลดในขั้นตอนออกบิล
+              {order.billing_account_suspended ? "CV Card: รูปบิลไม่บังคับ" : "ไฟล์ที่อัปโหลดในขั้นตอนออกบิล"}
             </p>
 
             {billUrl ? (
@@ -458,32 +467,34 @@ export default function StaffPaymentPage() {
                   "ใบเสร็จ"}
               </a>
             ) : (
-              <p className="text-red-600">
-                ไม่พบไฟล์ใบเสร็จ
+              <p className={order.billing_account_suspended ? "text-gray-500" : "text-red-600"}>
+                {order.billing_account_suspended ? "CV Card: ไม่จำเป็นต้องแนบรูปบิล" : "ไม่พบไฟล์ใบเสร็จ"}
               </p>
             )}
           </section>
 
           <section className="bg-white border rounded-2xl p-6">
             <h2 className="font-bold text-lg">
-              QR สำหรับชำระเงิน
+              {order.billing_account_suspended ? "CV Card ลูกค้า" : order.billing_no_cv ? "พักบิล — ไม่ใช้ QR" : "QR สำหรับชำระเงิน"}
             </h2>
 
             <p className="text-sm text-gray-500 mt-1 mb-4">
-              QR ที่อัปโหลดในขั้นตอนออกบิล
+              {order.billing_account_suspended ? "ใช้รูป CV Card ที่บันทึกไว้ในข้อมูลลูกค้า" : order.billing_no_cv ? "ทีมงานแนบรูปพักบิลจาก POS แทน QR" : "QR ที่อัปโหลดในขั้นตอนออกบิล"}
             </p>
 
-            {qrUrl ? (
+            {order.billing_no_cv ? (
+              <p className="text-sm text-gray-500">พักบิล: ไม่จำเป็นต้องใช้ QR ชำระเงิน</p>
+            ) : qrUrl ? (
               <img
                 src={
                   qrUrl
                 }
-                alt="QR สำหรับชำระเงิน"
+                alt={order.billing_account_suspended ? "CV Card ลูกค้า" : "QR สำหรับชำระเงิน"}
                 className="max-w-full max-h-80 object-contain border rounded-lg"
               />
             ) : (
               <p className="text-red-600">
-                ไม่พบ QR สำหรับชำระเงิน
+                {order.billing_account_suspended ? "ไม่พบรูป CV Card ของลูกค้า" : "ไม่พบ QR สำหรับชำระเงิน"}
               </p>
             )}
           </section>
