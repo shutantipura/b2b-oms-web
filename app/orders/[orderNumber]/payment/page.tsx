@@ -345,7 +345,7 @@ export default function StaffPaymentPage() {
     }
 
     setMessage(
-      "บันทึกสลิปเรียบร้อยแล้ว รอพนักงานตรวจสอบการชำระเงิน"
+      "บันทึกสลิปโดยพนักงานและปิดคำสั่งซื้อเรียบร้อยแล้ว"
     );
 
     router.push(
