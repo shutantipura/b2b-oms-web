@@ -325,14 +325,14 @@ export default function MiniAppCheckoutPage() {
       setMessage("กำลังตรวจสอบคำสั่งซื้อเดิม กรุณาลองอีกครั้ง");
       return;
     }
-     const chosenMerge = selectableMergeCandidates.find((candidate) => candidate.orderNumber === mergeIntoOrderNumber);
+    const chosenMerge = selectableMergeCandidates.find((candidate) => candidate.orderNumber === mergeIntoOrderNumber);
     if (mergeIntoOrderNumber && !chosenMerge) {
       setMessage("คำสั่งซื้อเดิมไม่สามารถรวมกับช่วงเวลาที่เลือกได้");
       return;
     }
 
     const confirmation = chosenMerge
-      ? `รวมสินค้าใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เข้ากับคำสั่งซื้อ #${chosenMerge.orderNumber} ใช่หรือไม่?\\nทีมงานจะต้องจัดสินค้าอีกครั้ง และส่งพร้อมกันตามรอบเดิม`
+      ? `รวมสินค้าใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เข้ากับคำสั่งซื้อ #${chosenMerge.orderNumber} ใช่หรือไม่?\nทีมงานจะต้องจัดสินค้าอีกครั้ง และส่งพร้อมกันตามรอบเดิม`
       : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)} หรือไม่?`;
     if (!window.confirm(confirmation)) return;
     if (chosenMerge && !mergeRequestIdRef.current) mergeRequestIdRef.current = crypto.randomUUID();
