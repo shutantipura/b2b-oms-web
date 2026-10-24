@@ -712,7 +712,7 @@ async function findMergeCandidates(supabase: any, customerId: string, deliveryDa
 
   const { data: orders, error: orderError } = await supabase
     .from("orders")
-    .select("id, order_number, delivery_date, delivery_slot, status, created_at")
+    .select("id, order_number, delivery_date, delivery_slot, delivery_address, status, group_root_order_id, group_sequence, created_at")
     .eq("customer_id", customerId)
     .eq("delivery_date", deliveryDate)
     .in("status", ["awaiting_confirmation", "awaiting_picking", "picking", "awaiting_billing"])
@@ -723,7 +723,10 @@ async function findMergeCandidates(supabase: any, customerId: string, deliveryDa
   if (orderError) throw new Error("Could not check existing deliveries: " + orderError.message);
   if (!orders?.length) return [];
 
-  const ids: string[] = orders.map((order: { id: string }) => order.id);
+  const roots = orders.filter((order: { id: string; group_root_order_id: string | null }) =>
+    !order.group_root_order_id || order.group_root_order_id === order.id);
+  const ids: string[] = roots.map((order: { id: string }) => order.id);
+  if (!ids.length) return [];
   const [claimResult, fileResult] = await Promise.all([
     supabase.from("task_claims").select("order_id").in("order_id", ids).eq("stage", "billing"),
     supabase.from("order_files").select("order_id").in("order_id", ids).in("file_type", ["bill", "payment_qr"]),
@@ -737,11 +740,12 @@ async function findMergeCandidates(supabase: any, customerId: string, deliveryDa
     ...(fileResult.data ?? []).map((file: { order_id: string }) => file.order_id),
   ]);
 
-  return orders.filter((order: { id: string }) => !blocked.has(order.id)).map(
-    (order: { order_number: number; delivery_date: string; delivery_slot: string; status: string }) => ({
+  return roots.filter((order: { id: string }) => !blocked.has(order.id)).map(
+    (order: { order_number: number; delivery_date: string; delivery_slot: string; status: string; delivery_address: string }) => ({
       orderNumber: order.order_number,
       deliveryDate: order.delivery_date,
       deliverySlot: order.delivery_slot,
+      deliveryAddress: order.delivery_address,
       status: order.status,
     })
   );
@@ -1024,7 +1028,7 @@ export async function POST(
     // already been verified as authorized for it.
     // -------------------------------------------------
 
-    // A merge updates the original order atomically; no second order is created.
+    // Grouping creates a new independent suborder; the original is not modified.
     // LINE authorization above is compulsory for both code paths.
     const mergeIntoOrderNumber = Number(body.mergeIntoOrderNumber);
     const merging = Number.isSafeInteger(mergeIntoOrderNumber) && mergeIntoOrderNumber > 0;
@@ -1035,12 +1039,13 @@ export async function POST(
     }
 
     const { data: orderData, error: orderError } = merging
-      ? await supabase.rpc("merge_customer_order", {
+      ? await supabase.rpc("create_group_suborder", {
           p_customer_id: customer.id,
           p_primary_order_number: mergeIntoOrderNumber,
           p_delivery_date: deliveryDate,
           p_delivery_slot: deliverySlot,
           p_customer_notes: notes,
+          p_delivery_address: deliveryAddress,
           p_items: orderItems,
           p_line_user_id: verifiedLineUserId,
           p_request_id: requestId,
@@ -1056,7 +1061,7 @@ export async function POST(
 
     if (orderError) {
       console.error(
-        merging ? "merge_customer_order:" : "create_customer_order:",
+        merging ? "create_group_suborder:" : "create_customer_order:",
         orderError
       );
 
@@ -1105,12 +1110,18 @@ export async function POST(
     // SUCCESS
     // -------------------------------------------------
 
+    const groupInfo = orderData && typeof orderData === "object"
+      ? orderData as Record<string, unknown>
+      : {};
     return NextResponse.json({
-      success:
-        true,
-
+      success: true,
       orderNumber,
-      merged: merging,
+      grouped: merging,
+      merged: false,
+      displayNumber: typeof groupInfo.display_number === "string"
+        ? groupInfo.display_number : String(orderNumber),
+      groupRootNumber: typeof groupInfo.group_root_number === "number"
+        ? groupInfo.group_root_number : null,
     });
   } catch (error) {
     console.error(
