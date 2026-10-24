@@ -35,6 +35,7 @@ type Order = {
   final_amount: number | string | null;
   billing_account_suspended: boolean;
   billing_no_cv: boolean;
+  adjustment_count: number;
   estimated_amount: number | null;
   estimate_uses_current_price: boolean;
 
@@ -779,6 +780,7 @@ export default function TasksPage() {
           final_amount,
           billing_account_suspended,
           billing_no_cv,
+          adjustment_count,
           customers (customer_name)
         `)
         .in("status", allStatuses)
@@ -1596,6 +1598,11 @@ export default function TasksPage() {
                                     </svg>
                                     {order.delivery_slot ?? "ไม่ระบุเวลา"}
                                   </span>
+                                  {order.adjustment_count > 0 && (
+                                    <span className="inline-flex min-h-7 items-center rounded-lg border border-[#E7C978] bg-[#FFF4CB] px-2 py-1 text-[11px] font-extrabold text-[#745200]">
+                                      ปรับคำสั่งซื้อแล้ว
+                                    </span>
+                                  )}
                                   {urgency === "overdue" && (
                                     <span className="text-[11px] font-extrabold" style={{ color: urgencyPalette[urgency].statusText }}>เกินกำหนด</span>
                                   )}
