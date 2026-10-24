@@ -126,9 +126,8 @@ BEGIN
    OR v_root.delivery_slot IS DISTINCT FROM p_delivery_slot THEN
   RAISE EXCEPTION 'Grouped orders must share the primary delivery date and slot';
  END IF;
- IF btrim(coalesce(v_root.delivery_address,'')) <> btrim(coalesce(p_delivery_address,'')) THEN
-  RAISE EXCEPTION 'Grouped orders must share the primary delivery address';
- END IF;
+ -- Group's original delivery address remains authoritative and is inherited
+ -- by the new suborder, even when the customer's default address has changed.
  -- Do not admit new suborders after billing has EVER been claimed,
  -- or even if a document was uploaded before the claim was released.
  IF EXISTS (
@@ -161,7 +160,7 @@ BEGIN
  WHERE group_root_order_id=v_root.id;
 
  v_created:=public.create_customer_order(v_customer_code,p_delivery_date,p_delivery_slot,
-                                         p_delivery_address,p_customer_notes,p_items);
+                                         v_root.delivery_address,p_customer_notes,p_items);
  v_new_id:=(v_created->>'order_id')::uuid;
  v_new_number:=(v_created->>'order_number')::bigint;
  IF v_new_id IS NULL THEN RAISE EXCEPTION 'Unable to create additional suborder'; END IF;
