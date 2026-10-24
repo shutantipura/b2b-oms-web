@@ -1,0 +1,32 @@
+name: OMS grouped-orders typecheck
+on:
+  push:
+    branches:
+      - feature/grouped-suborders-consolidated-billing
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx next typegen
+      - run: npx next typegen
+      - run: npx tsc --noEmit --pretty false
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          NEXT_PUBLIC_SUPABASE_URL: 'https://example.supabase.co'
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'placeholder_for_ci'
+          NEXT_PUBLIC_LINE_LIFF_ID: '1234567890-placeholder'

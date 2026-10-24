@@ -17,6 +17,8 @@ type OrderDetails = {
   id: string;
 
   order_number: number;
+  group_root_order_id: string | null;
+  group_sequence: number | null;
 
   status: string;
 
@@ -230,6 +232,7 @@ export default function OrderDetailsPage() {
 
 
 
+  const [groupRootNumber, setGroupRootNumber] = useState<number | null>(null);
   const [order, setOrder] =
 
     useState<OrderDetails | null>(null);
@@ -303,6 +306,8 @@ export default function OrderDetailsPage() {
         id,
 
         order_number,
+        group_root_order_id,
+        group_sequence,
 
         status,
 
@@ -369,6 +374,13 @@ export default function OrderDetailsPage() {
 
 
     setOrder(loadedOrder);
+    if (loadedOrder.group_root_order_id && loadedOrder.group_root_order_id!==loadedOrder.id) {
+      const {data:parent} = await supabase.from("orders")
+        .select("order_number").eq("id",loadedOrder.group_root_order_id).maybeSingle();
+      setGroupRootNumber(parent?.order_number ?? null);
+    } else {
+      setGroupRootNumber(loadedOrder.group_root_order_id===loadedOrder.id ? loadedOrder.order_number : null);
+    }
     setEditedFinalAmount(loadedOrder.final_amount === null ? "" : String(loadedOrder.final_amount));
 
 
@@ -975,7 +987,9 @@ export default function OrderDetailsPage() {
 
             <h1 className="text-3xl font-bold mt-1">
 
-              คำสั่งซื้อ #{order.order_number}
+              คำสั่งซื้อ #{order.group_sequence
+                ? `${groupRootNumber ?? order.order_number}/${order.group_sequence}`
+                : order.order_number}
 
             </h1>
 

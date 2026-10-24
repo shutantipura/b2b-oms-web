@@ -14,6 +14,8 @@ import { supabase } from "../../lib/supabase";
 type Order = {
   id: string;
   order_number: number;
+  group_root_order_id: string | null;
+  group_sequence: number | null;
   status: string;
   created_at: string;
   delivery_date: string | null;
@@ -567,6 +569,8 @@ export default function OrdersPage() {
         .select(`
           id,
           order_number,
+          group_root_order_id,
+          group_sequence,
           status,
           created_at,
           delivery_date,
@@ -943,7 +947,9 @@ export default function OrdersPage() {
                               <div className="font-bold">
                                 #
                                 {
-                                  order.order_number
+                                  order.group_root_order_id
+                                    ? `${orders.find(parent=>parent.id===order.group_root_order_id)?.order_number ?? order.order_number}/${order.group_sequence ?? 1}`
+                                    : order.order_number
                                 }
                               </div>
 

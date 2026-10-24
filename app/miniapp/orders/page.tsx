@@ -27,6 +27,10 @@ type OrderItem = {
 type Order = {
   id: string;
   orderNumber: number;
+  displayNumber?: string;
+  groupRootNumber?: number | null;
+  groupSequence?: number | null;
+  paymentRootOrderNumber?: number;
   status: string;
   createdAt: string;
   deliveryDate: string | null;
@@ -343,7 +347,13 @@ export default function CustomerOrdersPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-[11px] font-semibold text-[#8BA096]">หมายเลขคำสั่งซื้อ</p>
-                        <h2 className="mt-0.5 text-2xl font-black text-[#009F9D]">#{order.orderNumber}</h2>
+                        <h2 className="mt-0.5 text-2xl font-black text-[#009F9D]">#{order.displayNumber ?? order.orderNumber}</h2>
+                         {order.groupSequence && (
+                           <p className="mt-1 text-xs font-bold text-[#47776A]">
+                             จัดส่งร่วมกัน กลุ่ม #{order.groupRootNumber}
+                             {order.groupSequence===1 ? " · ออกบิลและชำระเงินที่คำสั่งซื้อนี้" : " · ออกบิลรวมที่คำสั่งซื้อหลัก"}
+                           </p>
+                         )}
                         <p className="mt-1 text-xs text-[#94A69B]">สั่งเมื่อ {formatTimestamp(order.createdAt)}</p>
                       </div>
                       <span className={`max-w-[55%] rounded-full border px-3 py-1.5 text-center text-xs font-extrabold ${badgeStyle(order.status)}`}>{statusName(order.status)}</span>
@@ -355,8 +365,13 @@ export default function CustomerOrdersPage() {
                         {order.deliverySlot && <p className="mt-0.5 text-[11px] text-[#728D7C]">{order.deliverySlot}</p>}
                       </div>
                       <div className="text-right">
-                        {order.status === "awaiting_payment" && customer ? (
-                          <button type="button" onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(customer.customerCode)}&order=${order.orderNumber}`)} className="w-full rounded-xl bg-[#FDBC16] px-2 py-3 text-sm font-black text-[#5B4200] shadow-sm">ชำระเงินตอนนี้ →</button>
+                        {order.groupSequence && order.groupSequence>1 &&
+                             ["ready_for_delivery","out_for_delivery","awaiting_payment","payment_submitted","completed"].includes(order.status) ? (
+                           <div className="rounded-lg bg-[#F0FAF8] p-2 text-xs font-bold text-[#007F79]">
+                             ออกบิลและชำระรวมกลุ่ม #{order.groupRootNumber}
+                           </div>
+                         ) : order.status === "awaiting_payment" && customer && (!order.groupSequence || order.groupSequence===1) ? (
+                          <button type="button" onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(customer.customerCode)}&order=${order.paymentRootOrderNumber ?? order.orderNumber}`)} className="w-full rounded-xl bg-[#FDBC16] px-2 py-3 text-sm font-black text-[#5B4200] shadow-sm">ชำระเงินตอนนี้ →</button>
                         ) : (
                           <>
                             <p className="text-[11px] text-[#80998B]">{order.finalAmount !== null ? "ยอดสุทธิ" : "ยอดประมาณการ"}</p>
@@ -386,8 +401,8 @@ export default function CustomerOrdersPage() {
                       </div>
                       <p className="mt-2 text-sm font-extrabold text-[#008F8D]">{statusName(order.status)}</p>
 
-                      {order.status === "payment_submitted" && customer && (
-                        <button type="button" onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(customer.customerCode)}&order=${order.orderNumber}`)} className="mt-4 min-h-12 w-full rounded-xl border-2 border-[#BDE5DF] bg-[#F3FBF8] px-4 py-3 text-sm font-bold text-[#008F8D]">ส่งหลักฐานแล้ว · ดูรายละเอียดการชำระเงิน</button>
+                      {order.status === "payment_submitted" && customer && (!order.groupSequence || order.groupSequence===1) && (
+                        <button type="button" onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(customer.customerCode)}&order=${order.paymentRootOrderNumber ?? order.orderNumber}`)} className="mt-4 min-h-12 w-full rounded-xl border-2 border-[#BDE5DF] bg-[#F3FBF8] px-4 py-3 text-sm font-bold text-[#008F8D]">ส่งหลักฐานแล้ว · ดูรายละเอียดการชำระเงิน</button>
                       )}
                     </div>
                   ))}
