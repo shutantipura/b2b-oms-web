@@ -1082,7 +1082,7 @@ export default function PickingPage() {
                     </div>
                   )}
 
-                  <div className="flex items-start gap-3">
+                  <div className={`flex gap-2 sm:gap-3 ${addonMode ? "items-start" : "items-center"}`}>
                     <ProductThumbnail
                       imageUrl={item.products?.image_url}
                       alt={item.product_name_snapshot}
@@ -1093,7 +1093,7 @@ export default function PickingPage() {
                         {item.product_name_snapshot}
                       </div>
                       <div className="mt-1 text-[11px] text-[#71877E]">
-                        SKU {item.products?.sku ?? "—"}
+                        SKU {item.products?.sku ?? "—"}{!addonMode && <span className="ml-1">· {item.unit_snapshot}</span>}
                       </div>
                       {isAdditional && (
                         <span className="mt-1 inline-flex rounded-full bg-[#FFF3D4] px-2 py-0.5 text-[11px] font-bold text-[#8A6000]">
@@ -1111,37 +1111,42 @@ export default function PickingPage() {
                         </span>
                       )}
                     </div>
+                    {!addonMode && (
+                      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                        <div className="w-[52px] rounded-lg bg-[#F3F7F5] px-1 py-2 text-center sm:w-20">
+                          <p className="text-[10px] font-semibold text-[#647E73] sm:text-xs" title="จำนวนที่ยืนยัน">
+                            ยืนยัน
+                          </p>
+                          <p className="mt-1 truncate text-base font-extrabold text-[#21463A]" title={String(amounts.confirmed)}>
+                            {formatPickingQuantity(amounts.confirmed)}
+                          </p>
+                        </div>
+                        <label className="w-[76px] rounded-lg border-2 border-[#62C8C2] bg-[#F0FBFA] px-1 py-1.5 text-center sm:w-28">
+                          <span className="block text-[10px] font-extrabold text-[#007C76] sm:text-xs" title="จำนวนที่หยิบจริง">
+                            หยิบจริง
+                          </span>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step="0.001"
+                            required
+                            aria-label={`จำนวนที่หยิบจริงของ ${item.product_name_snapshot}`}
+                            value={actual[item.id] ?? ""}
+                            onChange={(event) =>
+                              setActual((previous) => ({
+                                ...previous,
+                                [item.id]: event.target.value,
+                              }))
+                            }
+                            className="mt-1 block min-h-10 w-full min-w-0 rounded-md border border-[#9ADBD7] bg-white px-0.5 py-1 text-center text-base font-extrabold text-[#006E6A]"
+                          />
+                        </label>
+                      </div>
+                    )}
                   </div>
 
-                  {!addonMode ? (
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      <div className="min-w-0 rounded-xl bg-[#F3F7F5] px-3 py-3 text-center">
-                        <p className="text-xs font-semibold text-[#647E73]">จำนวนที่ยืนยัน</p>
-                        <p className="mt-2 text-xl font-extrabold text-[#21463A]">
-                          {formatPickingQuantity(amounts.confirmed)}
-                        </p>
-                      </div>
-                      <label className="min-w-0 rounded-xl border-2 border-[#62C8C2] bg-[#F0FBFA] px-3 py-2 text-center">
-                        <span className="block text-xs font-extrabold text-[#007C76]">จำนวนที่หยิบจริง</span>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min="0"
-                          step="0.001"
-                          required
-                          aria-label={`จำนวนที่หยิบจริงของ ${item.product_name_snapshot}`}
-                          value={actual[item.id] ?? ""}
-                          onChange={(event) =>
-                            setActual((previous) => ({
-                              ...previous,
-                              [item.id]: event.target.value,
-                            }))
-                          }
-                          className="mt-1 block w-full min-w-0 rounded-lg border border-[#9ADBD7] bg-white px-2 py-1.5 text-center text-xl font-extrabold text-[#006E6A]"
-                        />
-                      </label>
-                    </div>
-                  ) : (
+                  {addonMode && (
                   <div className="mt-3 grid grid-cols-4 gap-1 sm:gap-2">
                     <div className="min-w-0 rounded-lg bg-[#F3F7F5] px-1.5 py-2 text-center sm:px-3">
                       <p className="min-h-7 text-[10px] font-semibold leading-[14px] text-[#647E73] sm:text-xs"
@@ -1199,9 +1204,11 @@ export default function PickingPage() {
                     </label>
                   </div>
                   )}
-                  <p className="mt-1 text-right text-[10px] text-[#71877E]">
-                    หน่วย: {item.unit_snapshot}
-                  </p>
+                  {addonMode && (
+                    <p className="mt-1 text-right text-[10px] text-[#71877E]">
+                      หน่วย: {item.unit_snapshot}
+                    </p>
+                  )}
                 </div>
               );
             })}

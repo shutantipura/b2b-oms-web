@@ -185,6 +185,30 @@ const groups: TaskGroup[] = [
 
 
 
+type GroupPickingProgress = {
+  pickedCount: number;
+  totalCount: number;
+  waitingNumbers: string[];
+};
+
+// Picking is independent per suborder; billing belongs to the group root.
+function groupPickingProgress(root: Order, allOrders: Order[]): GroupPickingProgress | null {
+  if (!root.group_root_order_id || root.group_root_order_id !== root.id) return null;
+  if (!["awaiting_confirmation", "awaiting_picking", "picking", "awaiting_billing"].includes(root.status)) return null;
+
+  const members = allOrders.filter(
+    (member) => member.group_root_order_id === root.id && member.status !== "cancelled"
+  );
+  if (members.length === 0) return null;
+
+  const pickedCount = members.filter((member) => member.status === "awaiting_billing").length;
+  const waitingNumbers = members
+    .filter((member) => member.status !== "awaiting_billing")
+    .map((member) => `${root.order_number}/${member.group_sequence ?? 1}`);
+
+  return { pickedCount, totalCount: members.length, waitingNumbers };
+}
+
 // Keep task estimates consistent with the customer order-tracking page:
 // use an amount saved at order time first; only fall back to today's price
 // for historical lines without a saved price.
@@ -1404,23 +1428,20 @@ export default function TasksPage() {
               const canWork = allowedStages.includes(group.stage);
               const expanded = isExpanded(group.stage);
 
-              const groupOrders =
+              const groupOrders = orders.filter((order) => {
+                // Only the group root proceeds to Billing, Delivery, and Payment.
+                const downstream = ["billing", "delivery", "payment_verification"].includes(group.stage);
+                if (downstream && order.group_root_order_id && order.group_root_order_id !== order.id)
+                  return false;
 
-                orders.filter((order) => {
-                  if (!group.statuses.includes(order.status)) return false;
-                  // Only the group primary owns Billing, Delivery and Payment.
-                  const downstream = ["billing","delivery","payment_verification"].includes(group.stage);
-                  if (downstream && order.group_root_order_id && order.group_root_order_id!==order.id)
-                    return false;
-                  // A root is not billable until every active suborder is picked.
-                  if (group.stage==="billing" && order.group_root_order_id===order.id) {
-                    const members = orders.filter(member=>member.group_root_order_id===order.id);
-                    if (!members.every(member=>member.status==="awaiting_billing")) return false;
-                  }
-                  return true;
-                });
+                if (group.stage === "billing" && order.group_root_order_id === order.id) {
+                  // Show a waiting Billing card as soon as any member finishes picking.
+                  const progress = groupPickingProgress(order, orders);
+                  return progress !== null && progress.pickedCount > 0;
+                }
 
-
+                return group.statuses.includes(order.status);
+              });
 
               return (
 
@@ -1548,6 +1569,21 @@ export default function TasksPage() {
 
                             "awaiting_payment";
 
+                          const billingProgress = group.stage === "billing"
+                            ? groupPickingProgress(order, orders)
+                            : null;
+                          const waitingForGroup = billingProgress !== null
+                            && billingProgress.waitingNumbers.length > 0;
+
+                          const displayOrderNumber = (
+                            ["billing", "delivery", "payment_verification"].includes(group.stage)
+                            && order.group_root_order_id === order.id
+                          )
+                            ? String(order.order_number)
+                            : order.group_root_order_id
+                              ? `${orders.find(root => root.id === order.group_root_order_id)?.order_number ?? order.order_number}/${order.group_sequence ?? 1}`
+                              : String(order.order_number);
+
                           const urgency = deliveryUrgency(order, clock);
 
 
@@ -1637,14 +1673,21 @@ export default function TasksPage() {
                                   </span>
                                 </div>
                                 <p className="mt-0.5 text-[11px] font-medium text-[#8A9E97]">
-                                  คำสั่งซื้อ #{order.group_root_order_id
-                                     ? `${orders.find(root=>root.id===order.group_root_order_id)?.order_number ?? order.order_number}/${order.group_sequence ?? 1}`
-                                     : order.order_number}
+                                  คำสั่งซื้อ #{displayOrderNumber}
                                 </p>
+                                {waitingForGroup && billingProgress && (
+                                  <p role="status" className="mt-2 max-w-xl rounded-lg border border-[#F0BD59] bg-[#FFF6DF] px-2.5 py-2 text-xs font-semibold leading-relaxed text-[#8A6000]">
+                                    ⏳ จัดสินค้าเสร็จ {billingProgress.pickedCount}/{billingProgress.totalCount} ออเดอร์ — รอ {billingProgress.waitingNumbers.join(", ")} จัดสินค้าให้เสร็จก่อน จึงจะเริ่มออกบิลได้
+                                  </p>
+                                )}
                               </div>
 
                               <div className="flex shrink-0 items-center justify-end">
-                                {claim && !isMine ? (
+                                {waitingForGroup ? (
+                                  <span className="inline-flex min-h-10 items-center justify-center rounded-xl border border-[#E4CC91] bg-[#FFF3D4] px-3 py-2 text-center text-xs font-extrabold text-[#8A6000]" aria-disabled="true">
+                                    รอจัดสินค้า
+                                  </span>
+                                ) : claim && !isMine ? (
                                   <div className="flex max-w-40 flex-col items-end gap-1.5 text-right">
                                     <span className="text-[11px] font-semibold text-[#647D75]">
                                       กำลังดำเนินการ: {claim.staff_name}
