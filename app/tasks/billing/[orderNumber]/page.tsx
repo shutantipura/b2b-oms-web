@@ -19,6 +19,8 @@ type OrderDetails = {
   id: string;
 
   order_number: number;
+  group_root_order_id: string | null;
+  group_sequence: number | null;
 
   delivery_date: string | null;
 
@@ -86,6 +88,7 @@ type OrderFile = {
 
   original_filename: string | null;
   mime_type: string | null;
+  order_id: string;
 
 };
 
@@ -119,6 +122,7 @@ export default function BillingPage() {
 
 
 
+  const [groupLabels, setGroupLabels] = useState<string[]>([]);
   const [items, setItems] =
 
     useState<OrderItem[]>([]);
@@ -209,6 +213,8 @@ export default function BillingPage() {
         id,
 
         order_number,
+        group_root_order_id,
+        group_sequence,
 
         delivery_date,
 
@@ -290,51 +296,37 @@ export default function BillingPage() {
 
 
 
-    const {
+    const grouped = loadedOrder.group_root_order_id===loadedOrder.id;
+    const { data: members, error: memberError } = grouped
+      ? await supabase.from("orders").select("id,order_number,group_sequence")
+          .eq("group_root_order_id",loadedOrder.id)
+          .order("group_sequence",{ascending:true})
+      : {data:[],error:null};
+    if (memberError) {
+      setMessage("ไม่สามารถโหลดคำสั่งซื้อย่อยได้: "+memberError.message);
+      setLoading(false);
+      return;
+    }
+    const memberIds = grouped ? (members??[]).map(m=>m.id) : [loadedOrder.id];
+    setGroupLabels(grouped
+      ? (members??[]).map(m=>`${loadedOrder.order_number}/${m.group_sequence}`)
+      : []);
 
-      data: itemData,
-
-      error: itemError,
-
-    } = await supabase
-
-      .from("order_items")
-
-      .select(`
-
-        id,
-
-        product_name_snapshot,
-
-        requested_qty,
-
-        confirmed_qty,
-
-        actual_qty,
-
-        unit_snapshot,
-
-        unit_price_snapshot,
-
-        products (
-
-          sku
-
-        )
-
-      `)
-
-      .eq("order_id", orderData.id)
-
-      .order(
-
-        "product_name_snapshot",
-
-        { ascending: true }
-
-      );
-
-
+    const { data: itemData, error: itemError } = grouped
+      ? await supabase.from("group_billing_lines")
+          .select(`
+            id,product_name_snapshot,requested_qty,confirmed_qty,actual_qty,
+            unit_snapshot,unit_price_snapshot,products(sku)
+          `)
+          .eq("root_order_id",loadedOrder.id)
+          .order("product_name_snapshot",{ascending:true})
+      : await supabase.from("order_items")
+          .select(`
+            id,product_name_snapshot,requested_qty,confirmed_qty,actual_qty,
+            unit_snapshot,unit_price_snapshot,products(sku)
+          `)
+          .eq("order_id",loadedOrder.id)
+          .order("product_name_snapshot",{ascending:true});
 
     if (itemError) {
 
@@ -377,6 +369,7 @@ export default function BillingPage() {
       .select(`
 
         id,
+        order_id,
 
         file_type,
 
@@ -388,7 +381,7 @@ export default function BillingPage() {
         created_at,
         is_current
       `)
-      .eq("order_id", orderData.id)
+      .in("order_id", memberIds)
       .order("created_at", { ascending: true });
 
 
@@ -438,11 +431,11 @@ export default function BillingPage() {
 
 
 
-    const bill = files.find((file) => file.file_type === "bill" && file.is_current);
+    const bill = files.find((file) => file.file_type === "bill" && file.is_current && file.order_id===loadedOrder.id);
 
 
 
-    const qr = files.find((file) => file.file_type === "payment_qr" && file.is_current);
+    const qr = files.find((file) => file.file_type === "payment_qr" && file.is_current && file.order_id===loadedOrder.id);
 
 
 
@@ -929,6 +922,11 @@ export default function BillingPage() {
             <p className="mt-1 text-xs font-semibold text-[#82958F]">
               คำสั่งซื้อ #{order.order_number}
             </p>
+            {groupLabels.length>1 && (
+              <p className="mt-2 rounded-lg border border-[#B8EAE5] bg-[#E9FAF7] px-3 py-2 text-xs font-bold text-[#007F79]">
+                ออกบิลรวม: {groupLabels.join(" + ")} · รวมยอดหยิบจริงทุกรายการ
+              </p>
+            )
 
           </div>
 
