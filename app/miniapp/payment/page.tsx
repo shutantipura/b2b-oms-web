@@ -233,21 +233,21 @@ export default function MiniAppPaymentPage() {
       }
 
       clearSlip();
-      setNotice({ kind: "success", text: "ส่งหลักฐานการชำระเงินเรียบร้อยแล้ว" });
+      setNotice({ kind: "success", text: "ส่งหลักฐานการชำระเงินและปิดคำสั่งซื้อเรียบร้อยแล้ว" });
       try {
         const refreshed = await loadPayment(idToken, customerCode, data.order.orderNumber);
         if (refreshed.order?.status === "awaiting_payment") {
           // The upload was accepted even if the read endpoint is briefly stale.
           setData((previous) => previous?.order ? {
             ...previous,
-            order: { ...previous.order, status: "payment_submitted" },
+            order: { ...previous.order, status: "completed" },
           } : previous);
         }
       } catch {
         // Upload succeeded. Avoid offering a second submission while status refresh fails.
         setData((previous) => previous?.order ? {
           ...previous,
-          order: { ...previous.order, status: "payment_submitted" },
+          order: { ...previous.order, status: "completed" },
         } : previous);
         setNotice({
           kind: "success",
@@ -292,7 +292,7 @@ export default function MiniAppPaymentPage() {
   const cancelled = order.status === "cancelled";
   const dateText = deliveryDateText(order.deliveryDate);
 
-  const statusLabel = cancelled ? "ยกเลิก" : completed ? "เสร็จสิ้น" : submitted ? "รอตรวจสอบสลิป" : canSubmit ? "รอชำระเงิน" : "กำลังดำเนินการ";
+  const statusLabel = cancelled ? "ยกเลิก" : completed ? "เสร็จสิ้น" : submitted ? "ส่งสลิปแล้ว" : canSubmit ? "รอชำระเงิน" : "กำลังดำเนินการ";
   const statusClass = cancelled
     ? "border-red-200 bg-red-50 text-red-700"
     : completed || submitted
@@ -367,7 +367,7 @@ export default function MiniAppPaymentPage() {
                   {completed ? "คำสั่งซื้อเสร็จสิ้นแล้ว" : "ได้รับหลักฐานการชำระเงินแล้ว"}
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-[#547A6C]">
-                  {completed ? "ทีมงานได้ตรวจสอบการชำระเงินและปิดคำสั่งซื้อแล้ว" : "ทีมงานกำลังตรวจสอบสลิป คุณไม่จำเป็นต้องส่งซ้ำ"}
+                  {completed ? "ระบบปิดคำสั่งซื้อหลังได้รับหลักฐานการชำระเงินแล้ว" : "เราได้รับหลักฐานการชำระเงินแล้ว คุณไม่จำเป็นต้องส่งซ้ำ"}
                 </p>
                 {files?.paymentSlip && (
                   <a href={files.paymentSlip.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-10 items-center font-bold text-[#008F8D] underline underline-offset-4">
