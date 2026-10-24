@@ -790,12 +790,12 @@ export default function DeliveryPage() {
               <span aria-hidden="true" className="text-2xl">⚠️</span>
               <div>
                 <h2 className="text-base font-extrabold text-[#8A4A00]">
-                  แจ้งไรเดอร์: {order.billing_account_suspended ? "บัญชีถูกระงับ" : "ลูกค้าไม่มีCV"}
+                  แจ้งไรเดอร์: {order.billing_account_suspended ? "CV Card" : "พักบิล"}
                 </h2>
                 <p className="mt-2 text-sm font-semibold leading-6 text-[#795323]">
                   {order.billing_account_suspended
-                    ? "ออเดอร์นี้ใช้รูป CV card ของลูกค้าแทน QR ชำระเงิน และอาจไม่มีรูปบิล กรุณาตรวจสอบเอกสารก่อนจัดส่ง"
-                    : "ออเดอร์นี้ไม่มี CV พนักงานออกบิลที่เครื่อง POS และถ่ายรูปพักบิลแล้ว ไม่มี QR ชำระเงิน กรุณาตรวจสอบรูปพักบิลก่อนจัดส่ง"}
+                    ? "ออเดอร์นี้ใช้รูป CV Card ของลูกค้าแทน QR ชำระเงิน และอาจไม่มีรูปบิล กรุณาตรวจสอบเอกสารก่อนจัดส่ง"
+                    : "ออเดอร์นี้พักบิล พนักงานออกบิลที่เครื่อง POS และถ่ายรูปพักบิลแล้ว ไม่มี QR ชำระเงิน กรุณาตรวจสอบรูปพักบิลก่อนจัดส่ง"}
                 </p>
               </div>
             </div>
@@ -1018,7 +1018,7 @@ export default function DeliveryPage() {
 
           <p className="text-sm text-gray-500 mt-1 mb-5">
             {order.billing_account_suspended
-              ? "ตรวจสอบรูปรถเข็นและรูป CV card (บิลไม่บังคับ)"
+              ? "ตรวจสอบรูปรถเข็นและรูป CV Card (บิลไม่บังคับ)"
               : order.billing_no_cv
                 ? "ตรวจสอบรูปรถเข็นและรูปพักบิลจาก POS (ไม่ต้องใช้ QR)"
                 : "ตรวจสอบรูปรถเข็น บิล และ QR ชำระเงินก่อนออกจัดส่ง"}
@@ -1066,7 +1066,7 @@ export default function DeliveryPage() {
 
               {!bill ? (
                 <p className="text-sm text-gray-500">
-                  {order.billing_account_suspended ? "บัญชีถูกระงับ: ไม่บังคับรูปบิล" : "ยังไม่มีรูปบิล"}
+                  {order.billing_account_suspended ? "CV Card: ไม่บังคับรูปบิล" : "ยังไม่มีรูปบิล"}
                 </p>
               ) : isImage(bill) ? (
                 <a
@@ -1094,13 +1094,13 @@ export default function DeliveryPage() {
 
             <div className="border rounded-2xl p-4">
               <p className="font-semibold mb-3">
-                {order.billing_account_suspended ? "CV card ลูกค้า"
+                {order.billing_account_suspended ? "CV Card ลูกค้า"
                   : order.billing_no_cv ? "QR ชำระเงิน (ไม่ต้องใช้)" : "QR ชำระเงิน"}
               </p>
 
               {!paymentQr ? (
                 <p className="text-sm text-gray-500">
-                  {order.billing_no_cv ? "ลูกค้าไม่มี CV: ไม่ต้องใช้ QR ชำระเงิน" : "ยังไม่มี QR ชำระเงิน"}
+                  {order.billing_no_cv ? "พักบิล: ไม่ต้องใช้ QR ชำระเงิน" : "ยังไม่มี QR ชำระเงิน"}
                 </p>
               ) : (
                 <a
@@ -1110,7 +1110,7 @@ export default function DeliveryPage() {
                 >
                   <img
                     src={paymentQr.url}
-                    alt={order.billing_account_suspended ? "CV card ลูกค้า" : "QR ชำระเงิน"}
+                    alt={order.billing_account_suspended ? "CV Card ลูกค้า" : "QR ชำระเงิน"}
                     className="w-full h-56 object-contain border rounded-xl bg-gray-50"
                   />
                 </a>

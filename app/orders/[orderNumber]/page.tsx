@@ -194,7 +194,7 @@ function prettyText(value: string | null) {
 
 function fileLabel(type: string, suspendedBilling = false, noCvBilling = false) {
   if (type === "bill" && noCvBilling) return "รูปพักบิล (POS)";
-  if (type === "payment_qr" && suspendedBilling) return "CV card ลูกค้า";
+  if (type === "payment_qr" && suspendedBilling) return "CV Card ลูกค้า";
 
   const labels: Record<string, string> = {
 
@@ -1004,8 +1004,8 @@ export default function OrderDetailsPage() {
             {(order.billing_account_suspended || order.billing_no_cv) && (
               <p className="mt-3 inline-flex rounded-lg border border-[#F0BD59] bg-[#FFF7E3] px-3 py-2 text-xs font-bold text-[#8A4A00]">
                 {order.billing_account_suspended
-                  ? "บัญชีถูกระงับ · ใช้ CV card แทน QR"
-                  : "ลูกค้าไม่มีCV · ใช้รูปพักบิลจาก POS ไม่ต้องใช้ QR"}
+                  ? "CV Card · ใช้ CV Card แทน QR"
+                  : "พักบิล · ใช้รูปพักบิลจาก POS ไม่ต้องใช้ QR"}
               </p>
             )}
 
