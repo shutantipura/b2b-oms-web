@@ -738,11 +738,11 @@ async function findMergeCandidates(supabase: any, customerId: string, deliveryDa
   ]);
 
   return orders.filter((order: { id: string }) => !blocked.has(order.id)).map(
-    (order: { order_number: number; delivery_date: string; delivery_slot: string }) => ({
+    (order: { order_number: number; delivery_date: string; delivery_slot: string; status: string }) => ({
       orderNumber: order.order_number,
       deliveryDate: order.delivery_date,
       deliverySlot: order.delivery_slot,
-      status: (order as { status: string }).status,
+      status: order.status,
     })
   );
 }
