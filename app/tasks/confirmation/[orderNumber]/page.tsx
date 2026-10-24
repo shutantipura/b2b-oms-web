@@ -21,6 +21,8 @@ import DeliverySchedule from "../../../../components/DeliverySchedule";
 type OrderDetails = {
   id: string;
   order_number: number;
+  group_root_order_id: string | null;
+  group_sequence: number | null;
   delivery_date: string | null;
   delivery_slot: string | null;
   delivery_address: string | null;
@@ -144,6 +146,7 @@ export default function ConfirmationPage() {
     useState<OrderDetails | null>(
       null
     );
+  const [groupDisplayNumber, setGroupDisplayNumber] = useState<string | null>(null);
 
   const [
     items,
@@ -267,6 +270,8 @@ export default function ConfirmationPage() {
         .select(`
           id,
           order_number,
+          group_root_order_id,
+          group_sequence,
           delivery_date,
           delivery_slot,
           delivery_address,
@@ -293,9 +298,13 @@ export default function ConfirmationPage() {
       return;
     }
 
-    setOrder(
-      orderData as unknown as OrderDetails
-    );
+    const selectedOrder = orderData as unknown as OrderDetails;
+    setOrder(selectedOrder);
+    if (selectedOrder.group_root_order_id) {
+      const {data:root} = await supabase.from("orders")
+        .select("order_number").eq("id",selectedOrder.group_root_order_id).maybeSingle();
+      setGroupDisplayNumber(`${root?.order_number ?? selectedOrder.order_number}/${selectedOrder.group_sequence ?? 1}`);
+    } else setGroupDisplayNumber(null);
 
     const {
       data: itemData,
@@ -785,7 +794,7 @@ export default function ConfirmationPage() {
               {order.customers?.customer_name ?? "ไม่ทราบชื่อร้าน"}
             </h1>
             <p className="mt-1 text-xs font-semibold text-[#82958F]">
-              คำสั่งซื้อ #{order.order_number}
+              คำสั่งซื้อ #{groupDisplayNumber ?? order.order_number}
             </p>
           </div>
 
