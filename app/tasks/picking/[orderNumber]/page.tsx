@@ -35,6 +35,7 @@ type OrderDetails = {
 
 type OrderItem = {
   id: string;
+  product_id: string;
   product_name_snapshot: string;
   confirmed_qty:
     | number
@@ -187,6 +188,9 @@ export default function PickingPage() {
   ] =
     useState("");
 
+  // Details of any customer-added products that sent billing back to picking.
+  const [mergeAddedQuantities, setMergeAddedQuantities] = useState<Record<string, number> | null>(null);
+
   // =====================================================
   // ADD PRODUCT
   // =====================================================
@@ -297,6 +301,7 @@ export default function PickingPage() {
         .from("order_items")
         .select(`
           id,
+          product_id,
           product_name_snapshot,
           confirmed_qty,
           actual_qty,
@@ -372,6 +377,27 @@ export default function PickingPage() {
       !photoError ? firstPhoto?.original_filename ?? null : null,
       !photoError ? secondPhoto?.original_filename ?? null : null,
     ]);
+
+    const { data: latestMerge } = await supabase
+      .from("order_history")
+      .select("details")
+      .eq("order_id", orderData.id)
+      .eq("action", "items_merged")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (latestMerge?.length) {
+      const details = latestMerge[0].details as { added_items?: { product_id: string; quantity: number }[] } | null;
+      const additions: Record<string, number> = {};
+      for (const added of details?.added_items ?? []) {
+        if (added.product_id && Number(added.quantity) > 0) {
+          additions[added.product_id] = (additions[added.product_id] ?? 0) + Number(added.quantity);
+        }
+      }
+      setMergeAddedQuantities(additions);
+    } else {
+      setMergeAddedQuantities(null);
+    }
 
     setLoading(false);
   }
@@ -863,6 +889,16 @@ export default function PickingPage() {
           </button>
         </div>
 
+        {mergeAddedQuantities !== null && (
+          <div role="status" className="mb-6 rounded-2xl border-2 border-[#FFB74D] bg-[#FFF3E0] p-4 text-[#894600]">
+            <p className="font-extrabold">📦 ลูกค้าเพิ่มสินค้าเข้าคำสั่งซื้อเดิม</p>
+            <p className="mt-1 text-sm leading-6">
+              คำสั่งซื้อนี้ถูกส่งกลับมาจัดสินค้าอีกครั้ง กรุณาตรวจสอบจำนวนสินค้ารวมใหม่ทั้งหมด
+              และถ่ายรูปรถเข็นใหม่ก่อนส่งไปออกบิล
+            </p>
+          </div>
+        )}
+
         <section className="bg-white border rounded-2xl p-6 mb-6">
           <h2 className="font-bold text-lg mb-4">
             ข้อมูลลูกค้าและการจัดส่ง
@@ -983,6 +1019,11 @@ export default function PickingPage() {
                             />
 
                             <div className="font-medium min-w-0">
+                              {mergeAddedQuantities?.[item.product_id] ? (
+                                <span className="mb-1 inline-block rounded-md bg-[#FFE0B2] px-2 py-1 text-xs font-bold text-[#8B4500]">
+                                  ลูกค้าเพิ่ม +{mergeAddedQuantities[item.product_id]} {item.unit_snapshot}
+                                </span>
+                              ) : null}
                               <div>
                                 {
                                   item.product_name_snapshot
