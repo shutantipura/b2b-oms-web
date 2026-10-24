@@ -1549,7 +1549,7 @@ export default function TasksPage() {
                                     <span className="text-[11px] font-extrabold text-[#B91C1C]">เกินกำหนด</span>
                                   )}
                                   {urgency === "at-risk" && (
-                                    <span className="text-[11px] font-extrabold text-[#C2410C]">เสี่ยงล่าช้า</span>
+                                    <span className="text-[11px] font-extrabold text-[#C2410C]">อยู่ในช่วงจัดส่ง</span>
                                   )}
                                 </div>
 
