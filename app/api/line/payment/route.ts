@@ -838,8 +838,7 @@ async function submitPayment(
 
   return NextResponse.json({
     success: true,
-    status:
-      "payment_submitted",
+    status: "completed",
   });
 }
 
