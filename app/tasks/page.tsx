@@ -33,6 +33,8 @@ type Order = {
   delivery_slot: string | null;
   customer_id: string;
   final_amount: number | string | null;
+  billing_account_suspended: boolean;
+  billing_no_cv: boolean;
   estimated_amount: number | null;
   estimate_uses_current_price: boolean;
 
@@ -775,6 +777,8 @@ export default function TasksPage() {
           delivery_slot,
           customer_id,
           final_amount,
+          billing_account_suspended,
+          billing_no_cv,
           customers (customer_name)
         `)
         .in("status", allStatuses)
@@ -1597,6 +1601,11 @@ export default function TasksPage() {
                                   )}
                                   {urgency === "at-risk" && (
                                     <span className="text-[11px] font-extrabold" style={{ color: urgencyPalette[urgency].statusText }}>อยู่ในช่วงจัดส่ง</span>
+                                  )}
+                                  {group.stage === "delivery" && (order.billing_account_suspended || order.billing_no_cv) && (
+                                    <span className="inline-flex min-h-7 items-center rounded-lg border border-[#F0BD59] bg-[#FFF0CB] px-2 py-1 text-[11px] font-extrabold text-[#8A4A00]">
+                                      ⚠ {order.billing_account_suspended ? "บัญชีถูกระงับ" : "ลูกค้าไม่มีCV"}
+                                    </span>
                                   )}
                                 </div>
 
