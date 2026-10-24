@@ -32,6 +32,7 @@ type Order = {
 
   delivery_slot: string | null;
   customer_id: string;
+  final_amount: number | string | null;
   estimated_amount: number | null;
   estimate_uses_current_price: boolean;
 
@@ -739,6 +740,7 @@ export default function TasksPage() {
           delivery_date,
           delivery_slot,
           customer_id,
+          final_amount,
           customers (customer_name)
         `)
         .in("status", allStatuses)
@@ -1536,11 +1538,18 @@ export default function TasksPage() {
 
                                 <div
                                   className="mt-1.5 text-sm font-extrabold text-[#008F8D]"
-                                  title="มูลค่าคำสั่งซื้อโดยประมาณ ก่อนยืนยันยอดบิล"
+                                  title={order.final_amount !== null
+                                    ? "ยอดบิลสุดท้าย (อัปเดตล่าสุด)"
+                                    : "มูลค่าคำสั่งซื้อโดยประมาณ ก่อนยืนยันยอดบิล"}
                                 >
-                                  {order.estimated_amount !== null
-                                    ? `฿${formatBaht(order.estimated_amount)}`
-                                    : "฿ —"}
+                                  {order.final_amount !== null
+                                    ? `฿${formatBaht(Number(order.final_amount))}`
+                                    : order.estimated_amount !== null
+                                      ? `฿${formatBaht(order.estimated_amount)}`
+                                      : "฿ —"}
+                                  <span className="ml-2 text-[10px] font-semibold text-[#718C84]">
+                                    {order.final_amount !== null ? "ยอดบิลจริง" : "ประมาณการ"}
+                                  </span>
                                 </div>
                                 <p className="mt-0.5 text-[11px] font-medium text-[#8A9E97]">
                                   คำสั่งซื้อ #{order.order_number}
