@@ -165,15 +165,13 @@ const groups: TaskGroup[] = [
 
   {
 
-    title: "ชำระเงิน",
+    title: "รับสลิปชำระเงิน",
 
     stage: "payment_verification",
 
     statuses: [
 
       "awaiting_payment",
-
-      "payment_submitted",
 
     ],
 
