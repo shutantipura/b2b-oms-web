@@ -1116,3 +1116,293 @@ begin
   );
 end;
 $function$;
+
+-- Legacy manager overrides must respect a locked group bill.
+CREATE OR REPLACE FUNCTION public.force_complete_order(p_order_number bigint, p_manager_code text, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+AS $function$
+declare
+  v_order public.orders%rowtype;
+  v_manager public.staff%rowtype;
+  v_previous_status text;
+
+begin
+
+  ------------------------------------------------------------
+  -- 1. Find and lock order
+  ------------------------------------------------------------
+  select *
+  into v_order
+  from public.orders
+  where order_number = p_order_number
+  for update;
+
+  if not found then
+    raise exception
+      'Order % does not exist',
+      p_order_number;
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 2. Find active Manager
+  ------------------------------------------------------------
+  select *
+  into v_manager
+  from public.staff
+  where staff_code = p_manager_code
+    and is_active = true
+    and account_type = 'manager';
+
+  if not found then
+    raise exception
+      'Active Manager % does not exist or does not have Manager permission',
+      p_manager_code;
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 3. Validate order
+  ------------------------------------------------------------
+  if v_order.group_root_order_id is not null
+    and v_order.group_root_order_id <> v_order.id then
+    raise exception 'Cannot force-complete a grouped suborder individually; use the primary';
+  end if;
+
+  if v_order.status = 'completed' then
+    raise exception
+      'Order % is already completed',
+      p_order_number;
+  end if;
+
+  if v_order.status = 'cancelled' then
+    raise exception
+      'Cancelled orders cannot be force completed';
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 4. Require override reason
+  ------------------------------------------------------------
+  if p_reason is null
+     or trim(p_reason) = '' then
+    raise exception
+      'Force Complete reason is required';
+  end if;
+
+  v_previous_status := v_order.status;
+
+
+  ------------------------------------------------------------
+  -- 5. Release any task somebody is currently working on
+  ------------------------------------------------------------
+  update public.task_claims
+  set
+    claim_status = 'released',
+    released_at = now(),
+    release_reason = 'Order force completed by Manager'
+  where order_id = v_order.id
+    and claim_status = 'active';
+
+
+  ------------------------------------------------------------
+  -- 6. Immediately complete order
+  ------------------------------------------------------------
+  update public.orders
+  set
+    status = 'completed',
+
+    force_completed_at = now(),
+    force_completed_by_staff_id = v_manager.id,
+    force_complete_reason = p_reason,
+
+    completed_at = now(),
+    updated_at = now()
+
+  where id = v_order.id;
+
+
+  ------------------------------------------------------------
+  -- 7. Audit trail
+  ------------------------------------------------------------
+  insert into public.order_history (
+    order_id,
+    action,
+    from_status,
+    to_status,
+    performed_by_staff_id,
+    note,
+    details
+  )
+  values (
+    v_order.id,
+    'order_force_completed',
+    v_previous_status,
+    'completed',
+    v_manager.id,
+    'Order force completed by Manager: ' || p_reason,
+    jsonb_build_object(
+      'reason', p_reason,
+      'previous_status', v_previous_status
+    )
+  );
+
+
+  ------------------------------------------------------------
+  -- 8. Return result
+  ------------------------------------------------------------
+  return jsonb_build_object(
+    'success', true,
+    'order_number', p_order_number,
+    'force_completed_by', v_manager.staff_name,
+    'previous_status', v_previous_status,
+    'new_status', 'completed',
+    'reason', p_reason
+  );
+
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.cancel_order(p_order_number bigint, p_manager_code text, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+AS $function$
+declare
+  v_order public.orders%rowtype;
+  v_manager public.staff%rowtype;
+  v_previous_status text;
+
+begin
+
+  ------------------------------------------------------------
+  -- 1. Find and lock order
+  ------------------------------------------------------------
+  select *
+  into v_order
+  from public.orders
+  where order_number = p_order_number
+  for update;
+
+  if not found then
+    raise exception
+      'Order % does not exist',
+      p_order_number;
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 2. Find Manager
+  ------------------------------------------------------------
+  select *
+  into v_manager
+  from public.staff
+  where staff_code = p_manager_code
+    and is_active = true
+    and account_type = 'manager';
+
+  if not found then
+    raise exception
+      'Active Manager % does not exist or does not have Manager permission',
+      p_manager_code;
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 3. Validate current order state
+  ------------------------------------------------------------
+  if v_order.group_root_order_id is not null
+    and v_order.group_root_order_id<>v_order.id
+    and exists (select 1 from public.task_claims
+      where order_id=v_order.group_root_order_id and stage='billing') then
+    raise exception 'Group is already being billed; cancel the primary rather than an individual suborder';
+  end if;
+
+  if v_order.status = 'completed' then
+    raise exception
+      'Completed orders cannot be cancelled';
+  end if;
+
+  if v_order.status = 'cancelled' then
+    raise exception
+      'Order % is already cancelled',
+      p_order_number;
+  end if;
+
+
+  ------------------------------------------------------------
+  -- 4. Cancellation reason is mandatory
+  ------------------------------------------------------------
+  if p_reason is null
+     or trim(p_reason) = '' then
+    raise exception
+      'Cancellation reason is required';
+  end if;
+
+  v_previous_status := v_order.status;
+
+
+  ------------------------------------------------------------
+  -- 5. Release any active work on this order
+  ------------------------------------------------------------
+  update public.task_claims
+  set
+    claim_status = 'released',
+    released_at = now(),
+    release_reason = 'Order cancelled by Manager'
+  where order_id = v_order.id
+    and claim_status = 'active';
+
+
+  ------------------------------------------------------------
+  -- 6. Cancel the order
+  ------------------------------------------------------------
+  update public.orders
+  set
+    status = 'cancelled',
+    cancelled_at = now(),
+    cancelled_by_staff_id = v_manager.id,
+    cancellation_reason = p_reason,
+    updated_at = now()
+  where id = v_order.id;
+
+
+  ------------------------------------------------------------
+  -- 7. Write permanent audit history
+  ------------------------------------------------------------
+  insert into public.order_history (
+    order_id,
+    action,
+    from_status,
+    to_status,
+    performed_by_staff_id,
+    note,
+    details
+  )
+  values (
+    v_order.id,
+    'order_cancelled',
+    v_previous_status,
+    'cancelled',
+    v_manager.id,
+    'Order cancelled by Manager: ' || p_reason,
+    jsonb_build_object(
+      'reason', p_reason
+    )
+  );
+
+
+  ------------------------------------------------------------
+  -- 8. Return result
+  ------------------------------------------------------------
+  return jsonb_build_object(
+    'success', true,
+    'order_number', p_order_number,
+    'cancelled_by', v_manager.staff_name,
+    'previous_status', v_previous_status,
+    'new_status', 'cancelled',
+    'reason', p_reason
+  );
+
+end;
+$function$;
