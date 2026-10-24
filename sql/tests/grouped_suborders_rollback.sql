@@ -77,6 +77,11 @@ BEGIN
   UPDATE public.orders SET status='awaiting_billing' WHERE id=id3;
   EXECUTE 'SET LOCAL ROLE authenticated';
   PERFORM public.claim_my_task(root_no,'billing');
+  SELECT count(*) INTO member_count FROM public.group_billing_lines
+  WHERE root_order_id=root_id;
+  IF member_count<>1 THEN
+    RAISE EXCEPTION 'Authenticated Billing worker cannot read combined items';
+  END IF;
   EXECUTE 'RESET ROLE';
 
   SELECT actual_qty INTO total_qty FROM public.group_billing_lines
