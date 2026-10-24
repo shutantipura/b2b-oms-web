@@ -59,6 +59,7 @@ function estimatedLineAmount(item: RawItem, requested: number | null): number | 
     item.effective_price_at_order,
     item.price_at_order,
     item.agreed_price_at_order,
+    item.unit_price_snapshot,
     item.price_per_kg,
     item.unit_price,
   ].find((value) => value !== null && value !== undefined && value !== "");
@@ -75,6 +76,7 @@ function savedUnitPrice(item: RawItem): number | null {
     item.effective_price_at_order,
     item.price_at_order,
     item.agreed_price_at_order,
+    item.unit_price_snapshot,
     item.price_per_kg,
     item.unit_price,
   ].find((candidate) => candidate !== null && candidate !== undefined && candidate !== "");
