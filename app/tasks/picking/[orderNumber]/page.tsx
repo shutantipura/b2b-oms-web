@@ -1086,7 +1086,7 @@ export default function PickingPage() {
                                     ? ` · เดิมหยิบแล้ว ${Number(item.actual_qty)} ${item.unit_snapshot}`
                                     : ""}
                                 </div>
-                              )
+                              )}
 
                               {addedByStaff && (
                                 <div className="inline-block text-xs font-semibold bg-blue-50 text-blue-700 rounded-full px-2 py-1 mt-1">
