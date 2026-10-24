@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../../lib/supabase";
 import DeliverySchedule from "../../../../components/DeliverySchedule";
+import TaskFilePicker from "../../../../components/TaskFilePicker";
 
 type OrderDetails = {
   id: string;
@@ -75,9 +76,6 @@ export default function StaffPaymentPage() {
 
   const [existingSlip, setExistingSlip] =
     useState(false);
-
-  const [slipFile, setSlipFile] =
-    useState<File | null>(null);
 
   const [loading, setLoading] =
     useState(true);
@@ -239,7 +237,7 @@ export default function StaffPaymentPage() {
     }
   }, [orderNumber]);
 
-  async function submitPaymentSlip() {
+  async function submitPaymentSlip(slipFile: File) {
     setMessage("");
 
     if (!order) {
@@ -254,14 +252,6 @@ export default function StaffPaymentPage() {
         `คำสั่งซื้อนี้อยู่ในสถานะ "${formatStatus(
           order.status
         )}" จึงไม่สามารถอัปโหลดสลิปใหม่ได้ สามารถอัปโหลดได้เฉพาะเมื่ออยู่ในสถานะรอการชำระเงินเท่านั้น`
-      );
-
-      return;
-    }
-
-    if (!slipFile) {
-      setMessage(
-        "กรุณาเลือกไฟล์สลิปการชำระเงินก่อน"
       );
 
       return;
@@ -345,7 +335,7 @@ export default function StaffPaymentPage() {
     }
 
     setMessage(
-      "ส่งสลิปการชำระเงินเรียบร้อยแล้ว"
+      "บันทึกสลิปและปิดคำสั่งซื้อเรียบร้อยแล้ว"
     );
 
     router.push(
@@ -509,55 +499,20 @@ export default function StaffPaymentPage() {
           </p>
 
           {existingSlip ? (
-            <div className="font-semibold">
-              ✓ ส่งสลิปการชำระเงินแล้ว
+            <div className="font-semibold text-[#008F8D]">
+              ✓ บันทึกสลิปการชำระเงินเรียบร้อยแล้ว
             </div>
           ) : (
-            <>
-              <label className="inline-flex cursor-pointer items-center bg-white border rounded-lg px-5 py-3 font-semibold">
-                เลือกไฟล์สลิป
-                <input
-                  type="file"
-                  accept="image/*,application/pdf"
-                  onChange={(
-                    event
-                  ) =>
-                    setSlipFile(
-                      event.target
-                        .files?.[0] ??
-                        null
-                    )
-                  }
-                  className="hidden"
-                />
-              </label>
-
-              {slipFile && (
-                <div className="mt-4 bg-gray-50 border rounded-xl p-4">
-                  <p className="text-sm text-gray-500">
-                    ไฟล์ที่เลือก
-                  </p>
-
-                  <p className="font-semibold mt-1 break-all">
-                    {
-                      slipFile.name
-                    }
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSlipFile(
-                        null
-                      )
-                    }
-                    className="text-sm text-red-600 mt-3"
-                  >
-                    เลือกไฟล์ใหม่
-                  </button>
-                </div>
-              )}
-            </>
+            <TaskFilePicker
+              label="สลิปการชำระเงิน"
+              chooseLabel="ถ่ายหรือเลือกสลิปการชำระเงิน"
+              replaceLabel="เลือกสลิปใหม่"
+              accept="image/*,application/pdf,.pdf"
+              uploaded={false}
+              uploading={submitting}
+              disabled={order.status !== "awaiting_payment"}
+              onSelect={submitPaymentSlip}
+            />
           )}
         </section>
 
@@ -567,27 +522,6 @@ export default function StaffPaymentPage() {
           </div>
         )}
 
-        {!existingSlip && (
-          <div className="flex justify-end mt-6">
-            <button
-              type="button"
-              onClick={
-                submitPaymentSlip
-              }
-              disabled={
-                submitting ||
-                !slipFile ||
-                order.status !==
-                  "awaiting_payment"
-              }
-              className="bg-black text-white rounded-lg px-8 py-4 font-semibold disabled:opacity-30"
-            >
-              {submitting
-                ? "กำลังส่ง..."
-                : "ยืนยันอัปโหลดสลิป"}
-            </button>
-          </div>
-        )}
       </div>
     </main>
   );
