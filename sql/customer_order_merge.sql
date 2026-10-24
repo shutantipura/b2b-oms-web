@@ -98,13 +98,13 @@ BEGIN
     RAISE EXCEPTION 'A merged order must keep the primary delivery date and time slot';
   END IF;
 
-  -- An already-started delivery window must not be extended by new items.
-  v_now_bkk := timezone('Asia/Bangkok', now());
+  -- Adding products counts as a new submission. The original delivery slot
+  -- must still be at least two full hours away when the merge is committed.
+  v_now_bkk := timezone('Asia/Bangkok', clock_timestamp());
   v_start := substring(v_order.delivery_slot FROM '([0-2][0-9]:[0-5][0-9])')::time;
-  IF v_order.delivery_date < v_now_bkk::date
-    OR (v_order.delivery_date = v_now_bkk::date
-      AND (v_start IS NULL OR v_start <= v_now_bkk::time)) THEN
-    RAISE EXCEPTION 'The primary delivery window has already started';
+  IF v_order.delivery_date IS NULL OR v_start IS NULL
+    OR (v_order.delivery_date + v_start) < v_now_bkk + interval '2 hours' THEN
+    RAISE EXCEPTION 'The delivery slot must start at least 2 hours after adding products';
   END IF;
 
   SELECT coalesce(jsonb_agg(jsonb_build_object(
