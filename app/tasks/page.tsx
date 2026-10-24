@@ -303,18 +303,37 @@ function deliveryUrgency(order: Order, now: BangkokClock): DeliveryUrgency {
   return days === 0 ? "today" : "none";
 }
 
-const urgencyAccent: Record<DeliveryUrgency, string> = {
-  overdue: "border-l-[#DC2626] bg-[#FFF7F7]",
-  "at-risk": "border-l-[#F59E0B] bg-[#FFFBEB]",
-  today: "border-l-[#EAB308] bg-[#FFFDF2]",
-  none: "border-l-transparent bg-white",
-};
-
-const urgencyDayStyle: Record<DeliveryUrgency, string> = {
-  overdue: "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]",
-  "at-risk": "border-[#FCD34D] bg-[#FEF3C7] text-[#92400E]",
-  today: "border-[#FDE68A] bg-[#FEF9C3] text-[#854D0E]",
-  none: "border-transparent bg-transparent text-[#6C877E]",
+// All delivery-urgency colours are set as explicit inline styles.
+// This prevents generic Tailwind border utilities or stale stylesheet rules
+// from changing the order stripe to the wrong colour.
+const urgencyPalette: Record<DeliveryUrgency, {
+  accent: string;
+  background: string;
+  dayBorder: string;
+  dayBackground: string;
+  dayText: string;
+  statusText: string;
+}> = {
+  overdue: {
+    accent: "#E53935", background: "#FFF0F0",
+    dayBorder: "#F5B7B5", dayBackground: "#FDE8E8",
+    dayText: "#B42318", statusText: "#B42318",
+  },
+  "at-risk": {
+    accent: "#FF9800", background: "#FFF3E0",
+    dayBorder: "#FFB74D", dayBackground: "#FFE0B2",
+    dayText: "#A34D00", statusText: "#A34D00",
+  },
+  today: {
+    accent: "#E5B700", background: "#FFFBE6",
+    dayBorder: "#F6DA65", dayBackground: "#FFF5B5",
+    dayText: "#785A00", statusText: "#785A00",
+  },
+  none: {
+    accent: "transparent", background: "#FFFFFF",
+    dayBorder: "transparent", dayBackground: "transparent",
+    dayText: "#6C877E", statusText: "#6C877E",
+  },
 };
 
 
@@ -1526,7 +1545,12 @@ export default function TasksPage() {
                           return (
                             <div
                               key={order.id}
-                              className={`flex items-center justify-between gap-3 border-b border-[#E2EEEA] border-l-4 px-3 py-3 last:border-b-0 sm:px-5 sm:py-3.5 ${urgencyAccent[urgency]}`}
+                              data-urgency={urgency}
+                              className="flex items-center justify-between gap-3 border-b border-[#E2EEEA] border-l-4 px-3 py-3 last:border-b-0 sm:px-5 sm:py-3.5"
+                              style={{
+                                borderLeftColor: urgencyPalette[urgency].accent,
+                                backgroundColor: urgencyPalette[urgency].background,
+                              }}
                             >
                               <div className="min-w-0 flex-1">
                                 <div
@@ -1538,7 +1562,12 @@ export default function TasksPage() {
 
                                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                                   <span
-                                    className={`inline-flex min-h-7 items-center rounded-lg border px-2 py-1 text-xs font-extrabold ${urgencyDayStyle[urgency]}`}
+                                    className="inline-flex min-h-7 items-center rounded-lg border px-2 py-1 text-xs font-extrabold"
+                                    style={{
+                                      borderColor: urgencyPalette[urgency].dayBorder,
+                                      backgroundColor: urgencyPalette[urgency].dayBackground,
+                                      color: urgencyPalette[urgency].dayText,
+                                    }}
                                     title={
                                       urgency === "overdue" ? "เลยช่วงเวลาจัดส่งแล้ว"
                                         : urgency === "at-risk" ? "อยู่ระหว่างช่วงเวลาจัดส่ง"
@@ -1564,10 +1593,10 @@ export default function TasksPage() {
                                     {order.delivery_slot ?? "ไม่ระบุเวลา"}
                                   </span>
                                   {urgency === "overdue" && (
-                                    <span className="text-[11px] font-extrabold text-[#B91C1C]">เกินกำหนด</span>
+                                    <span className="text-[11px] font-extrabold" style={{ color: urgencyPalette[urgency].statusText }}>เกินกำหนด</span>
                                   )}
                                   {urgency === "at-risk" && (
-                                    <span className="text-[11px] font-extrabold text-[#B45309]">อยู่ในช่วงจัดส่ง</span>
+                                    <span className="text-[11px] font-extrabold" style={{ color: urgencyPalette[urgency].statusText }}>อยู่ในช่วงจัดส่ง</span>
                                   )}
                                 </div>
 
