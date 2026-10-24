@@ -20,6 +20,7 @@ type PaymentResponse = {
   order?: {
     orderNumber: number;
     status: string;
+    billingAccountSuspended: boolean;
     finalAmount: number | null;
     deliveryDate: string | null;
     deliverySlot: string | null;
@@ -349,7 +350,9 @@ export default function MiniAppPaymentPage() {
           <p className="mt-3 text-xs leading-5 text-[#718F81]">
             {order.finalAmount === null
               ? "ทีมงานจะยืนยันยอดชำระหลังออกบิล กรุณาตรวจสอบยอดจากบิลก่อนโอนเงิน"
-              : "ยอดชำระตามคำสั่งซื้อ โปรดตรวจสอบรายละเอียดในบิลที่ทีมงานแนบไว้"}
+              : order.billingAccountSuspended
+                ? "ยอดชำระตามคำสั่งซื้อ (บัญชีถูกระงับ) โปรดตรวจสอบยอดกับทีมงาน"
+                : "ยอดชำระตามคำสั่งซื้อ โปรดตรวจสอบรายละเอียดในบิลที่ทีมงานแนบไว้"}
           </p>
           {canSubmit && (
             <a href="#upload-slip" className="mt-4 inline-flex min-h-10 items-center gap-1 rounded-xl bg-[#02B0AF] px-4 py-2 text-sm font-extrabold text-white shadow-sm">
@@ -390,18 +393,18 @@ export default function MiniAppPaymentPage() {
             <div className="flex items-start gap-3">
               {canSubmit && <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#FFF2C5] text-sm font-black text-[#8E6400]">1</span>}
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-black">{canSubmit ? "สแกน QR เพื่อชำระเงิน" : "QR สำหรับชำระเงิน"}</h2>
-                <p className="mt-1 text-xs leading-5 text-[#82998F]">รูป QR นี้จัดเตรียมและอัปโหลดโดยทีมงาน Lotus’s</p>
+                <h2 className="text-lg font-black">{order.billingAccountSuspended ? "CV card ลูกค้า" : canSubmit ? "สแกน QR เพื่อชำระเงิน" : "QR สำหรับชำระเงิน"}</h2>
+                <p className="mt-1 text-xs leading-5 text-[#82998F]">{order.billingAccountSuspended ? "ใช้รูปบัตร CV ที่บันทึกไว้ในข้อมูลลูกค้าแทน QR ชำระเงิน" : "รูป QR นี้จัดเตรียมและอัปโหลดโดยทีมงาน Lotus’s"}</p>
               </div>
             </div>
 
             {files?.paymentQr ? (
               <>
                 <div className="mx-auto mt-5 w-full max-w-[340px] rounded-2xl border border-[#E4EEE9] bg-white p-3 shadow-sm">
-                  <img src={files.paymentQr.url} alt="QR สำหรับชำระเงินที่ทีมงานอัปโหลด" loading="lazy" className="mx-auto max-h-[390px] w-full object-contain" />
+                  <img src={files.paymentQr.url} alt={order.billingAccountSuspended ? "CV card ลูกค้า" : "QR สำหรับชำระเงินที่ทีมงานอัปโหลด"} loading="lazy" className="mx-auto max-h-[390px] w-full object-contain" />
                 </div>
                 <a href={files.paymentQr.url} target="_blank" rel="noreferrer" className="mt-4 flex min-h-12 w-full items-center justify-center rounded-xl border-2 border-[#BDE4DD] bg-[#F1FAF7] px-4 py-3 text-sm font-extrabold text-[#008F8D]">
-                  เปิดรูป QR เต็มขนาด ↗
+                  {order.billingAccountSuspended ? "เปิดรูป CV card เต็มขนาด ↗" : "เปิดรูป QR เต็มขนาด ↗"}
                 </a>
                 {canSubmit && (
                   <p className="mt-3 text-center text-xs leading-5 text-[#7A9285]">หลังชำระเงินแล้ว โปรดแนบสลิปในขั้นตอนถัดไป</p>
@@ -409,8 +412,8 @@ export default function MiniAppPaymentPage() {
               </>
             ) : (
               <div className="mt-5 rounded-2xl border border-dashed border-[#C5DDD4] bg-[#F4FAF7] p-6 text-center">
-                <p className="font-bold text-[#5D8072]">ยังไม่มีรูป QR สำหรับชำระเงิน</p>
-                <p className="mt-2 text-xs leading-5 text-[#8AA096]">ทีมงานจะอัปโหลด QR หลังออกบิล คุณสามารถกดรีเฟรชเพื่อตรวจสอบอีกครั้ง</p>
+                <p className="font-bold text-[#5D8072]">{order.billingAccountSuspended ? "ยังไม่มีรูป CV card ของลูกค้า" : "ยังไม่มีรูป QR สำหรับชำระเงิน"}</p>
+                <p className="mt-2 text-xs leading-5 text-[#8AA096]">{order.billingAccountSuspended ? "กรุณาติดต่อทีมงานเพื่อตรวจสอบรูปบัตร CV" : "ทีมงานจะอัปโหลด QR หลังออกบิล คุณสามารถกดรีเฟรชเพื่อตรวจสอบอีกครั้ง"}</p>
               </div>
             )}
           </section>
@@ -439,7 +442,7 @@ export default function MiniAppPaymentPage() {
               </a>
             </>
           ) : (
-            <div className="mt-4 rounded-xl border border-dashed border-[#CFDFD6] bg-[#F8FBF9] px-4 py-6 text-center text-sm text-[#839A8E]">ทีมงานยังไม่ได้แนบบิล</div>
+            <div className="mt-4 rounded-xl border border-dashed border-[#CFDFD6] bg-[#F8FBF9] px-4 py-6 text-center text-sm text-[#839A8E]">{order.billingAccountSuspended ? "บัญชีลูกค้าถูกระงับ · ไม่ต้องแนบรูปบิล" : "ทีมงานยังไม่ได้แนบบิล"}</div>
           )}
         </section>
 
