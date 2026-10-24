@@ -55,6 +55,37 @@ type OrderItem = {
   } | null;
 };
 
+// Quantities shown to a picker are TOTALS. The existing add-on RPC still
+// accepts the newly picked increment, so we convert to that at submission.
+function pickingQuantities(item: OrderItem, addonMode: boolean) {
+  const confirmed = Number(item.confirmed_qty ?? 0);
+  const alreadyPicked =
+    addonMode && item.actual_qty !== null ? Number(item.actual_qty) : 0;
+  const additionalToPick =
+    addonMode &&
+    Number(item.addon_requested_qty) > 0 &&
+    item.actual_qty !== null
+      ? Number(item.addon_confirmed_qty ?? 0)
+      : confirmed;
+
+  return {
+    confirmed,
+    alreadyPicked,
+    additionalToPick,
+    suggestedTotal: alreadyPicked + additionalToPick,
+  };
+}
+
+// Both normal and add-on Picking show a TOTAL input. Preserve original
+// actual_qty when sending the incremental RPC payload for a repeated SKU.
+function toPickingRpcQuantity(item: OrderItem, addonMode: boolean, total: number) {
+  const { alreadyPicked } = pickingQuantities(item, addonMode);
+  if (addonMode && Number(item.addon_requested_qty) > 0 && item.actual_qty !== null) {
+    return Number((total - alreadyPicked).toFixed(6));
+  }
+  return total;
+}
+
 type ArchivedCartPhoto = {
   id: string;
   file_type: string;
@@ -387,20 +418,16 @@ export default function PickingPage() {
         string
       > = {};
 
-    loadedItems.forEach(
-      (item) => {
-        initialActual[
-          item.id
-        ] =
-          String(
-            Number(item.addon_requested_qty) > 0
-              ? (item.actual_qty === null
-                  ? (item.confirmed_qty ?? 0)
-                  : (item.addon_confirmed_qty ?? 0))
-              : (item.actual_qty ?? item.confirmed_qty)
-          );
-      }
+    const loadedAddonMode = loadedItems.some(
+      (item) => Number(item.addon_requested_qty) > 0
     );
+    loadedItems.forEach((item) => {
+      initialActual[item.id] = String(
+        loadedAddonMode
+          ? pickingQuantities(item, true).suggestedTotal
+          : (item.actual_qty ?? item.confirmed_qty ?? 0)
+      );
+    });
 
     setActual(
       initialActual
@@ -768,33 +795,23 @@ export default function PickingPage() {
       return;
     }
 
-    const invalidItem =
-      actionableItems.find(
-        (item) => {
-          const value =
-            Number(
-              actual[
-                item.id
-              ]
-            );
-
-          return (
-            Number.isNaN(
-              value
-            ) ||
-            !Number.isFinite(
-              value
-            ) ||
-            value < 0
-          );
-        }
+    const invalidItem = actionableItems.find((item) => {
+      const rawValue = actual[item.id];
+      const total = Number(rawValue);
+      const { alreadyPicked } = pickingQuantities(item, addonMode);
+      return (
+        rawValue === undefined ||
+        rawValue.trim() === "" ||
+        !Number.isFinite(total) ||
+        total < alreadyPicked
       );
+    });
 
     if (
       invalidItem
     ) {
       setMessage(
-        `${invalidItem.product_name_snapshot}: กรุณากรอกจำนวนที่หยิบจริงให้ถูกต้อง`
+        `${invalidItem.product_name_snapshot}: ยอดหยิบจริงทั้งหมดต้องเป็นตัวเลขและไม่น้อยกว่าจำนวนที่หยิบไว้แล้ว`
       );
 
       return;
@@ -815,20 +832,10 @@ export default function PickingPage() {
       return;
     }
 
-    const payload =
-      actionableItems.map(
-        (item) => ({
-          sku:
-            item.products!
-              .sku,
-          actual_qty:
-            Number(
-              actual[
-                item.id
-              ]
-            ),
-        })
-      );
+    const payload = actionableItems.map((item) => ({
+      sku: item.products!.sku,
+      actual_qty: toPickingRpcQuantity(item, addonMode, Number(actual[item.id])),
+    }));
 
     setSubmitting(
       true
@@ -1038,148 +1045,96 @@ export default function PickingPage() {
             </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left p-4">
-                    สินค้า
-                  </th>
+          <div className="divide-y divide-[#E5EFEB]">
+            {(addonMode ? addedItems : items).map((item) => {
+              const amounts = pickingQuantities(item, addonMode);
+              const addedByStaff = Boolean(
+                item.staff_note?.startsWith("Added by staff during")
+              );
 
-                  <th className="text-left p-4">
-                    SKU
-                  </th>
+              return (
+                <div key={item.id} className="px-4 py-5 sm:px-6">
+                  <div className="flex items-start gap-3">
+                    <ProductThumbnail
+                      imageUrl={item.products?.image_url}
+                      alt={item.product_name_snapshot}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold leading-6 text-[#234C40]">
+                        {item.product_name_snapshot}
+                      </p>
+                      <p className="mt-1 text-xs text-[#71877E]">
+                        SKU {item.products?.sku ?? "—"}
+                      </p>
+                      {addonMode && (
+                        <span className="mt-2 inline-flex rounded-full bg-[#FFF3D4] px-2 py-1 text-xs font-bold text-[#8A6000]">
+                          เพิ่มใหม่ +{Number(item.addon_requested_qty)} {item.unit_snapshot}
+                        </span>
+                      )}
+                      {addedByStaff && (
+                        <span className="ml-2 mt-2 inline-flex rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
+                          เพิ่มโดยพนักงาน
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
-                  <th className="text-right p-4">
-                    จำนวนที่ยืนยัน
-                  </th>
-
-                  <th className="text-right p-4">
-                    จำนวนที่หยิบจริง
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {(addonMode ? addedItems : items).map(
-                  (item) => {
-                    const addedByStaff =
-                      Boolean(
-                        item.staff_note?.startsWith(
-                          "Added by staff during"
-                        )
-                      );
-
-                    return (
-                      <tr
-                        key={
-                          item.id
-                        }
-                        className="border-t"
-                      >
-                        <td className="p-4 min-w-[260px]">
-                          <div className="flex items-center gap-3">
-                            <ProductThumbnail
-                              imageUrl={
-                                item
-                                  .products
-                                  ?.image_url
-                              }
-                              alt={
-                                item.product_name_snapshot
-                              }
-                            />
-
-                            <div className="font-medium min-w-0">
-                              {mergeAddedQuantities?.[item.product_id] ? (
-                                <span className="mb-1 inline-block rounded-md bg-[#FFE0B2] px-2 py-1 text-xs font-bold text-[#8B4500]">
-                                  ลูกค้าเพิ่ม +{mergeAddedQuantities[item.product_id]} {item.unit_snapshot}
-                                </span>
-                              ) : null}
-                              <div>
-                                {
-                                  item.product_name_snapshot
-                                }
-                              </div>
-                              {addonMode && (
-                                <div className="mt-1 text-xs font-bold text-[#A34D00]">
-                                  ลูกค้าเพิ่ม +{Number(item.addon_requested_qty)} {item.unit_snapshot}
-                                  {item.actual_qty !== null
-                                    ? ` · เดิมหยิบแล้ว ${Number(item.actual_qty)} ${item.unit_snapshot}`
-                                    : ` · รายการนี้ยังไม่เคยหยิบ ต้องหยิบยอดรวมเดิมและเพิ่ม`}
-                                </div>
-                              )}
-
-                              {addedByStaff && (
-                                <div className="inline-block text-xs font-semibold bg-blue-50 text-blue-700 rounded-full px-2 py-1 mt-1">
-                                  เพิ่มโดยพนักงาน
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="p-4">
-                          {item
-                            .products
-                            ?.sku ??
-                            "—"}
-                        </td>
-
-                        <td className="p-4 text-right whitespace-nowrap">
-                          {Number(
-                            addonMode
-                              ? (item.actual_qty === null
-                                  ? item.confirmed_qty
-                                  : item.addon_confirmed_qty)
-                              : item.confirmed_qty
-                          )}{" "}
-                          {
-                            item.unit_snapshot
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="rounded-xl bg-[#F3F7F5] p-3">
+                      <p className="text-xs font-semibold text-[#647E73]">จำนวนที่ยืนยัน</p>
+                      <p className="mt-2 text-lg font-extrabold text-[#21463A]">
+                        {formatPrice(amounts.confirmed)}
+                        <span className="ml-1 text-xs font-normal">{item.unit_snapshot}</span>
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-[#F3F7F5] p-3">
+                      <p className="text-xs font-semibold text-[#647E73]">จำนวนที่หยิบแล้ว</p>
+                      <p className="mt-2 text-lg font-extrabold text-[#21463A]">
+                        {formatPrice(amounts.alreadyPicked)}
+                        <span className="ml-1 text-xs font-normal">{item.unit_snapshot}</span>
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-[#FFF6DF] p-3">
+                      <p className="text-xs font-semibold text-[#8C671A]">จำนวนที่ต้องหยิบเพิ่ม</p>
+                      <p className="mt-2 text-lg font-extrabold text-[#8C671A]">
+                        {formatPrice(amounts.additionalToPick)}
+                        <span className="ml-1 text-xs font-normal">{item.unit_snapshot}</span>
+                      </p>
+                    </div>
+                    <label className="rounded-xl border-2 border-[#62C8C2] bg-[#F0FBFA] p-3">
+                      <span className="block text-xs font-extrabold text-[#007C76]">
+                        จำนวนที่หยิบจริงทั้งหมด
+                      </span>
+                      <span className="mt-2 flex items-center gap-2">
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min={amounts.alreadyPicked}
+                          step="0.001"
+                          required
+                          aria-label={`จำนวนที่หยิบจริงทั้งหมดของ ${item.product_name_snapshot}`}
+                          value={actual[item.id] ?? ""}
+                          onChange={(event) =>
+                            setActual((previous) => ({
+                              ...previous,
+                              [item.id]: event.target.value,
+                            }))
                           }
-                        </td>
-
-                        <td className="p-4">
-                          <div className="flex justify-end items-center gap-2">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.001"
-                              value={
-                                actual[
-                                  item.id
-                                ] ??
-                                ""
-                              }
-                              onChange={(
-                                event
-                              ) =>
-                                setActual(
-                                  {
-                                    ...actual,
-                                    [item.id]:
-                                      event
-                                        .target
-                                        .value,
-                                  }
-                                )
-                              }
-                              className="w-32 border rounded-lg px-3 py-2 text-right"
-                            />
-
-                            <span className="text-gray-500 w-10">
-                              {
-                                item.unit_snapshot
-                              }
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }
-                )}
-              </tbody>
-            </table>
+                          className="w-full min-w-0 rounded-lg border border-[#9ADBD7] bg-white px-2 py-2 text-right text-lg font-extrabold text-[#006E6A]"
+                        />
+                        <span className="shrink-0 text-xs text-[#497E77]">{item.unit_snapshot}</span>
+                      </span>
+                    </label>
+                  </div>
+                  {addonMode && (
+                    <p className="mt-3 text-xs leading-5 text-[#71877E]">
+                      กรอกยอดหยิบรวมทั้งสินค้าที่หยิบไว้แล้วและสินค้าที่หยิบเพิ่มเติม
+                      ระบบจะบันทึกเฉพาะจำนวนที่หยิบเพิ่ม ไม่บวกยอดเดิมซ้ำ
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
 
