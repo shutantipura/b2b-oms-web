@@ -83,6 +83,7 @@ type OrderFile = {
   storage_path: string;
 
   original_filename: string | null;
+  mime_type: string | null;
 
 };
 
@@ -132,6 +133,9 @@ export default function BillingPage() {
 
   const [billName, setBillName] = useState<string | null>(null);
   const [qrName, setQrName] = useState<string | null>(null);
+  const [billPreviewUrl, setBillPreviewUrl] = useState<string | null>(null);
+  const [qrPreviewUrl, setQrPreviewUrl] = useState<string | null>(null);
+  const [billMimeType, setBillMimeType] = useState<string | null>(null);
 
   const [finalAmount, setFinalAmount] =
 
@@ -353,7 +357,9 @@ export default function BillingPage() {
 
         storage_path,
 
-        original_filename
+        original_filename,
+
+        mime_type
 
       `)
 
@@ -424,6 +430,18 @@ export default function BillingPage() {
     setQrUploaded(Boolean(qr));
     setBillName(bill?.original_filename ?? null);
     setQrName(qr?.original_filename ?? null);
+    const [billSigned, qrSigned] = await Promise.all([
+      bill
+        ? supabase.storage.from("order-files").createSignedUrl(bill.storage_path, 3600)
+        : Promise.resolve({ data: null, error: null }),
+      qr
+        ? supabase.storage.from("order-files").createSignedUrl(qr.storage_path, 3600)
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+    setBillPreviewUrl(billSigned.data?.signedUrl ?? null);
+    setQrPreviewUrl(qrSigned.data?.signedUrl ?? null);
+    setBillMimeType(bill?.mime_type ?? null);
+
 
 
 
@@ -591,6 +609,31 @@ export default function BillingPage() {
 
 
 
+  async function refreshBillPreview() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: currentOrder } = await supabase.from("orders").select("id").eq("order_number", orderNumber).maybeSingle();
+    if (!currentOrder) return;
+    const { data: file } = await supabase.from("order_files")
+      .select("storage_path,mime_type").eq("order_id", currentOrder.id)
+      .eq("file_type", "bill").eq("is_current", true).maybeSingle();
+    if (!file) return;
+    const { data } = await supabase.storage.from("order-files").createSignedUrl(file.storage_path, 3600);
+    setBillPreviewUrl(data?.signedUrl ?? null);
+    setBillMimeType(file.mime_type ?? null);
+  }
+
+  async function refreshQrPreview() {
+    const { data: currentOrder } = await supabase.from("orders").select("id").eq("order_number", orderNumber).maybeSingle();
+    if (!currentOrder) return;
+    const { data: file } = await supabase.from("order_files")
+      .select("storage_path").eq("order_id", currentOrder.id)
+      .eq("file_type", "payment_qr").eq("is_current", true).maybeSingle();
+    if (!file) return;
+    const { data } = await supabase.storage.from("order-files").createSignedUrl(file.storage_path, 3600);
+    setQrPreviewUrl(data?.signedUrl ?? null);
+  }
+
   async function uploadBill(file: File) {
     if (uploadingBill || submitting) return;
     try {
@@ -599,6 +642,7 @@ export default function BillingPage() {
       await uploadFile(file, "bill");
       setBillUploaded(true);
       setBillName(file.name);
+      await refreshBillPreview();
       setMessage("✓ บันทึกบิลเรียบร้อยแล้ว");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "อัปโหลดบิลไม่สำเร็จ");
@@ -615,6 +659,7 @@ export default function BillingPage() {
       await uploadFile(file, "payment_qr");
       setQrUploaded(true);
       setQrName(file.name);
+      await refreshQrPreview();
       setMessage("✓ บันทึก QR ชำระเงินเรียบร้อยแล้ว");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "อัปโหลด QR ไม่สำเร็จ");
@@ -1427,6 +1472,21 @@ export default function BillingPage() {
               fileName={billName}
               onSelect={uploadBill}
             />
+            {billPreviewUrl && (
+              <div className="mt-4 rounded-xl border bg-gray-50 p-3">
+                <p className="mb-2 text-sm font-semibold text-[#17453F]">ตัวอย่างบิลที่บันทึกไว้</p>
+                {billMimeType?.startsWith("image/") ? (
+                  <a href={billPreviewUrl} target="_blank" rel="noreferrer">
+                    <img src={billPreviewUrl} alt="ตัวอย่างภาพบิล" className="max-h-72 w-full rounded-lg object-contain" />
+                  </a>
+                ) : (
+                  <a href={billPreviewUrl} target="_blank" rel="noreferrer" className="font-semibold text-[#008F8D] underline">
+                    เปิดไฟล์บิล / PDF
+                  </a>
+                )}
+              </div>
+            )}
+
 
           </div>
 
@@ -1463,6 +1523,15 @@ export default function BillingPage() {
               fileName={qrName}
               onSelect={uploadQr}
             />
+            {qrPreviewUrl && (
+              <div className="mt-4 rounded-xl border bg-gray-50 p-3">
+                <p className="mb-2 text-sm font-semibold text-[#17453F]">ตัวอย่าง QR ที่บันทึกไว้</p>
+                <a href={qrPreviewUrl} target="_blank" rel="noreferrer">
+                  <img src={qrPreviewUrl} alt="ตัวอย่าง QR ชำระเงิน" className="max-h-72 w-full rounded-lg object-contain" />
+                </a>
+              </div>
+            )}
+
 
           </div>
 
