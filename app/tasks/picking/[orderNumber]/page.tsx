@@ -37,6 +37,7 @@ type OrderItem = {
   id: string;
   product_id: string;
   product_name_snapshot: string;
+  requested_qty: number | string;
   confirmed_qty:
     | number
     | string;
@@ -165,11 +166,25 @@ export default function PickingPage() {
     );
 
   const addonMode = items.some((item) => Number(item.addon_requested_qty) > 0);
-  const actionableItems = addonMode
+  const addedItems = addonMode
     ? items.filter((item) => Number(item.addon_requested_qty) > 0)
+    : [];
+  // Original items can still need picking if the customer merged another
+  // order while a picker was actively working. Keep those inputs actionable.
+  const unpickedOriginalItems = addonMode
+    ? items.filter((item) =>
+        Number(item.addon_requested_qty) === 0 && item.actual_qty === null
+      )
+    : [];
+  const actionableItems = addonMode
+    ? [...addedItems, ...unpickedOriginalItems]
     : items;
-  const previouslyCompletedItems = addonMode
-    ? items.filter((item) => Number(item.addon_requested_qty) === 0)
+  // For a repeated SKU, display the previously ordered portion here
+  // even though its additional quantity also appears in the top section.
+  const originalItems = addonMode
+    ? items.filter((item) =>
+        Number(item.requested_qty) - Number(item.addon_requested_qty) > 0
+      )
     : [];
 
   const [
@@ -325,6 +340,7 @@ export default function PickingPage() {
           id,
           product_id,
           product_name_snapshot,
+          requested_qty,
           confirmed_qty,
           actual_qty,
           addon_requested_qty,
@@ -378,7 +394,9 @@ export default function PickingPage() {
         ] =
           String(
             Number(item.addon_requested_qty) > 0
-              ? (item.addon_confirmed_qty ?? 0)
+              ? (item.actual_qty === null
+                  ? (item.confirmed_qty ?? 0)
+                  : (item.addon_confirmed_qty ?? 0))
               : (item.actual_qty ?? item.confirmed_qty)
           );
       }
@@ -992,11 +1010,15 @@ export default function PickingPage() {
           <div className="p-6 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h2 className="font-bold text-lg">
-                จำนวนสินค้าที่หยิบจริง
+                {addonMode
+                  ? `สินค้าเพิ่มเติมที่ต้องหยิบ (${addedItems.length} รายการ)`
+                  : "จำนวนสินค้าที่หยิบจริง"}
               </h2>
 
               <p className="text-sm text-gray-500 mt-1">
-                กรอกจำนวนที่หยิบได้จริง และสามารถเพิ่มสินค้าทดแทนได้เมื่อจำเป็น
+                {addonMode
+                  ? "หยิบเฉพาะจำนวนที่เพิ่มใหม่ แต่หากสินค้าเดิมยังไม่เคยหยิบ ให้หยิบยอดรวมที่แสดง และตรวจสอบสินค้าค้างหยิบด้านล่าง"
+                  : "กรอกจำนวนที่หยิบได้จริง และสามารถเพิ่มสินค้าทดแทนได้เมื่อจำเป็น"}
               </p>
             </div>
 
@@ -1039,7 +1061,7 @@ export default function PickingPage() {
               </thead>
 
               <tbody>
-                {actionableItems.map(
+                {(addonMode ? addedItems : items).map(
                   (item) => {
                     const addedByStaff =
                       Boolean(
@@ -1081,10 +1103,10 @@ export default function PickingPage() {
                               </div>
                               {addonMode && (
                                 <div className="mt-1 text-xs font-bold text-[#A34D00]">
-                                  เพิ่มใหม่ {Number(item.addon_requested_qty)} {item.unit_snapshot}
+                                  ลูกค้าเพิ่ม +{Number(item.addon_requested_qty)} {item.unit_snapshot}
                                   {item.actual_qty !== null
                                     ? ` · เดิมหยิบแล้ว ${Number(item.actual_qty)} ${item.unit_snapshot}`
-                                    : ""}
+                                    : ` · รายการนี้ยังไม่เคยหยิบ ต้องหยิบยอดรวมเดิมและเพิ่ม`}
                                 </div>
                               )}
 
@@ -1106,7 +1128,11 @@ export default function PickingPage() {
 
                         <td className="p-4 text-right whitespace-nowrap">
                           {Number(
-                            addonMode ? item.addon_confirmed_qty : item.confirmed_qty
+                            addonMode
+                              ? (item.actual_qty === null
+                                  ? item.confirmed_qty
+                                  : item.addon_confirmed_qty)
+                              : item.confirmed_qty
                           )}{" "}
                           {
                             item.unit_snapshot
@@ -1157,19 +1183,106 @@ export default function PickingPage() {
           </div>
         </section>
 
-        {addonMode && previouslyCompletedItems.length > 0 && (
-          <section className="mb-6 rounded-2xl border bg-[#F8FAF9] p-5">
-            <h3 className="text-sm font-extrabold text-[#315E50]">สินค้าที่จัดแล้วในรอบก่อน (ไม่ต้องจัดซ้ำ)</h3>
-            <div className="mt-3 space-y-2">
-              {previouslyCompletedItems.map((item) => (
-                <div key={item.id} className="flex justify-between gap-3 text-xs">
-                  <span>{item.product_name_snapshot}</span>
-                  <span className="shrink-0 font-semibold">
-                    หยิบแล้ว {Number(item.actual_qty ?? 0)} {item.unit_snapshot}
-                  </span>
-                </div>
-              ))}
+        {addonMode && (
+          <section className="mb-6 overflow-hidden rounded-2xl border border-[#CFE3DD] bg-white">
+            <div className="border-b border-[#DCE9E4] bg-[#F0F7F4] px-5 py-4">
+              <h3 className="text-base font-extrabold text-[#234C40]">
+                สินค้าในคำสั่งซื้อเดิม ({originalItems.length} รายการ)
+              </h3>
+              <p className="mt-1 text-sm leading-6 text-[#577268]">
+                แสดงรายการที่สั่งไว้ก่อนหน้า รวมถึง SKU ที่ลูกค้าเพิ่มซ้ำ
+                สินค้าที่หยิบแล้วไม่ต้องหยิบใหม่ ส่วนสินค้าที่ยังไม่เคยหยิบให้กรอกจำนวนด้านล่าง
+              </p>
             </div>
+            {originalItems.length > 0 ? (
+              <div className="divide-y divide-[#E5EFEB]">
+                {originalItems.map((item) => {
+                  const originalRequested = Math.max(
+                    0, Number(item.requested_qty) - Number(item.addon_requested_qty)
+                  );
+                  const originalConfirmed = Math.max(
+                    0, Number(item.confirmed_qty ?? 0) - Number(item.addon_confirmed_qty ?? 0)
+                  );
+                  const originalNotYetPicked = item.actual_qty === null;
+                  const coveredByTopInput = originalNotYetPicked &&
+                    Number(item.addon_requested_qty) > 0;
+                  const needsOriginalInput = originalNotYetPicked && !coveredByTopInput;
+
+                  return (
+                    <div key={item.id} className="p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <ProductThumbnail
+                            imageUrl={item.products?.image_url}
+                            alt={item.product_name_snapshot}
+                          />
+                          <div className="min-w-0">
+                            <p className="font-semibold text-[#24473F]">{item.product_name_snapshot}</p>
+                            <p className="mt-1 text-xs text-[#71877E]">SKU {item.products?.sku ?? "—"}</p>
+                            {Number(item.addon_requested_qty) > 0 && (
+                              <span className="mt-2 inline-block rounded-full bg-[#FFF3D4] px-2 py-1 text-xs font-bold text-[#8A6000]">
+                                สินค้าเดียวกับรายการเพิ่มเติมด้านบน
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 rounded-xl bg-[#F6FAF8] px-3 py-3 text-center sm:min-w-[290px]">
+                          <div>
+                            <p className="text-xs text-[#72877D]">สั่งเดิม</p>
+                            <p className="mt-1 text-sm font-bold">{originalRequested} {item.unit_snapshot}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-[#72877D]">ยืนยันเดิม</p>
+                            <p className="mt-1 text-sm font-bold">{originalConfirmed} {item.unit_snapshot}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-[#72877D]">หยิบเดิม</p>
+                            <p className="mt-1 text-sm font-bold">
+                              {originalNotYetPicked ? "ยังไม่หยิบ" : `${Number(item.actual_qty)} ${item.unit_snapshot}`}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      {needsOriginalInput && (
+                        <label className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#FCD34D] bg-[#FFFBEB] p-3">
+                          <span className="text-sm font-semibold text-[#92400E]">
+                            สินค้าเดิมยังไม่หยิบ · ระบุจำนวนที่หยิบได้จริง
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.001"
+                              value={actual[item.id] ?? ""}
+                              onChange={(event) =>
+                                setActual((previous) => ({
+                                  ...previous,
+                                  [item.id]: event.target.value,
+                                }))
+                              }
+                              className="w-28 rounded-lg border border-[#E8CE82] bg-white px-3 py-2 text-right"
+                            />
+                            <span className="text-sm text-[#71877E]">{item.unit_snapshot}</span>
+                          </span>
+                        </label>
+                      )}
+                      {coveredByTopInput && (
+                        <p className="mt-3 text-xs font-semibold text-[#A34D00]">
+                          สินค้าเดิมยังไม่หยิบ · กรอกยอดรวมทั้งรายการเดิมและเพิ่มเติมในช่องด้านบน
+                        </p>
+                      )}
+                      {!originalNotYetPicked && (
+                        <p className="mt-3 text-xs font-semibold text-[#008E88]">
+                          หยิบรอบเดิมแล้ว · ไม่ต้องหยิบซ้ำ
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="p-5 text-sm text-[#71877E]">คำสั่งซื้อเดิมยังไม่มีสินค้าอื่น</p>
+            )}
           </section>
         )}
 
