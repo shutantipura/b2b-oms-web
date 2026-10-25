@@ -10,6 +10,7 @@ export const DELIVERY_RULES = {
     { value: "11:00–13:00", label: "11:00–13:00", startMinutes: 11 * 60 },
     { value: "13:00–15:00", label: "13:00–15:00", startMinutes: 13 * 60 },
     { value: "15:00–17:00", label: "15:00–17:00", startMinutes: 15 * 60 },
+    { value: "17:00–19:00", label: "17:00–19:00", startMinutes: 17 * 60 },
   ],
 };
 
@@ -75,7 +76,7 @@ export function getAvailableSlots(deliveryDate: string, now = new Date()) {
 
 export function getEarliestDeliveryDate(now = new Date()): string {
   const today = bangkokToday(now);
-  // Once the final window's start time (15:00) has passed, tomorrow is first.
+  // Once the final window's start time (17:00) has passed, tomorrow is first.
   return getAvailableSlots(today, now).length > 0 ? today : addDays(today, 1);
 }
 
