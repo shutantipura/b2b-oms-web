@@ -52,7 +52,7 @@ type APIResponse = {
 
 const TRACKING_STEPS = [
   "ได้รับคำสั่งซื้อ",
-  "ยืนยันคำสั่งซื้อ",
+  "เช็คสต็อก",
   "กำลังเตรียมสินค้า",
   "กำลังจัดส่ง",
   "ชำระเงิน",
@@ -77,7 +77,7 @@ function currentStep(status: string) {
 function statusName(status: string) {
   const names: Record<string, string> = {
     awaiting_confirmation: "ได้รับคำสั่งซื้อ",
-    awaiting_picking: "ยืนยันคำสั่งซื้อ",
+    awaiting_picking: "เช็คสต็อกแล้ว",
     picking: "กำลังเตรียมสินค้า",
     awaiting_billing: "กำลังเตรียมสินค้า",
     ready_for_delivery: "กำลังเตรียมสินค้า",
