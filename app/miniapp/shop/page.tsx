@@ -3000,23 +3000,31 @@ export default function MiniAppShopPage() {
             </div>
           </div>
           <div className="relative mt-3">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-[#02B0AF]">⌕</span>
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-[#A77B00]">⌕</span>
             <input
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="ค้นหาชื่อสินค้า หรือรหัส SKU..."
+              placeholder="ค้นหาสินค้า / SKU"
               aria-label="ค้นหาสินค้า"
-              className="min-h-14 w-full rounded-2xl border-2 border-[#008F8D] bg-white py-3.5 pl-12 pr-12 text-base font-medium text-[#173E31] placeholder:text-[#70978B] shadow-[0_3px_0_rgba(0,95,90,0.10)] outline-none transition focus:border-[#007E7C] focus:ring-4 focus:ring-[#02B0AF]/25"
+              className={`min-h-14 w-full rounded-2xl border-2 border-[#FDBC16] bg-[#FFF9E6] py-3.5 pl-12 text-sm font-semibold text-[#173E31] placeholder:text-[#8B7849] shadow-[0_3px_0_rgba(182,132,0,0.17)] outline-none transition focus:border-[#E1A500] focus:bg-white focus:ring-4 focus:ring-[#FDBC16]/25 sm:text-base [&::-webkit-search-cancel-button]:hidden ${search ? "pr-[150px]" : "pr-[112px]"}`}
             />
-            {search && (
-              <button
-                type="button"
-                onClick={() => { setSearch(""); setSelectedCategory(""); }}
-                aria-label="ล้างการค้นหา"
-                className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-xl text-[#6F877B] hover:bg-[#E7F3EB]"
-              >×</button>
-            )}
+            <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(""); setSelectedCategory(""); }}
+                  aria-label="ล้างการค้นหา"
+                  className="pointer-events-auto grid h-8 w-8 place-items-center rounded-full text-xl text-[#806127] hover:bg-[#FBE9B0]"
+                >×</button>
+              )}
+              <span
+                role="status"
+                className="whitespace-nowrap rounded-lg border border-[#E8BD4D] bg-[#FFE8A1] px-2 py-1.5 text-[11px] font-extrabold text-[#745200] shadow-sm sm:text-xs"
+              >
+                {tab === "favourites" ? `${displayedProducts.length.toLocaleString()} รายการ` : `${totalProducts.toLocaleString()} รายการ`}
+              </span>
+            </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-[#B7DCD5] bg-[#D6ECE8] p-1">
             <button
@@ -3057,22 +3065,17 @@ export default function MiniAppShopPage() {
           <div role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{message}</div>
         )}
 
-        {/* Keep the product count; only show a heading when it adds context. */}
-        <div className="mb-3 flex flex-wrap items-end justify-end gap-2 px-1">
-          {(tab === "favourites" || search.trim() || selectedCategory) && (
-            <div className="mr-auto">
-              <h3 className="text-base font-extrabold text-[#173E31]">
-                {tab === "favourites" ? "สินค้าซื้อประจำของคุณ" : search.trim() ? "ผลการค้นหา" : categoryLabel(selectedCategory)}
-              </h3>
-              <p className="mt-1 text-xs text-[#597C70]">
-                {tab === "favourites" ? "แตะดาวเพื่อเพิ่มหรือนำสินค้าออกจากรายการโปรด" : selectedCategory ? categoryLabel(selectedCategory) : `คำค้นหา: ${debouncedSearch}`}
-              </p>
-            </div>
-          )}
-          <span className="rounded-lg border border-[#B6DCD4] bg-[#DDF2ED] px-3 py-2 text-xs font-extrabold text-[#008F8D]">
-            {tab === "favourites" ? `${displayedProducts.length.toLocaleString()} รายการ` : `${totalProducts.toLocaleString()} รายการ`}
-          </span>
-        </div>
+        {/* Show a contextual heading for search/favourites; the count sits in the search field. */}
+        {(tab === "favourites" || search.trim() || selectedCategory) && (
+          <div className="mb-3 px-1">
+            <h3 className="text-base font-extrabold text-[#173E31]">
+              {tab === "favourites" ? "สินค้าซื้อประจำของคุณ" : search.trim() ? "ผลการค้นหา" : categoryLabel(selectedCategory)}
+            </h3>
+            <p className="mt-1 text-xs text-[#597C70]">
+              {tab === "favourites" ? "แตะดาวเพื่อเพิ่มหรือนำสินค้าออกจากรายการโปรด" : selectedCategory ? categoryLabel(selectedCategory) : `คำค้นหา: ${debouncedSearch}`}
+            </p>
+          </div>
+        )}
         {tab === "all" && loadingProducts && (
           <div className="mb-4 flex items-center gap-3 rounded-2xl border border-[#D5E7DB] bg-white p-4 text-sm font-medium text-[#688572]">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#CFE8D9] border-t-[#02B0AF]" />
