@@ -1426,7 +1426,7 @@ export default function BillingPage() {
             {([
               { value: "normal", label: "CV ปกติ" },
               { value: "suspended", label: "CV Card" },
-              { value: "no_cv", label: "พักบิล" },
+              { value: "no_cv", label: "B2B Barcode" },
             ] as const).map(({ value, label }) => (
               <button
                 key={value}
