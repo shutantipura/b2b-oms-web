@@ -101,7 +101,7 @@ const groups: TaskGroup[] = [
 
   {
 
-    title: "ยืนยันคำสั่งซื้อ",
+    title: "เช็คสต็อก",
 
     stage: "confirmation",
 
