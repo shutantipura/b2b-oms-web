@@ -162,11 +162,11 @@ export function getOrderDeliveryUrgency(
   if (order.status === "completed" || order.status === "cancelled") return "none";
 
   const deliveryDate = order.delivery_date;
-  if (!deliveryDate || !/^\\d{4}-\\d{2}-\\d{2}$/.test(deliveryDate)) return "none";
+  if (!deliveryDate || !/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate)) return "none";
   if (deliveryDate < now.date) return "overdue";
   if (deliveryDate > now.date) return "none";
 
-  const times = [...(order.delivery_slot ?? "").matchAll(/([01]?\\d|2[0-3]):([0-5]\\d)/g)]
+  const times = [...(order.delivery_slot ?? "").matchAll(/([01]?\d|2[0-3]):([0-5]\d)/g)]
     .map((match) => Number(match[1]) * 60 + Number(match[2]));
   // If an older order has no parseable window, it remains yellow until midnight.
   if (times.length < 2) return "today";
