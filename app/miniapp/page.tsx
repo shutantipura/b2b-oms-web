@@ -1557,11 +1557,11 @@ export default function MiniAppHomePage() {
 
           </div>
 
-          <div className="mt-5 rounded-2xl border border-[#DDECE5] bg-white px-5 py-6 text-center shadow-sm">
+          <div className="mt-5 rounded-2xl border border-[#DDECE5] bg-white px-4 py-7 text-center shadow-sm sm:px-6">
 
-            <LotusBrand size="lg" align="center" />
+            <LotusBrand size="xl" align="center" />
 
-            <p className="mt-5 truncate text-base font-extrabold text-[#315E4C]">
+            <p className="mt-6 break-words text-2xl font-black leading-snug text-[#315E4C] sm:text-[27px]">
 
               {
 
@@ -1571,7 +1571,7 @@ export default function MiniAppHomePage() {
 
             </p>
 
-            <p className="mt-1 text-xs text-[#8B9D91]">
+            <p className="mt-1.5 text-sm font-medium text-[#8B9D91]">
 
               {
 
@@ -1643,9 +1643,9 @@ export default function MiniAppHomePage() {
 
               <div className="mb-3 flex items-center justify-between"><span aria-hidden="true" className="grid h-16 w-16 place-items-center rounded-2xl bg-[#E1F7F2] text-[#008C86] shadow-[inset_0_0_0_1px_rgba(0,143,141,0.12)]"><OrdersListIcon /></span><NavigationArrow prominent /></div>
 
-              <p className="text-xl font-extrabold text-[#173E31]">
+              <p className="text-[22px] font-extrabold text-[#173E31]">
 
-                คำสั่งซื้อ
+                ติดตามคำสั่งซื้อ
 
               </p>
 
