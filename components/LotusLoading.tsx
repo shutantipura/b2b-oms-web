@@ -19,7 +19,7 @@ export default function LotusLoading({
         fullScreen ? "min-h-screen" : "min-h-48 rounded-2xl"
       }`}
     >
-      <LotusBrand size="lg" align="center" />
+      <LotusBrand size="xl" align="center" />
 
       <div aria-hidden="true" className="mt-8 flex items-center gap-3">
         <span
