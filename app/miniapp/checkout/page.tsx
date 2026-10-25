@@ -40,7 +40,7 @@ type MergeCandidate = {
 
 function mergeStatusLabel(status: string) {
   switch (status) {
-    case "awaiting_confirmation": return "รอยืนยันสินค้า";
+    case "awaiting_confirmation": return "รอเช็คสต็อก";
     case "awaiting_picking": return "รอจัดสินค้า";
     case "picking": return "กำลังจัดสินค้า";
     case "awaiting_billing": return "รอออกบิล";
@@ -457,7 +457,7 @@ export default function MiniAppCheckoutPage() {
               <p className="text-xs font-semibold text-[#668B81]">หมายเลขคำสั่งซื้อ</p>
               <p className="mt-1 text-4xl font-black text-[#008F8D]">#{createdDisplayNumber ?? createdOrderNumber}</p>
               <span className="mt-3 inline-block rounded-full bg-[#FFF2C9] px-3 py-1 text-xs font-bold text-[#906300]">
-                {wasMerged ? "รอยืนยันสินค้าของคำสั่งซื้อย่อย" : "รอการยืนยันจากทีมงาน"}
+                {wasMerged ? "รอเช็คสต็อกคำสั่งซื้อย่อย" : "รอทีมงานเช็คสต็อก"}
               </span>
             </div>
             <p className="mt-5 text-xs leading-5 text-[#82968D]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการยืนยันและการหยิบสินค้า</p>
