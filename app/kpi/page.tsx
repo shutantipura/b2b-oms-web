@@ -109,7 +109,7 @@ function countTrue(values: Array<boolean | null | undefined>) {
 
 function kpiExceptions(order: EvaluatedOrder): string[] {
   const issues: string[] = [];
-  if (order.confirmation_on_time === false) issues.push("Confirmation On Time");
+  if (order.confirmation_on_time === false) issues.push("Stock Check On Time");
   if (order.pickOnTime === false) issues.push("Pick On Time");
   if (order.billOnTime === false) issues.push("Bill On Time");
   if (order.delivery_on_time === false) issues.push("Delivery On Time");
@@ -256,8 +256,8 @@ export default function KPIPage() {
 
     return [
       {
-        name: "Confirmation On Time",
-        description: "ยืนยันภายใน 30 นาทีหลังรับคำสั่งซื้อ",
+        name: "Stock Check On Time",
+        description: "เช็คสต็อกเสร็จภายใน 30 นาทีหลังรับคำสั่งซื้อ",
         ...confirmation,
       },
       {

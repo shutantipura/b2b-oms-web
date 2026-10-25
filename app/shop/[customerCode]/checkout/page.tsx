@@ -604,7 +604,7 @@ export default function CheckoutPage() {
             </h1>
 
             <p className="text-gray-500 mt-2">
-              Your order request has been sent to our team for confirmation.
+              Your order request has been sent to our team for a stock check.
             </p>
 
             <div className="border rounded-xl p-5 mt-6">
@@ -623,7 +623,7 @@ export default function CheckoutPage() {
             </div>
 
             <p className="text-sm text-gray-500 mt-5">
-              Quantities and the final amount may change after confirmation and picking.
+              Quantities and the final amount may change after the stock check and picking.
             </p>
 
             <button

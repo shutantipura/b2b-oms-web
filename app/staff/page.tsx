@@ -25,7 +25,7 @@ const TASK_OPTIONS: Array<{
   stage: TaskStage;
   label: string;
 }> = [
-  { stage: "confirmation", label: "ยืนยันคำสั่งซื้อ" },
+  { stage: "confirmation", label: "เช็คสต็อก" },
   { stage: "picking", label: "จัดสินค้า" },
   { stage: "billing", label: "ออกบิล" },
   { stage: "delivery", label: "จัดส่ง" },

@@ -33,7 +33,7 @@ type Assignment = {
 };
 
 const STAGE_LABELS: Record<string, string> = {
-  confirmation: "ยืนยันคำสั่งซื้อ",
+  confirmation: "เช็คสต็อก",
   picking: "จัดสินค้า",
   billing: "ออกบิล",
   delivery: "จัดส่ง",

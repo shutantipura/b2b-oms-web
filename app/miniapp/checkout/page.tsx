@@ -362,7 +362,7 @@ export default function MiniAppCheckoutPage() {
     }
 
     const confirmation = chosenMerge
-      ? `สร้างคำสั่งซื้อใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เพื่อจัดส่งร่วมกับกลุ่ม #${chosenMerge.orderNumber} ใช่หรือไม่?\nสินค้าใหม่จะยืนยันและหยิบแยกต่างหาก แล้วออกบิลและจัดส่งรวมครั้งเดียว`
+      ? `สร้างคำสั่งซื้อใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เพื่อจัดส่งร่วมกับกลุ่ม #${chosenMerge.orderNumber} ใช่หรือไม่?\nสินค้าใหม่จะผ่านการเช็คสต็อกและจัดสินค้าแยกต่างหาก แล้วออกบิลและจัดส่งรวมครั้งเดียว`
       : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)} หรือไม่?`;
     if (!window.confirm(confirmation)) return;
     if (chosenMerge && !mergeRequestIdRef.current) mergeRequestIdRef.current = crypto.randomUUID();
@@ -450,8 +450,8 @@ export default function MiniAppCheckoutPage() {
             <h1 className="mt-5 text-2xl font-extrabold">{wasMerged ? "สร้างคำสั่งซื้อร่วมจัดส่งเรียบร้อยแล้ว!" : "ได้รับคำสั่งซื้อแล้ว!"}</h1>
             <p className="mt-2 text-sm leading-6 text-[#748C80]">
               {wasMerged
-                ? "สร้างคำสั่งซื้อย่อยสำเร็จแล้ว สินค้าจะยืนยันและจัดแยกจากคำสั่งซื้อเดิม เมื่อทุกคำสั่งซื้อจัดครบแล้วจึงออกบิลรวมและจัดส่งพร้อมกัน"
-                : "ทีมงานได้รับคำสั่งซื้อและกำลังตรวจสอบสินค้าเพื่อยืนยันรายการ"}
+                ? "สร้างคำสั่งซื้อย่อยสำเร็จแล้ว ทีมงานจะเช็คสต็อกและจัดสินค้าแยกจากคำสั่งซื้อเดิม เมื่อทุกคำสั่งซื้อจัดครบแล้วจึงออกบิลรวมและจัดส่งพร้อมกัน"
+                : "ทีมงานได้รับคำสั่งซื้อแล้ว และจะเช็คสต็อกก่อนจัดสินค้า"}
             </p>
             <div className="mt-6 rounded-2xl border border-[#BDEAE3] bg-[#EDFAF8] p-5">
               <p className="text-xs font-semibold text-[#668B81]">หมายเลขคำสั่งซื้อ</p>
@@ -460,7 +460,7 @@ export default function MiniAppCheckoutPage() {
                 {wasMerged ? "รอเช็คสต็อกคำสั่งซื้อย่อย" : "รอทีมงานเช็คสต็อก"}
               </span>
             </div>
-            <p className="mt-5 text-xs leading-5 text-[#82968D]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการยืนยันและการหยิบสินค้า</p>
+            <p className="mt-5 text-xs leading-5 text-[#82968D]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการเช็คสต็อกและการจัดสินค้า</p>
             <button type="button" onClick={() => router.push(`/miniapp/orders?customer=${encodeURIComponent(customer.customerCode)}&view=active`)} className="mt-6 min-h-12 w-full rounded-xl bg-[#02B0AF] px-5 py-3 font-extrabold text-white">ติดตามคำสั่งซื้อ →</button>
             <button type="button" onClick={goShop} className="mt-3 min-h-12 w-full rounded-xl border-2 border-[#BDE5DF] bg-white px-5 py-3 font-bold text-[#008F8D]">สั่งสินค้าเพิ่ม</button>
             <button type="button" onClick={() => router.push("/miniapp")} className="mt-4 px-3 py-2 text-sm font-semibold text-[#789186]">กลับหน้าหลัก</button>
@@ -626,7 +626,7 @@ export default function MiniAppCheckoutPage() {
           <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="เช่น จุดรับสินค้า หรือรายละเอียดการจัดส่ง" className={`${field} resize-y font-normal`} />
         </section>
 
-        <p className="px-2 text-center text-xs leading-5 text-[#81978B]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการยืนยันและการหยิบสินค้า</p>
+        <p className="px-2 text-center text-xs leading-5 text-[#81978B]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการเช็คสต็อกและการจัดสินค้า</p>
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#D8EAE0] bg-white/95 p-3 shadow-[0_-8px_30px_rgba(15,64,39,0.08)] backdrop-blur-lg">

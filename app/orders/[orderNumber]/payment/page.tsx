@@ -34,7 +34,7 @@ type OrderFile = {
 
 function formatStatus(status: string) {
   const labels: Record<string, string> = {
-    awaiting_confirmation: "รอยืนยันคำสั่งซื้อ",
+    awaiting_confirmation: "รอเช็คสต็อก",
     awaiting_picking: "รอจัดสินค้า",
     picking: "กำลังจัดสินค้า",
     awaiting_billing: "รอออกบิล",

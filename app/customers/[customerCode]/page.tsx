@@ -121,7 +121,7 @@ function prettyText(value: string | null) {
 
 
 
-    awaiting_confirmation: "รอยืนยันคำสั่งซื้อ",
+    awaiting_confirmation: "รอเช็คสต็อก",
 
     awaiting_picking: "รอจัดสินค้า",
 
