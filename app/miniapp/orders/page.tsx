@@ -332,7 +332,7 @@ export default function CustomerOrdersPage() {
             <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#E6F8F3] text-3xl">📋</div>
             <h2 className="mt-4 text-lg font-extrabold">{mode === "active" ? "ไม่มีคำสั่งซื้อที่กำลังดำเนินการ" : "ยังไม่มีประวัติคำสั่งซื้อ"}</h2>
             <p className="mt-2 text-sm text-[#82968D]">{mode === "active" ? "คำสั่งซื้อใหม่ของคุณจะแสดงที่นี่" : "คำสั่งซื้อที่เสร็จสิ้นหรือถูกยกเลิกจะแสดงที่นี่"}</p>
-            {mode === "active" && customer && <button type="button" onClick={() => router.push(`/miniapp/shop?customer=${encodeURIComponent(customer.customerCode)}`)} className="mt-6 rounded-xl bg-[#02B0AF] px-6 py-3 text-sm font-bold text-white">เลือกซื้อสินค้า →</button>}
+            {mode === "active" && customer && <button type="button" onClick={() => router.push(`/miniapp/shop?customer=${encodeURIComponent(customer.customerCode)}`)} className="mt-6 rounded-xl bg-[#02B0AF] px-6 py-3 text-sm font-bold text-white">สั่งสินค้า →</button>}
           </div>
         ) : (
           <div className="space-y-4">

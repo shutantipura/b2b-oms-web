@@ -91,14 +91,43 @@ type StaffSessionResponse = {
 
 };
 
-function NavigationArrow({ light = false }: { light?: boolean }) {
+function NavigationArrow({ light = false, prominent = false }: { light?: boolean; prominent?: boolean }) {
   return (
-    <span className={`grid h-9 w-9 place-items-center rounded-full ${light ? "bg-white/15 text-white" : "bg-[#EAF8F5] text-[#009F9D]"}`}>
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <span
+      aria-hidden="true"
+      className={`grid shrink-0 place-items-center rounded-full transition group-hover:translate-x-0.5 ${
+        prominent ? "h-12 w-12" : "h-9 w-9"
+      } ${
+        light ? "bg-white/20 text-white" : prominent ? "bg-[#02B0AF] text-white" : "bg-[#EAF8F5] text-[#009F9D]"
+      }`}
+    >
+      <svg width={prominent ? 26 : 19} height={prominent ? 26 : 19} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={prominent ? 2.8 : 2.2} strokeLinecap="round" strokeLinejoin="round">
         <path d="M5 12h14" />
         <path d="m13 6 6 6-6 6" />
       </svg>
     </span>
+  );
+}
+
+function ShoppingCartIcon() {
+  return (
+    <svg aria-hidden="true" width="37" height="37" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 4h2.7l2.5 11.5h10.6l2.2-8.8H5.8" />
+      <path d="M8.3 11.1h9.4" />
+      <circle cx="9" cy="20" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="17.5" cy="20" r="1.4" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function OrdersListIcon() {
+  return (
+    <svg aria-hidden="true" width="37" height="37" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4.5" y="4.5" width="15" height="17" rx="2.5" />
+      <path d="M9 4.5V3h6v1.5" />
+      <path d="m8 12 1.7 1.7 3-3" />
+      <path d="M8 17.5h8" />
+    </svg>
   );
 }
 
@@ -1576,11 +1605,11 @@ export default function MiniAppHomePage() {
 
             >
 
-              <div className="mb-4 flex items-center justify-between"><span className="grid h-12 w-12 place-items-center rounded-xl bg-white/20 text-2xl">🛒</span><NavigationArrow light /></div>
+              <div className="mb-3 flex items-center justify-between"><span aria-hidden="true" className="grid h-16 w-16 place-items-center rounded-2xl bg-[#FDBC16] text-[#0C6662] shadow-[0_4px_13px_rgba(0,76,73,0.20)]"><ShoppingCartIcon /></span><NavigationArrow light prominent /></div>
 
-              <p className="font-extrabold text-xl"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#FDBC16] align-middle" />
+              <p className="text-[22px] font-extrabold leading-tight">
 
-                เลือกซื้อสินค้า
+                สั่งสินค้า
 
               </p>
 
@@ -1608,13 +1637,13 @@ export default function MiniAppHomePage() {
 
               }
 
-              className="w-full rounded-2xl border-2 border-[#C7E7DD] bg-white p-5 text-left shadow-sm transition hover:border-[#02B0AF]"
+              className="group w-full rounded-2xl border-2 border-[#BCE0D7] bg-white p-5 text-left shadow-[0_4px_14px_rgba(0,83,78,0.08)] transition hover:border-[#02B0AF] active:scale-[0.99]"
 
             >
 
-              <div className="mb-3 flex items-center justify-between"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#E8F8F5] text-xl">📋</span><NavigationArrow /></div>
+              <div className="mb-3 flex items-center justify-between"><span aria-hidden="true" className="grid h-16 w-16 place-items-center rounded-2xl bg-[#E1F7F2] text-[#008C86] shadow-[inset_0_0_0_1px_rgba(0,143,141,0.12)]"><OrdersListIcon /></span><NavigationArrow prominent /></div>
 
-              <p className="font-extrabold text-lg text-[#173E31]">
+              <p className="text-xl font-extrabold text-[#173E31]">
 
                 คำสั่งซื้อ
 
