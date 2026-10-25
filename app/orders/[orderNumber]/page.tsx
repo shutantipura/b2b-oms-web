@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { supabase } from "../../../lib/supabase";
+import { getDeliveryOptions } from "../../../lib/deliveryRules";
 
 
 
@@ -175,6 +176,8 @@ function prettyText(value: string | null) {
     order_completed: "ปิดคำสั่งซื้อ",
     order_cancelled: "ยกเลิกคำสั่งซื้อ",
     force_completed: "บังคับปิดคำสั่งซื้อ",
+    manager_adjusted_final_amount: "ผู้จัดการปรับยอดบิล",
+    manager_rescheduled_delivery: "ผู้จัดการเปลี่ยนเวลาจัดส่ง",
   };
 
   return (
@@ -272,6 +275,10 @@ export default function OrderDetailsPage() {
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [savingAmount, setSavingAmount] = useState(false);
   const [amountMessage, setAmountMessage] = useState("");
+  const [editedDeliveryDate, setEditedDeliveryDate] = useState("");
+  const [editedDeliverySlot, setEditedDeliverySlot] = useState("");
+  const [savingDelivery, setSavingDelivery] = useState(false);
+  const [deliveryMessage, setDeliveryMessage] = useState("");
 
 
 
@@ -382,6 +389,11 @@ export default function OrderDetailsPage() {
       setGroupRootNumber(loadedOrder.group_root_order_id===loadedOrder.id ? loadedOrder.order_number : null);
     }
     setEditedFinalAmount(loadedOrder.final_amount === null ? "" : String(loadedOrder.final_amount));
+    const options = getDeliveryOptions(new Date(Date.now() + 2 * 60 * 60_000));
+    const selectedDate = options.find((item) => item.date === loadedOrder.delivery_date) ?? options[0];
+    setEditedDeliveryDate(selectedDate?.date ?? "");
+    setEditedDeliverySlot(selectedDate?.slots.find((item) => item.value === loadedOrder.delivery_slot)?.value
+      ?? selectedDate?.slots[0]?.value ?? "");
 
 
 
@@ -873,6 +885,10 @@ export default function OrderDetailsPage() {
   }, []);
 
   async function saveFinalAmount() {
+    if (!isManager || !order || ["completed", "cancelled"].includes(order.status)) {
+      setAmountMessage("ไม่สามารถแก้ไขยอดบิลของคำสั่งซื้อที่ปิดแล้ว");
+      return;
+    }
     const rawAmount = editedFinalAmount.trim();
     const amount = Number(rawAmount);
     if (!rawAmount || !Number.isFinite(amount) || amount < 0 || !/^\d+(?:\.\d{1,2})?$/.test(rawAmount)) {
@@ -899,6 +915,38 @@ export default function OrderDetailsPage() {
       await loadOrder();
     }
     setSavingAmount(false);
+  }
+
+  async function saveDeliveryTime() {
+    if (!isManager || !order || ["completed", "cancelled"].includes(order.status)) {
+      setDeliveryMessage("ไม่สามารถเปลี่ยนเวลาจัดส่งของคำสั่งซื้อที่ปิดแล้ว");
+      return;
+    }
+    if (order.group_root_order_id && order.group_root_order_id !== order.id) {
+      setDeliveryMessage("กรุณาเปลี่ยนเวลาที่คำสั่งซื้อหลักของกลุ่ม");
+      return;
+    }
+    const validOptions = getDeliveryOptions(new Date(Date.now() + 2 * 60 * 60_000));
+    if (!validOptions.some((option) => option.date === editedDeliveryDate &&
+      option.slots.some((slot) => slot.value === editedDeliverySlot))) {
+      setDeliveryMessage("รอบจัดส่งนี้ต้องเริ่มอย่างน้อย 2 ชั่วโมงหลังเวลาที่บันทึก กรุณาเลือกรอบใหม่");
+      return;
+    }
+    if (!window.confirm(`ยืนยันเปลี่ยนเวลาจัดส่งเป็น ${editedDeliveryDate} ${editedDeliverySlot}?`)) return;
+    setSavingDelivery(true);
+    setDeliveryMessage("");
+    const { error } = await supabase.rpc("manager_reschedule_delivery", {
+      p_order_number: orderNumber,
+      p_delivery_date: editedDeliveryDate,
+      p_delivery_slot: editedDeliverySlot,
+    });
+    if (error) {
+      setDeliveryMessage("ไม่สามารถเปลี่ยนเวลาจัดส่งได้: " + error.message);
+    } else {
+      setDeliveryMessage("✓ บันทึกเวลาจัดส่งใหม่เรียบร้อยแล้ว");
+      await loadOrder();
+    }
+    setSavingDelivery(false);
   }
 
   useEffect(() => {
@@ -1052,28 +1100,6 @@ export default function OrderDetailsPage() {
         </div>
 
 
-
-        {isManager && order.final_amount !== null && order.status !== "cancelled" && (
-          <section className="mb-6 rounded-2xl border border-[#B8DEDA] bg-white p-5">
-            <h2 className="text-xl font-bold text-[#17453F]">ปรับยอดบิลสุดท้าย (ผู้จัดการ)</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              ปรับยอดหลังออกบิล โดยบันทึกเหตุผลและประวัติผู้แก้ไข ไม่เปลี่ยนรูปบิลหรือ QR ที่อัปโหลด
-            </p>
-            <label className="mt-4 block text-sm font-semibold">ยอดบิลสุดท้าย (บาท)</label>
-            <input type="number" min="0" step="0.01" value={editedFinalAmount}
-              onChange={(e) => setEditedFinalAmount(e.target.value)}
-              className="mt-2 w-full max-w-sm rounded-xl border p-3 text-lg" />
-            <label className="mt-4 block text-sm font-semibold">เหตุผลในการปรับยอด</label>
-            <textarea value={adjustmentReason} onChange={(e) => setAdjustmentReason(e.target.value)}
-              rows={2} placeholder="เช่น ยอดบนบิลจริงไม่ตรงกับยอดที่บันทึก"
-              className="mt-2 w-full rounded-xl border p-3" />
-            {amountMessage && <p role="status" className="mt-3 text-sm">{amountMessage}</p>}
-            <button onClick={() => void saveFinalAmount()} disabled={savingAmount}
-              className="mt-4 rounded-xl bg-[#009F9D] px-5 py-3 font-bold text-white disabled:opacity-50">
-              {savingAmount ? "กำลังบันทึก..." : "บันทึกการปรับยอดบิล"}
-            </button>
-          </section>
-        )}
 
         {message && (
 
@@ -1718,6 +1744,87 @@ export default function OrderDetailsPage() {
         </section>
 
 
+
+        {/* Manager controls deliberately sit directly above the history trail. */}
+        {isManager && !["completed", "cancelled"].includes(order.status) && (
+          <section className="mb-6 rounded-2xl border border-[#B8DEDA] bg-white p-3 sm:p-4">
+            <h2 className="text-base font-bold text-[#17453F]">จัดการคำสั่งซื้อ (ผู้จัดการ)</h2>
+            <p className="mt-1 text-xs text-[#718C84]">แก้ไขได้เฉพาะคำสั่งซื้อที่ยังไม่ปิดงาน · ระบบบันทึกประวัติทุกครั้ง</p>
+            <div className="mt-3 grid grid-cols-1 items-start gap-3 md:grid-cols-2">
+              {order.final_amount !== null && (
+                <details className="rounded-xl border border-[#DCEAE5] bg-[#FAFDFB] p-3">
+                  <summary className="cursor-pointer text-sm font-bold text-[#007F79]">ปรับยอดบิลสุดท้าย</summary>
+                  <div className="mt-3 space-y-2">
+                    <label className="block text-xs font-semibold" htmlFor="manager-final-amount">ยอดบิลสุดท้าย (บาท)</label>
+                    <input id="manager-final-amount" type="number" min="0" step="0.01"
+                      value={editedFinalAmount} onChange={(event) => setEditedFinalAmount(event.target.value)}
+                      className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2 text-sm" />
+                    <label className="block text-xs font-semibold" htmlFor="manager-amount-reason">เหตุผลในการปรับยอด</label>
+                    <textarea id="manager-amount-reason" rows={2} value={adjustmentReason}
+                      onChange={(event) => setAdjustmentReason(event.target.value)}
+                      placeholder="เหตุผลที่ต้องแก้ยอดบิล"
+                      className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2 text-sm" />
+                    <p className="text-[11px] text-gray-500">ไม่เปลี่ยนรูปบิลหรือ QR ที่อัปโหลดไว้</p>
+                    {amountMessage && <p role="status" className="text-xs">{amountMessage}</p>}
+                    <button type="button" onClick={() => void saveFinalAmount()} disabled={savingAmount}
+                      className="rounded-lg bg-[#009F9D] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
+                      {savingAmount ? "กำลังบันทึก..." : "บันทึกยอดบิล"}
+                    </button>
+                  </div>
+                </details>
+              )}
+              {order.group_root_order_id && order.group_root_order_id !== order.id ? (
+                <div className="rounded-xl border border-[#DCEAE5] p-3 text-xs text-gray-600">
+                  เวลาจัดส่งของออเดอร์ย่อยเปลี่ยนได้จาก
+                  {groupRootNumber !== null ? (
+                    <Link href={`/orders/${groupRootNumber}`} className="ml-1 font-bold text-[#007F79] underline">
+                      ออเดอร์หลัก #{groupRootNumber}
+                    </Link>
+                  ) : "ออเดอร์หลัก"}
+                </div>
+              ) : (
+                <details className="rounded-xl border border-[#DCEAE5] bg-[#FAFDFB] p-3">
+                  <summary className="cursor-pointer text-sm font-bold text-[#007F79]">เปลี่ยนเวลาจัดส่ง</summary>
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-gray-500">
+                      เวลาเดิม: {order.delivery_date ?? "—"} · {order.delivery_slot ?? "—"}
+                    </p>
+                    <p className="text-[11px] text-[#8A6000]">
+                      เลือกช่วงจัดส่งที่เริ่มอย่างน้อย 2 ชั่วโมงหลังจากกดบันทึก
+                    </p>
+                    <label className="block text-xs font-semibold" htmlFor="manager-delivery-date">วันที่จัดส่งใหม่</label>
+                    <select id="manager-delivery-date" value={editedDeliveryDate}
+                      onChange={(event) => {
+                        const date = event.target.value;
+                        const options = getDeliveryOptions(new Date(Date.now() + 2 * 60 * 60_000));
+                        setEditedDeliveryDate(date);
+                        setEditedDeliverySlot(options.find((option) => option.date === date)?.slots[0]?.value ?? "");
+                      }}
+                      className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2 text-sm">
+                      {getDeliveryOptions(new Date(Date.now() + 2 * 60 * 60_000)).map((option) => (
+                        <option key={option.date} value={option.date}>{option.date}</option>
+                      ))}
+                    </select>
+                    <label className="block text-xs font-semibold" htmlFor="manager-delivery-slot">รอบจัดส่งใหม่</label>
+                    <select id="manager-delivery-slot" value={editedDeliverySlot}
+                      onChange={(event) => setEditedDeliverySlot(event.target.value)}
+                      className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2 text-sm">
+                      {(getDeliveryOptions(new Date(Date.now() + 2 * 60 * 60_000))
+                        .find((option) => option.date === editedDeliveryDate)?.slots ?? []).map((slot) => (
+                        <option key={slot.value} value={slot.value}>{slot.label}</option>
+                      ))}
+                    </select>
+                    {deliveryMessage && <p role="status" className="text-xs">{deliveryMessage}</p>}
+                    <button type="button" onClick={() => void saveDeliveryTime()} disabled={savingDelivery || !editedDeliveryDate || !editedDeliverySlot}
+                      className="rounded-lg bg-[#009F9D] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
+                      {savingDelivery ? "กำลังบันทึก..." : "บันทึกเวลาจัดส่ง"}
+                    </button>
+                  </div>
+                </details>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* HISTORY */}
 
