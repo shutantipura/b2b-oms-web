@@ -136,7 +136,7 @@ function prettyStatus(
       string
     > = {
     awaiting_confirmation:
-      "รอยืนยันคำสั่งซื้อ",
+      "รอเช็คสต็อก",
 
     awaiting_picking:
       "รอจัดสินค้า",
