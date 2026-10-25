@@ -580,7 +580,7 @@ export default function StaffPaymentPage() {
             <>
               <TaskFilePicker
                 label="สลิปการชำระเงิน"
-                chooseLabel="ถ่ายหรือเลือกสลิปการชำระเงิน"
+                chooseLabel={selectedSlip ? "เปลี่ยนรูปสลิปที่เลือก" : "ถ่ายหรือเลือกสลิปการชำระเงิน"}
                 replaceLabel="เปลี่ยนรูปสลิป"
                 accept="image/*,application/pdf,.pdf"
                 uploaded={false}
@@ -597,7 +597,7 @@ export default function StaffPaymentPage() {
               {selectedSlip && (
                 <div className="mt-5 rounded-2xl border-2 border-[#9DDBD2] bg-[#F5FCFA] p-4">
                   <p className="text-base font-extrabold text-[#17453F]">ตรวจสอบสลิปก่อนยืนยัน</p>
-                  <p className="mt-1 text-xs text-[#64877C]">รูปหรือไฟล์นี้ยังไม่ได้อัปโหลด</p>
+                  <p className="mt-1 text-xs leading-5 text-[#64877C]">ยังไม่ได้ส่งสลิป · สามารถกด “เปลี่ยนรูปสลิปที่เลือก” ด้านบนเพื่อเลือกรูปใหม่ได้ตลอดเวลาก่อนยืนยันขั้นตอนสุดท้าย</p>
                   {selectedSlipUrl && (
                     selectedSlip.type.startsWith("image/") ? (
                       <img
