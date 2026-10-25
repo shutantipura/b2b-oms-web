@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 
 import { supabase } from "../../lib/supabase";
+import { getOrderDeliveryUrgency, type DeliveryUrgency } from "../../lib/deliveryRules";
 
 type Order = {
   id: string;
@@ -224,7 +225,6 @@ function isPending(
   );
 }
 
-type DeliveryUrgency = "overdue" | "at-risk" | "today" | "none";
 type BangkokClock = { date: string; minutes: number };
 
 // Match the operational urgency rules on the Tasks dashboard.
@@ -269,45 +269,11 @@ function relativeDeliveryDay(deliveryDate: string | null, today: string): string
   return days < 0 ? `${Math.abs(days)} วันที่แล้ว` : `${days} วันข้างหน้า`;
 }
 
-function deliverySlotMinutes(slot: string | null): { start: number; end: number } | null {
-  if (!slot) return null;
-  const times = [...slot.matchAll(/([01]?\d|2[0-3]):([0-5]\d)/g)]
-    .map((match) => Number(match[1]) * 60 + Number(match[2]));
-  if (times.length < 2) return null;
-  return { start: times[0], end: times[1] <= times[0] ? times[1] + 1440 : times[1] };
-}
-
-function deliveryUrgency(order: Order, now: BangkokClock): DeliveryUrgency {
-  if (order.status === "completed" || order.status === "cancelled") return "none";
-
-  const days = deliveryDaysAway(order.delivery_date, now.date);
-  if (days === null) return "none";
-
-  // Any pending order from a past delivery date remains overdue, including
-  // those awaiting payment. A completed or cancelled order is never overdue.
-  if (days < 0) return "overdue";
-
-  // For today's payment-stage orders, do not flag a missed delivery window.
-  if (order.status === "awaiting_payment" || order.status === "payment_submitted") {
-    return days === 0 ? "today" : "none";
-  }
-
-  const slot = deliverySlotMinutes(order.delivery_slot);
-  if (days === 0 && slot && now.minutes >= slot.end) return "overdue";
-
-  // Warn staff within 2 hours before the delivery window begins.
-  if (slot && days <= 1) {
-    const minutesToStart = days * 1440 + slot.start - now.minutes;
-    const minutesToEnd = days * 1440 + slot.end - now.minutes;
-    if (minutesToStart <= 120 && minutesToEnd > 0) return "at-risk";
-  }
-  return days === 0 ? "today" : "none";
-}
-
+// Strong, consistent highlights for the full row: red / orange / yellow.
 const urgencyRowStyle: Record<DeliveryUrgency, string> = {
-  overdue: "bg-[#FFF7F7]",
-  "at-risk": "bg-[#FFFAF3]",
-  today: "bg-[#FFFDF2]",
+  overdue: "bg-[#FFF0F0]",
+  "at-risk": "bg-[#FFF3E0]",
+  today: "bg-[#FFFBE6]",
   none: "bg-white",
 };
 const urgencyBorderStyle: Record<DeliveryUrgency, string> = {
@@ -623,8 +589,15 @@ export default function OrdersPage() {
   }, [selectedDate, allDates]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => setClock(getBangkokClock()), 60_000);
-    return () => window.clearInterval(interval);
+    const refreshClock = () => setClock(getBangkokClock());
+    const interval = window.setInterval(refreshClock, 5_000);
+    window.addEventListener("focus", refreshClock);
+    document.addEventListener("visibilitychange", refreshClock);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshClock);
+      document.removeEventListener("visibilitychange", refreshClock);
+    };
   }, []);
 
   // =====================================================
@@ -935,11 +908,12 @@ export default function OrdersPage() {
 
                   {filteredOrders.map(
                     (order) => {
-                      const urgency = deliveryUrgency(order, clock);
+                      const urgency = getOrderDeliveryUrgency(order, clock);
 
                       return (
                         <tr
                           key={order.id}
+                          data-urgency={urgency}
                           className={`border-t border-[#E2EEEA] ${urgencyRowStyle[urgency]}`}
                         >
 
@@ -963,7 +937,7 @@ export default function OrdersPage() {
                               )}
                               {urgency === "at-risk" && (
                                 <span className="rounded-full border border-[#FED7AA] bg-[#FFF1E6] px-2 py-1 text-[11px] font-extrabold text-[#C2410C]">
-                                  เสี่ยงล่าช้า
+                                  อยู่ในช่วงจัดส่ง
                                 </span>
                               )}
 
