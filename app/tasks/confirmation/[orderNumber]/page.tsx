@@ -695,7 +695,7 @@ export default function ConfirmationPage() {
 
     if (error) {
       setMessage(
-        "ไม่สามารถปิดงานยืนยันคำสั่งซื้อได้: " +
+        "ไม่สามารถปิดงานเช็คสต็อกได้: " +
           error.message
       );
 
@@ -787,7 +787,7 @@ export default function ConfirmationPage() {
         <div className="flex justify-between items-start gap-4 mt-4 mb-8">
           <div>
             <p className="text-sm text-gray-500">
-              ยืนยันคำสั่งซื้อ
+              เช็คสต็อก
             </p>
 
             <h1 className="mt-1 text-2xl font-extrabold leading-tight text-[#17453F] md:text-3xl">
@@ -1154,7 +1154,7 @@ export default function ConfirmationPage() {
           >
             {submitting
               ? "กำลังบันทึก..."
-              : "ยืนยันคำสั่งซื้อเสร็จสิ้น"}
+              : "เช็คสต็อกเสร็จสิ้น"}
           </button>
         </div>
       </div>
