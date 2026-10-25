@@ -11,6 +11,7 @@ export const DELIVERY_RULES = {
     { value: "13:00–15:00", label: "13:00–15:00", startMinutes: 13 * 60 },
     { value: "15:00–17:00", label: "15:00–17:00", startMinutes: 15 * 60 },
     { value: "17:00–19:00", label: "17:00–19:00", startMinutes: 17 * 60 },
+    { value: "19:00–21:00", label: "19:00–21:00", startMinutes: 19 * 60 },
   ],
 };
 
@@ -76,7 +77,7 @@ export function getAvailableSlots(deliveryDate: string, now = new Date()) {
 
 export function getEarliestDeliveryDate(now = new Date()): string {
   const today = bangkokToday(now);
-  // Once the final window's start time (17:00) has passed, tomorrow is first.
+  // Once the final window's start time (19:00) has passed, tomorrow is first.
   return getAvailableSlots(today, now).length > 0 ? today : addDays(today, 1);
 }
 
@@ -137,4 +138,43 @@ export function getManagerDeliveryOptions(now = new Date()) {
     const date = addDays(firstDate, index);
     return { date, slots: eligibleSlots(date) };
   });
+}
+
+/**
+ * One delivery-window colour policy for Orders and Tasks.
+ * All uncompleted, non-cancelled orders use their requested slot regardless of
+ * operational stage. The clock is measured in Bangkok local wall-clock time.
+ *
+ * - Red: delivery date is past, or today's window has ended.
+ * - Orange: today's window is currently in progress.
+ * - Yellow: delivery is today but its window has not started.
+ * - None: tomorrow or later, or a completed/cancelled order.
+ *
+ * Keep the "at-risk" key for existing UI palette compatibility; the label now
+ * means "inside the delivery window", not "within two hours beforehand".
+ */
+export type DeliveryUrgency = "overdue" | "at-risk" | "today" | "none";
+
+export function getOrderDeliveryUrgency(
+  order: { status: string; delivery_date: string | null; delivery_slot: string | null },
+  now: { date: string; minutes: number }
+): DeliveryUrgency {
+  if (order.status === "completed" || order.status === "cancelled") return "none";
+
+  const deliveryDate = order.delivery_date;
+  if (!deliveryDate || !/^\\d{4}-\\d{2}-\\d{2}$/.test(deliveryDate)) return "none";
+  if (deliveryDate < now.date) return "overdue";
+  if (deliveryDate > now.date) return "none";
+
+  const times = [...(order.delivery_slot ?? "").matchAll(/([01]?\\d|2[0-3]):([0-5]\\d)/g)]
+    .map((match) => Number(match[1]) * 60 + Number(match[2]));
+  // If an older order has no parseable window, it remains yellow until midnight.
+  if (times.length < 2) return "today";
+
+  const start = times[0];
+  const end = times[1] <= start ? times[1] + 24 * 60 : times[1];
+
+  if (now.minutes >= end) return "overdue";
+  if (now.minutes >= start) return "at-risk";
+  return "today";
 }
