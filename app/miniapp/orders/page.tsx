@@ -76,7 +76,7 @@ function currentStep(status: string) {
 
 function statusName(status: string) {
   const names: Record<string, string> = {
-    awaiting_confirmation: "ได้รับคำสั่งซื้อ",
+    awaiting_confirmation: "รอเช็คสต็อก",
     awaiting_picking: "เช็คสต็อกแล้ว",
     picking: "กำลังเตรียมสินค้า",
     awaiting_billing: "กำลังเตรียมสินค้า",
