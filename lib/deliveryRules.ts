@@ -114,3 +114,26 @@ export function validateDeliverySelection(
   }
   return { valid: true, message: "" };
 }
+
+/**
+ * Manager rescheduling keeps a two-hour preparation lead from submission.
+ * A window remains selectable while there is some time left after that lead:
+ * at 10:04, 11:00–13:00 is available with delivery no earlier than 12:04.
+ * Customer ordering continues to use the separate start-of-window rule.
+ */
+export function getManagerDeliveryOptions(now = new Date()) {
+  const cutoffMs = bangkokWallClockMs(now) + 2 * 60 * 60_000;
+  const today = bangkokToday(now);
+  const eligibleSlots = (date: string) => {
+    const dayMs = dateStartWallClockMs(date);
+    if (dayMs === null) return [];
+    return DELIVERY_RULES.slots
+      .filter((slot) => dayMs + (slot.startMinutes + 120) * 60_000 > cutoffMs)
+      .map((slot) => ({ value: slot.value, label: slot.label }));
+  };
+  const firstDate = eligibleSlots(today).length > 0 ? today : addDays(today, 1);
+  return Array.from({ length: DELIVERY_RULES.daysToShow }, (_, index) => {
+    const date = addDays(firstDate, index);
+    return { date, slots: eligibleSlots(date) };
+  });
+}
