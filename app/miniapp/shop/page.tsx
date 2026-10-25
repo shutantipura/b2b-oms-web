@@ -2991,52 +2991,47 @@ export default function MiniAppShopPage() {
       </header>
 
       <div className="mx-auto max-w-6xl px-3 pt-3 sm:px-6">
-        {/* SEARCH + TABS */}
-        <section className="mb-4 rounded-2xl border-2 border-[#A5DCD5] bg-[#E4F6F3] p-3 shadow-[0_5px_18px_rgba(0,92,86,0.11)] sm:p-4">
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="text-base font-extrabold text-[#173E31] sm:text-xl">สั่งสินค้า</h2>
-              <p className="mt-1 text-xs text-[#4C766B]">ค้นหาวัตถุดิบและสินค้าสำหรับธุรกิจของคุณ</p>
-            </div>
-          </div>
-          <div className="relative mt-3">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-[#A77B00]">⌕</span>
+        {/* Compact customer search: brand yellow is an accent, not a fill. */}
+        <section className="mb-4 rounded-[22px] border border-[#D8E7E2] bg-white px-4 py-4 shadow-[0_4px_16px_rgba(6,71,67,0.08)] sm:px-5">
+          <h2 className="mb-3 flex items-center gap-2.5 text-lg font-extrabold text-[#173E31]">
+            <span aria-hidden="true" className="h-5 w-1.5 rounded-full bg-[#FDBC16]" />
+            สั่งสินค้า
+          </h2>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl bg-[#FFF1C1] text-[#987100]">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="h-5 w-5">
+                <circle cx="10.5" cy="10.5" r="6.5" />
+                <path d="m16 16 5 5" />
+              </svg>
+            </span>
             <input
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="ค้นหาสินค้า / SKU"
+              placeholder="ค้นหาชื่อสินค้าหรือรหัส SKU"
               aria-label="ค้นหาสินค้า"
-              className={`min-h-14 w-full rounded-2xl border-2 border-[#FDBC16] bg-[#FFF9E6] py-3.5 pl-12 text-sm font-semibold text-[#173E31] placeholder:text-[#8B7849] shadow-[0_3px_0_rgba(182,132,0,0.17)] outline-none transition focus:border-[#E1A500] focus:bg-white focus:ring-4 focus:ring-[#FDBC16]/25 sm:text-base [&::-webkit-search-cancel-button]:hidden ${search ? "pr-[150px]" : "pr-[112px]"}`}
+              className="min-h-13 w-full rounded-xl border border-[#CADFD8] bg-[#F5F9F7] py-3.5 pl-14 pr-12 text-sm font-medium text-[#173E31] placeholder:text-[#799489] outline-none transition focus:border-[#FDBC16] focus:bg-white focus:ring-2 focus:ring-[#FDBC16]/30 sm:text-base [&::-webkit-search-cancel-button]:hidden"
             />
-            <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => { setSearch(""); setSelectedCategory(""); }}
-                  aria-label="ล้างการค้นหา"
-                  className="pointer-events-auto grid h-8 w-8 place-items-center rounded-full text-xl text-[#806127] hover:bg-[#FBE9B0]"
-                >×</button>
-              )}
-              <span
-                role="status"
-                className="whitespace-nowrap rounded-lg border border-[#E8BD4D] bg-[#FFE8A1] px-2 py-1.5 text-[11px] font-extrabold text-[#745200] shadow-sm sm:text-xs"
-              >
-                {tab === "favourites" ? `${displayedProducts.length.toLocaleString()} รายการ` : `${totalProducts.toLocaleString()} รายการ`}
-              </span>
-            </div>
+            {search && (
+              <button
+                type="button"
+                onClick={() => { setSearch(""); setSelectedCategory(""); }}
+                aria-label="ล้างการค้นหา"
+                className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-xl text-[#587A70] hover:bg-[#E4EFEB]"
+              >×</button>
+            )}
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-[#B7DCD5] bg-[#D6ECE8] p-1">
+          <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-[#EEF5F2] p-1">
             <button
               type="button"
               onClick={() => setTab("all")}
-              className={`min-h-10 rounded-lg px-3 py-2 text-sm font-bold transition ${tab === "all" ? "bg-white text-[#008F8D] shadow-[0_2px_6px_rgba(0,86,81,0.12)]" : "text-[#4F756A] hover:text-[#214E45]"}`}
+              className={`min-h-10 rounded-lg px-3 py-2 text-sm font-bold transition ${tab === "all" ? "bg-[#02B0AF] text-white shadow-[0_2px_8px_rgba(0,126,121,0.20)]" : "text-[#537569] hover:bg-white/80"}`}
             >สินค้าทั้งหมด</button>
             <button
               type="button"
               onClick={() => setTab("favourites")}
-              className={`min-h-10 rounded-lg px-3 py-2 text-sm font-bold transition ${tab === "favourites" ? "bg-white text-[#008F8D] shadow-[0_2px_6px_rgba(0,86,81,0.12)]" : "text-[#4F756A] hover:text-[#214E45]"}`}
-            >★ ซื้อประจำ <span className="text-xs opacity-70">({favouriteProductIds.length})</span></button>
+              className={`min-h-10 rounded-lg px-3 py-2 text-sm font-bold transition ${tab === "favourites" ? "bg-[#02B0AF] text-white shadow-[0_2px_8px_rgba(0,126,121,0.20)]" : "text-[#537569] hover:bg-white/80"}`}
+            >★ ซื้อประจำ <span className="text-xs opacity-75">({favouriteProductIds.length})</span></button>
           </div>
 
           {tab === "all" && debouncedSearch && (categoryFacets.length > 0 || searchTotal > 0) && (
@@ -3065,7 +3060,7 @@ export default function MiniAppShopPage() {
           <div role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{message}</div>
         )}
 
-        {/* Show a contextual heading for search/favourites; the count sits in the search field. */}
+        {/* Only show a result heading when it adds useful context. */}
         {(tab === "favourites" || search.trim() || selectedCategory) && (
           <div className="mb-3 px-1">
             <h3 className="text-base font-extrabold text-[#173E31]">
