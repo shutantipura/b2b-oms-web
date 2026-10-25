@@ -80,6 +80,22 @@ export default function StaffPaymentPage() {
     useState(false);
   const [slipUrl, setSlipUrl] = useState<string | null>(null);
 
+  // File selection is local-only. Uploading and closing an order require
+  // an explicit review action followed by final confirmation.
+  const [selectedSlip, setSelectedSlip] = useState<File | null>(null);
+  const [selectedSlipUrl, setSelectedSlipUrl] = useState<string | null>(null);
+  const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
+
+  useEffect(() => {
+    if (!selectedSlip) {
+      setSelectedSlipUrl(null);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(selectedSlip);
+    setSelectedSlipUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [selectedSlip]);
+
   const [loading, setLoading] =
     useState(true);
 
@@ -119,6 +135,8 @@ export default function StaffPaymentPage() {
     setBillName(null);
     setExistingSlip(false);
     setSlipUrl(null);
+    setSelectedSlip(null);
+    setConfirmSubmitOpen(false);
 
     const {
       data: orderData,
@@ -247,7 +265,11 @@ export default function StaffPaymentPage() {
     }
   }, [orderNumber]);
 
-  async function submitPaymentSlip(slipFile: File) {
+  async function submitPaymentSlip() {
+    // File picker events must never invoke the upload/close-order mutation.
+    const slipFile = selectedSlip;
+    if (!slipFile || !confirmSubmitOpen || submitting) return;
+    setConfirmSubmitOpen(false);
     setMessage("");
 
     if (!order) {
@@ -555,16 +577,69 @@ export default function StaffPaymentPage() {
               )}
             </div>
           ) : (
-            <TaskFilePicker
-              label="สลิปการชำระเงิน"
-              chooseLabel="ถ่ายหรือเลือกสลิปการชำระเงิน"
-              replaceLabel="เลือกสลิปใหม่"
-              accept="image/*,application/pdf,.pdf"
-              uploaded={false}
-              uploading={submitting}
-              disabled={order.status !== "awaiting_payment"}
-              onSelect={submitPaymentSlip}
-            />
+            <>
+              <TaskFilePicker
+                label="สลิปการชำระเงิน"
+                chooseLabel="ถ่ายหรือเลือกสลิปการชำระเงิน"
+                replaceLabel="เปลี่ยนรูปสลิป"
+                accept="image/*,application/pdf,.pdf"
+                uploaded={false}
+                uploading={submitting}
+                disabled={order.status !== "awaiting_payment"}
+                fileName={selectedSlip?.name ?? null}
+                selectionHint="เลือกไฟล์เพื่อดูตัวอย่างก่อน ยังไม่ส่งสลิปจนกว่าจะกดยืนยัน"
+                onSelect={(file) => {
+                  setSelectedSlip(file);
+                  setConfirmSubmitOpen(false);
+                  setMessage("");
+                }}
+              />
+              {selectedSlip && (
+                <div className="mt-5 rounded-2xl border-2 border-[#9DDBD2] bg-[#F5FCFA] p-4">
+                  <p className="text-base font-extrabold text-[#17453F]">ตรวจสอบสลิปก่อนยืนยัน</p>
+                  <p className="mt-1 text-xs text-[#64877C]">รูปหรือไฟล์นี้ยังไม่ได้อัปโหลด</p>
+                  {selectedSlipUrl && (
+                    selectedSlip.type.startsWith("image/") ? (
+                      <img
+                        src={selectedSlipUrl}
+                        alt="ตัวอย่างสลิปการชำระเงินที่ยังไม่ได้ส่ง"
+                        className="mx-auto mt-4 max-h-80 w-full rounded-xl border border-[#DAEBE4] bg-white object-contain"
+                      />
+                    ) : (
+                      <a
+                        href={selectedSlipUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-4 block rounded-xl border border-[#CAE5DE] bg-white px-4 py-3 text-center text-sm font-bold text-[#008F8D]"
+                      >
+                        เปิดดูไฟล์ PDF ก่อนยืนยัน
+                      </a>
+                    )
+                  )}
+                  <p className="mt-4 text-xs leading-5 text-[#8E6000]">
+                    เมื่อลงทะเบียนสลิปสำเร็จ ระบบจะปิดคำสั่งซื้อนี้ทันที กรุณาตรวจสอบรูปให้ถูกต้องก่อนยืนยัน
+                  </p>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedSlip(null); setConfirmSubmitOpen(false); }}
+                      disabled={submitting}
+                      className="min-h-12 rounded-xl border border-[#BFDCD4] bg-white px-3 py-3 text-sm font-extrabold text-[#527B6F] disabled:opacity-50"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmSubmitOpen(true)}
+                      disabled={submitting || order.status !== "awaiting_payment"}
+                      className="min-h-12 rounded-xl bg-[#02B0AF] px-3 py-3 text-sm font-extrabold text-white disabled:opacity-50"
+                    >
+                      ยืนยันส่งสลิป
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </section>
 
@@ -588,12 +663,52 @@ export default function StaffPaymentPage() {
         )}
 
         {message && (
-          <div className="mt-6 bg-white border rounded-lg p-4">
+          <div className="mt-6 bg-white border rounded-lg p-4" role="status">
             {message}
           </div>
         )}
 
       </div>
+
+      {confirmSubmitOpen && selectedSlip && order.status === "awaiting_payment" && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#092E27]/65 p-4">
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="payment-slip-confirm-title"
+            aria-describedby="payment-slip-confirm-description"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <h2 id="payment-slip-confirm-title" className="text-xl font-extrabold text-[#17453F]">
+              ยืนยันส่งหลักฐานการชำระเงิน?
+            </h2>
+            <p id="payment-slip-confirm-description" className="mt-3 text-sm leading-6 text-[#526F66]">
+              ยืนยันส่งไฟล์ <span className="break-all font-bold">{selectedSlip.name}</span> สำหรับคำสั่งซื้อ #{orderNumber} ใช่หรือไม่?
+              <span className="mt-2 block font-bold text-[#9A6500]">
+                เมื่อยืนยันแล้ว ระบบจะบันทึกสลิปและปิดคำสั่งซื้อนี้ทันที
+              </span>
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setConfirmSubmitOpen(false)}
+                disabled={submitting}
+                className="min-h-12 flex-1 rounded-xl border border-[#CFE3DB] px-4 py-3 text-sm font-extrabold text-[#456F61] disabled:opacity-50"
+              >
+                กลับไปตรวจสอบรูป
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitPaymentSlip()}
+                disabled={submitting}
+                className="min-h-12 flex-1 rounded-xl bg-[#02B0AF] px-4 py-3 text-sm font-extrabold text-white disabled:opacity-50"
+              >
+                {submitting ? "กำลังส่ง..." : "ยืนยันส่งและปิดคำสั่งซื้อ"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
