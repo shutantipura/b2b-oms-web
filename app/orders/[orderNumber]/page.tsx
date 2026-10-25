@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { supabase } from "../../../lib/supabase";
-import { getDeliveryOptions } from "../../../lib/deliveryRules";
+import { getManagerDeliveryOptions } from "../../../lib/deliveryRules";
 
 
 
@@ -389,7 +389,7 @@ export default function OrderDetailsPage() {
       setGroupRootNumber(loadedOrder.group_root_order_id===loadedOrder.id ? loadedOrder.order_number : null);
     }
     setEditedFinalAmount(loadedOrder.final_amount === null ? "" : String(loadedOrder.final_amount));
-    const options = getDeliveryOptions(new Date(Date.now() + 2 * 60 * 60_000));
+    const options = getManagerDeliveryOptions(new Date());
     const selectedDate = options.find((item) => item.date === loadedOrder.delivery_date) ?? options[0];
     setEditedDeliveryDate(selectedDate?.date ?? "");
     setEditedDeliverySlot(selectedDate?.slots.find((item) => item.value === loadedOrder.delivery_slot)?.value
@@ -926,10 +926,10 @@ export default function OrderDetailsPage() {
       setDeliveryMessage("กรุณาเปลี่ยนเวลาที่คำสั่งซื้อหลักของกลุ่ม");
       return;
     }
-    const validOptions = getDeliveryOptions(new Date(Date.now() + 2 * 60 * 60_000));
+    const validOptions = getManagerDeliveryOptions(new Date());
     if (!validOptions.some((option) => option.date === editedDeliveryDate &&
       option.slots.some((slot) => slot.value === editedDeliverySlot))) {
-      setDeliveryMessage("รอบจัดส่งนี้ต้องเริ่มอย่างน้อย 2 ชั่วโมงหลังเวลาที่บันทึก กรุณาเลือกรอบใหม่");
+      setDeliveryMessage("รอบจัดส่งนี้ต้องยังมีเวลาจัดส่งหลังครบ 2 ชั่วโมงจากเวลาที่บันทึก กรุณาเลือกรอบใหม่");
       return;
     }
     if (!window.confirm(`ยืนยันเปลี่ยนเวลาจัดส่งเป็น ${editedDeliveryDate} ${editedDeliverySlot}?`)) return;
@@ -1790,18 +1790,18 @@ export default function OrderDetailsPage() {
                       เวลาเดิม: {order.delivery_date ?? "—"} · {order.delivery_slot ?? "—"}
                     </p>
                     <p className="text-[11px] text-[#8A6000]">
-                      เลือกช่วงจัดส่งที่เริ่มอย่างน้อย 2 ชั่วโมงหลังจากกดบันทึก
+                      เลือกรอบที่ยังมีเวลาจัดส่งหลังครบ 2 ชั่วโมงจากที่กดบันทึก เช่น 10:04 เลือก 11:00–13:00 ได้ แต่จัดส่งไม่ก่อน 12:04
                     </p>
                     <label className="block text-xs font-semibold" htmlFor="manager-delivery-date">วันที่จัดส่งใหม่</label>
                     <select id="manager-delivery-date" value={editedDeliveryDate}
                       onChange={(event) => {
                         const date = event.target.value;
-                        const options = getDeliveryOptions(new Date(Date.now() + 2 * 60 * 60_000));
+                        const options = getManagerDeliveryOptions(new Date());
                         setEditedDeliveryDate(date);
                         setEditedDeliverySlot(options.find((option) => option.date === date)?.slots[0]?.value ?? "");
                       }}
                       className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2 text-sm">
-                      {getDeliveryOptions(new Date(Date.now() + 2 * 60 * 60_000)).map((option) => (
+                      {getManagerDeliveryOptions(new Date()).map((option) => (
                         <option key={option.date} value={option.date}>{option.date}</option>
                       ))}
                     </select>
@@ -1809,7 +1809,7 @@ export default function OrderDetailsPage() {
                     <select id="manager-delivery-slot" value={editedDeliverySlot}
                       onChange={(event) => setEditedDeliverySlot(event.target.value)}
                       className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2 text-sm">
-                      {(getDeliveryOptions(new Date(Date.now() + 2 * 60 * 60_000))
+                      {(getManagerDeliveryOptions(new Date())
                         .find((option) => option.date === editedDeliveryDate)?.slots ?? []).map((slot) => (
                         <option key={slot.value} value={slot.value}>{slot.label}</option>
                       ))}
