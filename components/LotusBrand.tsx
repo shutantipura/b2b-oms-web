@@ -1,5 +1,5 @@
 type LotusBrandProps = {
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   align?: "left" | "center";
   showSlogan?: boolean;
   className?: string;
@@ -9,6 +9,7 @@ const FONT_SIZES = {
   sm: "text-xl",
   md: "text-[28px]",
   lg: "text-3xl",
+  xl: "text-[clamp(2.4rem,9vw,3.25rem)]",
 } as const;
 
 /** One shared Lotus's B2B wordmark and slogan across customer and staff screens. */
@@ -28,7 +29,7 @@ export default function LotusBrand({
         <span className="ml-[0.28em] font-black text-[#6B7280]">B2B</span>
       </div>
       {showSlogan && (
-        <p className="mt-1 text-[11px] font-semibold leading-tight text-[#82968D]">
+        <p className={`mt-1 font-semibold leading-tight text-[#82968D] ${size === "xl" ? "text-sm" : "text-[11px]"}`}>
           เพื่อธุรกิจที่ไปได้ไกลกว่า
         </p>
       )}
