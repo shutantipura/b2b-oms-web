@@ -17,6 +17,7 @@ import Link from "next/link";
 
 
 import { supabase } from "../../lib/supabase";
+import { getOrderDeliveryUrgency, type DeliveryUrgency } from "../../lib/deliveryRules";
 
 
 
@@ -257,7 +258,6 @@ function formatBaht(amount: number) {
 }
 
 
-type DeliveryUrgency = "overdue" | "at-risk" | "today" | "none";
 type BangkokClock = { date: string; minutes: number };
 
 function getBangkokClock(): BangkokClock {
@@ -298,38 +298,6 @@ function relativeDeliveryDay(deliveryDate: string | null, today: string): string
   if (days === 0) return "วันนี้";
   if (days === 1) return "พรุ่งนี้";
   return days < 0 ? `${Math.abs(days)} วันที่แล้ว` : `${days} วันข้างหน้า`;
-}
-
-function deliverySlotMinutes(slot: string | null): { start: number; end: number } | null {
-  if (!slot) return null;
-  const times = [...slot.matchAll(/([01]?\d|2[0-3]):([0-5]\d)/g)]
-    .map((match) => Number(match[1]) * 60 + Number(match[2]));
-  if (times.length < 2) return null;
-  return { start: times[0], end: times[1] <= times[0] ? times[1] + 1440 : times[1] };
-}
-
-function deliveryUrgency(order: Order, now: BangkokClock): DeliveryUrgency {
-  const days = deliveryDaysAway(order.delivery_date, now.date);
-  if (days === null) return "none";
-
-  // The payment-verification queue is post-delivery; an unpaid order
-  // should not be mislabelled as a missed delivery.
-  if (order.status === "awaiting_payment" || order.status === "payment_submitted") {
-    return days === 0 ? "today" : "none";
-  }
-
-  const slot = deliverySlotMinutes(order.delivery_slot);
-  if (days < 0) return "overdue";
-  if (days === 0 && slot && now.minutes >= slot.end) return "overdue";
-
-  // Orange only while today's delivery slot is in progress.
-  // Before the slot starts, today's tasks remain yellow; from the slot end,
-  // unfinished tasks are red (handled above).
-  if (days === 0 && slot && now.minutes >= slot.start && now.minutes < slot.end) {
-    return "at-risk";
-  }
-
-  return days === 0 ? "today" : "none";
 }
 
 // All delivery-urgency colours are set as explicit inline styles.
@@ -1585,7 +1553,7 @@ export default function TasksPage() {
                               ? `${orders.find(root => root.id === order.group_root_order_id)?.order_number ?? order.order_number}/${order.group_sequence ?? 1}`
                               : String(order.order_number);
 
-                          const urgency = deliveryUrgency(order, clock);
+                          const urgency = getOrderDeliveryUrgency(order, clock);
 
 
 
