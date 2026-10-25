@@ -214,7 +214,7 @@ export default function MiniAppPaymentPage() {
       return;
     }
     if (data.order.status !== "awaiting_payment" || submitting) return;
-    if (!window.confirm("ยืนยันส่งหลักฐานการชำระเงินที่เลือกสำหรับคำสั่งซื้อนี้หรือไม่?\\nกรุณาตรวจสอบรูปก่อนส่ง เมื่อยืนยันแล้วจะไม่สามารถเปลี่ยนสลิปผ่านหน้านี้ได้")) return;
+    if (!window.confirm("ยืนยันส่งหลักฐานการชำระเงินที่เลือกสำหรับคำสั่งซื้อนี้หรือไม่?\nกรุณาตรวจสอบรูปก่อนส่ง เมื่อยืนยันแล้วจะไม่สามารถเปลี่ยนสลิปผ่านหน้านี้ได้")) return;
 
     setSubmitting(true);
     setNotice(null);
