@@ -149,7 +149,7 @@ function prettyText(value: string | null) {
   if (!value) return "—";
 
   const labels: Record<string, string> = {
-    awaiting_confirmation: "รอยืนยันคำสั่งซื้อ",
+    awaiting_confirmation: "รอเช็คสต็อก",
     awaiting_picking: "รอจัดสินค้า",
     picking: "กำลังจัดสินค้า",
     awaiting_billing: "รอออกบิล",
@@ -159,14 +159,14 @@ function prettyText(value: string | null) {
     payment_submitted: "ส่งหลักฐานการชำระเงินแล้ว",
     completed: "เสร็จสิ้น",
     cancelled: "ยกเลิก",
-    confirmation: "ยืนยันคำสั่งซื้อ",
+    confirmation: "เช็คสต็อก",
     billing: "ออกบิล",
     delivery: "จัดส่ง",
     payment_verification: "ตรวจสอบการชำระเงิน",
     task_claimed: "รับงาน",
     task_released: "ปล่อยงาน",
     order_created: "สร้างคำสั่งซื้อ",
-    order_confirmed: "ยืนยันคำสั่งซื้อ",
+    order_confirmed: "เช็คสต็อกเสร็จสิ้น",
     picking_completed: "จัดสินค้าเสร็จ",
     billing_completed: "ออกบิลเสร็จ",
     delivery_started: "เริ่มจัดส่ง",
