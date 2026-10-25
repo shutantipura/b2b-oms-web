@@ -2956,7 +2956,7 @@ export default function MiniAppShopPage() {
 
 
   return (
-    <main className="min-h-screen bg-[#F7FAFA] pb-32 text-[#15372E]">
+    <main className="min-h-screen bg-[#EFF6F5] pb-32 text-[#15372E]">
       {/* CUSTOMER NAVIGATION */}
       <header className="sticky top-0 z-30 border-b border-[#E6EEE9] bg-white/95 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
@@ -2992,11 +2992,11 @@ export default function MiniAppShopPage() {
 
       <div className="mx-auto max-w-6xl px-3 pt-3 sm:px-6">
         {/* SEARCH + TABS */}
-        <section className="mb-3 rounded-2xl border border-[#E1EAE4] bg-white p-3 shadow-sm sm:p-4">
+        <section className="mb-4 rounded-2xl border-2 border-[#A5DCD5] bg-[#E4F6F3] p-3 shadow-[0_5px_18px_rgba(0,92,86,0.11)] sm:p-4">
           <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
             <div>
-              <h2 className="text-base font-extrabold text-[#173E31] sm:text-xl">เลือกซื้อสินค้า</h2>
-              <p className="mt-1 text-xs text-[#7C9288]">ค้นหาวัตถุดิบและสินค้าสำหรับธุรกิจของคุณ</p>
+              <h2 className="text-base font-extrabold text-[#173E31] sm:text-xl">สั่งสินค้า</h2>
+              <p className="mt-1 text-xs text-[#4C766B]">ค้นหาวัตถุดิบและสินค้าสำหรับธุรกิจของคุณ</p>
             </div>
           </div>
           <div className="relative mt-3">
@@ -3007,7 +3007,7 @@ export default function MiniAppShopPage() {
               onChange={(event) => setSearch(event.target.value)}
               placeholder="ค้นหาชื่อสินค้า หรือรหัส SKU..."
               aria-label="ค้นหาสินค้า"
-              className="min-h-14 w-full rounded-2xl border-2 border-[#02B0AF] bg-white py-3.5 pl-12 pr-12 text-base font-medium text-[#173E31] placeholder:text-[#789A90] shadow-[0_2px_10px_rgba(2,176,175,0.08)] outline-none transition focus:border-[#008F8D] focus:ring-4 focus:ring-[#02B0AF]/15"
+              className="min-h-14 w-full rounded-2xl border-2 border-[#008F8D] bg-white py-3.5 pl-12 pr-12 text-base font-medium text-[#173E31] placeholder:text-[#70978B] shadow-[0_3px_0_rgba(0,95,90,0.10)] outline-none transition focus:border-[#007E7C] focus:ring-4 focus:ring-[#02B0AF]/25"
             />
             {search && (
               <button
@@ -3018,16 +3018,16 @@ export default function MiniAppShopPage() {
               >×</button>
             )}
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-[#EFF7F6] p-1">
+          <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-[#B7DCD5] bg-[#D6ECE8] p-1">
             <button
               type="button"
               onClick={() => setTab("all")}
-              className={`min-h-10 rounded-lg px-3 py-2 text-sm font-bold transition ${tab === "all" ? "bg-white text-[#009F9D] shadow-sm" : "text-[#84978B] hover:text-[#315C49]"}`}
+              className={`min-h-10 rounded-lg px-3 py-2 text-sm font-bold transition ${tab === "all" ? "bg-white text-[#008F8D] shadow-[0_2px_6px_rgba(0,86,81,0.12)]" : "text-[#4F756A] hover:text-[#214E45]"}`}
             >สินค้าทั้งหมด</button>
             <button
               type="button"
               onClick={() => setTab("favourites")}
-              className={`min-h-10 rounded-lg px-3 py-2 text-sm font-bold transition ${tab === "favourites" ? "bg-white text-[#009F9D] shadow-sm" : "text-[#84978B] hover:text-[#315C49]"}`}
+              className={`min-h-10 rounded-lg px-3 py-2 text-sm font-bold transition ${tab === "favourites" ? "bg-white text-[#008F8D] shadow-[0_2px_6px_rgba(0,86,81,0.12)]" : "text-[#4F756A] hover:text-[#214E45]"}`}
             >★ ซื้อประจำ <span className="text-xs opacity-70">({favouriteProductIds.length})</span></button>
           </div>
 
@@ -3057,15 +3057,19 @@ export default function MiniAppShopPage() {
           <div role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{message}</div>
         )}
 
-        {/* PRODUCT COUNT */}
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2 px-1">
-          <div>
-            <h3 className="text-base font-extrabold text-[#173E31]">{tab === "favourites" ? "สินค้าซื้อประจำของคุณ" : search.trim() ? "ผลการค้นหา" : "สินค้าสำหรับร้านคุณ"}</h3>
-            <p className="mt-1 text-xs text-[#82948A]">
-              {tab === "favourites" ? "แตะดาวเพื่อเพิ่มหรือนำสินค้าออกจากรายการโปรด" : selectedCategory ? categoryLabel(selectedCategory) : search.trim() ? `คำค้นหา: ${debouncedSearch}` : "สินค้าขายดีแสดงก่อน เลื่อนดูหรือโหลดสินค้าเพิ่ม"}
-            </p>
-          </div>
-          <span className="rounded-lg bg-[#E7F3EA] px-3 py-2 text-xs font-bold text-[#009F9D]">
+        {/* Keep the product count; only show a heading when it adds context. */}
+        <div className="mb-3 flex flex-wrap items-end justify-end gap-2 px-1">
+          {(tab === "favourites" || search.trim() || selectedCategory) && (
+            <div className="mr-auto">
+              <h3 className="text-base font-extrabold text-[#173E31]">
+                {tab === "favourites" ? "สินค้าซื้อประจำของคุณ" : search.trim() ? "ผลการค้นหา" : categoryLabel(selectedCategory)}
+              </h3>
+              <p className="mt-1 text-xs text-[#597C70]">
+                {tab === "favourites" ? "แตะดาวเพื่อเพิ่มหรือนำสินค้าออกจากรายการโปรด" : selectedCategory ? categoryLabel(selectedCategory) : `คำค้นหา: ${debouncedSearch}`}
+              </p>
+            </div>
+          )}
+          <span className="rounded-lg border border-[#B6DCD4] bg-[#DDF2ED] px-3 py-2 text-xs font-extrabold text-[#008F8D]">
             {tab === "favourites" ? `${displayedProducts.length.toLocaleString()} รายการ` : `${totalProducts.toLocaleString()} รายการ`}
           </span>
         </div>
@@ -3088,15 +3092,15 @@ export default function MiniAppShopPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:gap-4">
+            <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:gap-4">
               {displayedProducts.map((product) => {
                 const step = getQuantityStep(product.unit);
                 const quantity = Number(cart[product.id] ?? 0);
                 const favouriteBusy = savingFavouriteIds.has(product.id);
                 const hideImage = isLiquorTobaccoCategory(product.category);
                 return (
-                  <article key={product.id} className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#E4EDE6] bg-white shadow-[0_2px_12px_rgba(0,120,115,0.045)] transition hover:border-[#AED9BF] hover:shadow-md">
-                    <div className="relative aspect-[1.42] overflow-hidden bg-[#F8FAF7] sm:aspect-square">
+                  <article key={product.id} className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#B7D7D0] bg-white shadow-[0_5px_16px_rgba(6,71,67,0.14)] transition hover:border-[#02B0AF] hover:shadow-[0_7px_19px_rgba(6,71,67,0.19)]">
+                    <div className="relative aspect-[1.42] overflow-hidden border-b border-[#D5E8E3] bg-[#F7FBFA] sm:aspect-square">
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-3 text-center text-[#A4B8A9]">
                         <span className="text-4xl">{hideImage ? "ⓘ" : "📦"}</span>
                         <span className="text-[11px]">{hideImage ? "หมวดสุราและยาสูบ" : "ไม่มีรูปสินค้า"}</span>
