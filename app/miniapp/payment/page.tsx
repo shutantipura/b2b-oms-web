@@ -213,7 +213,8 @@ export default function MiniAppPaymentPage() {
       setNotice({ kind: "error", text: "กรุณาเลือกหลักฐานการชำระเงินก่อน" });
       return;
     }
-    if (data.order.status !== "awaiting_payment") return;
+    if (data.order.status !== "awaiting_payment" || submitting) return;
+    if (!window.confirm("ยืนยันส่งหลักฐานการชำระเงินที่เลือกสำหรับคำสั่งซื้อนี้หรือไม่?\\nกรุณาตรวจสอบรูปก่อนส่ง เมื่อยืนยันแล้วจะไม่สามารถเปลี่ยนสลิปผ่านหน้านี้ได้")) return;
 
     setSubmitting(true);
     setNotice(null);
@@ -482,8 +483,8 @@ export default function MiniAppPaymentPage() {
 
             <label htmlFor="payment-slip-file" className="mt-5 flex min-h-[144px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#9BDCD1] bg-[#F5FCF9] px-4 py-5 text-center transition hover:bg-[#EBF9F4]">
               <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-[#02B0AF] shadow-sm"><UploadIcon /></span>
-              <span className="mt-3 text-sm font-extrabold text-[#007F7D]">{slipFile ? "เปลี่ยนไฟล์สลิป" : "แตะเพื่อเลือกรูปสลิป"}</span>
-              <span className="mt-1 text-xs text-[#86A095]">รองรับรูปภาพและ PDF</span>
+              <span className="mt-3 text-sm font-extrabold text-[#007F7D]">{slipFile ? "เปลี่ยนรูปสลิปที่เลือก" : "แตะเพื่อเลือกรูปสลิป"}</span>
+              <span className="mt-1 text-xs text-[#86A095]">{slipFile ? "สามารถเปลี่ยนไฟล์ได้ก่อนกดยืนยันและส่งสลิป" : "รองรับรูปภาพและ PDF · เลือกแล้วจะยังไม่ส่งทันที"}</span>
             </label>
 
             {slipFile && (
@@ -509,7 +510,7 @@ export default function MiniAppPaymentPage() {
               disabled={submitting || !slipFile}
               className="mt-4 flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#02B0AF] px-5 py-4 text-base font-black text-white shadow-[0_4px_12px_rgba(0,165,158,0.2)] transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-[#B9DAD3] disabled:shadow-none"
             >
-              {submitting ? "กำลังส่งหลักฐาน..." : "ยืนยันและส่งสลิป"}
+              {submitting ? "กำลังส่งหลักฐาน..." : "ยืนยันและส่งสลิปที่เลือก"}
             </button>
             <p className="mt-3 text-center text-[11px] leading-5 text-[#82998F]">เมื่อส่งสลิปแล้ว ทีมงานจะตรวจสอบยอดชำระและอัปเดตสถานะคำสั่งซื้อ</p>
           </section>
