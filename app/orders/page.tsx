@@ -283,13 +283,16 @@ function deliveryUrgency(order: Order, now: BangkokClock): DeliveryUrgency {
   const days = deliveryDaysAway(order.delivery_date, now.date);
   if (days === null) return "none";
 
-  // Payment takes place after delivery; an unpaid bill is not an overdue delivery.
+  // Any pending order from a past delivery date remains overdue, including
+  // those awaiting payment. A completed or cancelled order is never overdue.
+  if (days < 0) return "overdue";
+
+  // For today's payment-stage orders, do not flag a missed delivery window.
   if (order.status === "awaiting_payment" || order.status === "payment_submitted") {
     return days === 0 ? "today" : "none";
   }
 
   const slot = deliverySlotMinutes(order.delivery_slot);
-  if (days < 0) return "overdue";
   if (days === 0 && slot && now.minutes >= slot.end) return "overdue";
 
   // Warn staff within 2 hours before the delivery window begins.
