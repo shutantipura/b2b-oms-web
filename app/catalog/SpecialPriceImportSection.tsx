@@ -4,6 +4,8 @@ import {
   useState,
 } from "react";
 
+import Link from "next/link";
+
 import {
   supabase,
 } from "../../lib/supabase";
@@ -805,28 +807,30 @@ export default function SpecialPriceImportSection() {
   return (
     <section className="bg-white border rounded-2xl overflow-hidden">
 
-      <div className="p-6 border-b">
-
-        <div className="flex items-start gap-4">
-
-          <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-bold shrink-0">
-            4
+      <div className="p-5 border-b sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#02B0AF] font-bold text-white">
+              1
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold text-[#17453F]">
+                ราคาพิเศษรายลูกค้า
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                นำเข้าราคาพิเศษจำนวนมากจาก Excel หรือแก้ไขราคาทีละสินค้าได้
+              </p>
+            </div>
           </div>
-
-          <div>
-
-            <h2 className="text-xl font-bold">
-              ราคาพิเศษรายลูกค้า
-            </h2>
-
-            <p className="text-sm text-gray-500 mt-1">
-              รีเซ็ตราคาพิเศษเดิมทั้งหมด แล้วอัปโหลด Excel ฉบับใหม่
-            </p>
-
-          </div>
-
+          <Link
+            href="/customers/favourites"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#91D6CE] bg-[#E7F8F5] px-4 py-2.5 text-sm font-extrabold text-[#007D79] transition hover:bg-[#D8F3EE]"
+          >
+            <span aria-hidden="true">★</span>
+            จัดการสินค้าซื้อประจำ / ราคาพิเศษ
+            <span aria-hidden="true">↗</span>
+          </Link>
         </div>
-
       </div>
 
       <div className="p-6">
