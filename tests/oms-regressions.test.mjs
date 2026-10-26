@@ -116,3 +116,14 @@ test("rider page includes products for both grouped and standalone orders", () =
   assert.match(source, /item\.product_name_snapshot/);
   assert.match(source, /item\.actual_qty/);
 });
+
+test("Android station keeps sounding until authenticated acknowledgement", () => {
+  const source = readFileSync(new URL("../app/order-alarm/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /rpc\("get_pending_order_alarms"\)/);
+  assert.match(source, /rpc\("acknowledge_order_alarm"/);
+  assert.match(source, /setInterval\(\(\) => void refresh\(\), 5000\)/);
+  assert.match(source, /setInterval\(playPulse, 1550\)/);
+  assert.match(source, /alarmsRef\.current\.length > 0/);
+  assert.match(source, /navigator\.wakeLock\.request\("screen"\)/);
+  assert.match(source, /function testSound\(/);
+});
