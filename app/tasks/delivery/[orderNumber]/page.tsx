@@ -19,6 +19,7 @@ type OrderDetails = {
   id: string;
 
   order_number: number;
+  group_root_order_id: string | null;
 
   status: string;
 
@@ -52,6 +53,17 @@ type OrderDetails = {
 
 };
 
+
+type DeliveryItem = {
+  id: string;
+  product_name_snapshot: string;
+  actual_qty: number | string | null;
+  unit_snapshot: string;
+  products: {
+    sku: string;
+    image_url: string | null;
+  } | null;
+};
 
 type OrderFile = {
   id: string;
@@ -110,7 +122,8 @@ export default function DeliveryPage() {
 
     useState<OrderDetails | null>(null);
 
-
+  const [items, setItems] = useState<DeliveryItem[]>([]);
+  const [itemsError, setItemsError] = useState("");
 
   const [deliveryPhotoNames, setDeliveryPhotoNames] = useState<(string | null)[]>([null, null]);
 
@@ -164,6 +177,8 @@ export default function DeliveryPage() {
     setLoading(true);
 
     setMessage("");
+    setItems([]);
+    setItemsError("");
     setCartPhotos([]);
     setMissingCartLabels([]);
     setBill(null);
@@ -186,6 +201,7 @@ export default function DeliveryPage() {
         id,
 
         order_number,
+        group_root_order_id,
 
         status,
 
@@ -247,7 +263,25 @@ export default function DeliveryPage() {
 
     );
 
+    // Delivery displays what was actually picked and billed. Group roots use
+    // the same consolidated lines as Billing, avoiding duplicated /x items.
+    const isGroupRoot = orderData.group_root_order_id === orderData.id;
+    const { data: itemData, error: itemError } = isGroupRoot
+      ? await supabase.from("group_billing_lines")
+          .select("id, product_name_snapshot, actual_qty, unit_snapshot, products(sku, image_url)")
+          .eq("root_order_id", orderData.id)
+          .order("product_name_snapshot", { ascending: true })
+      : await supabase.from("order_items")
+          .select("id, product_name_snapshot, actual_qty, unit_snapshot, products(sku, image_url)")
+          .eq("order_id", orderData.id)
+          .order("product_name_snapshot", { ascending: true });
 
+    // A product-list read issue must never block proof upload or delivery.
+    if (itemError) {
+      setItemsError("ไม่สามารถโหลดรายการสินค้าที่จัดส่งได้: " + itemError.message);
+    } else {
+      setItems((itemData ?? []) as unknown as DeliveryItem[]);
+    }
 
     const {
 
@@ -726,6 +760,10 @@ export default function DeliveryPage() {
 
 
 
+  const deliveryItems = items.filter((item) => Number(item.actual_qty ?? 0) > 0);
+  const formatQuantity = (value: number | string | null) =>
+    new Intl.NumberFormat("th-TH", { maximumFractionDigits: 3 }).format(Number(value ?? 0));
+
   const deliveryMapUrl =
 
     safeWebUrl(
@@ -1032,7 +1070,60 @@ export default function DeliveryPage() {
 
         </section>
 
+        <section className="mb-6 rounded-2xl border bg-white p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-extrabold text-[#17453F]">รายการสินค้าที่จัดส่ง</h2>
+            <span className="rounded-full bg-[#E7F8F5] px-3 py-1 text-sm font-bold text-[#007F79]">
+              {deliveryItems.length} รายการ
+            </span>
+          </div>
+          <p className="mb-4 mt-1 text-sm text-[#6B8179]">
+            แสดงจำนวนที่หยิบจริงหลังเช็คสต็อกและหยิบสินค้า
+            {order.group_root_order_id === order.id ? " · รวมสินค้าจากออเดอร์ย่อยทั้งหมด" : ""}
+          </p>
 
+          {itemsError ? (
+            <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              {itemsError} กรุณาตรวจสอบบิลและรูปรถเข็นประกอบ
+            </p>
+          ) : deliveryItems.length === 0 ? (
+            <p className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+              ไม่พบสินค้าที่หยิบจริงสำหรับการจัดส่ง
+            </p>
+          ) : (
+            <div className="divide-y divide-[#E2EDE8]">
+              {deliveryItems.map((item) => (
+                <div key={item.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border bg-[#F3F7F5]">
+                    <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-xl">📦</span>
+                    {item.products?.image_url && (
+                      <img
+                        src={item.products.image_url}
+                        alt={item.product_name_snapshot}
+                        loading="lazy"
+                        decoding="async"
+                        className="absolute inset-0 h-full w-full bg-white object-contain p-1"
+                        onError={(event) => { event.currentTarget.style.display = "none"; }}
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-bold leading-5 text-[#234C40]">
+                      {item.product_name_snapshot}
+                    </p>
+                    <p className="mt-1 text-xs text-[#71877E]">SKU {item.products?.sku ?? "—"}</p>
+                  </div>
+                  <div className="max-w-[42%] shrink-0 rounded-xl bg-[#E7F8F5] px-3 py-2 text-right text-[#007F79]">
+                    <span className="block text-[11px] font-bold">หยิบจริง</span>
+                    <span className="text-base font-extrabold">
+                      {formatQuantity(item.actual_qty)} {item.unit_snapshot}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         <section className="bg-white border rounded-2xl p-6 mb-6">
 
