@@ -22,6 +22,8 @@ type Order = {
   delivery_date: string | null;
   delivery_slot: string | null;
   final_amount: number | string | null;
+  billing_account_suspended: boolean;
+  billing_no_cv: boolean;
 
   customers: {
     customer_name: string;
@@ -170,6 +172,54 @@ function prettyStatus(
   return (
     names[status] ??
     status
+  );
+}
+
+type BillingMethodInfo = {
+  label: string;
+  badgeClass: string;
+};
+
+// The method is selected during the billing task, not at order creation.
+// Both flags are false for ordinary CV billing AND for orders not billed yet,
+// so only label a normal CV bill once the final amount has been recorded.
+function billingMethodInfo(order: Order): BillingMethodInfo {
+  if (order.billing_account_suspended) {
+    return {
+      label: "CV Card",
+      badgeClass: "border-[#A9D7D0] bg-[#E9F8F5] text-[#126C63]",
+    };
+  }
+
+  if (order.billing_no_cv) {
+    return {
+      label: "B2B Barcode",
+      badgeClass: "border-[#F4D28A] bg-[#FFF3D3] text-[#876000]",
+    };
+  }
+
+  if (order.final_amount !== null) {
+    return {
+      label: "CV ปกติ",
+      badgeClass: "border-[#B8E2F3] bg-[#EDF8FD] text-[#236B87]",
+    };
+  }
+
+  return {
+    label: "ยังไม่ระบุ",
+    badgeClass: "border-[#DEE6E4] bg-[#F4F7F6] text-[#71837E]",
+  };
+}
+
+function BillingMethodBadge({ order }: { order: Order }) {
+  const method = billingMethodInfo(order);
+  return (
+    <span
+      title={`วิธีออกบิล: ${method.label}`}
+      className={`inline-flex items-center whitespace-nowrap rounded-lg border px-2 py-1 text-[11px] font-extrabold leading-4 ${method.badgeClass}`}
+    >
+      {method.label}
+    </span>
   );
 }
 
@@ -545,6 +595,8 @@ export default function OrdersPage() {
           delivery_date,
           delivery_slot,
           final_amount,
+          billing_account_suspended,
+          billing_no_cv,
           customers (
             customer_name,
             customer_code,
@@ -892,6 +944,10 @@ export default function OrdersPage() {
                       สถานะ
                     </th>
 
+                    <th className="hidden text-left p-4 lg:table-cell">
+                      วิธีออกบิล
+                    </th>
+
                     <th className="text-right p-4">
                       ยอดเงิน
                     </th>
@@ -952,6 +1008,11 @@ export default function OrdersPage() {
                               }
                             </div>
 
+                            {/* On phones, show the method without adding another narrow table column. */}
+                            <div className="mt-2 lg:hidden">
+                              <BillingMethodBadge order={order} />
+                            </div>
+
                           </td>
 
                           <td className="p-4">
@@ -1002,6 +1063,11 @@ export default function OrdersPage() {
                               )}
                             </span>
 
+                          </td>
+
+                          {/* Dedicated billing-method column on wider screens. */}
+                          <td className="hidden p-4 lg:table-cell">
+                            <BillingMethodBadge order={order} />
                           </td>
 
                           <td className="p-4 text-right">
