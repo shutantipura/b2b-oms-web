@@ -38,6 +38,10 @@ type StatusFilter =
   | "completed"
   | "cancelled";
 
+// Keep the Orders Management filters when navigating to an order and back.
+// sessionStorage is tab-scoped, so a fresh tab starts with the default view.
+const ORDERS_FILTERS_STORAGE_KEY = "lotus-b2b-orders-filters-v1";
+
 // =====================================================
 // DATE HELPERS
 // =====================================================
@@ -403,6 +407,52 @@ export default function OrdersPage() {
     useState<StatusFilter>(
       "all"
     );
+  const [filtersRestored, setFiltersRestored] = useState(false);
+
+  // Restore before fetching orders, so going back from a detail page doesn't
+  // briefly fetch a different day or overwrite the saved filters.
+  useEffect(() => {
+    try {
+      const stored = window.sessionStorage.getItem(ORDERS_FILTERS_STORAGE_KEY);
+      if (stored) {
+        const saved: unknown = JSON.parse(stored);
+        if (saved && typeof saved === "object") {
+          const filters = saved as Record<string, unknown>;
+          if (typeof filters.selectedDate === "string"
+            && /^\\d{4}-\\d{2}-\\d{2}$/.test(filters.selectedDate)) {
+            setSelectedDate(filters.selectedDate);
+          }
+          if (typeof filters.allDates === "boolean") {
+            setAllDates(filters.allDates);
+          }
+          if (typeof filters.search === "string") {
+            setSearch(filters.search);
+          }
+          if (filters.statusFilter === "all" || filters.statusFilter === "pending"
+            || filters.statusFilter === "completed" || filters.statusFilter === "cancelled") {
+            setStatusFilter(filters.statusFilter);
+          }
+        }
+      }
+    } catch {
+      // Browsers may block storage; the normal filter defaults still work.
+    }
+    setFiltersRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersRestored) return;
+    try {
+      window.sessionStorage.setItem(ORDERS_FILTERS_STORAGE_KEY, JSON.stringify({
+        selectedDate,
+        allDates,
+        search,
+        statusFilter,
+      }));
+    } catch {
+      // Storage unavailable: keep the filters functional in memory.
+    }
+  }, [filtersRestored, selectedDate, allDates, search, statusFilter]);
 
   // =====================================================
   // MANAGER ACCESS
@@ -633,12 +683,13 @@ export default function OrdersPage() {
   }
 
   useEffect(() => {
+    if (!filtersRestored) return;
     void loadManagerAccess();
     void loadOrders(selectedDate, allDates);
     return () => {
       loadRequestRef.current += 1;
     };
-  }, [selectedDate, allDates]);
+  }, [filtersRestored, selectedDate, allDates]);
 
   useEffect(() => {
     const refreshClock = () => setClock(getBangkokClock());
