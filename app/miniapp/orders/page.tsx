@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
+import { lineApiFetch } from "../../../lib/lineSession";
 
 type Customer = {
   id: string;
@@ -159,7 +160,7 @@ export default function CustomerOrdersPage() {
   ) {
     if (!quiet) setRefreshing(true);
     try {
-      const response = await fetch("/api/line/orders", {
+      const response = await lineApiFetch("/api/line/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
