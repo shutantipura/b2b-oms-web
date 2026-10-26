@@ -2960,23 +2960,23 @@ export default function MiniAppShopPage() {
       {/* CUSTOMER NAVIGATION */}
       <header className="sticky top-0 z-30 border-b border-[#E6EEE9] bg-white/95 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
-          <div className="flex items-center justify-between gap-3">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
             <button
               type="button"
               onClick={goCustomerHome}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-[#426559] hover:bg-[#EDF7F1]"
+              className="inline-flex min-h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-xl px-1.5 text-[13px] font-semibold text-[#426559] hover:bg-[#EDF7F1] sm:gap-2 sm:px-2 sm:text-sm"
               aria-label="กลับหน้าหลัก"
             >
               <span className="text-xl leading-none">‹</span>
               <span>หน้าแรก</span>
             </button>
-            <div className="text-center">
+            <div className="miniapp-nav-brand min-w-0 text-center">
               <LotusBrand size="sm" align="center" />
             </div>
             <button
               type="button"
               onClick={() => setShowCart(true)}
-              className="relative grid h-11 w-11 place-items-center rounded-2xl border border-[#DFE9E3] bg-[#F6FBF8] text-xl"
+              className="relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[#DFE9E3] bg-[#F6FBF8] text-xl"
               aria-label="เปิดตะกร้าสินค้า"
             >
               🛒
@@ -3169,16 +3169,16 @@ export default function MiniAppShopPage() {
       {cartItemCount > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#D7E9DD] bg-white/95 p-3 shadow-[0_-8px_30px_rgba(15,64,39,0.08)] backdrop-blur-lg">
           <div className="mx-auto max-w-6xl">
-            <button type="button" onClick={() => setShowCart(true)} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl bg-[#02B0AF] px-4 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 sm:px-6">
-              <span className="flex items-center gap-3">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/15 text-xl">🛒</span>
+            <button type="button" onClick={() => setShowCart(true)} className="miniapp-bottom-cta flex min-h-16 w-full items-center justify-between gap-2 rounded-2xl bg-[#02B0AF] px-3 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 sm:gap-3 sm:px-6">
+              <span className="flex min-w-0 items-center gap-2 sm:gap-3">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/15 text-lg sm:h-11 sm:w-11 sm:text-xl">🛒</span>
                 <span>
-                  <span className="block text-sm font-extrabold">ดูตะกร้า <span className="ml-1 rounded-full bg-[#FDBC16] px-2 py-0.5 text-xs text-[#294631]">{cartItemCount}</span></span>
-                  <span className="mt-0.5 block text-[11px] text-white/75">ตรวจสอบรายการก่อนสั่งซื้อ</span>
+                  <span className="block whitespace-nowrap text-[13px] font-extrabold leading-5 sm:text-sm">ดูตะกร้า <span className="ml-1 rounded-full bg-[#FDBC16] px-2 py-0.5 text-[11px] text-[#294631]">{cartItemCount}</span></span>
+                  <span className="mt-0.5 hidden text-[11px] leading-4 text-white/75 min-[390px]:block">ตรวจสอบรายการก่อนสั่งซื้อ</span>
                 </span>
               </span>
-              <span className="text-right">
-                <span className="block text-lg font-extrabold">~฿{formatPrice(estimatedTotal)}</span>
+              <span className="miniapp-cta-price text-right">
+                <span className="block text-[clamp(15px,4.8vw,19px)] font-extrabold leading-tight">~฿{formatPrice(estimatedTotal)}</span>
                 <span className="block text-[10px] text-white/75">ยอดประมาณการ ›</span>
               </span>
             </button>
