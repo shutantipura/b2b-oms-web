@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
+import { lineApiFetch } from "../../../lib/lineSession";
 
 type DisplayFile = {
   fileType: string;
@@ -108,7 +109,7 @@ export default function MiniAppPaymentPage() {
 
   async function loadPayment(token: string, code: string, orderNumber: number) {
     // Keep the existing API contract: JSON POST loads the bill, QR, proof and slip.
-    const response = await fetch("/api/line/payment", {
+    const response = await lineApiFetch("/api/line/payment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken: token, customerCode: code, orderNumber }),
@@ -226,7 +227,7 @@ export default function MiniAppPaymentPage() {
       formData.append("orderNumber", String(data.order.orderNumber));
       formData.append("file", slipFile);
 
-      const response = await fetch("/api/line/payment", {
+      const response = await lineApiFetch("/api/line/payment", {
         method: "POST",
         body: formData,
       });
