@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -33,6 +34,90 @@ type FavouriteRow = {
   product_id: string;
   sort_order: number | null;
 };
+
+type CustomerPriceRow = {
+  product_id: string;
+  agreed_price: number | string;
+};
+
+type PriceFeedback = {
+  kind: "success" | "error";
+  text: string;
+};
+
+function bahtAmount(value: number) {
+  return value.toLocaleString("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function SpecialPriceEditor({
+  product,
+  savedPrice,
+  draft,
+  busy,
+  feedback,
+  onChange,
+  onSave,
+}: {
+  product: Product;
+  savedPrice: number | undefined;
+  draft: string;
+  busy: boolean;
+  feedback?: PriceFeedback;
+  onChange: (value: string) => void;
+  onSave: () => void;
+}) {
+  const valid = /^\\d+(?:\\.\\d{1,2})?$/.test(draft.trim())
+    && Number.isFinite(Number(draft))
+    && Number(draft) >= 0;
+  const changed = valid && (savedPrice === undefined || Number(draft) !== savedPrice);
+
+  return (
+    <div className="min-w-[160px]">
+      <p className="mb-1 text-xs text-[#6E837B]">
+        {savedPrice === undefined
+          ? "ยังไม่มีราคาพิเศษ"
+          : <>ราคาที่บันทึก: <strong className="text-[#007F79]">฿{bahtAmount(savedPrice)}</strong></>}
+      </p>
+      <div className="flex items-center gap-2">
+        <label className="sr-only" htmlFor={`special-price-${product.id}`}>
+          ราคาพิเศษสำหรับ {product.product_name} ต่อ {product.unit}
+        </label>
+        <div className="relative min-w-0 flex-1">
+          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm font-bold text-[#647D74]">฿</span>
+          <input
+            id={`special-price-${product.id}`}
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={draft}
+            placeholder="ตั้งราคา"
+            onChange={(event) => onChange(event.target.value)}
+            disabled={busy}
+            className="h-11 w-full min-w-0 rounded-xl border border-[#BBD9D2] bg-white pl-7 pr-2 text-sm font-bold text-[#17453F] outline-none focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/15 disabled:opacity-60"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={busy || !changed}
+          className="h-11 shrink-0 rounded-xl bg-[#02B0AF] px-3 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:bg-[#E3EBE8] disabled:text-[#8B9D96]"
+        >
+          {busy ? "กำลังบันทึก" : "ยืนยันราคา"}
+        </button>
+      </div>
+      <p className="mt-1 text-[11px] text-[#7D968B]">บาท/{product.unit} · สูงสุด 2 ตำแหน่งทศนิยม</p>
+      {feedback && (
+        <p role="status" className={`mt-1 text-xs font-bold ${feedback.kind === "success" ? "text-[#008B79]" : "text-red-600"}`}>
+          {feedback.text}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function ProductThumbnail({
   imageUrl,
@@ -167,6 +252,13 @@ export default function CustomerFavouritesPage() {
     useState<Set<string>>(
       new Set()
     );
+
+  const [specialPrices, setSpecialPrices] = useState<Record<string, number>>({});
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+  const [priceFeedback, setPriceFeedback] = useState<Record<string, PriceFeedback>>({});
+  const [savingPriceIds, setSavingPriceIds] = useState<Set<string>>(new Set());
+  const favouritesLoadRef = useRef(0);
+  const activeCustomerRef = useRef("");
 
   const [
     message,
