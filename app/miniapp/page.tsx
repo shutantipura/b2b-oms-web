@@ -24,6 +24,7 @@ import {
 
 import LotusLoading from "../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
+import { clearLineSessionReload, isLineIdTokenExpired, requestLineSessionReloadOnce, LINE_SESSION_EXPIRED_MESSAGE } from "../../lib/lineSession";
 
 type Customer = {
 
@@ -586,6 +587,13 @@ export default function MiniAppHomePage() {
 
         }
 
+        // An in-LINE tab may retain an expired one-hour token.
+        // Reload once, then show an actionable error rather than looping.
+        if (liff.isInClient() && isLineIdTokenExpired(idToken)) {
+          if (requestLineSessionReloadOnce()) return;
+          throw new Error(LINE_SESSION_EXPIRED_MESSAGE);
+        }
+
         // -----------------------------------------------
 
         // LOAD CUSTOMER + ระบบพนักงาน
@@ -627,6 +635,14 @@ export default function MiniAppHomePage() {
             liff.login({ redirectUri: window.location.origin + "/miniapp" });
             return;
           }
+          if (
+            response.status === 401 &&
+            data.code === "LINE_ID_TOKEN_INVALID" &&
+            !externalBrowser
+          ) {
+            if (requestLineSessionReloadOnce()) return;
+            throw new Error(LINE_SESSION_EXPIRED_MESSAGE);
+          }
           if (response.status === 401 && externalBrowser) {
             throw new Error(
               (data.error ?? "LINE ไม่สามารถยืนยันตัวตนได้") +
@@ -638,6 +654,7 @@ export default function MiniAppHomePage() {
         if (!liff.isInClient()) {
           window.sessionStorage.removeItem("lotus_b2b_desktop_line_reauth_once");
         }
+        clearLineSessionReload();
 
         if (cancelled) {
 
