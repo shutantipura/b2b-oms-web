@@ -1449,6 +1449,7 @@ export default function CustomerFavouritesPage() {
             </div>
 
           ) : (
+            <>
 
             {/* Small screens: show prices and confirm button directly on each product card. */}
             <div className="divide-y divide-[#E5EFEB] md:hidden">
@@ -1544,7 +1545,7 @@ export default function CustomerFavouritesPage() {
                 </tbody>
               </table>
             </div>
-
+            </>
           )}
 
         </section>
