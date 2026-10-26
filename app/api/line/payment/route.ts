@@ -106,9 +106,7 @@ async function getAuthorizedContext(
     !response.ok ||
     !lineData.sub
   ) {
-    throw new Error(
-      "LINE identity could not be verified."
-    );
+    throw new Error("LINE_ID_TOKEN_INVALID");
   }
 
   const supabase: any =
@@ -889,22 +887,17 @@ export async function POST(
       request
     );
   } catch (error) {
-    console.error(
-      "LINE payment API:",
-      error
-    );
-
+    const invalidLineIdentity =
+      error instanceof Error && error.message === "LINE_ID_TOKEN_INVALID";
+    if (!invalidLineIdentity) console.error("LINE payment API:", error);
     return NextResponse.json(
       {
-        error:
-          error instanceof
-            Error
-            ? error.message
-            : "Unexpected server error.",
+        error: invalidLineIdentity
+          ? "LINE identity could not be verified."
+          : error instanceof Error ? error.message : "Unexpected server error.",
+        ...(invalidLineIdentity ? { code: "LINE_ID_TOKEN_INVALID" } : {}),
       },
-      {
-        status: 500,
-      }
+      { status: invalidLineIdentity ? 401 : 500 }
     );
   }
 }
