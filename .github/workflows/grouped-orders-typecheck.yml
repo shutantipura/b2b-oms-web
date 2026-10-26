@@ -1,7 +1,9 @@
-name: OMS grouped-orders typecheck
+name: OMS regression suite
 on:
   push:
     branches:
+      - main
+      - feature/oms-regression-coverage
       - feature/grouped-suborders-consolidated-billing
   pull_request:
     branches: [main]
@@ -21,7 +23,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npx next typegen
+      - run: node --experimental-strip-types --test tests/oms-regressions.test.mjs
       - run: npx next typegen
       - run: npx tsc --noEmit --pretty false
       - run: npm run build
