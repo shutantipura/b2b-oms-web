@@ -1421,7 +1421,7 @@ export default function CustomerFavouritesPage() {
               </h2>
 
               <p className="text-sm text-gray-500 mt-1">
-                แสดงเฉพาะสินค้าที่ติด ★ อยู่แล้ว กด ★ เพื่อลบออกจากสินค้าซื้อประจำ
+                จัดการสินค้า ★ และกำหนดราคาพิเศษราย SKU ได้ทันที กรอกราคาแล้วกด ยืนยันราคา
               </p>
 
             </div>
@@ -1450,140 +1450,99 @@ export default function CustomerFavouritesPage() {
 
           ) : (
 
-            <div className="overflow-x-auto">
+            {/* Small screens: show prices and confirm button directly on each product card. */}
+            <div className="divide-y divide-[#E5EFEB] md:hidden">
+              {filteredProducts.map((product) => {
+                const busy = savingIds.has(product.id);
+                return (
+                  <div key={product.id} className="space-y-3 px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        disabled={busy || !selectedCustomer}
+                        onClick={() => void toggleFavourite(product)}
+                        className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#F5D786] bg-[#FFF8E8] text-xl text-[#D69B00] disabled:opacity-40"
+                        title="ลบออกจากสินค้าซื้อประจำ"
+                        aria-label={`ลบ ${product.product_name} จากสินค้าซื้อประจำ`}
+                      >{busy ? "…" : "★"}</button>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-[#17453F]">{product.product_name}</p>
+                        <p className="mt-1 text-xs text-[#71877F]">SKU {product.sku} · {product.unit}</p>
+                        <p className="mt-1 text-xs text-[#87988F]">{product.category ?? "—"}</p>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-[#DAECE7] bg-[#F6FBF9] p-3">
+                      <p className="mb-2 text-sm text-[#537369]">
+                        ราคาปกติ <strong className="text-[#17453F]">฿{bahtAmount(Number(product.normal_price))}</strong> / {product.unit}
+                      </p>
+                      <SpecialPriceEditor
+                        product={product}
+                        savedPrice={specialPrices[product.id]}
+                        draft={priceDrafts[product.id] ?? ""}
+                        busy={!pricesReady || savingPriceIds.has(product.id)}
+                        feedback={priceFeedback[product.id]}
+                        onChange={(value) => editPrice(product.id, value)}
+                        onSave={() => void saveSpecialPrice(product)}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-              <table className="w-full">
-
-                <thead className="bg-gray-50">
-
+            {/* Wide screens: an additional special-price column next to normal price. */}
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[950px]">
+                <thead className="bg-[#F4F9F7]">
                   <tr>
-
-                    <th className="text-left p-4">
-                      Favourite
-                    </th>
-
-                    <th className="text-left p-4">
-                      SKU
-                    </th>
-
-                    <th className="text-left p-4">
-                      สินค้า
-                    </th>
-
-                    <th className="text-left p-4">
-                      หมวด
-                    </th>
-
-                    <th className="text-right p-4">
-                      ราคาปกติ
-                    </th>
-
+                    <th className="p-3 text-left text-sm">★</th>
+                    <th className="p-3 text-left text-sm">SKU</th>
+                    <th className="p-3 text-left text-sm">สินค้า</th>
+                    <th className="p-3 text-left text-sm">หมวด</th>
+                    <th className="p-3 text-right text-sm">ราคาปกติ</th>
+                    <th className="min-w-[235px] p-3 text-left text-sm">ราคาพิเศษ (฿) · ยืนยัน</th>
                   </tr>
-
                 </thead>
-
                 <tbody>
-
-                  {filteredProducts.map(
-                    (
-                      product
-                    ) => {
-                      const isFavourite =
-                        favouriteIds.has(
-                          product.id
-                        );
-
-                      const busy =
-                        savingIds.has(
-                          product.id
-                        );
-
-                      return (
-                        <tr
-                          key={
-                            product.id
-                          }
-                          className="border-t"
-                        >
-
-                          <td className="p-4">
-
-                            <button
-                              type="button"
-                              disabled={
-                                busy ||
-                                !selectedCustomer
-                              }
-                              onClick={() =>
-                                toggleFavourite(
-                                  product
-                                )
-                              }
-                              className="w-11 h-11 rounded-full border flex items-center justify-center text-2xl disabled:opacity-40"
-                              title="ลบออกจากสินค้าซื้อประจำ"
-                            >
-                              {busy
-                                ? "…"
-                                : isFavourite
-                                ? "★"
-                                : "☆"}
-                            </button>
-
-                          </td>
-
-                          <td className="p-4 font-medium">
-                            {
-                              product.sku
-                            }
-                          </td>
-
-                          <td className="p-4">
-
-                            <div className="font-medium">
-                              {
-                                product.product_name
-                              }
-                            </div>
-
-                            <div className="text-sm text-gray-500">
-                              {
-                                product.unit
-                              }
-                            </div>
-
-                          </td>
-
-                          <td className="p-4">
-                            {
-                              product.category ??
-                              "—"
-                            }
-                          </td>
-
-                          <td className="p-4 text-right">
-                            ฿
-                            {Number(
-                              product.normal_price
-                            ).toLocaleString(
-                              "th-TH",
-                              {
-                                minimumFractionDigits:
-                                  2,
-                                maximumFractionDigits:
-                                  2,
-                              }
-                            )}
-                          </td>
-
-                        </tr>
-                      );
-                    }
-                  )}
-
+                  {filteredProducts.map((product) => {
+                    const busy = savingIds.has(product.id);
+                    return (
+                      <tr key={product.id} className="border-t border-[#E5EFEB] align-top">
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            onClick={() => void toggleFavourite(product)}
+                            disabled={busy || !selectedCustomer}
+                            title="ลบออกจากสินค้าซื้อประจำ"
+                            aria-label={`ลบ ${product.product_name} จากสินค้าซื้อประจำ`}
+                            className="grid h-10 w-10 place-items-center rounded-full border border-[#F5D786] bg-[#FFF8E8] text-xl text-[#D69B00] disabled:opacity-40"
+                          >{busy ? "…" : "★"}</button>
+                        </td>
+                        <td className="p-3 text-sm font-semibold text-[#426559]">{product.sku}</td>
+                        <td className="p-3">
+                          <p className="font-semibold text-[#17453F]">{product.product_name}</p>
+                          <p className="mt-1 text-xs text-[#71877F]">{product.unit}</p>
+                        </td>
+                        <td className="p-3 text-sm text-[#71877F]">{product.category ?? "—"}</td>
+                        <td className="whitespace-nowrap p-3 text-right text-sm font-bold">
+                          ฿{bahtAmount(Number(product.normal_price))}
+                        </td>
+                        <td className="min-w-[235px] p-3">
+                          <SpecialPriceEditor
+                            product={product}
+                            savedPrice={specialPrices[product.id]}
+                            draft={priceDrafts[product.id] ?? ""}
+                            busy={!pricesReady || savingPriceIds.has(product.id)}
+                            feedback={priceFeedback[product.id]}
+                            onChange={(value) => editPrice(product.id, value)}
+                            onSave={() => void saveSpecialPrice(product)}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
-
               </table>
-
             </div>
 
           )}
