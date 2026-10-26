@@ -1652,9 +1652,8 @@ export default function OrderDetailsPage() {
                 </span>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-[#516A61]">
-                เก็บวิธีออกบิลเดิมเป็น CV Card ตามประวัติคำสั่งซื้อ
-                เมื่อเครื่องพิมพ์ใช้งานได้แล้ว Manager สามารถถ่ายหรืออัปโหลดบิลที่พิมพ์ซ้ำ
-                โดยยอดเงินและสถานะคำสั่งซื้อจะไม่เปลี่ยน
+                เมื่อพิมพ์บิลใหม่ได้แล้ว ให้ Manager อัปโหลดรูปเพื่อปิดปัญหา CV Card
+                โดยยอดเงินและสถานะคำสั่งซื้อไม่เปลี่ยน
               </p>
               {order.cv_card_resolved_at && (
                 <p className="mt-2 text-xs font-semibold text-[#0B7654]">
@@ -1673,8 +1672,8 @@ export default function OrderDetailsPage() {
                     uploaded={Boolean(order.cv_card_resolved_at)}
                     uploading={uploadingCvBill}
                     fileName={files.find((file) => file.file_type === "bill" && file.is_current)?.original_filename}
-                    selectionHint="เลือกรูปแล้วระบบจะขอยืนยันก่อนบันทึกและปิดปัญหา CV Card"
-                    uploadedHint="✓ ปิดปัญหาแล้ว · สามารถเปลี่ยนรูปบิลได้โดยเก็บประวัติเดิมไว้"
+                    selectionHint="เลือกหรือถ่ายรูปบิลเพื่อปิดปัญหา"
+                    uploadedHint="✓ ปิดปัญหาแล้ว · เปลี่ยนรูปได้"
                     onSelect={uploadReprintedCvBill}
                   />
                   {cvBillMessage && (
@@ -1684,6 +1683,21 @@ export default function OrderDetailsPage() {
                   )}
                 </div>
               )}
+              {order.cv_card_resolved_at && files
+                .filter((file) => file.file_type === "bill" && file.is_current && file.url && file.mime_type?.startsWith("image/"))
+                .map((bill) => (
+                  <div key={bill.id} className="mt-4">
+                    <p className="mb-2 text-sm font-bold text-[#17453F]">รูปบิลพิมพ์ซ้ำ</p>
+                    <a href={bill.url ?? undefined} target="_blank" rel="noreferrer" className="block rounded-xl border border-[#B7E1D4] bg-white p-2">
+                      <img
+                        src={bill.url ?? undefined}
+                        alt="รูปบิลพิมพ์ซ้ำสำหรับ CV Card"
+                        className="mx-auto max-h-80 w-full rounded-lg object-contain"
+                      />
+                    </a>
+                    <p className="mt-2 text-xs text-[#516A61]">แตะรูปเพื่อดูขนาดเต็ม</p>
+                  </div>
+                ))}
             </div>
           )}
 
