@@ -419,7 +419,7 @@ export default function OrdersPage() {
         if (saved && typeof saved === "object") {
           const filters = saved as Record<string, unknown>;
           if (typeof filters.selectedDate === "string"
-            && /^\\d{4}-\\d{2}-\\d{2}$/.test(filters.selectedDate)) {
+            && /^\d{4}-\d{2}-\d{2}$/.test(filters.selectedDate)) {
             setSelectedDate(filters.selectedDate);
           }
           if (typeof filters.allDates === "boolean") {
