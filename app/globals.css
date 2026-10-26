@@ -496,3 +496,40 @@ body {
     padding: 15px;
   }
 }
+
+
+/* Customer-only sizing for Android LINE/WebView.
+   Prevent automatic text inflation from turning a compact phone layout
+   into oversized, multi-line navigation and checkout controls.
+   User pinch-to-zoom and browser accessibility controls remain available. */
+.miniapp-shell {
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Keep the logo subtitle intact within the narrow top navigation. */
+.miniapp-shell .miniapp-nav-brand p {
+  white-space: nowrap;
+  font-size: clamp(9px, 2.7vw, 11px);
+}
+
+/* Constrain flexible labels rather than allowing them to expand the sticky CTA. */
+.miniapp-shell .miniapp-bottom-cta {
+  min-width: 0;
+}
+.miniapp-shell .miniapp-bottom-cta > span {
+  min-width: 0;
+}
+.miniapp-shell .miniapp-bottom-cta .miniapp-cta-price {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 390px) {
+  .miniapp-shell .miniapp-nav-brand [aria-label="Lotus’s B2B"] {
+    font-size: clamp(16px, 5vw, 20px);
+  }
+}
