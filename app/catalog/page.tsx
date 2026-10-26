@@ -4112,7 +4112,17 @@ export default function CatalogPage() {
 
         {/* ================================================= */}
 
-        {/* 1. PRODUCT MASTER */}
+        {/* 1. SPECIAL CUSTOMER PRICES */}
+
+        {/* ================================================= */}
+
+
+
+        <SpecialPriceImportSection />
+
+        {/* ================================================= */}
+
+        {/* 2. PRODUCT MASTER */}
 
         {/* ================================================= */}
 
@@ -4132,7 +4142,7 @@ export default function CatalogPage() {
 
               <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-bold shrink-0">
 
-                1
+                2
 
               </div>
 
@@ -5069,106 +5079,6 @@ export default function CatalogPage() {
 
 
         </section>
-
-
-
-        {/* ================================================= */}
-
-        {/* 2. PICTURE MASTER */}
-
-        {/* ================================================= */}
-
-
-
-        <div className="space-y-4">
-
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
-
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
-              <div>
-
-                <p className="font-semibold text-red-800">
-
-                  รีเซ็ตรูปสินค้าทั้งหมด
-
-                </p>
-
-                <p className="text-sm text-red-700 mt-1">
-
-                  ล้างเฉพาะ URL รูปสินค้า โดยไม่ลบ Product Master ราคา หรือรายการสินค้าที่แสดง
-
-                </p>
-
-              </div>
-
-              <button
-
-                type="button"
-
-                onClick={
-
-                  resetAllPictures
-
-                }
-
-                disabled={
-
-                  resettingPictures
-
-                }
-
-                className="shrink-0 bg-white border border-red-300 text-red-700 rounded-xl px-5 py-3 font-semibold disabled:opacity-40"
-
-              >
-
-                {resettingPictures
-
-                  ? "กำลังรีเซ็ต..."
-
-                  : "รีเซ็ตรูปสินค้าทั้งหมด"}
-
-              </button>
-
-            </div>
-
-            {pictureResetMessage && (
-
-              <div className="mt-4 bg-white border border-red-200 text-red-700 rounded-xl p-4">
-
-                {pictureResetMessage}
-
-              </div>
-
-            )}
-
-            {pictureResetSuccess && (
-
-              <div className="mt-4 bg-white border border-green-200 text-green-700 rounded-xl p-4">
-
-                {pictureResetSuccess}
-
-              </div>
-
-            )}
-
-          </div>
-
-
-
-          <PictureImportSection
-
-            key={
-
-              pictureResetKey
-
-            }
-
-          />
-
-
-
-        </div>
 
 
 
@@ -6586,13 +6496,103 @@ export default function CatalogPage() {
 
         {/* ================================================= */}
 
-        {/* 4. SPECIAL CUSTOMER PRICES */}
+        {/* 4. PICTURE MASTER */}
 
         {/* ================================================= */}
 
 
 
-        <SpecialPriceImportSection />
+        <div className="space-y-4">
+
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+              <div>
+
+                <p className="font-semibold text-red-800">
+
+                  รีเซ็ตรูปสินค้าทั้งหมด
+
+                </p>
+
+                <p className="text-sm text-red-700 mt-1">
+
+                  ล้างเฉพาะ URL รูปสินค้า โดยไม่ลบ Product Master ราคา หรือรายการสินค้าที่แสดง
+
+                </p>
+
+              </div>
+
+              <button
+
+                type="button"
+
+                onClick={
+
+                  resetAllPictures
+
+                }
+
+                disabled={
+
+                  resettingPictures
+
+                }
+
+                className="shrink-0 bg-white border border-red-300 text-red-700 rounded-xl px-5 py-3 font-semibold disabled:opacity-40"
+
+              >
+
+                {resettingPictures
+
+                  ? "กำลังรีเซ็ต..."
+
+                  : "รีเซ็ตรูปสินค้าทั้งหมด"}
+
+              </button>
+
+            </div>
+
+            {pictureResetMessage && (
+
+              <div className="mt-4 bg-white border border-red-200 text-red-700 rounded-xl p-4">
+
+                {pictureResetMessage}
+
+              </div>
+
+            )}
+
+            {pictureResetSuccess && (
+
+              <div className="mt-4 bg-white border border-green-200 text-green-700 rounded-xl p-4">
+
+                {pictureResetSuccess}
+
+              </div>
+
+            )}
+
+          </div>
+
+
+
+          <PictureImportSection
+
+            key={
+
+              pictureResetKey
+
+            }
+
+          />
+
+
+
+        </div>
+
+
 
 
 
