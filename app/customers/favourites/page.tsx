@@ -912,6 +912,98 @@ export default function CustomerFavouritesPage() {
   }
 
   // =====================================================
+  // MANUAL CUSTOMER PRICE UPDATE (SAME RPC AS EXCEL IMPORT)
+  // =====================================================
+
+  async function saveSpecialPrice(product: Product) {
+    const customerId = selectedCustomer;
+    const customer = customers.find((item) => item.id === customerId);
+    if (!customer || !pricesReady || savingPriceIds.has(product.id)) return;
+    if (activeCustomerRef.current !== customerId) return;
+
+    const raw = (priceDrafts[product.id] ?? "").trim();
+    if (!/^\d+(?:\.\d{1,2})?$/.test(raw) || !Number.isFinite(Number(raw))) {
+      setPriceFeedback((current) => ({ ...current, [product.id]: {
+        kind: "error", text: "กรุณากรอกราคาเป็นตัวเลขที่ไม่ติดลบ และมีทศนิยมไม่เกิน 2 ตำแหน่ง",
+      } }));
+      return;
+    }
+
+    const nextPrice = Number(raw);
+    const previous = specialPrices[product.id];
+    if (previous !== undefined && previous === nextPrice) return;
+
+    const oldLabel = previous === undefined ? "ยังไม่มีราคาพิเศษ" : `฿${bahtAmount(previous)}`;
+    if (!window.confirm(
+      `ยืนยันราคาพิเศษสำหรับ ${customer.customer_name}?\n\n` +
+      `${product.product_name}\nSKU: ${product.sku}\n` +
+      `ราคาปัจจุบัน: ${oldLabel}\nราคาใหม่: ฿${bahtAmount(nextPrice)} / ${product.unit}\n\n` +
+      "การเปลี่ยนราคานี้จะถูกใช้กับคำสั่งซื้อใหม่ของลูกค้ารายนี้"
+    )) return;
+
+    setSavingPriceIds((current) => new Set(current).add(product.id));
+    setPriceFeedback((current) => {
+      const next = { ...current };
+      delete next[product.id];
+      return next;
+    });
+
+    try {
+      // This SECURITY DEFINER function enforces is_current_manager().
+      // Excel uses the identical function with many rows; here we send one.
+      const { data, error } = await supabase.rpc("import_customer_price_batch", {
+        p_rows: [{
+          customer_code: customer.customer_code,
+          sku: product.sku,
+          agreed_price: nextPrice,
+        }],
+      });
+
+      if (error) throw error;
+      const result = data as {
+        success?: boolean;
+        insertedCount?: number;
+        updatedCount?: number;
+        unmatchedCustomerCount?: number;
+        unmatchedProductCount?: number;
+        invalidCount?: number;
+      } | null;
+      if (!result?.success || Number(result.insertedCount ?? 0) +
+        Number(result.updatedCount ?? 0) !== 1) {
+        throw new Error("ไม่สามารถจับคู่ลูกค้าและ SKU หรือบันทึกราคาพิเศษได้");
+      }
+
+      if (activeCustomerRef.current !== customerId) return;
+      setSpecialPrices((current) => ({ ...current, [product.id]: nextPrice }));
+      setPriceDrafts((current) => ({ ...current, [product.id]: String(nextPrice) }));
+      setPriceFeedback((current) => ({ ...current, [product.id]: {
+        kind: "success", text: `✓ บันทึกแล้ว ฿${bahtAmount(nextPrice)} / ${product.unit}`,
+      } }));
+    } catch (error) {
+      if (activeCustomerRef.current !== customerId) return;
+      setPriceFeedback((current) => ({ ...current, [product.id]: {
+        kind: "error",
+        text: error instanceof Error ? error.message : "บันทึกราคาพิเศษไม่สำเร็จ",
+      } }));
+    } finally {
+      setSavingPriceIds((current) => {
+        const next = new Set(current);
+        next.delete(product.id);
+        return next;
+      });
+    }
+  }
+
+  function editPrice(productId: string, value: string) {
+    setPriceDrafts((current) => ({ ...current, [productId]: value }));
+    setPriceFeedback((current) => {
+      const next = { ...current };
+      delete next[productId];
+      return next;
+    });
+  }
+
+  // =====================================================
   // FILTER PRODUCTS
   // =====================================================
 
