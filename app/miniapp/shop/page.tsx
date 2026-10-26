@@ -24,6 +24,7 @@ import {
 
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
+import { lineApiFetch } from "../../../lib/lineSession";
 
 
 
@@ -929,7 +930,7 @@ export default function MiniAppShopPage() {
 
         const response =
 
-          await fetch(
+          await lineApiFetch(
 
             "/api/line/catalog",
 
@@ -1417,7 +1418,7 @@ export default function MiniAppShopPage() {
 
       const response =
 
-        await fetch(
+        await lineApiFetch(
 
           "/api/line/catalog",
 
@@ -2009,7 +2010,7 @@ export default function MiniAppShopPage() {
 
       const response =
 
-        await fetch(
+        await lineApiFetch(
 
           "/api/line/favourites",
 
