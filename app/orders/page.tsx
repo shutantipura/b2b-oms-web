@@ -24,6 +24,7 @@ type Order = {
   final_amount: number | string | null;
   billing_account_suspended: boolean;
   billing_no_cv: boolean;
+  cv_card_resolved_at: string | null;
 
   customers: {
     customer_name: string;
@@ -189,10 +190,15 @@ type BillingMethodInfo = {
 // so only label a normal CV bill once the final amount has been recorded.
 function billingMethodInfo(order: Order): BillingMethodInfo {
   if (order.billing_account_suspended) {
-    return {
-      label: "CV Card",
-      badgeClass: "border-[#A9D7D0] bg-[#E9F8F5] text-[#126C63]",
-    };
+    return order.cv_card_resolved_at
+      ? {
+          label: "CV Card · ✓ แก้ไขแล้ว",
+          badgeClass: "border-[#A9D7D0] bg-[#E9F8F5] text-[#126C63]",
+        }
+      : {
+          label: "CV Card · รอแก้ไข",
+          badgeClass: "border-[#F0D495] bg-[#FFF7E3] text-[#8A6000]",
+        };
   }
 
   if (order.billing_no_cv) {
@@ -647,6 +653,7 @@ export default function OrdersPage() {
           final_amount,
           billing_account_suspended,
           billing_no_cv,
+          cv_card_resolved_at,
           customers (
             customer_name,
             customer_code,

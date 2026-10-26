@@ -12,6 +12,7 @@ type TaskFilePickerProps = {
   disabled?: boolean;
   fileName?: string | null;
   selectionHint?: string;
+  uploadedHint?: string;
   // Compact plus button, used only to offer an optional second photo.
   appearance?: "default" | "add";
   onSelect: (file: File) => void | Promise<void>;
@@ -27,6 +28,7 @@ export default function TaskFilePicker({
   disabled = false,
   fileName,
   selectionHint,
+  uploadedHint,
   appearance = "default",
   onSelect,
 }: TaskFilePickerProps) {
@@ -75,7 +77,7 @@ export default function TaskFilePicker({
           {uploading
             ? "กรุณารอให้ระบบบันทึกไฟล์ให้เรียบร้อย"
             : uploaded
-              ? "✓ บันทึกแล้ว · สามารถเลือกรูปหรือไฟล์ใหม่ได้จนกว่าจะปิดงาน"
+              ? (uploadedHint ?? "✓ บันทึกแล้ว · สามารถเลือกรูปหรือไฟล์ใหม่ได้จนกว่าจะปิดงาน")
               : (selectionHint ?? "เลือกไฟล์แล้วระบบจะอัปโหลดให้อัตโนมัติ ไม่ต้องกดส่งอีกครั้ง")}
         </p>
       )}

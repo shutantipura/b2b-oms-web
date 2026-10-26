@@ -10,6 +10,7 @@ import { useParams } from "next/navigation";
 
 import { supabase } from "../../../lib/supabase";
 import { getManagerDeliveryOptions } from "../../../lib/deliveryRules";
+import TaskFilePicker from "../../../components/TaskFilePicker";
 
 
 
@@ -36,6 +37,7 @@ type OrderDetails = {
   final_amount: number | string | null;
   billing_account_suspended: boolean;
   billing_no_cv: boolean;
+  cv_card_resolved_at: string | null;
 
   created_at: string;
 
@@ -178,6 +180,7 @@ function prettyText(value: string | null) {
     force_completed: "บังคับปิดคำสั่งซื้อ",
     manager_adjusted_final_amount: "ผู้จัดการปรับยอดบิล",
     manager_rescheduled_delivery: "ผู้จัดการเปลี่ยนเวลาจัดส่ง",
+    cv_card_bill_resolved: "ผู้จัดการเพิ่มบิลพิมพ์ซ้ำและแก้ไขปัญหา CV Card",
   };
 
   return (
@@ -271,6 +274,8 @@ export default function OrderDetailsPage() {
     useState("");
 
   const [isManager, setIsManager] = useState(false);
+  const [uploadingCvBill, setUploadingCvBill] = useState(false);
+  const [cvBillMessage, setCvBillMessage] = useState("");
   const [editedFinalAmount, setEditedFinalAmount] = useState("");
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [savingAmount, setSavingAmount] = useState(false);
@@ -331,6 +336,7 @@ export default function OrderDetailsPage() {
         final_amount,
         billing_account_suspended,
         billing_no_cv,
+        cv_card_resolved_at,
 
         created_at,
 
@@ -884,6 +890,66 @@ export default function OrderDetailsPage() {
     void checkManager();
   }, []);
 
+  async function uploadReprintedCvBill(file: File) {
+    if (!isManager || !order || order.status !== "completed" || !order.billing_account_suspended) {
+      setCvBillMessage("เฉพาะ Manager เท่านั้นที่เพิ่มบิลพิมพ์ซ้ำให้คำสั่งซื้อ CV Card ที่เสร็จสิ้นแล้วได้");
+      return;
+    }
+
+    const mimeByExtension: Record<string, string> = {
+      jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+      webp: "image/webp", heic: "image/heic",
+      heif: "image/heif", avif: "image/avif",
+    };
+    const storageExtension: Record<string, string> = {
+      "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+      "image/heic": "heic", "image/heif": "heif", "image/avif": "avif",
+    };
+    const fileExtension = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const rawMime = file.type.toLowerCase();
+    const mimeType = rawMime === "image/jpg" ? "image/jpeg"
+      : rawMime || mimeByExtension[fileExtension] || "";
+    const extension = storageExtension[mimeType];
+
+    if (!extension || file.size === 0 || file.size > 15 * 1024 * 1024) {
+      setCvBillMessage("กรุณาเลือกรูปบิล JPG, PNG, WEBP หรือ HEIC ขนาดไม่เกิน 15 MB");
+      return;
+    }
+    if (!file.name.trim() || file.name.length > 255) {
+      setCvBillMessage("ชื่อไฟล์บิลไม่ถูกต้องหรือยาวเกินไป");
+      return;
+    }
+    if (!window.confirm(`ยืนยันเพิ่มรูปบิลพิมพ์ซ้ำสำหรับคำสั่งซื้อ #${order.order_number} และทำเครื่องหมายว่าปัญหา CV Card ได้รับการแก้ไขแล้ว?`)) {
+      return;
+    }
+
+    setUploadingCvBill(true);
+    setCvBillMessage("");
+    const storagePath = `orders/${order.order_number}/bill/reprint/${crypto.randomUUID()}.${extension}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("order-files")
+        .upload(storagePath, file, { upsert: false, contentType: mimeType });
+      if (uploadError) throw new Error("อัปโหลดรูปบิลไม่สำเร็จ: " + uploadError.message);
+
+      const { error: resolveError } = await supabase.rpc("manager_resolve_cv_card_bill", {
+        p_order_number: order.order_number,
+        p_storage_path: storagePath,
+        p_original_filename: file.name,
+        p_mime_type: mimeType,
+      });
+      if (resolveError) throw new Error("บันทึกการแก้ไข CV Card ไม่สำเร็จ: " + resolveError.message);
+
+      await loadOrder();
+      setCvBillMessage("✓ บันทึกบิลพิมพ์ซ้ำและทำเครื่องหมายว่าแก้ไขปัญหา CV Card แล้ว");
+    } catch (error) {
+      setCvBillMessage(error instanceof Error ? error.message : "ไม่สามารถบันทึกบิลพิมพ์ซ้ำได้");
+    } finally {
+      setUploadingCvBill(false);
+    }
+  }
+
   async function saveFinalAmount() {
     if (!isManager || !order || ["completed", "cancelled"].includes(order.status)) {
       setAmountMessage("ไม่สามารถแก้ไขยอดบิลของคำสั่งซื้อที่ปิดแล้ว");
@@ -1050,10 +1116,16 @@ export default function OrderDetailsPage() {
             </p>
 
             {(order.billing_account_suspended || order.billing_no_cv) && (
-              <p className="mt-3 inline-flex rounded-lg border border-[#F0BD59] bg-[#FFF7E3] px-3 py-2 text-xs font-bold text-[#8A4A00]">
+              <p className={`mt-3 inline-flex rounded-lg border px-3 py-2 text-xs font-bold ${
+                order.billing_account_suspended && order.cv_card_resolved_at
+                  ? "border-[#A9D7D0] bg-[#E9F8F5] text-[#126C63]"
+                  : "border-[#F0BD59] bg-[#FFF7E3] text-[#8A4A00]"
+              }`}>
                 {order.billing_account_suspended
-                  ? "CV Card · ใช้ CV Card แทน QR"
-                  : "พักบิล · ใช้รูปพักบิลจาก POS ไม่ต้องใช้ QR"}
+                  ? order.cv_card_resolved_at
+                    ? "CV Card · ✓ แก้ไขปัญหาแล้ว (บิลพิมพ์ซ้ำ)"
+                    : "CV Card · รอรูปบิลพิมพ์ซ้ำ"
+                  : "B2B Barcode · ใช้รูปพักบิลจาก POS ไม่ต้องใช้ QR"}
               </p>
             )}
 
@@ -1563,7 +1635,57 @@ export default function OrderDetailsPage() {
 
           </p>
 
-
+          {order.billing_account_suspended && order.status === "completed" && (
+            <div className={`mb-5 rounded-2xl border p-4 sm:p-5 ${
+              order.cv_card_resolved_at
+                ? "border-[#B7E1D4] bg-[#F0FBF6]"
+                : "border-[#F0D495] bg-[#FFF9EA]"
+            }`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-extrabold text-[#17453F]">บิลพิมพ์ซ้ำสำหรับ CV Card</h3>
+                <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${
+                  order.cv_card_resolved_at
+                    ? "bg-[#D9F4E7] text-[#0B7654]"
+                    : "bg-[#FFECC0] text-[#8A6000]"
+                }`}>
+                  {order.cv_card_resolved_at ? "✓ แก้ไขปัญหาแล้ว" : "รอแก้ไข"}
+                </span>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-[#516A61]">
+                เก็บวิธีออกบิลเดิมเป็น CV Card ตามประวัติคำสั่งซื้อ
+                เมื่อเครื่องพิมพ์ใช้งานได้แล้ว Manager สามารถถ่ายหรืออัปโหลดบิลที่พิมพ์ซ้ำ
+                โดยยอดเงินและสถานะคำสั่งซื้อจะไม่เปลี่ยน
+              </p>
+              {order.cv_card_resolved_at && (
+                <p className="mt-2 text-xs font-semibold text-[#0B7654]">
+                  บันทึกการแก้ไขเมื่อ {new Date(order.cv_card_resolved_at).toLocaleString("th-TH", {
+                    timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short",
+                  })}
+                </p>
+              )}
+              {isManager && (
+                <div className="mt-4">
+                  <TaskFilePicker
+                    label="รูปบิลพิมพ์ซ้ำ CV Card"
+                    chooseLabel="อัปโหลดรูปบิลพิมพ์ซ้ำ"
+                    replaceLabel="เปลี่ยนรูปบิลพิมพ์ซ้ำ"
+                    accept="image/*"
+                    uploaded={Boolean(order.cv_card_resolved_at)}
+                    uploading={uploadingCvBill}
+                    fileName={files.find((file) => file.file_type === "bill" && file.is_current)?.original_filename}
+                    selectionHint="เลือกรูปแล้วระบบจะขอยืนยันก่อนบันทึกและปิดปัญหา CV Card"
+                    uploadedHint="✓ ปิดปัญหาแล้ว · สามารถเปลี่ยนรูปบิลได้โดยเก็บประวัติเดิมไว้"
+                    onSelect={uploadReprintedCvBill}
+                  />
+                  {cvBillMessage && (
+                    <p role="status" className="mt-3 text-sm font-semibold text-[#17453F]">
+                      {cvBillMessage}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {files.length === 0 ? (
 
