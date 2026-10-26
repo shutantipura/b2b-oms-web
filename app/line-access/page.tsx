@@ -240,6 +240,10 @@ export default function LineAccessPage() {
 
 
 
+  // Customer search belongs to each LINE account, not the global LINE-user filter.
+  const [customerSearches, setCustomerSearches] =
+    useState<Record<string, string>>({});
+
   // Customer lists start collapsed; each LINE user can expand independently.
   const [expandedCustomerLists, setExpandedCustomerLists] =
     useState<Record<string, boolean>>({});
@@ -2025,7 +2029,23 @@ export default function LineAccessPage() {
 
                   !user.staff?.isAuthorized;
 
-
+                const customerQuery = (customerSearches[user.lineUserRowId] ?? "").trim().toLowerCase();
+                const availableCustomers = customers.filter(
+                  (customer) => customer.isActive && !user.customerCodes.includes(customer.customerCode)
+                );
+                const matchingCustomers = availableCustomers.filter(
+                  (customer) =>
+                    customer.customerCode.toLowerCase().includes(customerQuery) ||
+                    customer.customerName.toLowerCase().includes(customerQuery)
+                );
+                const chosenCode = customerSelections[user.lineUserRowId] ?? "";
+                const chosenCustomer = availableCustomers.find(
+                  (customer) => customer.customerCode === chosenCode
+                );
+                const customerOptions = chosenCustomer &&
+                  !matchingCustomers.some((customer) => customer.customerCode === chosenCode)
+                  ? [chosenCustomer, ...matchingCustomers]
+                  : matchingCustomers;
 
                 return (
 
@@ -2571,11 +2591,39 @@ export default function LineAccessPage() {
                           </div>
                         )}
 
-                        <div className="flex flex-col sm:flex-row gap-2 mt-5">
+                        <label
+                          htmlFor={`customer-search-${user.lineUserRowId}`}
+                          className="block text-sm font-medium mt-5 mb-2"
+                        >
+                          ค้นหาลูกค้า
+                        </label>
+                        <input
+                          id={`customer-search-${user.lineUserRowId}`}
+                          type="search"
+                          value={customerSearches[user.lineUserRowId] ?? ""}
+                          onChange={(event) =>
+                            setCustomerSearches((previous) => ({
+                              ...previous,
+                              [user.lineUserRowId]: event.target.value,
+                            }))
+                          }
+                          placeholder="ชื่อร้าน หรือรหัส CV"
+                          disabled={!user.isActive}
+                          className="w-full border border-[#BBD9D2] rounded-lg px-4 py-3 focus:outline-none focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/15 disabled:bg-gray-100"
+                        />
+                        {customerQuery && (
+                          <p role="status" className="mt-2 text-xs text-[#647D74]">
+                            {matchingCustomers.length > 0
+                              ? `พบลูกค้า ${matchingCustomers.length} ราย`
+                              : "ไม่พบลูกค้าที่ค้นหา"}
+                          </p>
+                        )}
 
-
+                        <div className="flex flex-col sm:flex-row gap-2 mt-3">
 
                           <select
+
+                            aria-label="เลือกลูกค้าที่จะให้สิทธิ์"
 
                             value={
 
@@ -2633,25 +2681,7 @@ export default function LineAccessPage() {
 
 
 
-                            {customers
-
-                              .filter(
-
-                                (
-
-                                  customer
-
-                                ) =>
-
-                                  customer.isActive &&
-
-                                  !user.customerCodes.includes(
-
-                                    customer.customerCode
-
-                                  )
-
-                              )
+                            {customerOptions
 
                               .map(
 

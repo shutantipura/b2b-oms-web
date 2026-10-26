@@ -183,6 +183,8 @@ export default function CustomerFavouritesPage() {
   ] =
     useState("");
 
+  const [customerSearch, setCustomerSearch] = useState("");
+
   const [
     favouriteIds,
     setFavouriteIds,
@@ -1057,6 +1059,23 @@ export default function CustomerFavouritesPage() {
       search,
     ]);
 
+  const matchingCustomers = useMemo(() => {
+    const term = customerSearch.trim().toLowerCase();
+    if (!term) return customers;
+    return customers.filter((customer) =>
+      customer.customer_code.toLowerCase().includes(term) ||
+      customer.customer_name.toLowerCase().includes(term)
+    );
+  }, [customers, customerSearch]);
+
+  // Keep the currently selected customer visible even during a different search.
+  const customerOptions = useMemo(() => {
+    const current = customers.find((customer) => customer.id === selectedCustomer);
+    return current && !matchingCustomers.some((customer) => customer.id === current.id)
+      ? [current, ...matchingCustomers]
+      : matchingCustomers;
+  }, [customers, matchingCustomers, selectedCustomer]);
+
   const selectedCustomerInfo =
     customers.find(
       (
@@ -1159,11 +1178,25 @@ export default function CustomerFavouritesPage() {
 
             <div>
 
-              <label className="block text-sm font-medium mb-2">
+              <label htmlFor="favourites-customer-search" className="block text-sm font-medium mb-2">
+                ค้นหาลูกค้า
+              </label>
+
+              <input
+                id="favourites-customer-search"
+                type="search"
+                value={customerSearch}
+                onChange={(event) => setCustomerSearch(event.target.value)}
+                placeholder="ชื่อร้าน หรือรหัส CV"
+                className="w-full border border-[#BBD9D2] rounded-lg px-4 py-3 mb-3 focus:outline-none focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/15"
+              />
+
+              <label htmlFor="favourites-customer-select" className="block text-sm font-medium mb-2">
                 ลูกค้า
               </label>
 
               <select
+                id="favourites-customer-select"
                 value={
                   selectedCustomer
                 }
@@ -1174,7 +1207,7 @@ export default function CustomerFavouritesPage() {
                 className="w-full border rounded-lg px-4 py-3 bg-white"
               >
 
-                {customers.map(
+                {customerOptions.map(
                   (
                     customer
                   ) => (
@@ -1203,6 +1236,14 @@ export default function CustomerFavouritesPage() {
                 )}
 
               </select>
+
+              {customerSearch.trim() && (
+                <p role="status" className="mt-2 text-xs text-[#647D74]">
+                  {matchingCustomers.length > 0
+                    ? `พบลูกค้า ${matchingCustomers.length} ราย`
+                    : "ไม่พบลูกค้าที่ค้นหา"}
+                </p>
+              )}
 
             </div>
 
