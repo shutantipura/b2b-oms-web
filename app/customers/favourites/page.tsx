@@ -69,7 +69,7 @@ function SpecialPriceEditor({
   onChange: (value: string) => void;
   onSave: () => void;
 }) {
-  const valid = /^\\d+(?:\\.\\d{1,2})?$/.test(draft.trim())
+  const valid = /^\d+(?:\.\d{1,2})?$/.test(draft.trim())
     && Number.isFinite(Number(draft))
     && Number(draft) >= 0;
   const changed = valid && (savedPrice === undefined || Number(draft) !== savedPrice);
@@ -82,13 +82,11 @@ function SpecialPriceEditor({
           : <>ราคาที่บันทึก: <strong className="text-[#007F79]">฿{bahtAmount(savedPrice)}</strong></>}
       </p>
       <div className="flex items-center gap-2">
-        <label className="sr-only" htmlFor={`special-price-${product.id}`}>
-          ราคาพิเศษสำหรับ {product.product_name} ต่อ {product.unit}
-        </label>
+
         <div className="relative min-w-0 flex-1">
           <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm font-bold text-[#647D74]">฿</span>
           <input
-            id={`special-price-${product.id}`}
+            aria-label={`ราคาพิเศษสำหรับ ${product.product_name} ต่อ ${product.unit}`}
             type="number"
             min="0"
             step="0.01"
@@ -257,6 +255,7 @@ export default function CustomerFavouritesPage() {
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [priceFeedback, setPriceFeedback] = useState<Record<string, PriceFeedback>>({});
   const [savingPriceIds, setSavingPriceIds] = useState<Set<string>>(new Set());
+  const [pricesReady, setPricesReady] = useState(false);
   const favouritesLoadRef = useRef(0);
   const activeCustomerRef = useRef("");
 
@@ -371,6 +370,7 @@ export default function CustomerFavouritesPage() {
         ) ??
         loadedCustomers[0];
 
+      activeCustomerRef.current = firstActive.id;
       setSelectedCustomer(
         firstActive.id
       );
@@ -390,6 +390,15 @@ export default function CustomerFavouritesPage() {
   async function loadFavourites(
     customerId: string
   ) {
+    const requestId = ++favouritesLoadRef.current;
+    const isCurrent = () => requestId === favouritesLoadRef.current
+      && activeCustomerRef.current === customerId;
+
+    setPricesReady(false);
+    setSpecialPrices({});
+    setPriceDrafts({});
+    setPriceFeedback({});
+
     if (!customerId) {
       setFavouriteIds(
         new Set()
@@ -419,6 +428,8 @@ export default function CustomerFavouritesPage() {
             customerId,
         }
       );
+
+    if (!isCurrent()) return;
 
     if (error) {
       setMessage(
@@ -503,6 +514,8 @@ export default function CustomerFavouritesPage() {
           productIds
         );
 
+    if (!isCurrent()) return;
+
     if (
       productError
     ) {
@@ -559,13 +572,39 @@ export default function CustomerFavouritesPage() {
           )
       );
 
-    setProducts(
-      loadedProducts
-    );
+    // Prices come from the same customer_prices table used by Excel imports
+    // and by the customer's live product catalogue.
+    const { data: customerPriceData, error: customerPriceError } =
+      await supabase
+        .from("customer_prices")
+        .select("product_id, agreed_price")
+        .eq("customer_id", customerId)
+        .eq("is_active", true)
+        .in("product_id", loadedProducts.map((product) => product.id));
 
-    setLoadingFavourites(
-      false
-    );
+    if (!isCurrent()) return;
+
+    setProducts(loadedProducts);
+
+    if (customerPriceError) {
+      // Never display editable prices without knowing the stored values.
+      setMessage("ไม่สามารถโหลดราคาพิเศษของลูกค้าได้: " + customerPriceError.message);
+      setLoadingFavourites(false);
+      return;
+    }
+
+    const priceMap: Record<string, number> = {};
+    const draftMap: Record<string, string> = {};
+    for (const row of (customerPriceData ?? []) as CustomerPriceRow[]) {
+      const price = Number(row.agreed_price);
+      if (!Number.isFinite(price)) continue;
+      priceMap[row.product_id] = price;
+      draftMap[row.product_id] = String(price);
+    }
+    setSpecialPrices(priceMap);
+    setPriceDrafts(draftMap);
+    setPricesReady(true);
+    setLoadingFavourites(false);
   }
 
   useEffect(() => {
@@ -1036,11 +1075,10 @@ export default function CustomerFavouritesPage() {
                 value={
                   selectedCustomer
                 }
-                onChange={(event) =>
-                  setSelectedCustomer(
-                    event.target.value
-                  )
-                }
+                onChange={(event) => {
+                  activeCustomerRef.current = event.target.value;
+                  setSelectedCustomer(event.target.value);
+                }}
                 className="w-full border rounded-lg px-4 py-3 bg-white"
               >
 
