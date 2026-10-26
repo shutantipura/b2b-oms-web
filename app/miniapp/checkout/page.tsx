@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
+import { lineApiFetch } from "../../../lib/lineSession";
 
 type Customer = {
   id: string;
@@ -160,7 +161,7 @@ export default function MiniAppCheckoutPage() {
         const token = liff.getIDToken();
         if (!token) throw new Error("ไม่สามารถอ่าน LINE ID token ได้");
 
-        const response = await fetch("/api/line/checkout", {
+        const response = await lineApiFetch("/api/line/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -185,7 +186,7 @@ export default function MiniAppCheckoutPage() {
         // Reuse the catalogue's existing product-image mapping.
         // Image failure must never prevent a customer from checking out.
         try {
-          const catalogResponse = await fetch("/api/line/catalog", {
+          const catalogResponse = await lineApiFetch("/api/line/catalog", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -261,7 +262,7 @@ export default function MiniAppCheckoutPage() {
 
     void (async () => {
       try {
-        const response = await fetch("/api/line/checkout", {
+        const response = await lineApiFetch("/api/line/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: controller.signal,
@@ -369,7 +370,7 @@ export default function MiniAppCheckoutPage() {
     setSubmitting(true);
 
     try {
-      const response = await fetch("/api/line/checkout", {
+      const response = await lineApiFetch("/api/line/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
