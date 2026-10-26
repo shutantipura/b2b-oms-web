@@ -473,13 +473,13 @@ export default function MiniAppCheckoutPage() {
   return (
     <main className="min-h-screen bg-[#F7FAFA] pb-32 text-[#173E31]">
       <header className="sticky top-0 z-30 border-b border-[#E1EBE5] bg-white/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
-          <button type="button" onClick={goShop} className="min-h-11 rounded-xl px-2 text-sm font-bold text-[#426559]">‹ กลับ</button>
-          <div className="text-center">
+        <div className="mx-auto grid max-w-3xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+          <button type="button" onClick={goShop} className="min-h-11 shrink-0 whitespace-nowrap rounded-xl px-1.5 text-[13px] font-bold text-[#426559] sm:px-2 sm:text-sm">‹ กลับ</button>
+          <div className="miniapp-nav-brand min-w-0 text-center">
             <LotusBrand size="sm" align="center" />
-            <p className="text-[10px] font-medium text-[#82968D]">ตรวจสอบคำสั่งซื้อ</p>
+            <p className="whitespace-nowrap text-[10px] font-medium text-[#82968D]">ตรวจสอบคำสั่งซื้อ</p>
           </div>
-          <span className="rounded-full bg-[#E5F8F5] px-3 py-2 text-xs font-bold text-[#009F9D]">ขั้นตอนสุดท้าย</span>
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-[#E5F8F5] px-2 py-1.5 text-[10px] font-bold text-[#009F9D] sm:px-3 sm:py-2 sm:text-xs">ขั้นตอนสุดท้าย</span>
         </div>
       </header>
 
@@ -635,13 +635,13 @@ export default function MiniAppCheckoutPage() {
             type="button"
             onClick={() => void submitOrder()}
             disabled={submitting || loadingMergeOptions || !deliveryDate || !deliverySlot || items.length === 0}
-            className="flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl bg-[#02B0AF] px-5 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 disabled:cursor-not-allowed disabled:opacity-40"
+            className="miniapp-bottom-cta flex min-h-16 w-full items-center justify-between gap-2 rounded-2xl bg-[#02B0AF] px-3 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 disabled:cursor-not-allowed disabled:opacity-40 sm:gap-3 sm:px-5"
           >
             <span>
-              <span className="block text-sm font-extrabold">{submitting ? "กำลังส่งคำสั่งซื้อ..." : mergeIntoOrderNumber ? "ยืนยันการจัดส่งร่วมกัน" : "ยืนยันคำสั่งซื้อ"}</span>
-              <span className="mt-1 block text-[11px] text-white/80">{submitting ? "กรุณารอสักครู่" : mergeIntoOrderNumber ? "สร้างคำสั่งซื้อย่อย →" : "ส่งรายการให้ทีมงานตรวจสอบ →"}</span>
+              <span className="block text-[13px] font-extrabold leading-5 sm:text-sm">{submitting ? "กำลังส่งคำสั่งซื้อ..." : mergeIntoOrderNumber ? "ยืนยันการจัดส่งร่วมกัน" : "ยืนยันคำสั่งซื้อ"}</span>
+              <span className="mt-1 hidden text-[11px] leading-4 text-white/80 min-[390px]:block">{submitting ? "กรุณารอสักครู่" : mergeIntoOrderNumber ? "สร้างคำสั่งซื้อย่อย →" : "ส่งรายการให้ทีมงานตรวจสอบ →"}</span>
             </span>
-            <span className="text-right text-xl font-black">~฿{formatMoney(estimatedTotal)}</span>
+            <span className="miniapp-cta-price text-right text-[clamp(15px,4.9vw,21px)] font-black">~฿{formatMoney(estimatedTotal)}</span>
           </button>
         </div>
       </div>
