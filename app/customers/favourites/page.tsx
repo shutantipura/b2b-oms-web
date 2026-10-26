@@ -1084,10 +1084,10 @@ export default function CustomerFavouritesPage() {
           <div>
 
             <Link
-              href="/customers"
+              href="/catalog"
               className="text-gray-500"
             >
-              ← กลับไปหน้าลูกค้า
+              ← กลับไปสินค้าและราคา
             </Link>
 
             <h1 className="text-3xl font-bold mt-3">
