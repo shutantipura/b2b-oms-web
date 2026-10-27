@@ -34,6 +34,7 @@ const MANAGER_NAVIGATION: NavigationItem[] = [
   { name: "สินค้าและราคา", href: "/catalog", description: "สินค้า รูปภาพ และราคาพิเศษ" },
   { name: "พนักงาน", href: "/staff", description: "บัญชีและข้อมูลพนักงาน" },
   { name: "บัญชีอุปกรณ์ Android", href: "/device-accounts", description: "ตั้งรหัสผ่านสำหรับ Staff Mode" },
+  { name: "ตรวจสอบเครื่องแจ้งเตือน", href: "/alarm-stations", description: "ดูสถานะเชื่อมต่อของ Android Alarm" },
   { name: "สิทธิ์ LINE", href: "/line-access", description: "จัดการสิทธิ์ผู้ใช้ LINE" },
   { name: "KPI", href: "/kpi", description: "ติดตามผลการดำเนินงาน" },
 ];
