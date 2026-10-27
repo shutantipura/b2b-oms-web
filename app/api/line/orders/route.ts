@@ -828,6 +828,7 @@ export async function POST(
           delivery_slot,
 
           delivery_address,
+          fulfillment_method,
 
           final_amount
 
@@ -1466,7 +1467,7 @@ export async function POST(
 
               order.delivery_address,
 
-
+            fulfillmentMethod: order.fulfillment_method ?? "delivery",
 
             finalAmount:
 
