@@ -1601,6 +1601,9 @@ export default function TasksPage() {
                                     </svg>
                                     {order.delivery_slot ?? "ไม่ระบุเวลา"}
                                   </span>
+                                  {order.fulfillment_method === "pickup" && (
+                                    <span className="inline-flex min-h-7 items-center rounded-lg border border-[#F0D08C] bg-[#FFF6DF] px-2 py-1 text-[11px] font-extrabold text-[#856100]">🏬 รับที่สาขา</span>
+                                  )}
                                   {urgency === "overdue" && (
                                     <span className="text-[11px] font-extrabold" style={{ color: urgencyPalette[urgency].statusText }}>เกินกำหนด</span>
                                   )}
