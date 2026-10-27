@@ -28,7 +28,11 @@ export default function DeviceActivationPage(){
       await supabase.auth.signOut();
       throw new Error("บัญชี Android Terminal ถูกปิดใช้งานหรือไม่มีสิทธิ์");
     }
-    if(alive){setMessage("เข้าสู่ระบบ "+staff.staff_name+" สำเร็จ");window.location.replace("/login");}
+    if(alive){
+      window.localStorage.setItem("lotus-dedicated-terminal","1");
+      setMessage("เข้าสู่ระบบ "+staff.staff_name+" สำเร็จ");
+      window.location.replace("/login");
+    }
    }catch(e){
     if(alive){setMessage(e instanceof Error?e.message:"เข้าสู่ระบบไม่สำเร็จ");setFailed(true);}
    }
