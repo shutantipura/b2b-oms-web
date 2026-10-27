@@ -34,6 +34,7 @@ type Order = {
   delivery_date: string | null;
 
   delivery_slot: string | null;
+  fulfillment_method: "delivery" | "pickup";
   customer_id: string;
   final_amount: number | string | null;
   billing_account_suspended: boolean;
@@ -776,6 +777,7 @@ export default function TasksPage() {
           status,
           delivery_date,
           delivery_slot,
+          fulfillment_method,
           customer_id,
           final_amount,
           billing_account_suspended,
