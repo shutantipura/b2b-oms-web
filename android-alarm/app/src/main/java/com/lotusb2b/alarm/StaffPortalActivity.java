@@ -22,6 +22,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebSettings;
+import org.json.JSONObject;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -49,6 +50,8 @@ public final class StaffPortalActivity extends Activity {
     private Uri cameraOutput;
     private File cameraFile;
     private TextView title;
+    private String pendingStaffTokenHash;
+    private boolean activationPageReady=false;
 
     private interface ValueCallbackFileChooser {
         void finish(Uri[] result);
@@ -59,8 +62,28 @@ public final class StaffPortalActivity extends Activity {
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         buildLayout();
         configureWebView();
-        if (state != null) webView.restoreState(state);
-        else webView.loadUrl(BASE + "/device-login");
+        if (state != null) {
+            webView.restoreState(state);
+        } else if (StationHealth.isDedicated(this)) {
+            // One-time terminal enrollment replaces daily OMS credentials.
+            // A short-lived OTP is generated server-side; no staff password
+            // is ever stored on the Android terminal.
+            webView.loadUrl(BASE + "/device-activate");
+            StationHealth.getStaffSession(this, (ok, value) -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (ok) {
+                    pendingStaffTokenHash=value;
+                    deliverStaffToken();
+                } else {
+                    Toast.makeText(this,
+                        "ไม่สามารถเข้าสู่ Staff Mode: " + value, Toast.LENGTH_LONG).show();
+                    webView.loadUrl(BASE + "/device-activate?error=session");
+                }
+            });
+        } else {
+            // Legacy alarm-only stations can still log in manually.
+            webView.loadUrl(BASE + "/device-login");
+        }
     }
 
     private int dp(int value) {
@@ -120,7 +143,8 @@ public final class StaffPortalActivity extends Activity {
         addNav(buttons, "หน้าหลัก", "/login");
         addNav(buttons, "งาน", "/tasks");
         addNav(buttons, "ออเดอร์", "/orders");
-        addNav(buttons, "ออกจากระบบ", "/device-login?logout=1");
+        if (!StationHealth.isDedicated(this))
+            addNav(buttons, "ออกจากระบบ", "/device-login?logout=1");
         root.addView(buttons);
 
         webView = new WebView(this);
@@ -169,8 +193,12 @@ public final class StaffPortalActivity extends Activity {
             }
 
             @Override public void onPageFinished(WebView view, String url) {
-                if (url.contains("/device-login")) title.setText("Staff Mode · เข้าสู่ระบบ");
+                activationPageReady = url.startsWith(BASE + "/device-activate");
+                if (activationPageReady) title.setText("Staff Mode · เชื่อมต่อบัญชี");
+                else if (url.contains("/device-login"))
+                    title.setText("Staff Mode · เข้าสู่ระบบ");
                 else title.setText("Staff Mode · Lotus's B2B");
+                deliverStaffToken();
             }
         });
 
@@ -242,6 +270,16 @@ public final class StaffPortalActivity extends Activity {
             Uri uri = Uri.parse(url);
             if ("https".equalsIgnoreCase(uri.getScheme())) external(uri);
         });
+    }
+
+    private void deliverStaffToken() {
+        if (!activationPageReady || pendingStaffTokenHash == null || webView == null)
+            return;
+        String code=pendingStaffTokenHash;
+        pendingStaffTokenHash=null;  // One use. Never saved in SharedPreferences.
+        webView.evaluateJavascript(
+            "window.__terminalAuthTokenHash=" + JSONObject.quote(code)
+            + ";window.dispatchEvent(new Event('terminal-auth-token'));", null);
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
