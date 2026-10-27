@@ -534,6 +534,10 @@ export default function TasksPage() {
 
 
 
+  // Keep claim failures next to the button that failed, including after reload.
+  const [claimError, setClaimError] = useState<{ orderNumber: number; stage: string; text: string } | null>(null);
+  const [claimingTaskKey, setClaimingTaskKey] = useState<string | null>(null);
+
   const [callStage, setCallStage] = useState<string | null>(null);
   const [callStaff, setCallStaff] = useState<CallableStaff[]>([]);
   const [callLoading, setCallLoading] = useState(false);
@@ -1062,55 +1066,43 @@ export default function TasksPage() {
 
 
 
-  async function startWork(
-  orderNumber: number,
-  stage: string
-) {
-  if (!allowedStages.includes(stage)) {
-    setMessage("คุณไม่มีสิทธิ์รับงานประเภทนี้");
-    return;
-  }
-  setMessage(
-    `กำลังรับงานคำสั่งซื้อ #${orderNumber}...`
-  );
+  async function startWork(orderNumber: number, stage: string) {
+    const taskKey = `${stage}:${orderNumber}`;
+    if (claimingTaskKey) return;
 
-  const {
-    error,
-  } =
-    await supabase.rpc(
-      "claim_my_task",
-      {
-        p_order_number:
-          orderNumber,
+    setClaimError(null);
+    if (!allowedStages.includes(stage)) {
+      setClaimError({ orderNumber, stage, text: "คุณไม่มีสิทธิ์รับงานประเภทนี้" });
+      return;
+    }
 
-        p_stage:
-          stage,
+    setClaimingTaskKey(taskKey);
+    setMessage("");
+
+    try {
+      const { data, error } = await supabase.rpc("claim_my_task", {
+        p_order_number: orderNumber,
+        p_stage: stage,
+      });
+
+      if (error || (data && typeof data === "object" && data.success === false)) {
+        const detail = error?.message ?? "ระบบไม่สามารถรับงานได้";
+        // Load the new task state first, then display an error that won't be
+        // erased by loadData()'s usual setMessage("") at its start.
+        await loadData();
+        setClaimError({ orderNumber, stage, text: `ไม่สามารถรับงานได้: ${detail}` });
+        return;
       }
-    );
 
-  if (error) {
-    setMessage(
-      "ไม่สามารถรับงานได้: " +
-        error.message
-    );
-
-    await loadData();
-
-    return;
+      // Navigate only after the database confirms the task has been claimed.
+      window.location.assign(taskLink(stage, orderNumber));
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการเชื่อมต่อ";
+      setClaimError({ orderNumber, stage, text: `ไม่สามารถรับงานได้: ${detail}` });
+    } finally {
+      setClaimingTaskKey(null);
+    }
   }
-
-  // รับงานสำเร็จแล้ว
-  // เปิดหน้างานทันที ไม่ต้องกลับมากด "ทำต่อ"
-
-  window.location.assign(
-    taskLink(
-      stage,
-      orderNumber
-    )
-  );
-}
-
-
 
   async function takeOverTask(orderNumber: number, stage: string, currentOwnerId: string, currentOwnerName: string) {
     const proceed = window.confirm(
@@ -1561,7 +1553,7 @@ export default function TasksPage() {
                             <div
                               key={order.id}
                               data-urgency={urgency}
-                              className="flex items-center justify-between gap-3 border-b border-[#E2EEEA] border-l-4 px-3 py-3 last:border-b-0 sm:px-5 sm:py-3.5"
+                              className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E2EEEA] border-l-4 px-3 py-3 last:border-b-0 sm:px-5 sm:py-3.5"
                               style={{
                                 borderLeftColor: urgencyPalette[urgency].accent,
                                 backgroundColor: urgencyPalette[urgency].background,
@@ -1686,10 +1678,11 @@ export default function TasksPage() {
                                 ) : !claim ? (
                                   <button
                                     type="button"
-                                    onClick={() => startWork(order.order_number, group.stage)}
-                                    className="inline-flex min-h-10 min-w-[76px] items-center justify-center whitespace-nowrap rounded-xl bg-[#00BCB4] px-3 py-2 text-sm font-bold text-[#173F3C] shadow-sm transition hover:bg-[#00AFA8]"
+                                    onClick={() => void startWork(order.order_number, group.stage)}
+                                    disabled={claimingTaskKey !== null}
+                                    className="inline-flex min-h-10 min-w-[76px] items-center justify-center whitespace-nowrap rounded-xl bg-[#00BCB4] px-3 py-2 text-sm font-bold text-[#173F3C] shadow-sm transition hover:bg-[#00AFA8] disabled:cursor-wait disabled:opacity-60"
                                   >
-                                    รับงาน
+                                    {claimingTaskKey === `${group.stage}:${order.order_number}` ? "กำลังรับงาน..." : "รับงาน"}
                                   </button>
                                 ) : isMine ? (
                                   <div className="flex flex-col items-end gap-1">
@@ -1708,6 +1701,11 @@ export default function TasksPage() {
                                   </div>
                                 )}
                               </div>
+                              {claimError?.orderNumber === order.order_number && claimError.stage === group.stage && (
+                                <div role="alert" className="w-full rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-semibold leading-6 text-red-700">
+                                  {claimError.text}
+                                </div>
+                              )}
                             </div>
 
                           );
