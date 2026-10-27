@@ -25,6 +25,7 @@ type OrderDetails = {
   delivery_date: string | null;
 
   delivery_slot: string | null;
+  fulfillment_method: "delivery" | "pickup";
 
   delivery_address: string | null;
 
@@ -219,6 +220,7 @@ export default function BillingPage() {
         delivery_date,
 
         delivery_slot,
+        fulfillment_method,
 
         delivery_address,
 
@@ -957,7 +959,7 @@ export default function BillingPage() {
 
           <h2 className="font-bold text-lg mb-4">
 
-            ข้อมูลลูกค้าและการจัดส่ง
+            {order.fulfillment_method === "pickup" ? "ข้อมูลลูกค้าและการรับสินค้าที่สาขา" : "ข้อมูลลูกค้าและการจัดส่ง"}
 
           </h2>
 
@@ -1029,7 +1031,7 @@ export default function BillingPage() {
 
               <p className="text-sm text-gray-500">
 
-                การจัดส่ง
+                {order.fulfillment_method === "pickup" ? "วันและเวลารับสินค้า" : "การจัดส่ง"}
 
               </p>
 
@@ -1045,7 +1047,7 @@ export default function BillingPage() {
 
               <p className="text-sm text-gray-500">
 
-                ที่อยู่จัดส่ง
+                {order.fulfillment_method === "pickup" ? "วิธีรับสินค้า" : "ที่อยู่จัดส่ง"}
 
               </p>
 
@@ -1053,9 +1055,7 @@ export default function BillingPage() {
 
               <p className="font-medium">
 
-                {order.delivery_address ??
-
-                  "—"}
+                {order.fulfillment_method === "pickup" ? "🏬 ลูกค้ามารับสินค้าที่สาขา" : (order.delivery_address ?? "—")}
 
               </p>
 
