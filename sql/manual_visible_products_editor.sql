@@ -107,5 +107,7 @@ $$;
 
 REVOKE ALL ON FUNCTION public.search_products_for_visibility(text,text,integer,integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.set_product_customer_visibility(uuid,boolean) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.search_products_for_visibility(text,text,integer,integer) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.set_product_customer_visibility(uuid,boolean) FROM anon;
 GRANT EXECUTE ON FUNCTION public.search_products_for_visibility(text,text,integer,integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.set_product_customer_visibility(uuid,boolean) TO authenticated;
