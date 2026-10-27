@@ -1,4 +1,4 @@
-# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.6)
+# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.7)
 
 An Android app for the existing OMS that requires no LINE or staff login.
 
@@ -130,3 +130,31 @@ No release-signing secrets have been configured by this source change alone. **D
 - Stable APK upgrades need a permanent GitHub release-signing key. Debug builds may need uninstalling before replacing.
 
 **First on-device acceptance test:** install -> open app -> accept notification permission -> verify check timestamp updates -> submit a **test-customer order** -> verify sound and lock-screen alert. After pairing two separate devices, acknowledge from B and verify both stop. Confirm the shared acknowledgement does not change the order workflow status.
+
+
+## Dedicated one-account-per-device enrollment (v0.7)
+
+**Operational model:** one fixed Android terminal = one native alarm station + one dedicated OMS Staff account. Nobody needs to log in or out between shifts. Terminal actions in OMS are attributed to Android-001 etc., not individual employees.
+
+### Manager: one step
+
+1. Sign into the OMS manager portal, open `/terminals` (**Android Terminals**).
+2. Choose a unique name `Android-001` (then `Android-002`, etc.) and check the operational stages the terminal may perform.
+3. Press **สร้างบัญชีและรหัสจับคู่เครื่อง**. The server creates the dedicated Supabase Auth identity, an active Staff profile with selected task permissions, and a one-time device enrollment code. No staff password is shown or stored in the APK.
+4. The code expires in 15 minutes. If setup takes longer, the manager can **reissue a code for the same account**, without creating duplicate staff entries.
+5. To revoke an enrolled terminal, use the manager **ยกเลิกเครื่องและปิดบัญชี OMS** action. It revokes the station pairing and disables its associated Staff identity.
+
+### Android: one code
+
+1. Install v0.7 and open it once. Alarm monitoring starts immediately, independently of OMS sign-in.
+2. Press **ลงทะเบียน Android Terminal** and enter the manager-provided one-time code.
+3. The phone now has an individual, revocable station token for **health heartbeats and shared alarm acknowledgements**.
+4. For fixed-account terminals, successful enrollment also opens the OMS. The native app requests a short-lived, single-use Supabase login OTP from the server using the device's enrolled identity. It passes the OTP only into its own HTTPS OMS WebView, which verifies it and loads the Staff home page.
+5. Each time Staff Mode is opened, it can renew its dedicated account session automatically. No routine username/password entry is needed. Alarm monitoring is unaffected by Staff Mode authentication or browser session expiration.
+6. The same per-terminal task permissions and Supabase RLS checks that protect normal OMS staff apply here. The terminal is a **Staff** account, never a **Manager**.
+
+The Android phone must be able to reach OMS to retrieve new orders and to authenticate Staff Mode. Existing alarm-only pairings remain compatible but cannot automatically sign in as a staff account.
+
+**Security considerations:** Keep the Android phone under the store's physical control, use a device lock / company kiosk policy, and revoke a lost device promptly. A compromised terminal's pairing token could authorize its fixed staff identity until revoked. Neither pairing nor login changes an order status by itself; OMS task actions still require permissions. Employee-level accountability is intentionally not provided.
+
+**Physical QA required:** test fresh installation and permission prompts; first-open alarm; paired cross-device ACK; one-code Staff auto-login; photo-upload camera; session refresh/reopen; battery restrictions and lockscreen; disable/revoke access; reissue expired code. Do not treat the prototype as fully production certified until this is tested on the exact company-managed hardware.
