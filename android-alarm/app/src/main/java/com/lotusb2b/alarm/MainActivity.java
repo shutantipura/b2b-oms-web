@@ -125,6 +125,13 @@ public final class MainActivity extends Activity {
             });
         }
 
+        Button staffMode = button("👤 เปิด Staff Mode (OMS)", Color.WHITE, INK);
+        addTop(root, staffMode, 12);
+        staffMode.setOnClickListener(v -> {
+            // Deliberately independent: do NOT stop background monitoring.
+            startActivity(new Intent(this, StaffPortalActivity.class));
+        });
+
         Button test = button("🔊 ทดสอบเสียงปลุก", Color.rgb(225, 247, 244), INK);
         addTop(root, test, 10);
         test.setOnClickListener(v -> {
@@ -145,6 +152,9 @@ public final class MainActivity extends Activity {
             "4. เปิดการแจ้งเตือนเต็มหน้าจอ (หากโทรศัพท์รองรับ)\n" +
             "5. ปิดหน้าจอได้ และตรวจว่าการแจ้งเตือนกำลังทำงานยังแสดงอยู่\n\n" +
             "ครั้งแรกระบบจะข้ามออเดอร์เก่าที่ค้างแจ้งเตือน และเริ่มรับออเดอร์ใหม่", 14, SECONDARY, false), 10);
+        addTop(tips, label(
+            "Staff Mode ใช้บัญชีพนักงานและรหัสผ่านที่ผู้จัดการกำหนดบนเว็บ OMS " +
+            "เสียงเตือนยังทำงานต่อเมื่อเปิดหน้า Staff Mode", 13, INK, true), 12);
         addTop(tips, label(
             "ควรเปิด Battery → Unrestricted และต่ออินเทอร์เน็ตไว้ตลอด " +
             "ระบบตรวจทุกประมาณ 15 วินาที Android อาจหยุดบริการเมื่อ Force Stop " +
