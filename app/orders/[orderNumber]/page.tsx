@@ -25,6 +25,7 @@ type OrderDetails = {
   status: string;
 
   order_source: string | null;
+  fulfillment_method: "delivery" | "pickup";
 
   delivery_date: string | null;
 
@@ -324,6 +325,7 @@ export default function OrderDetailsPage() {
         status,
 
         order_source,
+        fulfillment_method,
 
         delivery_date,
 
@@ -1195,7 +1197,7 @@ export default function OrderDetailsPage() {
 
           <h2 className="font-bold text-lg mb-5">
 
-            ลูกค้าและการจัดส่ง
+            {order.fulfillment_method === "pickup" ? "ลูกค้าและการรับสินค้าที่สาขา" : "ลูกค้าและการจัดส่ง"}
 
           </h2>
 
@@ -1267,7 +1269,7 @@ export default function OrderDetailsPage() {
 
               <p className="text-sm text-gray-500">
 
-                การจัดส่ง
+                {order.fulfillment_method === "pickup" ? "วันและเวลารับสินค้า" : "การจัดส่ง"}
 
               </p>
 
@@ -1301,7 +1303,7 @@ export default function OrderDetailsPage() {
 
             <p className="text-sm text-gray-500">
 
-              ที่อยู่จัดส่ง
+              {order.fulfillment_method === "pickup" ? "วิธีรับสินค้า" : "ที่อยู่จัดส่ง"}
 
             </p>
 
@@ -1309,7 +1311,7 @@ export default function OrderDetailsPage() {
 
             <p>
 
-              {order.delivery_address ?? "—"}
+              {order.fulfillment_method === "pickup" ? "🏬 ลูกค้ารับสินค้าที่สาขา" : (order.delivery_address ?? "—")}
 
             </p>
 
@@ -1928,7 +1930,7 @@ export default function OrderDetailsPage() {
                     <p className="text-[11px] text-[#8A6000]">
                       เลือกรอบที่ยังมีเวลาจัดส่งหลังครบ 2 ชั่วโมงจากที่กดบันทึก เช่น 10:04 เลือก 11:00–13:00 ได้ แต่จัดส่งไม่ก่อน 12:04
                     </p>
-                    <label className="block text-xs font-semibold" htmlFor="manager-delivery-date">วันที่จัดส่งใหม่</label>
+                    <label className="block text-xs font-semibold" htmlFor="manager-delivery-date">{order.fulfillment_method === "pickup" ? "วันที่รับสินค้าใหม่" : "วันที่จัดส่งใหม่"}</label>
                     <select id="manager-delivery-date" value={editedDeliveryDate}
                       onChange={(event) => {
                         const date = event.target.value;
