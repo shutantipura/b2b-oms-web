@@ -37,6 +37,7 @@ type Order = {
   deliveryDate: string | null;
   deliverySlot: string | null;
   deliveryAddress: string | null;
+  fulfillmentMethod?: "delivery" | "pickup";
   finalAmount: number | null;
   estimatedAmount?: number | null;
   items: OrderItem[];
@@ -357,11 +358,14 @@ export default function CustomerOrdersPage() {
                          )}
                         <p className="mt-1 text-xs text-[#94A69B]">สั่งเมื่อ {formatTimestamp(order.createdAt)}</p>
                       </div>
-                      <span className={`max-w-[55%] rounded-full border px-3 py-1.5 text-center text-xs font-extrabold ${badgeStyle(order.status)}`}>{statusName(order.status)}</span>
+                      <div className="flex max-w-[55%] flex-col items-end gap-1">
+                        {order.fulfillmentMethod === "pickup" && <span className="rounded-lg bg-[#FFF4D6] px-2 py-1 text-[10px] font-extrabold text-[#875D00]">🏬 รับสินค้าที่สาขา</span>}
+                        <span className={`rounded-full border px-3 py-1.5 text-center text-xs font-extrabold ${badgeStyle(order.status)}`}>{statusName(order.status)}</span>
+                      </div>
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-[#D5EBE5] bg-[#F0FAF7] p-3">
                       <div>
-                        <p className="text-[11px] text-[#80998B]">กำหนดจัดส่ง</p>
+                        <p className="text-[11px] text-[#80998B]">{order.fulfillmentMethod === "pickup" ? "วันนัดรับที่สาขา" : "กำหนดจัดส่ง"}</p>
                         <p className="mt-1 text-xs font-bold">{formatDate(order.deliveryDate)}</p>
                         {order.deliverySlot && <p className="mt-0.5 text-[11px] text-[#728D7C]">{order.deliverySlot}</p>}
                       </div>
