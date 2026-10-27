@@ -25,6 +25,7 @@ const WORKSPACE_ROOTS = [
   "/staff",
   "/staff-access",
   "/device-accounts",
+  "/alarm-stations",
   "/device-login",
   "/customer-line-access",
   "/line-access",
