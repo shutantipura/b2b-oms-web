@@ -1,4 +1,4 @@
-# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.4)
+# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.5)
 
 An Android app for the existing OMS that requires no LINE or staff login.
 
@@ -10,7 +10,7 @@ An Android app for the existing OMS that requires no LINE or staff login.
 - High-priority **heads-up notification** with one-tap **รับทราบ — หยุดเสียง** and **ดูออเดอร์** actions.
 - Incoming-order activity is independent of the settings/home screen, and can display over a locked screen if Android grants **full-screen alarm intent** permission.
 - The app includes a Settings shortcut for full-screen permission on Android 14+; without it, the alert is still available as a heads-up notification.
-- Notification action or app button acknowledges alarms on **this device only**, without editing the OMS orders or global alert table.
+- **Shared acknowledgement** for paired Android stations: any paired phone acknowledges an order globally and all connected phones stop after their next ~15-second poll. No staff login is required for the alarm; devices use their own pairing tokens.\n- Unpaired phones may continue to ring and acknowledge **locally only**. They cannot dismiss alarms on other devices.\n- Global acknowledgement updates only the alert acknowledgement, not the OMS order's workflow/status. The acknowledging station is recorded for audit.
 - Device remembers acknowledged orders. Initial launch ignores existing historical alerts.
 - Best-effort restart at phone boot.
 - Android 13+ notification permission, Android 14+ special-use foreground service declaration and configurable full-screen alarm permission.
@@ -45,18 +45,34 @@ Native Java, Android Gradle Plugin 8.7.3, JDK 17, Android SDK 35; app uses no ru
 
 ## Optional manager health dashboard (v0.4)
 
-The alarm continues working **without login and without pairing**. Pairing is only needed to display the station's health status in the Manager dashboard.
+The alarm continues working **without login and without pairing**. Pairing enables **two** features: showing the station's health status in the Manager dashboard **and acknowledging an alert on all Android stations**. Unpaired phones can still ring but can only dismiss locally.
 
 1. Manager opens `https://b2b-oms-web.vercel.app/alarm-stations` and chooses a station name.
 2. Click **สร้างรหัสจับคู่เครื่อง**. The 32-character one-time code expires after 15 minutes.
-3. On Android app v0.4, select **จับคู่เครื่องกับ Dashboard (ทางเลือก)** and type the code.
+3. On Android app v0.5, select **จับคู่เครื่องกับ Dashboard (ทางเลือก)** and type the code.
 4. Keep **เริ่มตรวจสอบออเดอร์** enabled. The app sends health updates around every 45 seconds, while order polling remains every 15 seconds.
 5. Dashboard shows the last heartbeat, successful OMS check, pending count, errors and app version. An absent heartbeat for 90 seconds shows **offline**.
 6. Managers can revoke health pairing without disabling the local alarm.
 
-Station secret tokens are generated server-side, stored in private Android app preferences, and their SHA-256 hashes are stored in Supabase. The public health API cannot list stations or change OMS orders. Avoid copying tokens or writing them to logs. No existing staff credentials are required.
+Station secret tokens are generated server-side, stored in private Android app preferences, and their SHA-256 hashes are stored in Supabase. A paired station can acknowledge the shared alarm feed through the restricted station API, but cannot change OMS order stages or expose customer data. The heartbeat API cannot list stations. Avoid copying tokens or writing them to logs. No existing staff credentials are required.
 
 **Limits:** Internet outages, airplane mode, a force-stop or OEM battery restrictions may prevent heartbeats. A fresh heartbeat proves communication to OMS, not that the speaker works.
+
+## Shared acknowledgement across multiple Android devices (v0.5)
+
+For example, if a new order #123 is submitted while **Phone A**, **Phone B**, and **Phone C** are monitoring:
+
+1. The public read-only feed includes #123; each online Android phone sees it on its next ~15-second poll and rings.
+2. Staff tap **รับทราบทุกเครื่อง** on any **paired** phone (e.g. Phone B).
+3. Phone B sends the alert IDs to `POST /api/alarm-station/ack`, authenticated with that station's private token. The server validates that the station is active, and atomically fills `acknowledged_at` and `acknowledged_by_station` for each still-pending alert.
+4. The public feed excludes those globally acknowledged alerts. Phones A and C stop on their next successful poll (nominally within ~15 seconds, possibly longer due to connectivity or background restrictions).
+5. **This does not mark an order stock-checked, completed, billed or paid.** It only means someone at the store heard the alarm.
+
+**Security:** Anonymous clients and unpaired/revoked stations cannot globally dismiss alarms. Manager creates separate pairing codes for each device (one code per phone). A station's password/login for Staff Mode is unrelated to this health+alert pairing.
+
+**Reliability:** If central acknowledgement fails (network/server offline), a paired station keeps ringing and shows an error. Staff should retry. An unpaired phone can dismiss locally only, so for reliable shared acknowledgement **pair every device**. A freshly installed/reinstalled app suppresses pre-existing alert backlog at the first successful feed check; submit a new order after initialization when testing.
+
+**Scaling:** Each continuously monitoring Android device makes ~172,800 feed requests/month at 15-second polling (plus heartbeat requests). A modest fleet works with this architecture, but monitor server usage; larger deployments would benefit from FCM push messaging rather than every phone polling independently.
 
 ## Stable signed APK update channel
 
@@ -71,7 +87,7 @@ A manager/developer with trusted admin access can generate the release keystore 
 ```bash
 keytool -genkeypair -v -keystore lotus-b2b-release.jks -alias lotus-b2b-alarm \
   -keyalg RSA -keysize 3072 -validity 10000
-base64 < lotus-b2b-release.jks | tr -d '\\n'
+base64 < lotus-b2b-release.jks | tr -d '\n'
 ```
 Paste the Base64 into GitHub → repository **Settings → Secrets and variables → Actions → New repository secret** (not into a chat or source code). Add the other three secrets. Preserve secure offline backups of the original keystore and passwords: losing them prevents future in-place updates.
 
@@ -80,6 +96,14 @@ After the secrets are configured, a new Actions run will upload a signed release
 No release-signing secrets have been configured by this source change alone. **Do not treat a debug APK as a consistently signed production upgrade.**
 
 ## Remote QA checklist
+
+- On 2+ paired phones, create a new test-customer order; all monitoring devices should ring.
+- Acknowledge once on Phone B. Verify `acknowledged_at` and `acknowledged_by_station` record that station and all devices stop on the next feed check.
+- Verify revoked/unpaired phones cannot globally acknowledge and their local-only action does not stop other phones.
+- If internet disconnects during acknowledgement, keep the alarm active on the paired phone; restore connectivity and retry.
+- When a second order arrives while the first ACK is in flight, it must keep ringing until separately acknowledged.
+- Check manager dashboard heartbeats for every phone and verify no staff task/order status changes from alert acknowledgement.
+
 
 - Manager staff account can open `/device-accounts` and `/alarm-stations`; non-managers cannot access their protected APIs.
 - Alarm station code expires in 15 minutes and cannot be claimed twice.
