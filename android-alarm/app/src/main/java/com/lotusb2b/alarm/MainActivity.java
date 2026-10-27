@@ -167,7 +167,7 @@ public final class MainActivity extends Activity {
             startActivity(new Intent(this, StaffPortalActivity.class));
         });
 
-        Button pairing = button("📡 จับคู่เครื่องกับ Dashboard (ทางเลือก)", Color.WHITE, INK);
+        Button pairing = button("📱 ลงทะเบียน Android Terminal (ครั้งเดียว)", Color.WHITE, INK);
         addTop(root, pairing, 12);
         pairing.setOnClickListener(v -> showPairingDialog());
         stationPairStatus = label("สถานะการจับคู่: ไม่ได้เชื่อมต่อ", 12, SECONDARY, false);
@@ -194,8 +194,8 @@ public final class MainActivity extends Activity {
             "5. ปิดหน้าจอได้ และตรวจว่าการแจ้งเตือนกำลังทำงานยังแสดงอยู่\n\n" +
             "ครั้งแรกระบบจะข้ามออเดอร์ที่เกิดก่อนเปิดแอป แต่รับออเดอร์ใหม่ทันที", 14, SECONDARY, false), 10);
         addTop(tips, label(
-            "Staff Mode ใช้บัญชีพนักงานและรหัสผ่านที่ผู้จัดการกำหนดบนเว็บ OMS " +
-            "เสียงเตือนยังทำงานต่อเมื่อเปิดหน้า Staff Mode", 13, INK, true), 12);
+            "Android Terminal ใช้รหัสลงทะเบียนจาก Manager ครั้งเดียว " +
+            "และ Staff Mode จะเข้าสู่บัญชีประจำเครื่องอัตโนมัติ โดยเสียงเตือนยังทำงานต่อ", 13, INK, true), 12);
         addTop(tips, label(
             "ควรเปิด Battery → Unrestricted และต่ออินเทอร์เน็ตไว้ตลอด " +
             "ระบบตรวจทุกประมาณ 15 วินาที Android อาจหยุดบริการเมื่อ Force Stop " +
@@ -217,14 +217,17 @@ public final class MainActivity extends Activity {
         container.addView(code, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         new AlertDialog.Builder(this)
-            .setTitle("จับคู่ Alarm Station")
-            .setMessage("ผู้จัดการสร้างรหัสใน OMS → ตรวจสอบเครื่องแจ้งเตือนออเดอร์\\nไม่มีผลต่อสิทธิ์ Staff Mode หรือเสียงเตือน")
+            .setTitle("ลงทะเบียน Android Terminal")
+            .setMessage("Manager สร้างบัญชีและรหัสติดตั้งที่ Android Terminals\\nStaff Mode จะเชื่อมบัญชีประจำเครื่อง")
             .setView(container)
             .setNegativeButton("ยกเลิก", null)
             .setPositiveButton("จับคู่", (dialog, which) ->
                 StationHealth.pair(this, code.getText().toString().trim(), (ok, message) -> {
                     Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                     render();
+                    if (ok && StationHealth.isDedicated(this)) {
+                        startActivity(new Intent(this, StaffPortalActivity.class));
+                    }
                 }))
             .show();
     }
@@ -272,8 +275,9 @@ public final class MainActivity extends Activity {
             String token = prefs.getString(StationHealth.TOKEN, "");
             String problem = prefs.getString(StationHealth.PAIR_ERROR, "");
             stationPairStatus.setText(token != null && !token.isEmpty()
-                ? "📡 เครื่องจับคู่แล้ว: " + label + (problem.isEmpty() ? "" : " · " + problem)
-                : "📡 ยังไม่ได้จับคู่ Dashboard (ไม่กระทบการแจ้งเตือน)");
+                ? (StationHealth.isDedicated(this) ? "📱 บัญชีประจำเครื่อง: " : "📡 เครื่องจับคู่แล้ว: ")
+                    + label + (problem.isEmpty() ? "" : " · " + problem)
+                : "📱 ยังไม่ได้ลงทะเบียน (Alarm ใช้งานได้โดยไม่ลงทะเบียน)");
         }
         String err = prefs.getString(AlarmMonitorService.LAST_ERROR, "");
         errorMessage.setText(err);
