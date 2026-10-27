@@ -28,7 +28,10 @@ jobs:
           gradle-version: "8.10.2"
       - name: Install Android SDK 35
         run: |
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKMANAGER="$(find "$ANDROID_HOME" -type f -name sdkmanager -print -quit)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
       - name: Build app-debug.apk
         run: gradle --no-daemon --stacktrace :app:assembleDebug
       - name: Upload APK
