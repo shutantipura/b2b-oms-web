@@ -21,6 +21,7 @@ type Order = {
   created_at: string;
   delivery_date: string | null;
   delivery_slot: string | null;
+  fulfillment_method: "delivery" | "pickup";
   final_amount: number | string | null;
   billing_account_suspended: boolean;
   billing_no_cv: boolean;
@@ -650,6 +651,7 @@ export default function OrdersPage() {
           created_at,
           delivery_date,
           delivery_slot,
+          fulfillment_method,
           final_amount,
           billing_account_suspended,
           billing_no_cv,
@@ -1103,6 +1105,9 @@ export default function OrdersPage() {
                                 "—"
                               }
                             </div>
+                            {order.fulfillment_method === "pickup" && (
+                              <span className="mt-1 inline-flex rounded-lg bg-[#FFF1CB] px-2 py-1 text-[11px] font-extrabold text-[#805C00]">🏬 รับสินค้าที่สาขา</span>
+                            )}
 
                             <span
                               title={order.delivery_date ?? undefined}
