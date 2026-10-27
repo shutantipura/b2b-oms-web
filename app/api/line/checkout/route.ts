@@ -917,6 +917,8 @@ export async function POST(
 
     if (action === "merge-options") {
       const date = typeof body.deliveryDate === "string" ? body.deliveryDate : "";
+      // Pickup is a separate flow: never offer a rider-delivery order as a merge candidate.
+      if (body.fulfillmentMethod === "pickup") return NextResponse.json({ mergeCandidates: [] });
       const mergeCandidates = await findMergeCandidates(supabase, customer.id, date);
       return NextResponse.json({ mergeCandidates });
     }
@@ -950,13 +952,18 @@ export async function POST(
         ? body.notes
             .trim()
         : "";
+    const fulfillmentMethod = body.fulfillmentMethod === "pickup" ? "pickup" : "delivery";
+    if (body.fulfillmentMethod != null &&
+      body.fulfillmentMethod !== "pickup" && body.fulfillmentMethod !== "delivery") {
+      return NextResponse.json({ error: "Invalid fulfillment method." }, { status: 400 });
+    }
 
     // -------------------------------------------------
     // ADDRESS
     // -------------------------------------------------
 
     if (
-      !deliveryAddress
+      fulfillmentMethod === "delivery" && !deliveryAddress
     ) {
       return NextResponse.json(
         {
@@ -1032,6 +1039,9 @@ export async function POST(
     const merging = Number.isSafeInteger(mergeIntoOrderNumber) && mergeIntoOrderNumber > 0;
     const requestId = typeof body.requestId === "string" ? body.requestId : "";
 
+    if (merging && fulfillmentMethod === "pickup") {
+      return NextResponse.json({ error: "Store pickup orders cannot be merged with delivery orders." }, { status: 400 });
+    }
     if (merging && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)) {
       return NextResponse.json({ error: "Missing merge request reference. Please try again." }, { status: 400 });
     }
@@ -1048,14 +1058,22 @@ export async function POST(
           p_line_user_id: verifiedLineUserId,
           p_request_id: requestId,
         })
-      : await supabase.rpc("create_customer_order", {
-          p_customer_code: customer.customer_code,
-          p_delivery_date: deliveryDate,
-          p_delivery_slot: deliverySlot,
-          p_delivery_address: deliveryAddress,
-          p_customer_notes: notes,
-          p_items: orderItems,
-        });
+      : fulfillmentMethod === "pickup"
+        ? await supabase.rpc("create_customer_pickup_order", {
+            p_customer_code: customer.customer_code,
+            p_delivery_date: deliveryDate,
+            p_delivery_slot: deliverySlot,
+            p_customer_notes: notes,
+            p_items: orderItems,
+          })
+        : await supabase.rpc("create_customer_order", {
+            p_customer_code: customer.customer_code,
+            p_delivery_date: deliveryDate,
+            p_delivery_slot: deliverySlot,
+            p_delivery_address: deliveryAddress,
+            p_customer_notes: notes,
+            p_items: orderItems,
+          });
 
     if (orderError) {
       console.error(
@@ -1114,6 +1132,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       orderNumber,
+      fulfillmentMethod,
       grouped: merging,
       merged: false,
       displayNumber: typeof groupInfo.display_number === "string"
