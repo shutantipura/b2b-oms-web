@@ -1,6 +1,9 @@
 package com.lotusb2b.alarm;
 
 import android.Manifest;
+import android.app.AlertDialog;
+import android.text.InputType;
+import android.widget.EditText;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.net.Uri;
@@ -37,6 +40,7 @@ public final class MainActivity extends Activity {
     private TextView status, pending, orderNumbers, lastCheck, errorMessage;
     private Button toggle;
     private Button fullScreenSettings;
+    private TextView stationPairStatus;
     private final Runnable refresh = new Runnable() {
         @Override public void run() {
             render();
@@ -132,6 +136,12 @@ public final class MainActivity extends Activity {
             startActivity(new Intent(this, StaffPortalActivity.class));
         });
 
+        Button pairing = button("📡 จับคู่เครื่องกับ Dashboard (ทางเลือก)", Color.WHITE, INK);
+        addTop(root, pairing, 12);
+        pairing.setOnClickListener(v -> showPairingDialog());
+        stationPairStatus = label("สถานะการจับคู่: ไม่ได้เชื่อมต่อ", 12, SECONDARY, false);
+        addTop(root, stationPairStatus, 8);
+
         Button test = button("🔊 ทดสอบเสียงปลุก", Color.rgb(225, 247, 244), INK);
         addTop(root, test, 10);
         test.setOnClickListener(v -> {
@@ -161,6 +171,29 @@ public final class MainActivity extends Activity {
             "หรือเมื่อมีการจำกัดการใช้แบตเตอรี่\n\n" +
             "การรับทราบมีผลเฉพาะเครื่องนี้ ไม่เปลี่ยนสถานะ OMS", 12, SECONDARY, false), 14);
         setContentView(scroll);
+    }
+
+    private void showPairingDialog() {
+        EditText code = new EditText(this);
+        code.setSingleLine(true);
+        code.setAllCaps(true);
+        code.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        code.setHint("รหัสจับคู่ 32 ตัวอักษร");
+        LinearLayout container = new LinearLayout(this);
+        container.setPadding(dp(18), dp(7), dp(18), 0);
+        container.addView(code, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        new AlertDialog.Builder(this)
+            .setTitle("จับคู่ Alarm Station")
+            .setMessage("ผู้จัดการสร้างรหัสใน OMS → ตรวจสอบเครื่องแจ้งเตือนออเดอร์\\nไม่มีผลต่อสิทธิ์ Staff Mode หรือเสียงเตือน")
+            .setView(container)
+            .setNegativeButton("ยกเลิก", null)
+            .setPositiveButton("จับคู่", (dialog, which) ->
+                StationHealth.pair(this, code.getText().toString().trim(), (ok, message) -> {
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                    render();
+                }))
+            .show();
     }
 
     private void sendAction(String action) {
@@ -197,6 +230,14 @@ public final class MainActivity extends Activity {
         String numbers = prefs.getString(AlarmMonitorService.NUMBERS, "");
         orderNumbers.setText(numbers.isEmpty() ? "พร้อมรับออเดอร์ใหม่" : numbers);
         lastCheck.setText("ตรวจสอบล่าสุด: " + prefs.getString(AlarmMonitorService.LAST_CHECK, "—"));
+        if (stationPairStatus != null) {
+            String label = prefs.getString(StationHealth.LABEL, "");
+            String token = prefs.getString(StationHealth.TOKEN, "");
+            String problem = prefs.getString(StationHealth.PAIR_ERROR, "");
+            stationPairStatus.setText(token != null && !token.isEmpty()
+                ? "📡 เครื่องจับคู่แล้ว: " + label + (problem.isEmpty() ? "" : " · " + problem)
+                : "📡 ยังไม่ได้จับคู่ Dashboard (ไม่กระทบการแจ้งเตือน)");
+        }
         String err = prefs.getString(AlarmMonitorService.LAST_ERROR, "");
         errorMessage.setText(err);
         errorMessage.setVisibility(err.isEmpty() ? View.GONE : View.VISIBLE);
