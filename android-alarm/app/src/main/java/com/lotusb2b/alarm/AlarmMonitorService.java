@@ -22,6 +22,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashSet;
@@ -38,6 +39,7 @@ public final class AlarmMonitorService extends Service {
     static final String PENDING = "pending";
     static final String NUMBERS = "pending_numbers";
     static final String LAST_CHECK = "last_check";
+    static final String LAST_CHECK_EPOCH = "last_check_epoch";
     static final String LAST_ERROR = "last_error";
     static final String START = "com.lotusb2b.alarm.START";
     static final String STOP = "com.lotusb2b.alarm.STOP";
@@ -45,6 +47,7 @@ public final class AlarmMonitorService extends Service {
     private static final String FEED = "https://b2b-oms-web.vercel.app/api/order-alarm/feed";
     private static final String SEEN = "seen_alert_ids";
     private static final String BASELINED = "initial_backlog_suppressed";
+    private static final String FIRST_ACTIVATED = "first_monitor_activation_ms";
     private static final String MONITOR_CHANNEL = "oms_monitor_v1";
     private static final String ALERT_CHANNEL = "oms_alert_popup_v2";
     private static final int MONITOR_NOTICE = 1001, ALERT_NOTICE = 1002;
@@ -68,7 +71,12 @@ public final class AlarmMonitorService extends Service {
     private static final class Entry {
         final String id;
         final long number;
-        Entry(String id, long number) { this.id = id; this.number = number; }
+        final long createdAtMs;
+        Entry(String id, long number, long createdAtMs) {
+            this.id = id;
+            this.number = number;
+            this.createdAtMs = createdAtMs;
+        }
     }
 
     @Override public void onCreate() {
@@ -107,7 +115,14 @@ public final class AlarmMonitorService extends Service {
     private void startMonitoring() {
         if (running) return;
         running = true;
-        prefs.edit().putBoolean(MONITORING, true).apply();
+        SharedPreferences.Editor starting = prefs.edit().putBoolean(MONITORING, true);
+        // Do this at service activation, not the first successful network
+        // response: orders arriving while the first request is in flight
+        // must still ring.
+        if (!prefs.getBoolean(BASELINED, false) &&
+            !prefs.contains(FIRST_ACTIVATED))
+            starting.putLong(FIRST_ACTIVATED, System.currentTimeMillis());
+        starting.apply();
         try {
             Notification notice = monitorNotification("กำลังเชื่อมต่อกับ OMS");
             if (Build.VERSION.SDK_INT >= 34)
@@ -157,8 +172,16 @@ public final class AlarmMonitorService extends Service {
                     JSONObject item = alerts.getJSONObject(i);
                     String id = item.getString("alert_id");
                     long number = item.getLong("order_number");
+                    long createdAtMs = 0L;
+                    try {
+                        createdAtMs = OffsetDateTime.parse(
+                            item.getString("created_at")).toInstant().toEpochMilli();
+                    } catch (Exception invalidTimestamp) {
+                        // Invalid timestamps cannot safely bypass initial
+                        // backlog suppression.
+                    }
                     if (id.matches("[0-9a-fA-F-]{36}") && number > 0)
-                        received.add(new Entry(id, number));
+                        received.add(new Entry(id, number, createdAtMs));
                 }
                 main.post(() -> applyAlerts(received));
             } catch (Exception e) {
@@ -179,9 +202,15 @@ public final class AlarmMonitorService extends Service {
         if (!running) return;
         lastReceived.clear();
         lastReceived.addAll(received);
-        // Do not blast the shop with historical pending alerts on first installation.
+        // Skip only alerts created BEFORE this app first began monitoring,
+        // without losing orders that arrived during its first network check.
         if (!prefs.getBoolean(BASELINED, false)) {
-            for (Entry e : received) seen.add(e.id);
+            long activatedAt = prefs.getLong(FIRST_ACTIVATED,
+                System.currentTimeMillis());
+            for (Entry e : received) {
+                if (e.createdAtMs <= 0 || e.createdAtMs < activatedAt)
+                    seen.add(e.id);
+            }
             storeSeen();
             prefs.edit().putBoolean(BASELINED, true).apply();
         }
@@ -201,6 +230,7 @@ public final class AlarmMonitorService extends Service {
             .putString(PENDING, ids.toString())
             .putString(NUMBERS, numbers.toString())
             .putString(LAST_CHECK, at)
+            .putLong(LAST_CHECK_EPOCH, System.currentTimeMillis())
             .putString(LAST_ERROR, "")
             .apply();
 
