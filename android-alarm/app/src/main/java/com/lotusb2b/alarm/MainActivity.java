@@ -41,6 +41,7 @@ public final class MainActivity extends Activity {
     private Button toggle;
     private Button acknowledgeButton;
     private Button fullScreenSettings;
+    private Button notificationsSettings;
     private TextView setupStatus;
     private TextView stationPairStatus;
     private final Runnable refresh = new Runnable() {
@@ -136,6 +137,25 @@ public final class MainActivity extends Activity {
                 } catch (RuntimeException e) {
                     Toast.makeText(this, "เปิด Settings → Apps → Special app access → Full screen alerts",
                         Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            notificationsSettings = button("🔔 เปิดสิทธิ์แจ้งเตือน Android",
+                Color.rgb(225, 247, 244), INK);
+            addTop(root, notificationsSettings, 10);
+            notificationsSettings.setOnClickListener(v -> {
+                if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                        PackageManager.PERMISSION_GRANTED) {
+                    // Android may stop showing the runtime prompt after
+                    // repeated denials. Settings remains the fallback.
+                    requestPermissions(
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS}, 44);
+                } else {
+                    Intent settings = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+                    startActivity(settings);
                 }
             });
         }
@@ -259,9 +279,15 @@ public final class MainActivity extends Activity {
         errorMessage.setText(err);
         errorMessage.setVisibility(err.isEmpty() ? View.GONE : View.VISIBLE);
         long checkedMs = prefs.getLong(AlarmMonitorService.LAST_CHECK_EPOCH, 0L);
-        boolean notificationAllowed = Build.VERSION.SDK_INT < 33 ||
+        NotificationManager notificationManager = (NotificationManager)
+            getSystemService(Context.NOTIFICATION_SERVICE);
+        boolean notificationAllowed = (Build.VERSION.SDK_INT < 33 ||
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-                PackageManager.PERMISSION_GRANTED;
+                PackageManager.PERMISSION_GRANTED) &&
+            notificationManager != null && notificationManager.areNotificationsEnabled();
+        if (notificationsSettings != null) {
+            notificationsSettings.setVisibility(notificationAllowed ? View.GONE : View.VISIBLE);
+        }
         StringBuilder warning = new StringBuilder();
         if (running && checkedMs <= 0L) {
             warning.append("กำลังเชื่อมต่อ OMS ครั้งแรก...");
