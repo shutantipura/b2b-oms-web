@@ -46,6 +46,12 @@ function goToLineLogin() {
 
 export default function OmsHomePage() {
   const [staff, setStaff] = useState<StaffProfile | null>(null);
+  const [fixedTerminal, setFixedTerminal] = useState(false);
+  useEffect(() => {
+    try { setFixedTerminal(window.localStorage.getItem("lotus-dedicated-terminal") === "1"); }
+    catch { setFixedTerminal(false); }
+  }, []);
+
   const [activeOrderCount, setActiveOrderCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -191,13 +197,15 @@ export default function OmsHomePage() {
                 {staff.staff_code} · {isManager ? "ผู้จัดการ" : "พนักงาน"}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleSwitchMode}
-              className="min-h-11 rounded-xl border border-[#C5E3DD] bg-white px-4 py-2 text-sm font-bold text-[#3B736B]"
-            >
-              เปลี่ยนประเภทการใช้งาน
-            </button>
+            {!fixedTerminal && (
+              <button
+                type="button"
+                onClick={handleSwitchMode}
+                className="min-h-11 rounded-xl border border-[#C5E3DD] bg-white px-4 py-2 text-sm font-bold text-[#3B736B]"
+              >
+                เปลี่ยนประเภทการใช้งาน
+              </button>
+            )}
           </div>
         </section>
 
