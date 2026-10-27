@@ -5,6 +5,8 @@ import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import org.json.JSONObject;
+import org.json.JSONArray;
+import java.util.List;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -73,6 +75,41 @@ final class StationHealth {
             } catch (Exception e) {
                 // Never interfere with the audio alarm due to a dashboard error.
                 pref.edit().putString(PAIR_ERROR, "ส่งสถานะอุปกรณ์ไม่สำเร็จ").apply();
+            }
+        });
+    }
+
+    /** Shared order acknowledgement is authorized by the device pairing token.
+     * A failed request MUST NOT clear the local alarm.
+     */
+    static void acknowledge(Context context, List<String> alertIds, Callback callback) {
+        Context app = context.getApplicationContext();
+        SharedPreferences pref = app.getSharedPreferences(AlarmMonitorService.PREFS, Context.MODE_PRIVATE);
+        String token = pref.getString(TOKEN, "");
+        if (token == null || !token.matches("[a-f0-9]{64}")) {
+            callback.onComplete(false, "ยังไม่ได้จับคู่เครื่อง กรุณาจับคู่ก่อนรับทราบทุกเครื่อง");
+            return;
+        }
+        if (alertIds == null || alertIds.isEmpty() || alertIds.size() > 200) {
+            callback.onComplete(false, "ไม่มีรายการใหม่สำหรับรับทราบ");
+            return;
+        }
+        network.execute(() -> {
+            try {
+                JSONArray ids = new JSONArray();
+                for (String id : alertIds) ids.put(id);
+                JSONObject response = post("ack", token,
+                    new JSONObject().put("alertIds", ids));
+                if (!response.optBoolean("success")) {
+                    throw new Exception(response.optString("error",
+                        "ไม่สามารถรับทราบทุกเครื่องได้"));
+                }
+                ui.post(() -> callback.onComplete(true,
+                    "รับทราบทุกเครื่องแล้ว"));
+            } catch (Exception e) {
+                String message = e.getMessage() == null ?
+                    "ส่งคำสั่งรับทราบไม่สำเร็จ" : e.getMessage();
+                ui.post(() -> callback.onComplete(false, message));
             }
         });
     }
