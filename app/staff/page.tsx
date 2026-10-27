@@ -706,10 +706,7 @@ export default function StaffManagementPage() {
             ← กลับหน้าหลัก
           </Link>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link href="/device-accounts" className="inline-flex min-h-11 items-center rounded-xl border border-[#91D6CE] bg-[#E6F8F4] px-4 py-2 font-extrabold text-[#007B75]">🔐 จัดการรหัสผ่านสำหรับอุปกรณ์ Android</Link>
-            <Link href="/alarm-stations" className="inline-flex min-h-11 items-center rounded-xl border border-[#91D6CE] bg-[#E6F8F4] px-4 py-2 font-extrabold text-[#007B75]">📡 ตรวจสอบเครื่องแจ้งเตือน</Link>
-          </div>
+          <Link href="/terminals" className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-[#91D6CE] bg-[#E6F8F4] px-4 py-2 font-extrabold text-[#007B75]">📱 Android Terminals — บัญชีอุปกรณ์และการจับคู่</Link>
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mt-4">
             <div>
               <p className="text-sm text-gray-500 font-semibold">
