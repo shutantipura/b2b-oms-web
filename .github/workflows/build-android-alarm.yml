@@ -34,6 +34,31 @@ jobs:
           "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
       - name: Build app-debug.apk
         run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Build signed release APK (only after secrets are configured)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ANDROID_KEYSTORE_BASE64}" || -z "${ANDROID_KEYSTORE_PASSWORD}" || -z "${ANDROID_KEY_ALIAS}" || -z "${ANDROID_KEY_PASSWORD}" ]]; then
+            echo "Release signing secrets are incomplete; the debug APK is still available."
+            exit 0
+          fi
+          export ANDROID_KEYSTORE_FILE="${RUNNER_TEMP}/lotus-b2b-release.jks"
+          trap 'rm -f "${ANDROID_KEYSTORE_FILE}"' EXIT
+          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > "${ANDROID_KEYSTORE_FILE}"
+          chmod 600 "${ANDROID_KEYSTORE_FILE}"
+          gradle --no-daemon :app:assembleRelease
+      - name: Upload signed release APK when configured
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lotus-B2B-Alarm-Release-Signed
+          path: android-alarm/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
