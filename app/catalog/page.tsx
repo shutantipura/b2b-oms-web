@@ -22,6 +22,7 @@ import {
 
 
 
+import Link from "next/link";
 import PictureImportSection from "./PictureImportSection";
 import SpecialPriceImportSection from "./SpecialPriceImportSection";
 
@@ -5098,7 +5099,8 @@ export default function CatalogPage() {
 
 
 
-            <div className="flex items-start gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-4">
 
 
 
@@ -5131,9 +5133,14 @@ export default function CatalogPage() {
 
 
               </div>
-
-
-
+              <Link
+                href="/catalog/visibility"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-[#91D6CE] bg-[#E7F8F5] px-4 py-2.5 text-sm font-extrabold text-[#007D79] transition hover:bg-[#D8F3EE]"
+              >
+                <span aria-hidden="true">☷</span>
+                จัดการรายการสินค้าเป็นราย SKU
+                <span aria-hidden="true">↗</span>
+              </Link>
             </div>
 
 
