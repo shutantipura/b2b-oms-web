@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+
 
 type Alarm = {
   alert_id: string;
-  order_id: string;
   order_number: number;
-  customer_name: string;
   created_at: string;
 };
+type AlarmFeedResponse = { alerts?: Alarm[]; error?: string };
+const LOCAL_ACK_STORAGE_KEY = "lotus-b2b-public-alarm-dismissed-v1";
 
 function playAlertPattern(ctx: AudioContext) {
   if (ctx.state !== "running") return;
@@ -34,9 +34,7 @@ function playAlertPattern(ctx: AudioContext) {
 export default function OrderAlarmPage() {
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [enabled, setEnabled] = useState(false);
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState<string | null>(null);
   const [lastChecked, setLastChecked] = useState("");
   const [audioReady, setAudioReady] = useState(false);
   const [screenAwake, setScreenAwake] = useState(false);
@@ -46,23 +44,20 @@ export default function OrderAlarmPage() {
   const enabledRef = useRef(false);
   const alarmsRef = useRef<Alarm[]>([]);
   const busyRef = useRef(false);
+  // Only this device can acknowledge alarms without authenticating.
+  // Anonymous devices must never mutate the shared order_alerts table.
+  const dismissedRef = useRef<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
     if (busyRef.current) return;
     busyRef.current = true;
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setAuthorized(false);
-        setAlarms([]);
-        alarmsRef.current = [];
-        setError("กรุณาเข้าสู่ระบบด้วยบัญชีพนักงาน Supabase Auth ก่อน");
-        return;
-      }
-      const { data, error: rpcError } = await supabase.rpc("get_pending_order_alarms");
-      if (rpcError) throw rpcError;
-      setAuthorized(true);
-      const next = (data ?? []) as Alarm[];
+      const response = await fetch("/api/order-alarm/feed", { cache: "no-store" });
+      const result = (await response.json()) as AlarmFeedResponse;
+      if (!response.ok) throw new Error(result.error || "Unable to check new orders");
+      const next = (result.alerts ?? [])
+        .filter((alarm) => !dismissedRef.current.has(alarm.alert_id))
+        .sort((a, b) => a.created_at.localeCompare(b.created_at));
       alarmsRef.current = next;
       setAlarms(next);
       setLastChecked(new Date().toLocaleTimeString("th-TH"));
@@ -75,6 +70,19 @@ export default function OrderAlarmPage() {
   }, []);
 
   useEffect(() => {
+    // Restore acknowledgement BEFORE the first network request.
+    try {
+      const raw = window.localStorage.getItem(LOCAL_ACK_STORAGE_KEY);
+      const saved: unknown = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(saved)) {
+        dismissedRef.current = new Set(saved.filter((id): id is string =>
+          typeof id === "string" && /^[a-f0-9-]{36}$/i.test(id)
+        ));
+      }
+    } catch {
+      // Browsers with disabled storage still support this-page acknowledgements.
+    }
+
     void refresh();
     const interval = window.setInterval(() => void refresh(), 5000);
     return () => window.clearInterval(interval);
@@ -187,24 +195,19 @@ export default function OrderAlarmPage() {
     setScreenAwake(false);
   }
 
-  async function acknowledge(id: string) {
-    setBusy(id);
+  function acknowledge(ids: string[]) {
+    for (const id of ids) dismissedRef.current.add(id);
     try {
-      const { data, error: rpcError } = await supabase.rpc("acknowledge_order_alarm", {
-        p_alert_id: id,
-      });
-      if (rpcError) throw rpcError;
-      if (!data) throw new Error("รายการนี้ถูกยืนยันไปแล้ว กรุณารีเฟรช");
-      // Stop ringing immediately when the final queued alarm is acknowledged.
-      const remaining = alarmsRef.current.filter((alarm) => alarm.alert_id !== id);
-      alarmsRef.current = remaining;
-      setAlarms(remaining);
-      await refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "ไม่สามารถยืนยันรายการ");
-    } finally {
-      setBusy(null);
+      // Bound storage; old alerts naturally fall out of the 7-day public feed.
+      const recent = [...dismissedRef.current].slice(-1500);
+      window.localStorage.setItem(LOCAL_ACK_STORAGE_KEY, JSON.stringify(recent));
+      dismissedRef.current = new Set(recent);
+    } catch {
+      // In private browsing, acknowledgements persist only until this page closes.
     }
+    const remaining = alarmsRef.current.filter((alarm) => !dismissedRef.current.has(alarm.alert_id));
+    alarmsRef.current = remaining;
+    setAlarms(remaining);
   }
 
   useEffect(() => () => {
@@ -222,13 +225,8 @@ export default function OrderAlarmPage() {
           <p className="text-xs font-extrabold tracking-widest text-[#009F9D]">LOTUS’S B2B OMS</p>
           <h1 className="mt-2 text-3xl font-black">🔔 แจ้งเตือนออเดอร์ใหม่</h1>
           <p className="mt-2 text-sm text-slate-500">ตรวจสอบทุก 5 วินาที · ล่าสุด {lastChecked || "กำลังเชื่อมต่อ"}</p>
-          <p className="mt-2 text-sm">{authorized === null ? "กำลังตรวจสอบสิทธิ์..." : authorized ? "● เชื่อมต่อบัญชีพนักงานแล้ว" : "● ยังไม่ได้เข้าสู่ระบบพนักงาน"}</p>
-          {authorized === false && (
-            <div className="mt-3 flex gap-4 text-sm font-bold text-[#008B8B]">
-              <Link href="/miniapp">เข้าสู่ระบบด้วย LINE</Link>
-              <Link href="/login">เข้าสู่ระบบพนักงาน</Link>
-            </div>
-          )}
+          <p className="mt-2 text-sm font-bold text-[#007E78]">✓ สถานีแจ้งเตือนสาธารณะ · ไม่ต้องเข้าสู่ระบบ</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">แสดงเฉพาะหมายเลขออเดอร์ ไม่แสดงข้อมูลลูกค้า · ตรวจสอบออเดอร์ที่ยังไม่มีผู้รับทราบในช่วง 7 วันที่ผ่านมา</p>
         </header>
 
         {!online && (
@@ -241,7 +239,7 @@ export default function OrderAlarmPage() {
         <section className="rounded-3xl bg-white p-6 shadow-sm">
           <p className="text-lg font-bold">🔊 ระบบเสียงเตือนออเดอร์</p>
           <p className="mt-1 text-sm text-slate-500">
-            เสียงจะดังซ้ำต่อเนื่องทุกครั้งที่มีออเดอร์รอรับทราบ และหยุดเมื่อรับทราบครบทุกออเดอร์
+            เสียงจะดังซ้ำเมื่อพบออเดอร์ที่ยังไม่ได้รับทราบบนอุปกรณ์นี้ และหยุดเมื่อรับทราบครบทุกออเดอร์
           </p>
           {!enabled ? (
             <button type="button" onClick={() => void enableSound()} className="mt-4 w-full rounded-2xl bg-[#02B0AF] px-4 py-5 text-xl font-black text-white shadow-lg">
@@ -271,29 +269,42 @@ export default function OrderAlarmPage() {
         </section>
 
         <section className={`rounded-3xl p-6 shadow-sm ${alarms.length ? "bg-red-50 ring-2 ring-red-400" : "bg-white"}`}>
-          <h2 className="text-2xl font-black">ออเดอร์รอยืนยัน: {alarms.length}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-2xl font-black">ออเดอร์ที่ยังไม่ได้รับทราบ: {alarms.length}</h2>
+            {alarms.length > 1 && (
+              <button
+                type="button"
+                onClick={() => acknowledge(alarmsRef.current.map((a) => a.alert_id))}
+                className="min-h-11 rounded-xl border border-[#E4C98C] bg-[#FFF1C9] px-4 py-2 text-sm font-extrabold text-[#825C00]"
+              >
+                ✓ รับทราบทั้งหมดบนเครื่องนี้
+              </button>
+            )}
+          </div>
           {alarms.length === 0 ? (
-            <p className="mt-3 text-slate-500">ยังไม่มีออเดอร์ที่รอรับทราบ</p>
+            <p className="mt-3 text-slate-500">ไม่มีออเดอร์ใหม่ที่ต้องแจ้งเตือนบนเครื่องนี้</p>
           ) : (
             <div className="mt-4 space-y-4">
               {alarms.map((alarm) => (
                 <article key={alarm.alert_id} className="rounded-2xl bg-white p-4 shadow-sm">
                   <p className="text-2xl font-black">ออเดอร์ #{alarm.order_number}</p>
-                  <p className="mt-1 text-lg">{alarm.customer_name}</p>
                   <p className="text-sm text-slate-500">{new Date(alarm.created_at).toLocaleString("th-TH")}</p>
                   <button
-                    disabled={busy === alarm.alert_id}
-                    onClick={() => void acknowledge(alarm.alert_id)}
-                    className="mt-4 w-full rounded-2xl bg-[#009F9D] px-4 py-4 text-lg font-black text-white disabled:opacity-50"
+                    onClick={() => acknowledge([alarm.alert_id])}
+                    className="mt-4 w-full rounded-2xl bg-[#009F9D] px-4 py-4 text-lg font-black text-white"
                   >
-                    {busy === alarm.alert_id ? "กำลังบันทึก..." : "✓ รับทราบออเดอร์"}
+                    ✓ รับทราบบนเครื่องนี้
                   </button>
                 </article>
               ))}
             </div>
           )}
+          <p className="mt-4 text-xs leading-5 text-[#7B8E87]">
+            การรับทราบจะหยุดเสียงเฉพาะเครื่องนี้ ไม่เปลี่ยนสถานะออเดอร์
+            และไม่ปิดเสียงของอุปกรณ์อื่น · หากต้องการดำเนินงานให้ใช้บัญชีพนักงานใน OMS
+          </p>
         </section>
-        <Link href="/tasks" className="block text-center font-bold text-[#008B8B] underline">ไปหน้ารายการงาน OMS</Link>
+        <Link href="/tasks" className="block text-center font-bold text-[#008B8B] underline">พนักงาน: ไปหน้ารายการงาน OMS (ต้องเข้าสู่ระบบ)</Link>
       </div>
     </main>
   );
