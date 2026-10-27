@@ -1,4 +1,4 @@
-# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.5)
+# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.6)
 
 An Android app for the existing OMS that requires no LINE or staff login.
 
@@ -24,9 +24,9 @@ No Play Store developer account or Firebase project is needed for this prototype
 
 ## Setup
 
-1. Open Lotus's B2B Alarm and grant notification permission.
+1. Install the APK. **Android does not start freshly installed apps in the background**. Open Lotus's B2B Alarm **once** and allow the Android notification permission if prompted. **The app now starts monitoring automatically**; no need to tap the Start button.
 2. Adjust **Alarm** volume, use **ทดสอบเสียงปลุก** to test.
-3. Tap **เริ่มตรวจสอบออเดอร์**.
+3. Check for **กำลังตรวจสอบออเดอร์** and a recent OMS check time. **เริ่มตรวจสอบออเดอร์** is now only needed if someone deliberately stopped monitoring.
 4. Wait until the OMS check time updates. Lock the screen.
 5. If the device runs Android 14+, tap **เปิดแจ้งเตือนเต็มหน้าจอ**, and allow the permission in Settings if offered.\n6. Place a new B2B order using your **test customer**; it should ring after the next poll.\n   - Unlocked screen: heads-up alert with **รับทราบ — หยุดเสียง**, and **ดูออเดอร์** opens the dedicated incoming screen.\n   - Locked screen: full-screen incoming alarm if permission is granted, otherwise a heads-up notification.
 7. Tap **รับทราบ — หยุดเสียง** in the notification, or the matching button on the incoming screen. No staff sign-in is required.
@@ -49,7 +49,7 @@ The alarm continues working **without login and without pairing**. Pairing enabl
 
 1. Manager opens `https://b2b-oms-web.vercel.app/alarm-stations` and chooses a station name.
 2. Click **สร้างรหัสจับคู่เครื่อง**. The 32-character one-time code expires after 15 minutes.
-3. On Android app v0.5, select **จับคู่เครื่องกับ Dashboard (ทางเลือก)** and type the code.
+3. On Android app v0.6, select **จับคู่เครื่องกับ Dashboard (ทางเลือก)** and type the code.
 4. Keep **เริ่มตรวจสอบออเดอร์** enabled. The app sends health updates around every 45 seconds, while order polling remains every 15 seconds.
 5. Dashboard shows the last heartbeat, successful OMS check, pending count, errors and app version. An absent heartbeat for 90 seconds shows **offline**.
 6. Managers can revoke health pairing without disabling the local alarm.
@@ -70,7 +70,7 @@ For example, if a new order #123 is submitted while **Phone A**, **Phone B**, an
 
 **Security:** Anonymous clients and unpaired/revoked stations cannot globally dismiss alarms. Manager creates separate pairing codes for each device (one code per phone). A station's password/login for Staff Mode is unrelated to this health+alert pairing.
 
-**Reliability:** If central acknowledgement fails (network/server offline), a paired station keeps ringing and shows an error. Staff should retry. An unpaired phone can dismiss locally only, so for reliable shared acknowledgement **pair every device**. A freshly installed/reinstalled app suppresses pre-existing alert backlog at the first successful feed check; submit a new order after initialization when testing.
+**Reliability:** If central acknowledgement fails (network/server offline), a paired station keeps ringing and shows an error. Staff should retry. An unpaired phone can dismiss locally only, so for reliable shared acknowledgement **pair every device**. A freshly installed/reinstalled app suppresses alerts created before monitoring first starts. It **does not** suppress alerts arriving while the first connection is in flight. Submit a fresh test order after the application has been opened once.
 
 **Scaling:** Each continuously monitoring Android device makes ~172,800 feed requests/month at 15-second polling (plus heartbeat requests). A modest fleet works with this architecture, but monitor server usage; larger deployments would benefit from FCM push messaging rather than every phone polling independently.
 
@@ -111,3 +111,22 @@ No release-signing secrets have been configured by this source change alone. **D
 - Revoked health token no longer writes to dashboard; local sound still works.
 - Staff Mode credentials remain separate from the optional alarm-health pairing.
 - Real-phone testing is needed for battery-saver, lock screen, sound, camera and APK upgrades.
+
+
+## Readiness audit (v0.6)
+
+**What is automatic**
+- User opens the app once following installation; the foreground OMS alarm monitor starts immediately without tapping Start or signing in.
+- A successful first poll ignores old alerts but keeps orders created after monitoring began, including orders placed while the first HTTP request was pending.
+- Home screen shows the latest successful check and warns if the check becomes over 90 seconds old.
+- If notifications are denied or disabled, the app displays a warning and a control to request permission again.
+- Boot or APK update attempts to restart an enabled monitor (best-effort under Android manufacturer restrictions).
+
+**What cannot be made automatic without operating-system/manager action**
+- An installed app cannot self-launch immediately after APK installation: **open it once**.
+- Android 13+ requires the user's runtime approval for notifications; Android 14+ may require full-screen alarm permission. Company-managed launchers and battery settings can also restrict access/background execution.
+- Full **cross-device** acknowledgement requires each station to receive a manager-approved pairing token. Skipping this would let anyone with the APK dismiss store alarms for every device. Unpaired devices can still ring and acknowledge *locally*.
+- Staff Mode requires a manager-created OMS staff identity and credentials. The alarm does not require staff sign-in.
+- Stable APK upgrades need a permanent GitHub release-signing key. Debug builds may need uninstalling before replacing.
+
+**First on-device acceptance test:** install -> open app -> accept notification permission -> verify check timestamp updates -> submit a **test-customer order** -> verify sound and lock-screen alert. After pairing two separate devices, acknowledge from B and verify both stop. Confirm the shared acknowledgement does not change the order workflow status.
