@@ -1,0 +1,108 @@
+package com.lotusb2b.alarm;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
+import org.json.JSONObject;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/** Optional pairing: the public alarm keeps ringing without any credentials. */
+final class StationHealth {
+    static final String TOKEN = "station_health_token";
+    static final String LABEL = "station_health_label";
+    static final String PAIR_ERROR = "station_health_error";
+    private static final String ROOT = "https://b2b-oms-web.vercel.app/api/alarm-station/";
+    private static final ExecutorService network = Executors.newSingleThreadExecutor();
+    private static final Handler ui = new Handler(Looper.getMainLooper());
+
+    interface Callback { void onComplete(boolean success, String message); }
+
+    private StationHealth() {}
+
+    static void pair(Context context, String code, Callback callback) {
+        Context app = context.getApplicationContext();
+        if (!code.matches("[A-Fa-f0-9]{32}")) {
+            callback.onComplete(false, "รหัสจับคู่ต้องมี 32 ตัวอักษร (A–F และ 0–9)");
+            return;
+        }
+        network.execute(() -> {
+            try {
+                JSONObject payload = new JSONObject().put("code", code.toUpperCase());
+                JSONObject response = post("pair", null, payload);
+                if (!response.optBoolean("success")) {
+                    throw new Exception(response.optString("error", "จับคู่ไม่สำเร็จ"));
+                }
+                String token = response.getString("token");
+                String label = response.optString("label", "Alarm Station");
+                if (!token.matches("[a-f0-9]{64}")) throw new Exception("Invalid station token");
+                SharedPreferences pref = app.getSharedPreferences(AlarmMonitorService.PREFS, Context.MODE_PRIVATE);
+                pref.edit().putString(TOKEN, token).putString(LABEL, label).remove(PAIR_ERROR).apply();
+                ui.post(() -> callback.onComplete(true, "จับคู่สำเร็จ: " + label));
+            } catch (Exception e) {
+                ui.post(() -> callback.onComplete(false, e.getMessage()));
+            }
+        });
+    }
+
+    static void report(Context context, boolean monitoring, boolean pollOk,
+                       int pendingCount, String lastError) {
+        Context app = context.getApplicationContext();
+        SharedPreferences pref = app.getSharedPreferences(AlarmMonitorService.PREFS, Context.MODE_PRIVATE);
+        String token = pref.getString(TOKEN, "");
+        if (token == null || !token.matches("[a-f0-9]{64}")) return;
+        network.execute(() -> {
+            try {
+                String version = app.getPackageManager()
+                    .getPackageInfo(app.getPackageName(), 0).versionName;
+                JSONObject payload = new JSONObject()
+                    .put("monitoring", monitoring)
+                    .put("pollOk", pollOk)
+                    .put("pendingCount", pendingCount)
+                    .put("lastError", lastError == null ? "" : lastError)
+                    .put("version", version);
+                post("heartbeat", token, payload);
+                pref.edit().remove(PAIR_ERROR).apply();
+            } catch (Exception e) {
+                // Never interfere with the audio alarm due to a dashboard error.
+                pref.edit().putString(PAIR_ERROR, "ส่งสถานะอุปกรณ์ไม่สำเร็จ").apply();
+            }
+        });
+    }
+
+    private static JSONObject post(String route, String token, JSONObject payload) throws Exception {
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection)new URL(ROOT + route).openConnection();
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(6000);
+            conn.setReadTimeout(6000);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/json");
+            if (token != null) conn.setRequestProperty("Authorization", "Bearer " + token);
+            byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
+            try (OutputStream stream = conn.getOutputStream()) { stream.write(bytes); }
+            int status = conn.getResponseCode();
+            if (status < 200 || status >= 300) {
+                if (status == 401) throw new Exception("ไม่รู้จักอุปกรณ์หรือถูกยกเลิกการจับคู่");
+                throw new Exception("OMS HTTP " + status);
+            }
+            StringBuilder result = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                    conn.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) result.append(line);
+            }
+            return new JSONObject(result.toString());
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }
+}
