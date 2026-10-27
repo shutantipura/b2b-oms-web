@@ -72,6 +72,8 @@ type LineUser = {
 
     string[];
 
+  allCustomersAccess: boolean;
+
 
 
   staff:
@@ -801,7 +803,7 @@ export default function LineAccessPage() {
 
       window.confirm(
 
-        `ยกเลิกสิทธิ์ลูกค้า ${customerCode} จาก ${user.displayName ?? "ผู้ใช้ LINE นี้"} หรือไม่?`
+        `ยกเลิกสิทธิ์ลูกค้า ${customerCode} จาก ${user.displayName ?? "ผู้ใช้ LINE นี้"} หรือไม่?${user.allCustomersAccess ? "\n\nการยกเลิกเพียงรายเดียวจะปิดโหมดสิทธิ์ลูกค้าทั้งหมดด้วย (สิทธิ์ลูกค้ารายอื่นยังอยู่)" : ""}`
 
       );
 
@@ -892,7 +894,7 @@ export default function LineAccessPage() {
     // Update only the affected LINE account, preserving search and scroll.
     setLineUsers((previous) => previous.map((item) =>
       item.lineUserRowId === user.lineUserRowId
-        ? { ...item, customerCodes: item.customerCodes.filter((code) => code !== customerCode) }
+        ? { ...item, allCustomersAccess: false, customerCodes: item.customerCodes.filter((code) => code !== customerCode) }
         : item
     ));
 
@@ -918,16 +920,19 @@ export default function LineAccessPage() {
       ? eligible.filter((customer) => !user.customerCodes.includes(customer.customerCode)).length
       : user.customerCodes.length;
 
-    if (count === 0) {
-      setMessage(enabled ? "บัญชีนี้มีสิทธิ์ลูกค้าที่ใช้งานอยู่ทั้งหมดแล้ว" : "บัญชีนี้ไม่มีสิทธิ์ลูกค้าให้ยกเลิก");
+    if ((enabled && user.allCustomersAccess) ||
+      (!enabled && !user.allCustomersAccess && count === 0)) {
+      setMessage(enabled
+        ? "บัญชีนี้เปิดสิทธิ์ลูกค้าทั้งหมดรวมถึงลูกค้าใหม่อยู่แล้ว"
+        : "บัญชีนี้ไม่มีสิทธิ์ลูกค้าให้ยกเลิก");
       return;
     }
 
     const personName = user.internalName ?? user.displayName ?? user.lineUserId;
     const confirmed = window.confirm(
       enabled
-        ? `อนุญาตให้ ${personName} เข้าถึงลูกค้าที่ใช้งานอยู่เพิ่มอีก ${count} บัญชีหรือไม่?\n\nการเปลี่ยนแปลงนี้มีผลต่อ LINE บัญชีนี้เท่านั้น`
-        : `ยกเลิกสิทธิ์ลูกค้าทั้ง ${count} บัญชีของ ${personName} หรือไม่?\n\nสิทธิ์พนักงานจะไม่ถูกเปลี่ยนแปลง`
+        ? `เปิดสิทธิ์เข้าถึงลูกค้าทั้งหมดให้ ${personName} ใช่หรือไม่?\n\nลูกค้าปัจจุบันและลูกค้าที่สร้างใหม่ในอนาคตจะได้รับสิทธิ์อัตโนมัติสำหรับ LINE บัญชีนี้`
+        : `ปิดสิทธิ์ลูกค้าทั้งหมดของ ${personName} ใช่หรือไม่?\n\nสิทธิ์ของลูกค้าปัจจุบันจะถูกยกเลิก และลูกค้าใหม่จะไม่ได้รับสิทธิ์อัตโนมัติ (ไม่กระทบสิทธิ์พนักงาน)`
     );
     if (!confirmed) return;
 
@@ -941,20 +946,21 @@ export default function LineAccessPage() {
       });
       if (error) throw error;
 
-      const result = data as { customerCodes?: string[]; changedCount?: number } | null;
-      if (!result || !Array.isArray(result.customerCodes)) {
+      const result = data as { customerCodes?: string[]; changedCount?: number; allCustomersAccess?: boolean } | null;
+      if (!result || !Array.isArray(result.customerCodes) ||
+        result.allCustomersAccess !== enabled) {
         throw new Error("ไม่สามารถยืนยันรายการสิทธิ์หลังบันทึกได้ กรุณากดรีเฟรชเพื่อตรวจสอบ");
       }
 
       setLineUsers((previous) => previous.map((item) =>
         item.lineUserRowId === user.lineUserRowId
-          ? { ...item, customerCodes: result.customerCodes! }
+          ? { ...item, customerCodes: result.customerCodes!, allCustomersAccess: enabled }
           : item
       ));
       setCustomerSelections((previous) => ({ ...previous, [user.lineUserRowId]: "" }));
       setMessage(enabled
-        ? `อนุญาตลูกค้าสำเร็จ ${result.changedCount ?? count} บัญชี สำหรับ ${personName}`
-        : `ยกเลิกสิทธิ์ลูกค้าสำเร็จ ${result.changedCount ?? count} บัญชี สำหรับ ${personName}`);
+        ? `เปิดสิทธิ์ลูกค้าทั้งหมดสำเร็จสำหรับ ${personName} · ลูกค้าใหม่จะได้รับสิทธิ์อัตโนมัติ`
+        : `ยกเลิกสิทธิ์ลูกค้าทั้งหมดสำเร็จสำหรับ ${personName}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "ไม่สามารถเปลี่ยนสิทธิ์ลูกค้าทั้งหมดได้");
     } finally {
@@ -2026,7 +2032,7 @@ export default function LineAccessPage() {
                 const canRemove =
 
                   user.customerCodes.length === 0 &&
-
+                  !user.allCustomersAccess &&
                   !user.staff?.isAuthorized;
 
                 const customerQuery = (customerSearches[user.lineUserRowId] ?? "").trim().toLowerCase();
@@ -2394,15 +2400,15 @@ export default function LineAccessPage() {
                         <div className="flex flex-wrap gap-2 mt-4">
                           <button
                             type="button"
-                            disabled={!user.isActive || customerBusy || working !== "" || customers.every((customer) => !customer.isActive || user.customerCodes.includes(customer.customerCode))}
+                            disabled={!user.isActive || customerBusy || working !== "" || user.allCustomersAccess}
                             onClick={() => void setAllCustomerAccess(user, true)}
                             className="border border-green-300 text-green-800 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
                           >
-                            {customerBusy ? "กำลังบันทึก..." : "อนุญาตลูกค้าทั้งหมด"}
+                            {customerBusy ? "กำลังบันทึก..." : user.allCustomersAccess ? "✓ อนุญาตลูกค้าทั้งหมดแล้ว" : "อนุญาตลูกค้าทั้งหมด"}
                           </button>
                           <button
                             type="button"
-                            disabled={!user.isActive || customerBusy || working !== "" || user.customerCodes.length === 0}
+                            disabled={!user.isActive || customerBusy || working !== "" || (user.customerCodes.length === 0 && !user.allCustomersAccess)}
                             onClick={() => void setAllCustomerAccess(user, false)}
                             className="border border-red-300 text-red-700 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
                           >
@@ -2410,7 +2416,9 @@ export default function LineAccessPage() {
                           </button>
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
-                          ใช้กับบัญชี LINE นี้เท่านั้น · อนุญาตเฉพาะลูกค้าที่ใช้งานอยู่ · ไม่เปลี่ยนสิทธิ์พนักงาน
+                          {user.allCustomersAccess
+                            ? "✓ เปิดสิทธิ์ถาวร: ลูกค้าใหม่จะเพิ่มให้ LINE บัญชีนี้อัตโนมัติ · ไม่เปลี่ยนสิทธิ์พนักงาน"
+                            : "เลือกอนุญาตลูกค้าทั้งหมดเพื่อรวมลูกค้าที่สร้างใหม่ในอนาคตด้วย · ไม่เปลี่ยนสิทธิ์พนักงาน"}
                         </p>
 
                         <button
