@@ -41,6 +41,7 @@ public final class MainActivity extends Activity {
     private Button toggle;
     private Button acknowledgeButton;
     private Button fullScreenSettings;
+    private TextView setupStatus;
     private TextView stationPairStatus;
     private final Runnable refresh = new Runnable() {
         @Override public void run() {
@@ -53,6 +54,13 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         prefs = getSharedPreferences(AlarmMonitorService.PREFS, MODE_PRIVATE);
         buildUi();
+        // On first open, immediately start monitoring. Respect an explicit
+        // Stop on later launches, but revive monitoring if it was enabled.
+        boolean initialized = prefs.getBoolean("station_initialised_v06", false);
+        boolean shouldStart = prefs.getBoolean(AlarmMonitorService.MONITORING, false)
+            || !initialized;
+        prefs.edit().putBoolean("station_initialised_v06", true).apply();
+        if (shouldStart) sendAction(AlarmMonitorService.START);
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED) {
@@ -97,6 +105,8 @@ public final class MainActivity extends Activity {
         addTop(card, lastCheck, 12);
         errorMessage = label("", 13, WARNING, true);
         addTop(card, errorMessage, 5);
+        setupStatus = label("", 12, WARNING, true);
+        addTop(card, setupStatus, 8);
 
         toggle = button("▶ เริ่มตรวจสอบออเดอร์", TEAL, Color.WHITE);
         addTop(root, toggle, 18);
@@ -159,10 +169,10 @@ public final class MainActivity extends Activity {
         addTop(tips, label(
             "1. อนุญาตการแจ้งเตือนของแอป\n" +
             "2. เพิ่มระดับเสียงปลุก (Alarm volume)\n" +
-            "3. กด เริ่มตรวจสอบออเดอร์\n" +
+            "3. เปิดแอปครั้งแรกเพื่อเริ่มตรวจสอบออเดอร์อัตโนมัติ\n" +
             "4. เปิดการแจ้งเตือนเต็มหน้าจอ (หากโทรศัพท์รองรับ)\n" +
             "5. ปิดหน้าจอได้ และตรวจว่าการแจ้งเตือนกำลังทำงานยังแสดงอยู่\n\n" +
-            "ครั้งแรกระบบจะข้ามออเดอร์เก่าที่ค้างแจ้งเตือน และเริ่มรับออเดอร์ใหม่", 14, SECONDARY, false), 10);
+            "ครั้งแรกระบบจะข้ามออเดอร์ที่เกิดก่อนเปิดแอป แต่รับออเดอร์ใหม่ทันที", 14, SECONDARY, false), 10);
         addTop(tips, label(
             "Staff Mode ใช้บัญชีพนักงานและรหัสผ่านที่ผู้จัดการกำหนดบนเว็บ OMS " +
             "เสียงเตือนยังทำงานต่อเมื่อเปิดหน้า Staff Mode", 13, INK, true), 12);
@@ -248,6 +258,22 @@ public final class MainActivity extends Activity {
         String err = prefs.getString(AlarmMonitorService.LAST_ERROR, "");
         errorMessage.setText(err);
         errorMessage.setVisibility(err.isEmpty() ? View.GONE : View.VISIBLE);
+        long checkedMs = prefs.getLong(AlarmMonitorService.LAST_CHECK_EPOCH, 0L);
+        boolean notificationAllowed = Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED;
+        StringBuilder warning = new StringBuilder();
+        if (running && checkedMs <= 0L) {
+            warning.append("กำลังเชื่อมต่อ OMS ครั้งแรก...");
+        } else if (running && System.currentTimeMillis() - checkedMs > 90_000L) {
+            warning.append("⚠ ไม่มีการตรวจสอบ OMS สำเร็จภายใน 90 วินาที");
+        }
+        if (!notificationAllowed) {
+            if (warning.length() > 0) warning.append("\n");
+            warning.append("⚠ ยังไม่อนุญาตการแจ้งเตือน Android — โปรดอนุญาตเพื่อแสดงแจ้งเตือนออเดอร์");
+        }
+        setupStatus.setText(warning.toString());
+        setupStatus.setVisibility(warning.length() == 0 ? View.GONE : View.VISIBLE);
     }
 
     private int dp(int p) { return Math.round(p * getResources().getDisplayMetrics().density); }
