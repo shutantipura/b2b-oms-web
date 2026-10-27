@@ -61,6 +61,7 @@ public final class AlarmMonitorService extends Service {
     private volatile boolean running;
     private boolean ringing;
     private String lastNotifiedAlertIds = "";
+    private long lastStationHeartbeat = 0;
 
     private static final class Entry {
         final String id;
@@ -161,8 +162,9 @@ public final class AlarmMonitorService extends Service {
             } catch (Exception e) {
                 main.post(() -> {
                     if (!running) return;
-                    prefs.edit().putString(LAST_ERROR,
-                        "เชื่อมต่อ OMS ไม่สำเร็จ กำลังลองใหม่: " + e.getMessage()).apply();
+                    String errorMessage = "เชื่อมต่อ OMS ไม่สำเร็จ กำลังลองใหม่: " + e.getMessage();
+                    prefs.edit().putString(LAST_ERROR, errorMessage).apply();
+                    reportStationHealth(false, errorMessage);
                     updateMonitor();
                 });
             } finally {
@@ -221,7 +223,15 @@ public final class AlarmMonitorService extends Service {
                 notices.notify(ALERT_NOTICE, newAlertNotification());
             }
         }
+        reportStationHealth(true, prefs.getString(LAST_ERROR, ""));
         updateMonitor();
+    }
+
+    private void reportStationHealth(boolean pollOk, String lastError) {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (lastStationHeartbeat != 0 && now - lastStationHeartbeat < 45_000) return;
+        lastStationHeartbeat = now;
+        StationHealth.report(this, true, pollOk, pending.size(), lastError);
     }
 
     private void acknowledge() {
@@ -321,6 +331,7 @@ public final class AlarmMonitorService extends Service {
         prefs.edit().putBoolean(MONITORING, false)
             .putString(PENDING, "[]").putString(NUMBERS, "").apply();
         if (pollingTask != null) main.removeCallbacks(pollingTask);
+        StationHealth.report(this, false, false, 0, "");
         alarm.stop();
         ringing = false;
         lastNotifiedAlertIds = "";
