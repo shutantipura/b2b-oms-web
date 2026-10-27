@@ -1,6 +1,10 @@
 package com.lotusb2b.alarm;
 
 import android.Manifest;
+import android.app.NotificationManager;
+import android.content.Context;
+import android.net.Uri;
+import android.provider.Settings;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -32,6 +36,7 @@ public final class MainActivity extends Activity {
     private SharedPreferences prefs;
     private TextView status, pending, orderNumbers, lastCheck, errorMessage;
     private Button toggle;
+    private Button fullScreenSettings;
     private final Runnable refresh = new Runnable() {
         @Override public void run() {
             render();
@@ -105,6 +110,21 @@ public final class MainActivity extends Activity {
             sendAction(AlarmMonitorService.ACK);
         });
 
+        if (Build.VERSION.SDK_INT >= 34) {
+            fullScreenSettings = button("🔔 เปิดแจ้งเตือนเต็มหน้าจอ", Color.rgb(255, 245, 216), INK);
+            addTop(root, fullScreenSettings, 10);
+            fullScreenSettings.setOnClickListener(v -> {
+                Intent settingsIntent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+                settingsIntent.setData(Uri.parse("package:" + getPackageName()));
+                try {
+                    startActivity(settingsIntent);
+                } catch (RuntimeException e) {
+                    Toast.makeText(this, "เปิด Settings → Apps → Special app access → Full screen alerts",
+                        Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+
         Button test = button("🔊 ทดสอบเสียงปลุก", Color.rgb(225, 247, 244), INK);
         addTop(root, test, 10);
         test.setOnClickListener(v -> {
@@ -122,7 +142,8 @@ public final class MainActivity extends Activity {
             "1. อนุญาตการแจ้งเตือนของแอป\n" +
             "2. เพิ่มระดับเสียงปลุก (Alarm volume)\n" +
             "3. กด เริ่มตรวจสอบออเดอร์\n" +
-            "4. ปิดหน้าจอได้ และตรวจว่าการแจ้งเตือนกำลังทำงานยังแสดงอยู่\n\n" +
+            "4. เปิดการแจ้งเตือนเต็มหน้าจอ (หากโทรศัพท์รองรับ)\n" +
+            "5. ปิดหน้าจอได้ และตรวจว่าการแจ้งเตือนกำลังทำงานยังแสดงอยู่\n\n" +
             "ครั้งแรกระบบจะข้ามออเดอร์เก่าที่ค้างแจ้งเตือน และเริ่มรับออเดอร์ใหม่", 14, SECONDARY, false), 10);
         addTop(tips, label(
             "ควรเปิด Battery → Unrestricted และต่ออินเทอร์เน็ตไว้ตลอด " +
@@ -149,6 +170,15 @@ public final class MainActivity extends Activity {
         status.setText(running ? "● กำลังตรวจสอบออเดอร์" : "○ ยังไม่ได้เปิดระบบเตือน");
         status.setTextColor(running ? TEAL : WARNING);
         toggle.setText(running ? "■ หยุดตรวจสอบออเดอร์" : "▶ เริ่มตรวจสอบออเดอร์");
+        if (fullScreenSettings != null) {
+            NotificationManager manager = (NotificationManager) getSystemService(
+                Context.NOTIFICATION_SERVICE);
+            boolean granted = manager != null && manager.canUseFullScreenIntent();
+            fullScreenSettings.setText(granted
+                ? "✓ อนุญาตแจ้งเตือนเต็มหน้าจอแล้ว"
+                : "🔔 เปิดแจ้งเตือนเต็มหน้าจอ");
+            fullScreenSettings.setEnabled(!granted);
+        }
         int count = 0;
         try { count = new JSONArray(prefs.getString(AlarmMonitorService.PENDING, "[]")).length(); }
         catch (Exception ignored) {}
