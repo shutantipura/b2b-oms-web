@@ -5095,59 +5095,27 @@ export default function CatalogPage() {
 
 
 
-          <div className="p-6 border-b">
-
-
-
+          <div className="border-b p-5 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-start gap-4">
-
-
-
-              <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-bold shrink-0">
-
-                3
-
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#02B0AF] font-bold text-white">
+                  3
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-xl font-bold">สินค้าที่แสดงให้ลูกค้า</h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    อัปโหลด Excel หรือ CSV ที่มี SKU, Sales และชื่อแผนกภาษาไทย ระบบจะเก็บชื่อแผนกตามไฟล์โดยตรงโดยไม่แปลอีกครั้ง
+                  </p>
+                </div>
               </div>
-
-
-
-              <div>
-
-
-
-                <h2 className="text-xl font-bold">
-
-                  สินค้าที่แสดงให้ลูกค้า
-
-                </h2>
-
-
-
-                <p className="text-sm text-gray-500 mt-1">
-
-                  อัปโหลด Excel หรือ CSV ที่มี SKU, Sales และชื่อแผนกภาษาไทย ระบบจะเก็บชื่อแผนกตามไฟล์โดยตรงโดยไม่แปลอีกครั้ง
-
-                </p>
-
-
-
-              </div>
-              <Link
-                href="/catalog/visibility"
-                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-[#91D6CE] bg-[#E7F8F5] px-4 py-2.5 text-sm font-extrabold text-[#007D79] transition hover:bg-[#D8F3EE]"
-              >
+              <Link href="/catalog/visibility"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#91D6CE] bg-[#E7F8F5] px-4 py-2.5 text-sm font-extrabold text-[#007D79] transition hover:bg-[#D8F3EE]">
                 <span aria-hidden="true">☷</span>
                 จัดการรายการสินค้าเป็นราย SKU
                 <span aria-hidden="true">↗</span>
               </Link>
             </div>
-
-
-
           </div>
-
-
 
           <div className="p-6">
 
