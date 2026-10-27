@@ -28,30 +28,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid or expired pairing code" }, { status: 400 });
     }
     const client = db();
-    const codeHash = sha(code);
-    const now = new Date().toISOString();
-    const { data: pairing, error } = await client.from("alarm_station_pairing_codes")
-      .update({ consumed_at: now })
-      .eq("code_hash", codeHash)
-      .is("consumed_at", null)
-      .gt("expires_at", now)
-      .select("id,label")
-      .maybeSingle();
-    if (error) throw error;
-    if (!pairing) {
-      return NextResponse.json({ error: "Invalid, expired, or already-used pairing code" }, { status: 400 });
-    }
     const token = randomBytes(32).toString("hex");
-    const { data: station, error: insertError } = await client.from("alarm_stations")
-      .insert({ label: pairing.label, secret_hash: sha(token) })
-      .select("id,label").single();
-    if (insertError || !station) throw insertError ?? new Error("Station creation failed");
-
-    await client.from("alarm_station_pairing_codes")
-      .update({ station_id: station.id }).eq("id", pairing.id);
-
-    return NextResponse.json({ success: true, stationId: station.id,
-      label: station.label, token }, { headers });
+    // The code is consumed and the station created in ONE transaction.
+    // A temporary DB error cannot strand an otherwise valid pairing code.
+    const { data: stationRows, error } = await client.rpc("claim_alarm_station_pairing", {
+      p_code_hash: sha(code),
+      p_station_secret_hash: sha(token),
+    });
+    if (error) throw error;
+    const station = Array.isArray(stationRows) ? stationRows[0] : null;
+    if (!station) {
+      return NextResponse.json(
+        { error: "Invalid, expired, or already-used pairing code" },
+        { status: 400, headers },
+      );
+    }
+    return NextResponse.json({ success: true, stationId: station.station_id,
+      label: station.station_label, token }, { headers });
   } catch (err) {
     console.error("[alarm-pair]", err instanceof Error ? err.message : "unknown");
     return NextResponse.json({ error: "Unable to pair device" }, { status: 503 });
