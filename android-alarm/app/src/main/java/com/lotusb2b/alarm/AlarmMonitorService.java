@@ -46,7 +46,7 @@ public final class AlarmMonitorService extends Service {
     private static final String SEEN = "seen_alert_ids";
     private static final String BASELINED = "initial_backlog_suppressed";
     private static final String MONITOR_CHANNEL = "oms_monitor_v1";
-    private static final String ALERT_CHANNEL = "oms_alert_v1";
+    private static final String ALERT_CHANNEL = "oms_alert_popup_v2";
     private static final int MONITOR_NOTICE = 1001, ALERT_NOTICE = 1002;
     private static final long POLL_MS = 15000;
 
@@ -60,6 +60,7 @@ public final class AlarmMonitorService extends Service {
     private Runnable pollingTask;
     private volatile boolean running;
     private boolean ringing;
+    private String lastNotifiedAlertIds = "";
 
     private static final class Entry {
         final String id;
@@ -80,7 +81,7 @@ public final class AlarmMonitorService extends Service {
             "B2B monitoring", NotificationManager.IMPORTANCE_LOW);
         notices.createNotificationChannel(monitoring);
         NotificationChannel alerts = new NotificationChannel(ALERT_CHANNEL,
-            "New B2B orders", NotificationManager.IMPORTANCE_HIGH);
+            "Urgent B2B order alarms", NotificationManager.IMPORTANCE_HIGH);
         alerts.setSound(null, null); // Looping audio is managed by the foreground service.
         alerts.enableVibration(true);
         notices.createNotificationChannel(alerts);
@@ -200,6 +201,7 @@ public final class AlarmMonitorService extends Service {
         if (pending.isEmpty()) {
             alarm.stop();
             ringing = false;
+            lastNotifiedAlertIds = "";
             notices.cancel(ALERT_NOTICE);
         } else {
             if (!ringing) {
@@ -211,7 +213,13 @@ public final class AlarmMonitorService extends Service {
                         "เปิดเสียงไม่ได้: " + e.getMessage()).apply();
                 }
             }
-            notices.notify(ALERT_NOTICE, newAlertNotification());
+            // Avoid redisplaying the full-screen alarm at every 15s poll.
+            // Only new/changed incoming alerts update the urgent notification.
+            String currentIds = ids.toString();
+            if (!currentIds.equals(lastNotifiedAlertIds)) {
+                lastNotifiedAlertIds = currentIds;
+                notices.notify(ALERT_NOTICE, newAlertNotification());
+            }
         }
         updateMonitor();
     }
@@ -222,6 +230,7 @@ public final class AlarmMonitorService extends Service {
         pending.clear();
         alarm.stop();
         ringing = false;
+        lastNotifiedAlertIds = "";
         notices.cancel(ALERT_NOTICE);
         prefs.edit().putString(PENDING, "[]").putString(NUMBERS, "").apply();
         updateMonitor();
@@ -244,6 +253,15 @@ public final class AlarmMonitorService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
+    /** Open the incoming-order screen directly, not the configuration/home activity. */
+    private PendingIntent openIncomingOrder() {
+        Intent intent = new Intent(this, IncomingOrderActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP |
+            Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        return PendingIntent.getActivity(this, 102, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
     private PendingIntent acknowledgeAction() {
         Intent intent = new Intent(this, AlarmMonitorService.class).setAction(ACK);
         return PendingIntent.getService(this, 101, intent,
@@ -262,18 +280,33 @@ public final class AlarmMonitorService extends Service {
     }
 
     private Notification newAlertNotification() {
-        return new Notification.Builder(this, ALERT_CHANNEL)
+        PendingIntent incoming = openIncomingOrder();
+        String numbers = prefs.getString(NUMBERS, "");
+        if (numbers.length() > 125) numbers = numbers.substring(0, 125) + "…";
+        Notification.Builder builder = new Notification.Builder(this, ALERT_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentTitle("🔔 ออเดอร์ B2B ใหม่!")
-            .setContentText(pending.size() + " ออเดอร์รอรับทราบ")
-            .setContentIntent(openApp())
+            .setContentTitle("🔔 มีออเดอร์ B2B ใหม่!")
+            .setContentText(pending.size() + " ออเดอร์รอรับทราบ • แตะเพื่อดู")
+            .setStyle(new Notification.BigTextStyle().bigText(
+                pending.size() + " ออเดอร์รอรับทราบ: " + numbers))
+            .setContentIntent(incoming)
+            .addAction(new Notification.Action.Builder(
+                android.R.drawable.ic_menu_view, "ดูออเดอร์", incoming).build())
             .addAction(new Notification.Action.Builder(
                 android.R.drawable.ic_menu_close_clear_cancel,
-                "✓ รับทราบบนเครื่องนี้", acknowledgeAction()).build())
+                "✓ รับทราบ — หยุดเสียง", acknowledgeAction()).build())
             .setCategory(Notification.CATEGORY_ALARM)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
-            .setOngoing(true)
-            .build();
+            .setOngoing(true);
+
+        // Android 14+ controls whether a full-screen alarm may appear over
+        // the lockscreen. Without permission the user gets a heads-up
+        // notification with the same direct acknowledgement action.
+        if (Build.VERSION.SDK_INT < 34 || notices.canUseFullScreenIntent()) {
+            builder.setFullScreenIntent(incoming, true);
+        }
+        return builder.build();
     }
 
     private void updateMonitor() {
@@ -290,6 +323,7 @@ public final class AlarmMonitorService extends Service {
         if (pollingTask != null) main.removeCallbacks(pollingTask);
         alarm.stop();
         ringing = false;
+        lastNotifiedAlertIds = "";
         notices.cancel(ALERT_NOTICE);
         stopForeground(STOP_FOREGROUND_REMOVE);
         stopSelf();
