@@ -15,8 +15,9 @@ type Terminal={
  monitor_active:boolean;pending_count:number;revoked_at:string|null;
  app_version:string|null;staff:{staff_name:string;staff_code:string;is_active:boolean}|null;
 };
+type PendingTerminal={id:string;label:string;expires_at:string;staffId:string;staffCode:string};
 type ResponseBody={
- terminals?:Terminal[];label?:string;pairingCode?:string;expiresAt?:string;
+ terminals?:Terminal[];pending?:PendingTerminal[];label?:string;pairingCode?:string;expiresAt?:string;
  staffCode?:string;success?:boolean;error?:string;
 };
 async function managerRequest(url:string,init:RequestInit={}) {
@@ -28,6 +29,7 @@ async function managerRequest(url:string,init:RequestInit={}) {
 }
 export default function TerminalsPage() {
  const [terminals,setTerminals]=useState<Terminal[]>([]);
+ const [pending,setPending]=useState<PendingTerminal[]>([]);
  const [name,setName]=useState("Android-001");
  const [stages,setStages]=useState<string[]>(TASKS.map(s=>s.id));
  const [code,setCode]=useState("");
@@ -42,6 +44,7 @@ export default function TerminalsPage() {
    const data=await response.json() as ResponseBody;
    if(!response.ok)throw new Error(data.error||"Cannot load terminals");
    setTerminals(data.terminals??[]);
+   setPending(data.pending??[]);
    setError("");
   }catch(e){setError(e instanceof Error?e.message:"Unable to load terminals");}
   finally{setLoading(false);}
@@ -65,6 +68,20 @@ export default function TerminalsPage() {
    setCreatedName(data.label??name);
    await refresh();
   }catch(e){setError(e instanceof Error?e.message:"Could not create terminal");}
+  finally{setBusy(false);}
+ }
+ async function reissue(item:PendingTerminal){
+  if(busy)return;
+  setBusy(true);setError("");setCode("");
+  try{
+   const response=await managerRequest("/api/admin/terminals",{method:"POST",
+    body:JSON.stringify({reissueStaffId:item.staffId})});
+   const data=await response.json() as ResponseBody;
+   if(!response.ok||!data.pairingCode)throw new Error(data.error??"Cannot generate another code");
+   setCode(data.pairingCode);setExpires(data.expiresAt??"");
+   setCreatedName(data.label??item.label);
+   await refresh();
+  }catch(e){setError(e instanceof Error?e.message:"Cannot reissue enrollment code");}
   finally{setBusy(false);}
  }
  async function revoke(item:Terminal){
@@ -145,9 +162,25 @@ export default function TerminalsPage() {
       <button onClick={()=>void refresh()} className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-[#008E89]">↻ รีเฟรช</button>
      </div>
      {loading&&<p className="text-sm">กำลังโหลด...</p>}
-     {!loading&&!terminals.length&&<p className="rounded-xl border bg-white p-4 text-sm text-[#668479]">
+     {!loading&&!terminals.length&&!pending.length&&<p className="rounded-xl border bg-white p-4 text-sm text-[#668479]">
       ยังไม่มี Terminal ที่จับคู่สำเร็จ · สร้าง Terminal ใหม่เมื่อได้รับ Android Device
      </p>}
+     {pending.map(p=><article key={p.staffId}
+        className="rounded-2xl border border-[#EADAAE] bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+         <h3 className="text-base font-bold">{p.label} · {p.staffCode}</h3>
+         <span className="rounded-full bg-[#FFF4D9] px-3 py-1 text-xs font-bold text-[#866000]">
+          รอจับคู่ Android
+         </span>
+        </div>
+        <p className="mt-2 text-xs text-[#6A8279]">
+         รหัสล่าสุดหมดอายุ: {new Date(p.expires_at).toLocaleString("th-TH",{timeZone:"Asia/Bangkok"})}
+        </p>
+        <button type="button" disabled={busy} onClick={()=>void reissue(p)}
+         className="mt-3 rounded-xl border border-[#A3DCD2] px-3 py-2 text-sm font-bold text-[#008E87] disabled:opacity-50">
+          สร้างรหัสจับคู่ใหม่สำหรับบัญชีนี้
+        </button>
+       </article>)}
      {terminals.map(t=><article key={t.id} className="rounded-2xl border border-[#CDE5DE] bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
        <h3 className="text-lg font-bold">{t.label}</h3>
