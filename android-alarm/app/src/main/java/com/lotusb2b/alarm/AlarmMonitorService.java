@@ -1,0 +1,307 @@
+package com.lotusb2b.alarm;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.Service;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ServiceInfo;
+import android.os.Build;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/** User-initiated, visibly running native background order alarm station. */
+public final class AlarmMonitorService extends Service {
+    static final String PREFS = "lotus_b2b_alarm";
+    static final String MONITORING = "monitoring";
+    static final String PENDING = "pending";
+    static final String NUMBERS = "pending_numbers";
+    static final String LAST_CHECK = "last_check";
+    static final String LAST_ERROR = "last_error";
+    static final String START = "com.lotusb2b.alarm.START";
+    static final String STOP = "com.lotusb2b.alarm.STOP";
+    static final String ACK = "com.lotusb2b.alarm.ACK";
+    private static final String FEED = "https://b2b-oms-web.vercel.app/api/order-alarm/feed";
+    private static final String SEEN = "seen_alert_ids";
+    private static final String BASELINED = "initial_backlog_suppressed";
+    private static final String MONITOR_CHANNEL = "oms_monitor_v1";
+    private static final String ALERT_CHANNEL = "oms_alert_v1";
+    private static final int MONITOR_NOTICE = 1001, ALERT_NOTICE = 1002;
+    private static final long POLL_MS = 15000;
+
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final ExecutorService work = Executors.newSingleThreadExecutor();
+    private final Set<String> seen = new LinkedHashSet<>();
+    private final List<Entry> pending = new ArrayList<>();
+    private SharedPreferences prefs;
+    private NotificationManager notices;
+    private AlarmSound alarm;
+    private Runnable pollingTask;
+    private volatile boolean running;
+    private boolean ringing;
+
+    private static final class Entry {
+        final String id;
+        final long number;
+        Entry(String id, long number) { this.id = id; this.number = number; }
+    }
+
+    @Override public void onCreate() {
+        super.onCreate();
+        prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        notices = (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
+        alarm = new AlarmSound(this);
+        try {
+            JSONArray stored = new JSONArray(prefs.getString(SEEN, "[]"));
+            for (int i = 0; i < stored.length(); i++) seen.add(stored.getString(i));
+        } catch (Exception ignored) {}
+        NotificationChannel monitoring = new NotificationChannel(MONITOR_CHANNEL,
+            "B2B monitoring", NotificationManager.IMPORTANCE_LOW);
+        notices.createNotificationChannel(monitoring);
+        NotificationChannel alerts = new NotificationChannel(ALERT_CHANNEL,
+            "New B2B orders", NotificationManager.IMPORTANCE_HIGH);
+        alerts.setSound(null, null); // Looping audio is managed by the foreground service.
+        alerts.enableVibration(true);
+        notices.createNotificationChannel(alerts);
+    }
+
+    @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        String action = intent == null ? START : intent.getAction();
+        if (STOP.equals(action)) {
+            stopMonitoring();
+            return START_NOT_STICKY;
+        }
+        if (ACK.equals(action)) {
+            acknowledge();
+            return START_STICKY;
+        }
+        startMonitoring();
+        return START_STICKY;
+    }
+
+    private void startMonitoring() {
+        if (running) return;
+        running = true;
+        prefs.edit().putBoolean(MONITORING, true).apply();
+        try {
+            Notification notice = monitorNotification("กำลังเชื่อมต่อกับ OMS");
+            if (Build.VERSION.SDK_INT >= 34)
+                startForeground(MONITOR_NOTICE, notice,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+            else
+                startForeground(MONITOR_NOTICE, notice);
+        } catch (RuntimeException e) {
+            running = false;
+            prefs.edit().putBoolean(MONITORING, false)
+                .putString(LAST_ERROR, "ไม่สามารถเปิดบริการ Android: " + e.getMessage()).apply();
+            stopSelf();
+            return;
+        }
+
+        pollingTask = new Runnable() {
+            @Override public void run() {
+                if (!running) return;
+                pollOrders();
+                main.postDelayed(this, POLL_MS);
+            }
+        };
+        main.post(pollingTask);
+    }
+
+    private void pollOrders() {
+        work.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                conn = (HttpURLConnection)new URL(FEED).openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(7000);
+                conn.setReadTimeout(7000);
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("Cache-Control", "no-cache");
+                int status = conn.getResponseCode();
+                if (status != 200) throw new Exception("OMS HTTP " + status);
+                StringBuilder json = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                        conn.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) json.append(line);
+                }
+                JSONArray alerts = new JSONObject(json.toString()).getJSONArray("alerts");
+                List<Entry> received = new ArrayList<>();
+                for (int i = 0; i < alerts.length(); i++) {
+                    JSONObject item = alerts.getJSONObject(i);
+                    String id = item.getString("alert_id");
+                    long number = item.getLong("order_number");
+                    if (id.matches("[0-9a-fA-F-]{36}") && number > 0)
+                        received.add(new Entry(id, number));
+                }
+                main.post(() -> applyAlerts(received));
+            } catch (Exception e) {
+                main.post(() -> {
+                    if (!running) return;
+                    prefs.edit().putString(LAST_ERROR,
+                        "เชื่อมต่อ OMS ไม่สำเร็จ กำลังลองใหม่: " + e.getMessage()).apply();
+                    updateMonitor();
+                });
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        });
+    }
+
+    private void applyAlerts(List<Entry> received) {
+        if (!running) return;
+        // Do not blast the shop with historical pending alerts on first installation.
+        if (!prefs.getBoolean(BASELINED, false)) {
+            for (Entry e : received) seen.add(e.id);
+            storeSeen();
+            prefs.edit().putBoolean(BASELINED, true).apply();
+        }
+
+        pending.clear();
+        for (Entry e : received) if (!seen.contains(e.id)) pending.add(e);
+        JSONArray ids = new JSONArray();
+        StringBuilder numbers = new StringBuilder();
+        for (Entry e : pending) {
+            ids.put(e.id);
+            if (numbers.length() > 0) numbers.append(", ");
+            numbers.append("#").append(e.number);
+        }
+        String at = new SimpleDateFormat("HH:mm:ss", new Locale("th", "TH"))
+            .format(new Date());
+        prefs.edit()
+            .putString(PENDING, ids.toString())
+            .putString(NUMBERS, numbers.toString())
+            .putString(LAST_CHECK, at)
+            .putString(LAST_ERROR, "")
+            .apply();
+
+        if (pending.isEmpty()) {
+            alarm.stop();
+            ringing = false;
+            notices.cancel(ALERT_NOTICE);
+        } else {
+            if (!ringing) {
+                try {
+                    alarm.startRepeating();
+                    ringing = true;
+                } catch (Exception e) {
+                    prefs.edit().putString(LAST_ERROR,
+                        "เปิดเสียงไม่ได้: " + e.getMessage()).apply();
+                }
+            }
+            notices.notify(ALERT_NOTICE, newAlertNotification());
+        }
+        updateMonitor();
+    }
+
+    private void acknowledge() {
+        for (Entry e : pending) seen.add(e.id);
+        storeSeen();
+        pending.clear();
+        alarm.stop();
+        ringing = false;
+        notices.cancel(ALERT_NOTICE);
+        prefs.edit().putString(PENDING, "[]").putString(NUMBERS, "").apply();
+        updateMonitor();
+    }
+
+    private void storeSeen() {
+        JSONArray ids = new JSONArray();
+        int skip = Math.max(0, seen.size() - 1500), i = 0;
+        for (String id : seen) if (i++ >= skip) ids.put(id);
+        prefs.edit().putString(SEEN, ids.toString()).apply();
+        if (skip > 0) {
+            seen.clear();
+            for (int j = 0; j < ids.length(); j++) seen.add(ids.optString(j));
+        }
+    }
+
+    private PendingIntent openApp() {
+        Intent intent = new Intent(this, MainActivity.class);
+        return PendingIntent.getActivity(this, 100, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    private PendingIntent acknowledgeAction() {
+        Intent intent = new Intent(this, AlarmMonitorService.class).setAction(ACK);
+        return PendingIntent.getService(this, 101, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    private Notification monitorNotification(String text) {
+        return new Notification.Builder(this, MONITOR_CHANNEL)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle("Lotus's B2B Alarm — กำลังทำงาน")
+            .setContentText(text)
+            .setContentIntent(openApp())
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .build();
+    }
+
+    private Notification newAlertNotification() {
+        return new Notification.Builder(this, ALERT_CHANNEL)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("🔔 ออเดอร์ B2B ใหม่!")
+            .setContentText(pending.size() + " ออเดอร์รอรับทราบ")
+            .setContentIntent(openApp())
+            .addAction(new Notification.Action.Builder(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                "✓ รับทราบบนเครื่องนี้", acknowledgeAction()).build())
+            .setCategory(Notification.CATEGORY_ALARM)
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .build();
+    }
+
+    private void updateMonitor() {
+        if (!running) return;
+        String text = pending.isEmpty() ? "พร้อมรับออเดอร์ใหม่" :
+            pending.size() + " ออเดอร์ยังไม่ได้รับทราบ";
+        notices.notify(MONITOR_NOTICE, monitorNotification(text));
+    }
+
+    private void stopMonitoring() {
+        running = false;
+        prefs.edit().putBoolean(MONITORING, false)
+            .putString(PENDING, "[]").putString(NUMBERS, "").apply();
+        if (pollingTask != null) main.removeCallbacks(pollingTask);
+        alarm.stop();
+        ringing = false;
+        notices.cancel(ALERT_NOTICE);
+        stopForeground(STOP_FOREGROUND_REMOVE);
+        stopSelf();
+    }
+
+    @Override public void onDestroy() {
+        running = false;
+        if (pollingTask != null) main.removeCallbacks(pollingTask);
+        alarm.stop();
+        work.shutdownNow();
+        super.onDestroy();
+    }
+
+    @Override public IBinder onBind(Intent intent) { return null; }
+}
