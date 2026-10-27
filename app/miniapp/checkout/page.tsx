@@ -499,7 +499,7 @@ export default function MiniAppCheckoutPage() {
       <div className="mx-auto max-w-3xl space-y-4 px-3 pt-4 sm:px-5">
         <div className="px-1">
           <h1 className="text-xl font-extrabold sm:text-2xl">ตรวจสอบคำสั่งซื้อ</h1>
-          <p className="mt-1 text-sm text-[#82968D]">ตรวจสอบรายการและเลือกเวลาจัดส่งก่อนยืนยัน</p>
+          <p className="mt-1 text-sm text-[#82968D]">ตรวจสอบรายการและเลือกวิธีรับสินค้า วันและเวลาก่อนยืนยัน</p>
         </div>
 
         {message && (
@@ -670,7 +670,7 @@ export default function MiniAppCheckoutPage() {
         <section className={`${card} p-4 sm:p-5`}>
           <h2 className="text-base font-extrabold">📝 หมายเหตุถึงทีมงาน</h2>
           <p className="mt-1 text-xs text-[#82968D]">หากมีคำแนะนำเพิ่มเติม สามารถแจ้งได้ที่นี่ (ไม่บังคับ)</p>
-          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="เช่น จุดรับสินค้า หรือรายละเอียดการจัดส่ง" className={`${field} resize-y font-normal`} />
+          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder={fulfillmentMethod === "pickup" ? "เช่น เบอร์ติดต่อเมื่อมารับสินค้า" : "เช่น จุดรับสินค้า หรือรายละเอียดการจัดส่ง"} className={`${field} resize-y font-normal`} />
         </section>
 
         <p className="px-2 text-center text-xs leading-5 text-[#81978B]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการเช็คสต็อกและการจัดสินค้า</p>
