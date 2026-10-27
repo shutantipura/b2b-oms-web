@@ -43,8 +43,12 @@ export async function POST(request: NextRequest) {
         { status: 400, headers },
       );
     }
+    const { data: savedStation, error: lookupError } = await client.from("alarm_stations")
+      .select("dedicated_staff_id").eq("id",station.station_id).maybeSingle();
+    if (lookupError) throw lookupError;
     return NextResponse.json({ success: true, stationId: station.station_id,
-      label: station.station_label, token }, { headers });
+      label: station.station_label, token,
+      dedicatedTerminal: !!savedStation?.dedicated_staff_id }, { headers });
   } catch (err) {
     console.error("[alarm-pair]", err instanceof Error ? err.message : "unknown");
     return NextResponse.json({ error: "Unable to pair device" }, { status: 503 });
