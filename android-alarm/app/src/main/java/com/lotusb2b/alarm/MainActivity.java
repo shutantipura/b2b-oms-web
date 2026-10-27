@@ -39,6 +39,7 @@ public final class MainActivity extends Activity {
     private SharedPreferences prefs;
     private TextView status, pending, orderNumbers, lastCheck, errorMessage;
     private Button toggle;
+    private Button acknowledgeButton;
     private Button fullScreenSettings;
     private TextView stationPairStatus;
     private final Runnable refresh = new Runnable() {
@@ -104,9 +105,9 @@ public final class MainActivity extends Activity {
             sendAction(running ? AlarmMonitorService.STOP : AlarmMonitorService.START);
         });
 
-        Button acknowledge = button("✓ รับทราบทั้งหมดบนเครื่องนี้", Color.WHITE, INK);
-        addTop(root, acknowledge, 10);
-        acknowledge.setOnClickListener(v -> {
+        acknowledgeButton = button("✓ รับทราบทุกเครื่อง", Color.WHITE, INK);
+        addTop(root, acknowledgeButton, 10);
+        acknowledgeButton.setOnClickListener(v -> {
             if (!prefs.getBoolean(AlarmMonitorService.MONITORING, false)) {
                 Toast.makeText(this, "กรุณาเริ่มตรวจสอบก่อน", Toast.LENGTH_SHORT).show();
                 return;
@@ -169,7 +170,9 @@ public final class MainActivity extends Activity {
             "ควรเปิด Battery → Unrestricted และต่ออินเทอร์เน็ตไว้ตลอด " +
             "ระบบตรวจทุกประมาณ 15 วินาที Android อาจหยุดบริการเมื่อ Force Stop " +
             "หรือเมื่อมีการจำกัดการใช้แบตเตอรี่\n\n" +
-            "การรับทราบมีผลเฉพาะเครื่องนี้ ไม่เปลี่ยนสถานะ OMS", 12, SECONDARY, false), 14);
+            "หากจับคู่กับ Dashboard แล้ว การกดรับทราบบนเครื่องใดก็ได้จะหยุดเสียงทุกเครื่องที่เชื่อมต่อ " +
+            "ภายในการตรวจสอบถัดไป หากไม่จับคู่จะรับทราบเฉพาะเครื่องนี้ " +
+            "ระบบรับทราบไม่เปลี่ยนสถานะคำสั่งซื้อใน OMS", 12, SECONDARY, false), 14);
         setContentView(scroll);
     }
 
@@ -213,6 +216,10 @@ public final class MainActivity extends Activity {
         status.setText(running ? "● กำลังตรวจสอบออเดอร์" : "○ ยังไม่ได้เปิดระบบเตือน");
         status.setTextColor(running ? TEAL : WARNING);
         toggle.setText(running ? "■ หยุดตรวจสอบออเดอร์" : "▶ เริ่มตรวจสอบออเดอร์");
+        String pairedToken = prefs.getString(StationHealth.TOKEN, "");
+        acknowledgeButton.setText(pairedToken != null && pairedToken.matches("[a-f0-9]{64}")
+            ? "✓ รับทราบทุกเครื่อง — หยุดเสียง"
+            : "✓ รับทราบเฉพาะเครื่องนี้");
         if (fullScreenSettings != null) {
             NotificationManager manager = (NotificationManager) getSystemService(
                 Context.NOTIFICATION_SERVICE);
