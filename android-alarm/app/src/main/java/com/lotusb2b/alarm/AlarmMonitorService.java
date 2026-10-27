@@ -62,6 +62,8 @@ public final class AlarmMonitorService extends Service {
     private boolean ringing;
     private String lastNotifiedAlertIds = "";
     private long lastStationHeartbeat = 0;
+    private boolean acknowledgementInProgress = false;
+    private final List<Entry> lastReceived = new ArrayList<>();
 
     private static final class Entry {
         final String id;
@@ -175,6 +177,8 @@ public final class AlarmMonitorService extends Service {
 
     private void applyAlerts(List<Entry> received) {
         if (!running) return;
+        lastReceived.clear();
+        lastReceived.addAll(received);
         // Do not blast the shop with historical pending alerts on first installation.
         if (!prefs.getBoolean(BASELINED, false)) {
             for (Entry e : received) seen.add(e.id);
@@ -235,15 +239,44 @@ public final class AlarmMonitorService extends Service {
     }
 
     private void acknowledge() {
-        for (Entry e : pending) seen.add(e.id);
+        if (acknowledgementInProgress || pending.isEmpty()) return;
+        // Without pairing, preserve the older local-only acknowledgement behavior.
+        // Every station must be paired for its button to stop other stations.
+        String pairedToken = prefs.getString(StationHealth.TOKEN, "");
+        if (pairedToken == null || !pairedToken.matches("[a-f0-9]{64}")) {
+            List<Entry> onlyHere = new ArrayList<>(pending);
+            markSeenLocally(onlyHere);
+            prefs.edit().putString(LAST_ERROR,
+                "รับทราบเฉพาะเครื่องนี้ · จับคู่เครื่องเพื่อรับทราบทุกเครื่อง").apply();
+            return;
+        }
+
+        acknowledgementInProgress = true;
+        List<Entry> requested = new ArrayList<>(pending);
+        List<String> ids = new ArrayList<>();
+        for (Entry e : requested) ids.add(e.id);
+        StationHealth.acknowledge(this, ids, (success, message) -> {
+            acknowledgementInProgress = false;
+            if (!running) return;
+            if (success) {
+                // Mark only the alerts that were actually sent to the server,
+                // leaving newly arrived orders ringing and visible.
+                markSeenLocally(requested);
+                pollOrders(); // Promptly refresh the shared feed.
+            } else {
+                prefs.edit().putString(LAST_ERROR,
+                    "รับทราบทุกเครื่องไม่สำเร็จ: " + message +
+                    " · เสียงเตือนยังทำงานอยู่").apply();
+                updateMonitor();
+            }
+        });
+    }
+
+    private void markSeenLocally(List<Entry> dismissed) {
+        for (Entry e : dismissed) seen.add(e.id);
         storeSeen();
-        pending.clear();
-        alarm.stop();
-        ringing = false;
-        lastNotifiedAlertIds = "";
-        notices.cancel(ALERT_NOTICE);
-        prefs.edit().putString(PENDING, "[]").putString(NUMBERS, "").apply();
-        updateMonitor();
+        // Rebuild without clearing alerts received while ACK was in flight.
+        applyAlerts(new ArrayList<>(lastReceived));
     }
 
     private void storeSeen() {
@@ -291,6 +324,8 @@ public final class AlarmMonitorService extends Service {
 
     private Notification newAlertNotification() {
         PendingIntent incoming = openIncomingOrder();
+        String pairingToken = prefs.getString(StationHealth.TOKEN, "");
+        boolean paired = pairingToken != null && pairingToken.matches("[a-f0-9]{64}");
         String numbers = prefs.getString(NUMBERS, "");
         if (numbers.length() > 125) numbers = numbers.substring(0, 125) + "…";
         Notification.Builder builder = new Notification.Builder(this, ALERT_CHANNEL)
@@ -304,7 +339,8 @@ public final class AlarmMonitorService extends Service {
                 android.R.drawable.ic_menu_view, "ดูออเดอร์", incoming).build())
             .addAction(new Notification.Action.Builder(
                 android.R.drawable.ic_menu_close_clear_cancel,
-                "✓ รับทราบ — หยุดเสียง", acknowledgeAction()).build())
+                paired ? "✓ รับทราบทุกเครื่อง" : "✓ รับทราบเครื่องนี้",
+                acknowledgeAction()).build())
             .setCategory(Notification.CATEGORY_ALARM)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
@@ -335,6 +371,7 @@ public final class AlarmMonitorService extends Service {
         alarm.stop();
         ringing = false;
         lastNotifiedAlertIds = "";
+        acknowledgementInProgress = false;
         notices.cancel(ALERT_NOTICE);
         stopForeground(STOP_FOREGROUND_REMOVE);
         stopSelf();
