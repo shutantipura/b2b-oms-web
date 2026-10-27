@@ -21,6 +21,7 @@ final class StationHealth {
     static final String TOKEN = "station_health_token";
     static final String LABEL = "station_health_label";
     static final String PAIR_ERROR = "station_health_error";
+    static final String DEDICATED = "station_dedicated_terminal";
     private static final String ROOT = "https://b2b-oms-web.vercel.app/api/alarm-station/";
     private static final ExecutorService network = Executors.newSingleThreadExecutor();
     private static final Handler ui = new Handler(Looper.getMainLooper());
@@ -46,10 +47,45 @@ final class StationHealth {
                 String label = response.optString("label", "Alarm Station");
                 if (!token.matches("[a-f0-9]{64}")) throw new Exception("Invalid station token");
                 SharedPreferences pref = app.getSharedPreferences(AlarmMonitorService.PREFS, Context.MODE_PRIVATE);
-                pref.edit().putString(TOKEN, token).putString(LABEL, label).remove(PAIR_ERROR).apply();
+                pref.edit().putString(TOKEN, token).putString(LABEL, label)
+                    .putBoolean(DEDICATED, response.optBoolean("dedicatedTerminal", false))
+                    .remove(PAIR_ERROR).apply();
                 ui.post(() -> callback.onComplete(true, "จับคู่สำเร็จ: " + label));
             } catch (Exception e) {
                 ui.post(() -> callback.onComplete(false, e.getMessage()));
+            }
+        });
+    }
+
+    static boolean isDedicated(Context context) {
+        SharedPreferences prefs=context.getApplicationContext().getSharedPreferences(
+            AlarmMonitorService.PREFS, Context.MODE_PRIVATE);
+        String token=prefs.getString(TOKEN, "");
+        return token!=null && token.matches("[a-f0-9]{64}")
+            && prefs.getBoolean(DEDICATED,false);
+    }
+
+    /** Manager-bound terminal retrieves a one-time login code in memory.
+     * A revoked station or inactive staff profile cannot mint new sessions.
+     */
+    static void getStaffSession(Context context, Callback callback) {
+        SharedPreferences prefs=context.getApplicationContext().getSharedPreferences(
+            AlarmMonitorService.PREFS, Context.MODE_PRIVATE);
+        String token=prefs.getString(TOKEN, "");
+        if (!isDedicated(context)||token==null) {
+            callback.onComplete(false,"กรุณาลงทะเบียนเครื่องเป็น Android Terminal");
+            return;
+        }
+        network.execute(() -> {
+            try {
+                JSONObject result=post("staff-session",token,new JSONObject());
+                String oneTime=result.optString("tokenHash","");
+                if (!oneTime.matches("[a-zA-Z0-9_-]{30,500}"))
+                    throw new Exception("ไม่สามารถสร้างเซสชัน OMS ของเครื่องได้");
+                ui.post(()->callback.onComplete(true,oneTime));
+            } catch(Exception e) {
+                ui.post(()->callback.onComplete(false,
+                    e.getMessage()==null?"OMS ไม่พร้อมใช้งาน":e.getMessage()));
             }
         });
     }
