@@ -1,4 +1,4 @@
-# Lotus's B2B Native Android Alarm (prototype 0.2)
+# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.4)
 
 An Android app for the existing OMS that requires no LINE or staff login.
 
@@ -42,3 +42,48 @@ No Play Store developer account or Firebase project is needed for this prototype
 ## Source
 
 Native Java, Android Gradle Plugin 8.7.3, JDK 17, Android SDK 35; app uses no runtime SDK dependencies.
+
+## Optional manager health dashboard (v0.4)
+
+The alarm continues working **without login and without pairing**. Pairing is only needed to display the station's health status in the Manager dashboard.
+
+1. Manager opens `https://b2b-oms-web.vercel.app/alarm-stations` and chooses a station name.
+2. Click **สร้างรหัสจับคู่เครื่อง**. The 32-character one-time code expires after 15 minutes.
+3. On Android app v0.4, select **จับคู่เครื่องกับ Dashboard (ทางเลือก)** and type the code.
+4. Keep **เริ่มตรวจสอบออเดอร์** enabled. The app sends health updates around every 45 seconds, while order polling remains every 15 seconds.
+5. Dashboard shows the last heartbeat, successful OMS check, pending count, errors and app version. An absent heartbeat for 90 seconds shows **offline**.
+6. Managers can revoke health pairing without disabling the local alarm.
+
+Station secret tokens are generated server-side, stored in private Android app preferences, and their SHA-256 hashes are stored in Supabase. The public health API cannot list stations or change OMS orders. Avoid copying tokens or writing them to logs. No existing staff credentials are required.
+
+**Limits:** Internet outages, airplane mode, a force-stop or OEM battery restrictions may prevent heartbeats. A fresh heartbeat proves communication to OMS, not that the speaker works.
+
+## Stable signed APK update channel
+
+GitHub Actions now optionally builds `Lotus-B2B-Alarm-Release-Signed` when these four protected repository **Actions secrets** exist:
+
+- `ANDROID_KEYSTORE_BASE64` – Base64 of a permanent Android release keystore (never commit this file).
+- `ANDROID_KEYSTORE_PASSWORD` – the keystore password.
+- `ANDROID_KEY_ALIAS` – the key alias.
+- `ANDROID_KEY_PASSWORD` – the key password.
+
+A manager/developer with trusted admin access can generate the release keystore **once**, on a secure computer with JDK:
+```bash
+keytool -genkeypair -v -keystore lotus-b2b-release.jks -alias lotus-b2b-alarm \
+  -keyalg RSA -keysize 3072 -validity 10000
+base64 < lotus-b2b-release.jks | tr -d '\\n'
+```
+Paste the Base64 into GitHub → repository **Settings → Secrets and variables → Actions → New repository secret** (not into a chat or source code). Add the other three secrets. Preserve secure offline backups of the original keystore and passwords: losing them prevents future in-place updates.
+
+After the secrets are configured, a new Actions run will upload a signed release APK, separate from the debug prototype. Install **that release APK** as the long-term channel. The first switch from debug-signed to release-signed APK may require **uninstalling the old debug prototype** (Android does not accept different signing keys for in-place upgrades); later builds signed with the same key can update in place. Uninstalling clears local alarms/acknowledgements and pairing token; re-pair after reinstall. The debug artifact remains available for testing.
+
+No release-signing secrets have been configured by this source change alone. **Do not treat a debug APK as a consistently signed production upgrade.**
+
+## Remote QA checklist
+
+- Manager staff account can open `/device-accounts` and `/alarm-stations`; non-managers cannot access their protected APIs.
+- Alarm station code expires in 15 minutes and cannot be claimed twice.
+- Unpaired phones continue to alarm; paired phones also send 45-second heartbeats.
+- Revoked health token no longer writes to dashboard; local sound still works.
+- Staff Mode credentials remain separate from the optional alarm-health pairing.
+- Real-phone testing is needed for battery-saver, lock screen, sound, camera and APK upgrades.
