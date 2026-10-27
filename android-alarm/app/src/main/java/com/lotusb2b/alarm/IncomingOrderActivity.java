@@ -32,6 +32,8 @@ public final class IncomingOrderActivity extends Activity {
     private SharedPreferences prefs;
     private TextView count;
     private TextView orders;
+    private TextView ackError;
+    private Button ack;
     private final Runnable refresh = new Runnable() {
         @Override public void run() {
             update();
@@ -71,21 +73,26 @@ public final class IncomingOrderActivity extends Activity {
         orders.setGravity(Gravity.CENTER);
         add(page, orders, 12);
 
-        Button ack = button("✓ รับทราบ — หยุดเสียง", TEAL, Color.WHITE);
+        ack = button("✓ รับทราบทุกเครื่อง", TEAL, Color.WHITE);
         add(page, ack, 32);
         ack.setOnClickListener(v -> {
             Intent intent = new Intent(this, AlarmMonitorService.class);
             intent.setAction(AlarmMonitorService.ACK);
             startService(intent);
-            finish();
+            // Wait until the service reports success and clears the pending
+            // alerts; if the server is offline, keep the alarm page visible.
         });
+
+        ackError = text("", 14, Color.rgb(180, 64, 48), true);
+        ackError.setGravity(Gravity.CENTER);
+        add(page, ackError, 12);
 
         Button back = button("กลับ (เสียงยังดังต่อ)", Color.WHITE, INK);
         add(page, back, 12);
         back.setOnClickListener(v -> finish());
 
         TextView foot = text(
-            "รับทราบเฉพาะเครื่องนี้ · ไม่เปลี่ยนสถานะออเดอร์ใน OMS",
+            "การรับทราบจะหยุดเสียงทุกเครื่องที่เชื่อมต่อ (ถ้าจับคู่แล้ว)",
             13, Color.rgb(97, 124, 114), false);
         foot.setGravity(Gravity.CENTER);
         add(page, foot, 25);
@@ -115,6 +122,13 @@ public final class IncomingOrderActivity extends Activity {
         }
         count.setText(total + " คำสั่งซื้อรอรับทราบ");
         orders.setText(numbers);
+        String paired = prefs.getString(StationHealth.TOKEN, "");
+        ack.setText(paired != null && paired.matches("[a-f0-9]{64}")
+            ? "✓ รับทราบทุกเครื่อง — หยุดเสียง"
+            : "✓ รับทราบเฉพาะเครื่องนี้");
+        String error = prefs.getString(AlarmMonitorService.LAST_ERROR, "");
+        ackError.setText(error);
+        ackError.setVisibility(error.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     private int dp(int x) {
