@@ -60,6 +60,13 @@ const TRACKING_STEPS = [
   "ชำระเงิน",
   "เสร็จสิ้น",
 ];
+const PICKUP_STEPS = [
+  "ได้รับคำสั่งซื้อ",
+  "เช็คสต็อก",
+  "กำลังเตรียมสินค้า",
+  "ชำระเงิน",
+  "เสร็จสิ้น",
+];
 
 function currentStep(status: string) {
   switch (status) {
@@ -339,7 +346,10 @@ export default function CustomerOrdersPage() {
         ) : (
           <div className="space-y-4">
             {orders.map((order) => {
-              const step = currentStep(order.status);
+              const isPickup = order.fulfillmentMethod === "pickup";
+              const steps = isPickup ? PICKUP_STEPS : TRACKING_STEPS;
+              const rawStep = currentStep(order.status);
+              const step = isPickup && rawStep >= 4 ? rawStep - 1 : rawStep;
               // History cards keep product details visible without another tap.
               const expanded = mode === "history" || Boolean(expandedOrders[order.id]);
               const cancelled = order.status === "cancelled";
@@ -399,10 +409,10 @@ export default function CustomerOrdersPage() {
                     <div className="border-b border-[#EDF2EE] px-4 py-4 sm:px-5">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-bold text-[#4D7563]">ความคืบหน้าคำสั่งซื้อ</p>
-                        <p className="text-xs font-bold text-[#009F9D]">{step + 1} / {TRACKING_STEPS.length}</p>
+                        <p className="text-xs font-bold text-[#009F9D]">{step + 1} / {steps.length}</p>
                       </div>
-                      <div className="mt-3 grid grid-cols-6 gap-1">
-                        {TRACKING_STEPS.map((label, index) => <div key={label} aria-label={label} className={`h-2 rounded-full ${index <= step ? "bg-[#02B0AF]" : "bg-[#E3EEE7]"}`} />)}
+                      <div className="mt-3 grid gap-1" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
+                        {steps.map((label, index) => <div key={label} aria-label={label} className={`h-2 rounded-full ${index <= step ? "bg-[#02B0AF]" : "bg-[#E3EEE7]"}`} />)}
                       </div>
                       <p className="mt-2 text-sm font-extrabold text-[#008F8D]">{statusName(order.status)}</p>
 
@@ -429,7 +439,7 @@ export default function CustomerOrdersPage() {
                         <div className="mb-4 rounded-xl bg-[#EDF8F5] p-3">
                           <p className="mb-3 text-xs font-bold text-[#4C7563]">ขั้นตอนการดำเนินการ</p>
                           <div className="space-y-2">
-                            {TRACKING_STEPS.map((label, index) => (
+                            {steps.map((label, index) => (
                               <div key={label} className="flex items-center gap-3 text-xs">
                                 <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full font-bold ${index <= step ? "bg-[#02B0AF] text-white" : "border border-[#DCE8DF] bg-white text-[#9AAC9F]"}`}>{index < step ? "✓" : index + 1}</span>
                                 <span className={index <= step ? "font-bold text-[#285849]" : "text-[#9CAC9F]"}>{label}</span>
