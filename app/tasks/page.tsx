@@ -407,6 +407,12 @@ async function withEstimatedAmounts(rawOrders: Order[]): Promise<Order[]> {
     let total = 0;
     let usedCurrentPrice = false;
     for (const item of orderItems) {
+      // Piece counts have unknown kg weights; never invent a monetary total.
+      if (item.unit_snapshot === "ชิ้น" &&
+          item.piece_price_per_kg_snapshot !== null &&
+          item.piece_price_per_kg_snapshot !== undefined) {
+        return { ...order, estimated_amount: null, estimate_uses_current_price: false };
+      }
       const quantity = requestedQuantity(item);
       const saved = savedLineAmount(item, quantity);
       if (saved !== null) {
