@@ -26,6 +26,7 @@ import Link from "next/link";
 import PictureImportSection from "./PictureImportSection";
 import SpecialPriceImportSection from "./SpecialPriceImportSection";
 import ManualMasterPriceEditor from "./ManualMasterPriceEditor";
+import CatalogExportButton from "./CatalogExportButton";
 
 
 
@@ -4305,6 +4306,13 @@ export default function CatalogPage() {
 
 
 
+            <div className="mb-6">
+              <CatalogExportButton
+                dataset="master"
+                disabled={readingMaster || importingMaster || resettingProducts}
+              />
+            </div>
+
             <ManualMasterPriceEditor
               disabled={readingMaster || importingMaster || resettingProducts}
               refreshToken={masterAdjustRevision}
@@ -5231,6 +5239,13 @@ export default function CatalogPage() {
             </div>
 
 
+
+            <div className="mb-6">
+              <CatalogExportButton
+                dataset="visible"
+                disabled={readingVisible || previewingVisible || applyingVisible || resettingVisible}
+              />
+            </div>
 
             <div className="bg-gray-50 rounded-xl p-4 mb-6 text-sm">
 

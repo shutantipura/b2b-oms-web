@@ -7,6 +7,7 @@ import {
 import {
   supabase,
 } from "../../lib/supabase";
+import CatalogExportButton from "./CatalogExportButton";
 
 type PictureRow = {
   sku: string;
@@ -656,6 +657,10 @@ export default function PictureImportSection() {
       </div>
 
       <div className="p-6">
+
+        <div className="mb-6">
+          <CatalogExportButton dataset="pictures" disabled={reading || importing} />
+        </div>
 
         <div className="bg-gray-50 rounded-xl p-4 text-sm">
 

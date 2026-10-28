@@ -5,6 +5,7 @@ import {
 } from "react";
 
 import Link from "next/link";
+import CatalogExportButton from "./CatalogExportButton";
 
 import {
   supabase,
@@ -861,9 +862,13 @@ export default function SpecialPriceImportSection() {
           </p>
 
           <p className="text-xs text-gray-500 mt-1">
-            Workflow ที่แนะนำ: กดรีเซ็ตเพื่อเคลียร์ราคาพิเศษเดิมทั้งหมดก่อน แล้วจึงอัปโหลดไฟล์ฉบับใหม่
+            Workflow ที่แนะนำ: ดาวน์โหลด Excel ล่าสุด เพิ่มหรือแก้ไขรายการ แล้วนำเข้าซ้ำได้โดยไม่ต้องรีเซ็ต การลบแถวจากไฟล์ไม่ลบราคาเดิมในระบบ
           </p>
 
+        </div>
+
+        <div className="mt-6">
+          <CatalogExportButton dataset="special" disabled={reading || importing || resetting} />
         </div>
 
         <div className="mt-6 border border-red-200 bg-red-50 rounded-xl p-5">
