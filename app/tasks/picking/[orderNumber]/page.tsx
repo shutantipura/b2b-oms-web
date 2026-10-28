@@ -818,7 +818,8 @@ export default function PickingPage() {
         rawValue === undefined ||
         rawValue.trim() === "" ||
         !Number.isFinite(total) ||
-        total < alreadyPicked
+        total < alreadyPicked ||
+        (item.unit_snapshot === "ชิ้น" && !Number.isSafeInteger(total))
       );
     });
 
@@ -826,7 +827,7 @@ export default function PickingPage() {
       invalidItem
     ) {
       setMessage(
-        `${invalidItem.product_name_snapshot}: ยอดหยิบจริงทั้งหมดต้องเป็นตัวเลขและไม่น้อยกว่าจำนวนที่หยิบไว้แล้ว`
+        `${invalidItem.product_name_snapshot}: ยอดหยิบจริงต้องไม่น้อยกว่ายอดเดิม และหากหน่วยเป็นชิ้น ต้องเป็นจำนวนเต็ม`
       );
 
       return;
