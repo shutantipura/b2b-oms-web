@@ -25,6 +25,7 @@ import {
 import Link from "next/link";
 import PictureImportSection from "./PictureImportSection";
 import SpecialPriceImportSection from "./SpecialPriceImportSection";
+import ManualMasterPriceEditor from "./ManualMasterPriceEditor";
 
 
 
@@ -624,6 +625,8 @@ export default function CatalogPage() {
     useState("");
 
 
+
+  const [masterAdjustRevision, setMasterAdjustRevision] = useState(0);
 
   // =====================================================
 
@@ -2027,6 +2030,8 @@ export default function CatalogPage() {
 
       );
 
+      setMasterAdjustRevision((current) => current + 1);
+
     } catch (error) {
 
       setMasterMessage(
@@ -2208,6 +2213,8 @@ export default function CatalogPage() {
         `รีเซ็ต Product Master เรียบร้อย ${resetCount.toLocaleString()} รายการ — กรุณาอัปโหลด Master Price ฉบับใหม่`
 
       );
+
+      setMasterAdjustRevision((current) => current + 1);
 
     } catch (error) {
 
@@ -4297,6 +4304,11 @@ export default function CatalogPage() {
             </div>
 
 
+
+            <ManualMasterPriceEditor
+              disabled={readingMaster || importingMaster || resettingProducts}
+              refreshToken={masterAdjustRevision}
+            />
 
             <div className="bg-gray-50 rounded-xl p-4 text-sm">
 
