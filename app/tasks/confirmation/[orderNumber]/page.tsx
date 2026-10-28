@@ -635,13 +635,14 @@ export default function ConfirmationPage() {
         rawValue === undefined ||
         String(rawValue).trim() === "" ||
         !Number.isFinite(value) ||
-        value < 0
+        value < 0 ||
+        (item.unit_snapshot === "ชิ้น" && !Number.isSafeInteger(value))
       );
     });
 
     if (invalidItem) {
       setMessage(
-        `${invalidItem.product_name_snapshot}: กรุณากรอกจำนวนที่ยืนยันให้ถูกต้อง (0 หรือมากกว่า)`
+        `${invalidItem.product_name_snapshot}: กรุณากรอกจำนวนที่ยืนยันให้ถูกต้อง (หากหน่วยเป็นชิ้น ต้องเป็นจำนวนเต็ม)`
       );
       return;
     }
