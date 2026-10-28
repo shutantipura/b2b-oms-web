@@ -24,6 +24,7 @@ type OrderItem = {
   unitPrice?: number | null;
   priceIsCurrentEstimate?: boolean;
   isPiece?: boolean;
+  actualUnit?: string;
   pricePerKg?: number | null;
 };
 
@@ -393,7 +394,9 @@ export default function CustomerOrdersPage() {
                           <>
                             <p className="text-[11px] text-[#80998B]">{order.finalAmount !== null ? "ยอดสุทธิ" : "ยอดประมาณการ"}</p>
                             <p className="mt-1 text-lg font-black text-[#009F9D]">{order.finalAmount !== null ? `฿${money(order.finalAmount)}` : order.estimatedAmount !== null && order.estimatedAmount !== undefined ? `~฿${money(order.estimatedAmount)}` : order.items.some(item => item.isPiece) ? "รอชั่งน้ำหนัก" : "ยังไม่มีราคา"}</p>
-                            {order.finalAmount === null && <p className="mt-1 text-[10px] leading-4 text-[#68877C]">{order.items.some(item => item.isPiece) ? "* สินค้าสั่งเป็นชิ้น คิดราคาหลังชั่งน้ำหนักและออกบิล" : "* ยอดประมาณการ อาจเปลี่ยนหลังหยิบและออกบิล"}</p>}
+                            {order.finalAmount === null && <p className="mt-1 text-[10px] leading-4 text-[#68877C]">{order.items.some(item => item.isPiece)
+                              ? "* สั่งและยืนยันเป็นชิ้น แต่หยิบจริงเป็น กก. · ยอดจริงตามใบเสร็จ"
+                              : "* ยอดประมาณการ อาจเปลี่ยนหลังหยิบและออกบิล"}</p>}
                           </>
                         )}
                       </div>
@@ -464,14 +467,14 @@ export default function CustomerOrdersPage() {
                                   <p className="text-sm font-bold">{item.productName}</p>
                                   {item.isPiece && <p className="mt-1 text-xs font-semibold text-[#8D671C]">สั่งเป็นชิ้น · ราคาคิดตามน้ำหนักจริง{item.pricePerKg != null ? ` (฿${money(item.pricePerKg)} / กก.)` : ""}</p>}
                                   {!item.isPiece && item.unitPrice !== null && item.unitPrice !== undefined && <p className="mt-1 text-xs font-semibold text-[#008F8D]">฿{money(item.unitPrice)} / {item.unit}</p>}
-                                  {!item.isPiece && item.estimatedSubtotal !== null && item.estimatedSubtotal !== undefined && <p className="mt-1 text-sm font-extrabold text-[#009F9D]">รวมประมาณ ฿{money(item.estimatedSubtotal)}</p>}
+                                  {item.estimatedSubtotal !== null && item.estimatedSubtotal !== undefined && <p className="mt-1 text-sm font-extrabold text-[#009F9D]">รวมประมาณ ฿{money(item.estimatedSubtotal)}</p>}
                                   {item.priceIsCurrentEstimate && <p className="mt-1 text-[10px] text-[#82968D]">* ประเมินจากราคาปัจจุบัน</p>}
                                 </div>
                               </div>
                               <div className="mt-3 grid grid-cols-3 divide-x divide-[#E6EEE8] text-center">
                                 <div className="px-1"><p className="text-[10px] text-[#82968D]">สั่งซื้อ</p><p className="mt-1 text-xs font-bold">{quantityText(item.requested, item.unit)}</p></div>
                                 <div className="px-1"><p className="text-[10px] text-[#82968D]">ยืนยัน</p><p className="mt-1 text-xs font-bold">{quantityText(item.confirmed, item.unit)}</p></div>
-                                <div className="px-1"><p className="text-[10px] text-[#82968D]">หยิบจริง</p><p className="mt-1 text-xs font-bold">{quantityText(item.actual, item.unit)}</p></div>
+                                <div className="px-1"><p className="text-[10px] text-[#82968D]">หยิบจริง</p><p className="mt-1 text-xs font-bold">{quantityText(item.actual, item.actualUnit ?? item.unit)}</p></div>
                               </div>
                             </div>
                           ))}
