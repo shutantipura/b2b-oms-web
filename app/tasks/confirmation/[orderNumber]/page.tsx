@@ -46,6 +46,7 @@ type OrderItem = {
     | string
     | null;
   unit_snapshot: string;
+  piece_price_per_kg_snapshot?: number | string | null;
   staff_note: string | null;
   products: {
     sku: string;
@@ -321,6 +322,7 @@ export default function ConfirmationPage() {
           addon_requested_qty,
           addon_confirmed_qty,
           unit_snapshot,
+          piece_price_per_kg_snapshot,
           staff_note,
           products (
             sku,
@@ -1122,7 +1124,7 @@ export default function ConfirmationPage() {
                         <div>
                           <p className="text-xs text-[#72877D]">หยิบเดิม</p>
                           <p className="mt-1 text-sm font-bold">
-                            {item.actual_qty === null ? "ยังไม่หยิบ" : `${Number(item.actual_qty)} ${item.unit_snapshot}`}
+                            {item.actual_qty === null ? "ยังไม่หยิบ" : `${Number(item.actual_qty)} ${item.piece_price_per_kg_snapshot != null ? "กก." : item.unit_snapshot}`}
                           </p>
                         </div>
                       </div>
