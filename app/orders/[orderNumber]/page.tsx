@@ -75,6 +75,7 @@ type OrderItem = {
   unit_snapshot: string;
 
   unit_price_snapshot: number | string;
+  piece_price_per_kg_snapshot?: number | string | null;
 
 
 
@@ -438,6 +439,7 @@ export default function OrderDetailsPage() {
         unit_snapshot,
 
         unit_price_snapshot,
+        piece_price_per_kg_snapshot,
 
         products (
 
@@ -1569,7 +1571,9 @@ export default function OrderDetailsPage() {
 
                       <td className="p-4 text-right">
 
-                        ฿{price.toFixed(2)}
+                        {item.piece_price_per_kg_snapshot != null
+                          ? `฿${Number(item.piece_price_per_kg_snapshot).toFixed(2)} / กก.`
+                          : `฿${price.toFixed(2)}`}
 
                       </td>
 
@@ -1577,15 +1581,9 @@ export default function OrderDetailsPage() {
 
                       <td className="p-4 text-right">
 
-                        {item.actual_qty !== null
-
-                          ? `฿${(
-
-                              actual * price
-
-                            ).toFixed(2)}`
-
-                          : "—"}
+                        {item.actual_qty !== null ? (item.piece_price_per_kg_snapshot != null
+                            ? "รอชั่งจริง"
+                            : `฿${(actual * price).toFixed(2)}`) : "—"}
 
                       </td>
 
