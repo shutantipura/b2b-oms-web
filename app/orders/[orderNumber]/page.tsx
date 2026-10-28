@@ -1481,13 +1481,9 @@ export default function OrderDetailsPage() {
 
 
 
-                  const price =
-
-                    Number(
-
-                      item.unit_price_snapshot
-
-                    );
+                  const price = Number(
+                    item.piece_price_per_kg_snapshot ?? item.unit_price_snapshot
+                  );
 
 
 
@@ -1563,7 +1559,7 @@ export default function OrderDetailsPage() {
 
                           : "—"}{" "}
 
-                        {item.unit_snapshot}
+                        {item.piece_price_per_kg_snapshot != null ? "กก." : item.unit_snapshot}
 
                       </td>
 
@@ -1581,9 +1577,7 @@ export default function OrderDetailsPage() {
 
                       <td className="p-4 text-right">
 
-                        {item.actual_qty !== null ? (item.piece_price_per_kg_snapshot != null
-                            ? "คิดตามน้ำหนักจริง (ดูยอดในบิล)"
-                            : `฿${(actual * price).toFixed(2)}`) : "—"}
+                        {item.actual_qty !== null ? `฿${(actual * price).toFixed(2)}` : "—"}
 
                       </td>
 
