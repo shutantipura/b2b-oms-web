@@ -832,9 +832,7 @@ export default function BillingPage() {
         const price =
 
           Number(
-
-            item.unit_price_snapshot ?? 0
-
+            item.piece_price_per_kg_snapshot ?? item.unit_price_snapshot ?? 0
           );
 
 
@@ -1179,13 +1177,9 @@ export default function BillingPage() {
 
 
 
-                  const price =
-
-                    Number(
-
-                      item.unit_price_snapshot
-
-                    );
+                  const price = Number(
+                    item.piece_price_per_kg_snapshot ?? item.unit_price_snapshot
+                  );
 
 
 
@@ -1227,8 +1221,7 @@ export default function BillingPage() {
 
                         {actual}{" "}
 
-                        {item.unit_snapshot}
-
+                        {item.piece_price_per_kg_snapshot != null ? "กก." : item.unit_snapshot}
                       </td>
 
 
@@ -1245,8 +1238,7 @@ export default function BillingPage() {
 
                       <td className="p-4 text-right">
 
-                        {item.piece_price_per_kg_snapshot != null
-                          ? "รอน้ำหนักจริง" : `฿${(actual * price).toFixed(2)}`}
+                        ฿{(actual * price).toFixed(2)}
 
                       </td>
 
@@ -1278,7 +1270,7 @@ export default function BillingPage() {
 
             <span className="text-gray-500">
 
-              {hasPieceItems ? "ยอดอ้างอิง (ยังไม่รวมสินค้าสั่งเป็นชิ้น):" : "ยอดรวมอ้างอิง:"}
+              {hasPieceItems ? "ยอดอ้างอิงตามน้ำหนักที่หยิบจริง (กก.):" : "ยอดรวมอ้างอิง:"}
 
             </span>
 
