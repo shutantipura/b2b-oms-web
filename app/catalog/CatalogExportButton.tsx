@@ -255,26 +255,26 @@ export default function CatalogExportButton({
   }
 
   return (
-    <div className="rounded-xl border border-[#BDE1D8] bg-[#F1FAF5] p-4 sm:p-5">
+    <div className="rounded-xl border border-[#CBEAE7] bg-[#F1FBFA] px-3.5 py-3 sm:px-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-extrabold tracking-wide text-[#0C8F7F]">ขั้นตอน 1 · ดาวน์โหลดข้อมูลจริง</p>
-          <p className="mt-1 text-base font-extrabold text-[#205849]">Excel ฉบับปัจจุบันจากระบบ</p>
-          <p className="mt-1 text-xs leading-relaxed text-[#617C72]">
-            {settings.description} · ใช้ไฟล์นี้เป็นฐานก่อนเพิ่มข้อมูลและนำเข้าครั้งถัดไป
+          <p className="text-xs font-extrabold text-[#008D8C]">01 · ดาวน์โหลดข้อมูลปัจจุบัน</p>
+          <p className="mt-1 text-xs leading-5 text-[#617781]">
+            {settings.description} · ใช้ไฟล์ล่าสุดก่อนเพิ่มหรือแก้ไขรายการ
           </p>
         </div>
         <button
           type="button"
           onClick={() => void download()}
           disabled={disabled || exporting}
-          className="shrink-0 rounded-xl border border-[#91D6CE] bg-white px-5 py-3 text-sm font-extrabold text-[#087E78] transition hover:bg-[#E6F7F1] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#00A6A6] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#008D8C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#008D8C] disabled:cursor-not-allowed disabled:opacity-50"
         >
+          <span aria-hidden="true">↓</span>
           {exporting ? "กำลังส่งออก..." : "ดาวน์โหลด Excel ล่าสุด"}
         </button>
       </div>
       {exporting && (
-        <p role="status" className="mt-2 text-xs text-[#347C6A]">
+        <p role="status" className="mt-2 text-xs text-[#008D8C]">
           กำลังอ่านข้อมูล {loaded.toLocaleString()} รายการ โปรดเปิดหน้านี้ไว้จนดาวน์โหลดเสร็จ
         </p>
       )}

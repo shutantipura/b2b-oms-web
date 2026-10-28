@@ -4090,72 +4090,67 @@ export default function CatalogPage() {
 
   return (
 
-    <main className="min-h-screen bg-gray-100">
-
-
-
-        <header className="bg-[#17473D] text-white">
-        <div className="mx-auto max-w-6xl px-5 pb-16 pt-7 sm:px-6 sm:pb-20">
-          <button
-            type="button"
-            onClick={() => router.push("/login")}
-            className="text-sm font-semibold text-[#C9E2D8] hover:text-white"
-          >
-            ← กลับหน้าหลัก
-          </button>
-          <div className="mt-7 max-w-2xl">
-            <span className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold tracking-wide text-[#DDF3E8]">
-              MANAGER · CATALOG MANAGEMENT
-            </span>
-            <h1 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
-              จัดการข้อมูลสินค้า
-            </h1>
-            <p className="mt-3 text-sm leading-7 text-[#D4E7DE] sm:text-base">
-              จัดการราคาปกติ ต้นทุน สินค้าที่แสดง รูปภาพ และราคาพิเศษจากข้อมูลปัจจุบันในระบบ
-            </p>
+    <main className="min-h-screen bg-[#F6F9F9] pb-4 text-[#273C45]">
+      <div className="flex h-1.5 bg-[#00A6A6]" aria-hidden="true">
+        <div className="ml-auto w-20 bg-[#FFC629]" />
+      </div>
+      <header className="border-b border-[#DDEAEA] bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-7">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-bold tracking-wide text-[#009B9A]">LOTUS’S B2B · MANAGER</p>
+              <h1 className="mt-1 text-2xl font-extrabold leading-tight tracking-tight text-[#273C45] sm:text-3xl">
+                จัดการข้อมูลสินค้า
+              </h1>
+              <p className="mt-1.5 text-sm leading-6 text-[#647782]">
+                ราคาและต้นทุน · สินค้าที่แสดง · รูปสินค้า · ราคาพิเศษ
+              </p>
+            </div>
+            <div className="hidden shrink-0 items-center gap-2 rounded-full bg-[#EAF9F8] px-3 py-2 text-xs font-bold text-[#008D8C] sm:flex">
+              <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#FFC629]" />
+              4 หมวดข้อมูล
+            </div>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
-        <section id="catalog-guide" className="-mt-10 relative rounded-2xl border border-[#D8E7E0] bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-[#0A8A79]">วิธีอัปเดตข้อมูลอย่างปลอดภัย</p>
-              <h2 className="mt-1 text-xl font-extrabold text-[#173D34]">เริ่มจากไฟล์ล่าสุดทุกครั้ง</h2>
+      <div className="mx-auto max-w-6xl px-4 pb-10 sm:px-6">
+        <section id="catalog-guide" className="mt-4 rounded-xl border border-[#CEEAE7] bg-white px-4 py-3.5 shadow-sm sm:px-5">
+          <div className="flex items-start gap-3">
+            <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FFF5D6] text-lg font-extrabold text-[#B27900]">↻</span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-extrabold text-[#273C45]">เริ่มจาก Excel ล่าสุดก่อนแก้ไขข้อมูล</h2>
+              <p className="mt-1 text-xs leading-5 text-[#617781] sm:text-sm">
+                <span className="font-semibold text-[#008F8C]">ดาวน์โหลด</span>
+                {" → "}เพิ่ม/แก้ไขแถว{" → "}อัปโหลด{" → "}ตรวจสอบและยืนยัน
+              </p>
             </div>
-            <span className="rounded-full bg-[#E8F7F0] px-3 py-1.5 text-xs font-bold text-[#226B58]">
-              Excel → ตรวจสอบ → ยืนยัน
-            </span>
           </div>
-          <ol className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              ["01", "ดาวน์โหลดข้อมูลจริง", "เลือกส่วนงานแล้วกดดาวน์โหลด Excel ล่าสุด"],
-              ["02", "เพิ่มหรือแก้ไขแถว", "เก็บข้อมูลเดิมที่ต้องการใช้งานไว้ในไฟล์"],
-              ["03", "อัปโหลดและตรวจสอบ", "เลือกไฟล์ ตรวจ SKU และตัวอย่างก่อนนำเข้า"],
-              ["04", "ยืนยันการนำเข้า", "ตรวจผลสำเร็จและรายการที่ไม่พบ"],
-            ].map(([number, title, description]) => (
-              <li key={number} className="rounded-xl border border-[#E0ECE6] bg-[#F8FBF9] p-3.5">
-                <span className="text-xs font-extrabold text-[#029B89]">{number}</span>
-                <p className="mt-1 text-sm font-bold text-[#244A40]">{title}</p>
-                <p className="mt-1 text-xs leading-5 text-[#6D857B]">{description}</p>
-              </li>
-            ))}
-          </ol>
-          <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900">
-            แนะนำให้ดาวน์โหลดใหม่ก่อนแก้ไขเสมอ เพื่อไม่ให้ไฟล์เก่าเขียนทับการปรับราย SKU ที่ทำไว้ภายหลัง
-            และหลีกเลี่ยงการแก้ไขรายการเดียวกันระหว่างดาวน์โหลดจนถึงนำเข้า
-          </p>
+          <details className="group mt-2 pl-12">
+            <summary className="w-fit cursor-pointer text-xs font-bold text-[#008F8C] hover:underline">
+              ดูคำแนะนำและข้อควรระวัง
+            </summary>
+            <div className="mt-3 rounded-lg bg-[#F5FAFA] p-3 text-xs leading-6 text-[#4E6470]">
+              <ol className="list-decimal space-y-1 pl-4">
+                <li>ดาวน์โหลดข้อมูลจริงจากหมวดที่ต้องการ</li>
+                <li>เพิ่มหรือแก้ไขใน Excel โดยเก็บแถวเดิมที่ยังต้องใช้งานไว้</li>
+                <li>อัปโหลดไฟล์ ตรวจตัวอย่างและ SKU ก่อนยืนยันการนำเข้า</li>
+              </ol>
+              <p className="mt-2 border-l-2 border-[#FFC629] pl-3 text-[#805F14]">
+                หากมีการปรับราย SKU หลังจากดาวน์โหลด ให้ดาวน์โหลดไฟล์ใหม่ก่อนนำเข้า เพื่อป้องกันการเขียนทับข้อมูลล่าสุด
+              </p>
+            </div>
+          </details>
         </section>
 
-        <nav aria-label="ไปยังส่วนจัดการข้อมูล" className="sticky top-0 z-20 mt-6 flex gap-2 overflow-x-auto rounded-xl border border-[#D7E7DF] bg-white/95 p-2 shadow-sm backdrop-blur">
-          <a href="#catalog-master" className="whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-bold text-[#226253] transition hover:bg-[#E8F7F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#02B0AF]">01 · สินค้าและราคา</a>
-          <a href="#catalog-visible" className="whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-bold text-[#226253] transition hover:bg-[#E8F7F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#02B0AF]">02 · สินค้าที่แสดง</a>
-          <a href="#catalog-pictures" className="whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-bold text-[#226253] transition hover:bg-[#E8F7F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#02B0AF]">03 · รูปสินค้า</a>
-          <a href="#catalog-special" className="whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-bold text-[#226253] transition hover:bg-[#E8F7F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#02B0AF]">04 · ราคาพิเศษ</a>
+        <nav aria-label="ไปยังหมวดจัดการข้อมูล" className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <a href="#catalog-master" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#00A6A6]">01</span> ราคาและต้นทุน</a>
+          <a href="#catalog-visible" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#00A6A6]">02</span> สินค้าที่แสดง</a>
+          <a href="#catalog-pictures" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#00A6A6]">03</span> รูปสินค้า</a>
+          <a href="#catalog-special" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#00A6A6]">04</span> ราคาพิเศษ</a>
         </nav>
 
-        <div className="mt-6 space-y-8">
+        <div className="mt-4 space-y-5">
 
         {/* ================================================= */}
 
@@ -4165,11 +4160,11 @@ export default function CatalogPage() {
 
 
 
-        <section id="catalog-master" className="scroll-mt-20 overflow-hidden rounded-2xl border border-[#D7E7DF] bg-white shadow-sm">
+        <section id="catalog-master" className="scroll-mt-5 overflow-hidden rounded-2xl border border-[#D8E7E7] bg-white shadow-sm">
 
 
 
-          <div className="border-b border-[#E1EEE7] bg-[#F9FCFA] p-5 sm:p-6">
+          <div className="border-b border-[#DFEEEE] bg-[#F4FBFB] p-4 sm:p-5">
 
 
 
@@ -4177,7 +4172,7 @@ export default function CatalogPage() {
 
 
 
-              <div className="w-10 h-10 rounded-full bg-[#087F75] text-white flex items-center justify-center font-extrabold shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-[#00A6A6] text-white flex items-center justify-center font-extrabold shrink-0">
 
                 1
 
@@ -4189,7 +4184,7 @@ export default function CatalogPage() {
 
 
 
-                <h2 className="text-xl font-bold">
+                <h2 className="text-lg font-bold text-[#273C45]">
 
                   Product Master และราคาปกติ
 
@@ -4217,7 +4212,7 @@ export default function CatalogPage() {
 
 
 
-          <div className="p-5 sm:p-6">
+          <div className="p-4 sm:p-5">
 
 
 
@@ -4229,11 +4224,11 @@ export default function CatalogPage() {
             </div>
 
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-extrabold text-[#20584B]">ขั้นตอน 2 · อัปโหลดไฟล์ที่แก้ไข</h3>
-              <span className="text-xs text-[#7B9387]">ตรวจตัวอย่างก่อนยืนยัน</span>
+              <h3 className="text-sm font-extrabold text-[#007F80]">ขั้นตอน 2 · อัปโหลดไฟล์ที่แก้ไข</h3>
+              <span className="text-xs text-[#718891]">ตรวจตัวอย่างก่อนยืนยัน</span>
             </div>
 
-            <div className="rounded-xl border border-[#E0EBE5] bg-[#F8FAF9] p-4 text-sm">
+            <div className="rounded-xl border border-[#E3EEEE] bg-[#F8FBFB] p-4 text-sm">
 
 
 
@@ -4279,7 +4274,7 @@ export default function CatalogPage() {
 
                 </span>
 
-                <span className="font-semibold text-[#00877C]">Cost (optional)</span>
+                <span className="font-semibold text-[#008F8C]">Cost (optional)</span>
 
 
 
@@ -5047,7 +5042,7 @@ export default function CatalogPage() {
 
                   }
 
-                  className="w-full bg-[#087F75] text-white rounded-xl px-5 py-4 transition hover:bg-[#066E65] font-semibold mt-6 disabled:opacity-40"
+                  className="w-full bg-[#00A6A6] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold mt-6 disabled:opacity-40"
 
                 >
 
@@ -5073,8 +5068,8 @@ export default function CatalogPage() {
 
 
 
-            <details className="mt-6 rounded-xl border border-[#D7E7DF] bg-[#F9FCFA]">
-              <summary className="cursor-pointer px-4 py-4 text-sm font-bold text-[#205F50]">
+            <details className="mt-6 rounded-xl border border-[#D8E7E7] bg-[#F4FBFB]">
+              <summary className="cursor-pointer px-4 py-4 text-sm font-bold text-[#008F8C]">
                 ต้องการแก้ไขเพียงสินค้าเดียว? เปิดตัวแก้ไขราคาและต้นทุนราย SKU
               </summary>
               <div className="px-4 pb-4">
@@ -5160,18 +5155,18 @@ export default function CatalogPage() {
 
 
 
-        <section id="catalog-visible" className="scroll-mt-20 overflow-hidden rounded-2xl border border-[#D7E7DF] bg-white shadow-sm">
+        <section id="catalog-visible" className="scroll-mt-5 overflow-hidden rounded-2xl border border-[#D8E7E7] bg-white shadow-sm">
 
 
 
-          <div className="border-b border-[#E1EEE7] bg-[#F9FCFA] p-5 sm:p-6">
+          <div className="border-b border-[#DFEEEE] bg-[#F4FBFB] p-4 sm:p-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-start gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#02B0AF] font-bold text-white">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#00A6A6] font-bold text-white">
                   2
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-xl font-bold">สินค้าที่แสดงให้ลูกค้า</h2>
+                  <h2 className="text-lg font-bold text-[#273C45]">สินค้าที่แสดงให้ลูกค้า</h2>
                   <p className="mt-1 text-sm text-gray-500">
                     อัปโหลด Excel หรือ CSV ที่มี SKU, Sales และชื่อแผนกภาษาไทย ระบบจะเก็บชื่อแผนกตามไฟล์โดยตรงโดยไม่แปลอีกครั้ง
                   </p>
@@ -5186,7 +5181,7 @@ export default function CatalogPage() {
             </div>
           </div>
 
-          <div className="p-5 sm:p-6">
+          <div className="p-4 sm:p-5">
 
 
 
@@ -5198,11 +5193,11 @@ export default function CatalogPage() {
             </div>
 
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-extrabold text-[#20584B]">ขั้นตอน 2 · อัปโหลดไฟล์ที่แก้ไข</h3>
-              <span className="text-xs text-[#7B9387]">ตรวจตัวอย่างก่อนยืนยัน</span>
+              <h3 className="text-sm font-extrabold text-[#007F80]">ขั้นตอน 2 · อัปโหลดไฟล์ที่แก้ไข</h3>
+              <span className="text-xs text-[#718891]">ตรวจตัวอย่างก่อนยืนยัน</span>
             </div>
 
-            <div className="mb-6 rounded-xl border border-[#E0EBE5] bg-[#F8FAF9] p-4 text-sm">
+            <div className="mb-6 rounded-xl border border-[#E3EEEE] bg-[#F8FBFB] p-4 text-sm">
 
               <p className="font-semibold">
 
@@ -6020,7 +6015,7 @@ export default function CatalogPage() {
 
                 }
 
-                className="w-full bg-[#087F75] text-white rounded-xl px-5 py-4 transition hover:bg-[#066E65] font-semibold mt-6 disabled:opacity-40"
+                className="w-full bg-[#00A6A6] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold mt-6 disabled:opacity-40"
 
               >
 
@@ -6476,7 +6471,7 @@ export default function CatalogPage() {
 
                     }
 
-                    className="w-full bg-[#087F75] text-white rounded-xl px-5 py-4 transition hover:bg-[#066E65] font-semibold disabled:opacity-40"
+                    className="w-full bg-[#00A6A6] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold disabled:opacity-40"
 
                   >
 

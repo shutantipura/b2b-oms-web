@@ -806,16 +806,16 @@ export default function SpecialPriceImportSection() {
   }
 
   return (
-    <section id="catalog-special" className="scroll-mt-20 overflow-hidden rounded-2xl border border-[#D7E7DF] bg-white shadow-sm">
+    <section id="catalog-special" className="scroll-mt-5 overflow-hidden rounded-2xl border border-[#D8E7E7] bg-white shadow-sm">
 
-      <div className="border-b border-[#E1EEE7] bg-[#F9FCFA] p-5 sm:p-6">
+      <div className="border-b border-[#DFEEEE] bg-[#F4FBFB] p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-start gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#02B0AF] font-bold text-white">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#00A6A6] font-bold text-white">
               4
             </div>
             <div className="min-w-0">
-              <h2 className="text-xl font-bold text-[#17453F]">
+              <h2 className="text-lg font-bold text-[#273C45]">
                 ราคาพิเศษรายลูกค้า
               </h2>
               <p className="mt-1 text-sm text-gray-500">
@@ -834,18 +834,18 @@ export default function SpecialPriceImportSection() {
         </div>
       </div>
 
-      <div className="p-5 sm:p-6">
+      <div className="p-4 sm:p-5">
 
         <div className="mb-6">
           <CatalogExportButton dataset="special" disabled={reading || importing || resetting} />
         </div>
 
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="text-sm font-extrabold text-[#20584B]">ขั้นตอน 2 · อัปโหลดไฟล์ราคาพิเศษที่แก้ไข</h3>
-          <span className="text-xs text-[#7B9387]">เพิ่มหรืออัปเดตเท่านั้น</span>
+          <h3 className="text-sm font-extrabold text-[#007F80]">ขั้นตอน 2 · อัปโหลดไฟล์ราคาพิเศษที่แก้ไข</h3>
+          <span className="text-xs text-[#718891]">เพิ่มหรืออัปเดตเท่านั้น</span>
         </div>
 
-        <div className="rounded-xl border border-[#E0EBE5] bg-[#F8FAF9] p-4">
+        <div className="rounded-xl border border-[#E3EEEE] bg-[#F8FBFB] p-4">
 
           <p className="font-semibold">
             รูปแบบไฟล์
@@ -1238,7 +1238,7 @@ export default function SpecialPriceImportSection() {
               reading ||
               resetting
             }
-            className="w-full bg-[#087F75] text-white rounded-xl px-5 py-4 transition hover:bg-[#066E65] font-semibold mt-6 disabled:opacity-40"
+            className="w-full bg-[#00A6A6] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold mt-6 disabled:opacity-40"
           >
             {importing
               ? "กำลังนำเข้า..."
