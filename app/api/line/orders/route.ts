@@ -1316,17 +1316,22 @@ export async function POST(
                   const storedPrice = savedUnitPrice(item);
                   const currentPrice = agreedPriceMap.get(item.product_id) ?? product?.normal_price ?? null;
                   const storedLineTotal = estimatedLineAmount(item, requestedNumber);
-                  const unitPrice = storedPrice ?? (
+                  const isPiece = unit === "ชิ้น" &&
+                    item.piece_price_per_kg_snapshot !== null &&
+                    item.piece_price_per_kg_snapshot !== undefined;
+                  const unitPrice = isPiece ? null : (storedPrice ?? (
                     storedLineTotal !== null && requestedNumber !== null && requestedNumber > 0
                       ? storedLineTotal / requestedNumber
                       : currentPrice
-                  );
-                  const estimatedSubtotal = storedLineTotal ?? (
+                  ));
+                  // A piece count has no known kg weight yet. Never show
+                  // price-per-piece or a zero subtotal as a true quote.
+                  const estimatedSubtotal = isPiece ? null : (storedLineTotal ?? (
                     unitPrice !== null && requestedNumber !== null &&
                     Number.isFinite(unitPrice) && Number.isFinite(requestedNumber)
                       ? unitPrice * requestedNumber
                       : null
-                  );
+                  ));
 
                   return {
 
@@ -1339,8 +1344,10 @@ export async function POST(
                     productName,
 
                     unitPrice,
+                    isPiece,
+                    pricePerKg: isPiece ? Number(item.piece_price_per_kg_snapshot) : null,
 
-                    priceIsCurrentEstimate: storedPrice === null && storedLineTotal === null,
+                    priceIsCurrentEstimate: !isPiece && storedPrice === null && storedLineTotal === null,
 
                     imageUrl:
 
