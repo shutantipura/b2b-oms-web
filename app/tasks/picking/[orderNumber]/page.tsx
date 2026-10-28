@@ -836,7 +836,9 @@ export default function PickingPage() {
       invalidItem
     ) {
       setMessage(
-        `${invalidItem.product_name_snapshot}: ยอดหยิบจริงต้องไม่น้อยกว่ายอดเดิม และหากหน่วยเป็นชิ้น ต้องเป็นจำนวนเต็ม`
+        picksMeasuredKg(invalidItem)
+          ? `${invalidItem.product_name_snapshot}: กรุณากรอกน้ำหนักชั่งจริงเป็น กก. ไม่ติดลบ และทศนิยมไม่เกิน 3 ตำแหน่ง`
+          : `${invalidItem.product_name_snapshot}: จำนวนหยิบจริงต้องไม่น้อยกว่ายอดเดิม (สินค้าหน่วยชิ้นต้องเป็นจำนวนเต็ม)`
       );
 
       return;
