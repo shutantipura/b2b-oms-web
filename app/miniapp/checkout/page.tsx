@@ -20,6 +20,7 @@ type CheckoutItem = {
   imageUrl?: string | null;
   unit: string;
   quantity: number;
+  isPiece: boolean;
   normalPrice: number;
   effectivePrice: number;
   hasSpecialPrice: boolean;
@@ -108,6 +109,7 @@ export default function MiniAppCheckoutPage() {
   const [notes, setNotes] = useState("");
   const [idToken, setIdToken] = useState("");
   const [cart, setCart] = useState<Cart>({});
+  const [pieceProductIds, setPieceProductIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
@@ -137,6 +139,12 @@ export default function MiniAppCheckoutPage() {
         const stored = localStorage.getItem(`b2b-cart-${customerCode}`);
         if (!stored) throw new Error("ตะกร้าสินค้าว่าง");
 
+        const savedPieceIds = localStorage.getItem(`b2b-cart-pieces-${customerCode}`);
+        let pieceIds: string[] = [];
+        try {
+          const parsed = JSON.parse(savedPieceIds ?? "[]") as unknown;
+          if (Array.isArray(parsed)) pieceIds = parsed.filter((x): x is string => typeof x === "string");
+        } catch { pieceIds = []; }
         let loadedCart: Cart;
         try {
           loadedCart = JSON.parse(stored) as Cart;
@@ -170,6 +178,7 @@ export default function MiniAppCheckoutPage() {
             idToken: token,
             customerCode,
             cart: loadedCart,
+            pieceProductIds: pieceIds,
           }),
         });
         const data = (await response.json()) as CheckoutResponse;
@@ -181,6 +190,7 @@ export default function MiniAppCheckoutPage() {
 
         setIdToken(token);
         setCart(loadedCart);
+        setPieceProductIds(pieceIds);
         setCustomer(data.customer);
         setItems(data.items ?? []);
 
@@ -280,6 +290,7 @@ export default function MiniAppCheckoutPage() {
             customerCode: customer.customerCode,
             deliveryDate,
             cart,
+            pieceProductIds,
           }),
         });
         const data = (await response.json()) as CheckoutResponse;
@@ -295,7 +306,7 @@ export default function MiniAppCheckoutPage() {
     })();
 
     return () => controller.abort();
-  }, [idToken, customer, deliveryDate, cart, mergeRefreshTick, fulfillmentMethod]);
+  }, [idToken, customer, deliveryDate, cart, pieceProductIds, mergeRefreshTick, fulfillmentMethod]);
 
   // Only offer the same primary delivery slot when that slot is still
   // selectable because its start time has not passed.
@@ -306,6 +317,7 @@ export default function MiniAppCheckoutPage() {
     [mergeCandidates, currentSlots, fulfillmentMethod]
   );
 
+  const hasPieceOrders = items.some(item => item.isPiece);
   const estimatedTotal = useMemo(
     () => items.reduce((total, item) => total + item.estimatedSubtotal, 0),
     [items]
@@ -372,10 +384,10 @@ export default function MiniAppCheckoutPage() {
     }
 
     const confirmation = fulfillmentMethod === "pickup"
-      ? `ยืนยันรับสินค้าที่สาขา ${prettyDate(deliveryDate)} เวลา ${deliverySlot} ยอดประมาณการ ฿${estimatedTotal.toFixed(2)} หรือไม่?\nหลังจากออกบิลแล้ว คำสั่งซื้อจะเข้าสู่ขั้นตอนชำระเงินโดยไม่ผ่านงานจัดส่ง`
+      ? `ยืนยันรับสินค้าที่สาขา ${prettyDate(deliveryDate)} เวลา ${deliverySlot} ยอดประมาณการ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} หรือไม่?\nหลังจากออกบิลแล้ว คำสั่งซื้อจะเข้าสู่ขั้นตอนชำระเงินโดยไม่ผ่านงานจัดส่ง`
       : chosenMerge
-        ? `สร้างคำสั่งซื้อใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)} เพื่อจัดส่งร่วมกับกลุ่ม #${chosenMerge.orderNumber} ใช่หรือไม่?\nสินค้าใหม่จะผ่านการเช็คสต็อกและจัดสินค้าแยกต่างหาก แล้วออกบิลและจัดส่งรวมครั้งเดียว`
-        : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)} หรือไม่?`;
+        ? `สร้างคำสั่งซื้อใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} เพื่อจัดส่งร่วมกับกลุ่ม #${chosenMerge.orderNumber} ใช่หรือไม่?\nสินค้าใหม่จะผ่านการเช็คสต็อกและจัดสินค้าแยกต่างหาก แล้วออกบิลและจัดส่งรวมครั้งเดียว`
+        : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} หรือไม่?`;
     if (!window.confirm(confirmation)) return;
     if (chosenMerge && !mergeRequestIdRef.current) mergeRequestIdRef.current = crypto.randomUUID();
     setSubmitting(true);
@@ -389,6 +401,7 @@ export default function MiniAppCheckoutPage() {
           idToken,
           customerCode: customer.customerCode,
           cart,
+          pieceProductIds,
           deliveryDate,
           deliverySlot,
           fulfillmentMethod,
@@ -421,6 +434,7 @@ export default function MiniAppCheckoutPage() {
 
       // Preserve the existing behavior: clear the basket only after success.
       localStorage.removeItem(`b2b-cart-${customer.customerCode}`);
+      localStorage.removeItem(`b2b-cart-pieces-${customer.customerCode}`);
       setWasMerged(Boolean(data.grouped));
       setCreatedDisplayNumber(data.displayNumber ?? String(data.orderNumber));
       setCreatedOrderNumber(data.orderNumber);
@@ -533,17 +547,23 @@ export default function MiniAppCheckoutPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold leading-5">{item.productName}</p>
                   <p className="mt-1 text-[11px] text-[#91A298]">SKU {item.sku}</p>
-                  <p className="mt-1 text-xs text-[#678575]">{formatQuantity(item.quantity)} {item.unit} × <span className={(item.hasSpecialPrice && item.effectivePrice < item.normalPrice) ? "font-bold text-[#DC2626]" : ""}>฿{formatMoney(item.effectivePrice)}</span></p>
+                  <p className="mt-1 text-xs text-[#678575]">
+                    {formatQuantity(item.quantity)} {item.isPiece ? "ชิ้น" : item.unit}
+                    {" · "}฿{formatMoney(item.effectivePrice)} / {item.unit}
+                  </p>
+                  {item.isPiece && <p className="mt-1 text-[11px] font-semibold text-[#996917]">ราคาคิดตามน้ำหนักที่ชั่งจริง ไม่ใช่ต่อชิ้น</p>}
                   {(item.hasSpecialPrice && item.effectivePrice < item.normalPrice) && <span className="mt-2 inline-block rounded-md bg-[#FFF3D4] px-2 py-1 text-[10px] font-bold text-[#A47700]">ราคาพิเศษสำหรับคุณ</span>}
                 </div>
-                <strong className={`shrink-0 text-sm ${(item.hasSpecialPrice && item.effectivePrice < item.normalPrice) ? "text-[#DC2626]" : "text-[#009F9D]"}`}>฿{formatMoney(item.estimatedSubtotal)}</strong>
+                <strong className={`shrink-0 text-sm ${(item.hasSpecialPrice && item.effectivePrice < item.normalPrice) ? "text-[#DC2626]" : "text-[#009F9D]"}`}>{item.isPiece ? "รอชั่งจริง" : "฿" + formatMoney(item.estimatedSubtotal)}</strong>
               </div>
             ))}
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-[#DCEDE5] bg-[#EDF9F5] px-4 py-4 sm:px-5">
             <div>
               <p className="text-sm font-bold text-[#3D6654]">ยอดรวมประมาณการ</p>
-              <p className="mt-1 text-[11px] text-[#79988A]">ยอดจริงขึ้นอยู่กับจำนวนที่หยิบได้</p>
+              <p className="mt-1 text-[11px] text-[#79988A]">
+                {hasPieceOrders ? "ไม่รวมรายการสั่งเป็นชิ้น · คิดราคาจากน้ำหนักจริง" : "ยอดจริงขึ้นอยู่กับจำนวนที่หยิบได้"}
+              </p>
             </div>
             <strong className="text-xl font-black text-[#008F8D]">฿{formatMoney(estimatedTotal)}</strong>
           </div>
