@@ -90,6 +90,8 @@ type MasterProduct = {
 
   normal_price: number;
 
+  cost: number | null;
+
 };
 
 
@@ -1138,6 +1140,9 @@ export default function CatalogPage() {
 
         );
 
+      // Optional confidential unit cost (same unit as selling price).
+      const costIndex = normalizedHeaders.indexOf("cost");
+
 
 
 
@@ -1360,6 +1365,8 @@ export default function CatalogPage() {
 
             ];
 
+          const rawCost = costIndex >= 0 ? row[costIndex] : null;
+
 
 
 
@@ -1506,6 +1513,19 @@ export default function CatalogPage() {
 
 
 
+          // Blank or missing cost does not overwrite any previously imported cost.
+          const cleanedCost = String(rawCost ?? "").trim().replace(/[,฿]/g, "");
+          const costProvided = cleanedCost.length > 0;
+          if (costProvided && !/^[0-9]{1,10}(?:\.[0-9]{1,4})?$/.test(cleanedCost)) {
+            invalidRows.push({
+              rowNumber,
+              sku,
+              reason: "ต้นทุน (Cost) ต้องไม่ติดลบ และมีทศนิยมไม่เกิน 4 ตำแหน่ง",
+            });
+            return;
+          }
+          const parsedCost = costProvided ? Number(cleanedCost) : null;
+
           const normalized =
 
             normalizeSku(
@@ -1567,6 +1587,8 @@ export default function CatalogPage() {
               normal_price:
 
                 price,
+
+              cost: parsedCost,
 
             }
 
@@ -4635,7 +4657,9 @@ export default function CatalogPage() {
 
 
 
-                {/* SAMPLE */}
+                {/* Optional cost values are stored privately and displayed only
+                  on the manager customer-price adjustment page. */}
+              {/* SAMPLE */}
 
 
 
