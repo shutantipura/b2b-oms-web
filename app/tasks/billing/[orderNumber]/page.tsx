@@ -360,13 +360,20 @@ export default function BillingPage() {
       ? (itemData ?? []).map((row) => {
           const sourceRows = (row as { sources?: unknown }).sources;
           const measuredKg = Array.isArray(sourceRows) && sourceRows.some(
-            (source: unknown) => Boolean(source) && typeof source === "object" &&
+            (source: unknown) =>
+              typeof source === "object" && source !== null &&
               "picked_unit" in source && source.picked_unit === "กก."
           );
+          // Normalize PostgREST's possible single-object or one-element-array
+          // representation of the product relation.
+          const normalizedProduct = Array.isArray(row.products)
+            ? (row.products[0] ?? null)
+            : (row.products ?? null);
           return {
             ...row,
+            products: normalizedProduct,
             piece_price_per_kg_snapshot: measuredKg ? row.unit_price_snapshot : null,
-          } as OrderItem;
+          } as unknown as OrderItem;
         })
       : (itemData ?? []) as unknown as OrderItem[];
     setItems(billingItems);
