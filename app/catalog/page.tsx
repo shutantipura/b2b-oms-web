@@ -1109,6 +1109,8 @@ export default function CatalogPage() {
 
         );
 
+      const worksheetOrigin = XLSX.utils.decode_range(sheet["!ref"] ?? "A1").s;
+
 
 
       const skuIndex =
@@ -1374,7 +1376,17 @@ export default function CatalogPage() {
 
             ];
 
-          const rawCost = costIndex >= 0 ? row[costIndex] : null;
+          const costCell = costIndex >= 0
+            ? sheet[XLSX.utils.encode_cell({
+                r: worksheetOrigin.r + index + 1,
+                c: worksheetOrigin.c + costIndex,
+              })]
+            : undefined;
+          // Excel formula #N/A cells have type "e" and numeric error code 0x2A.
+          // Preserve the distinction from an empty cell, which keeps old cost.
+          const rawCost = costCell?.t === "e"
+            ? (Number(costCell.v) === 0x2A ? "#N/A" : (costCell.w ?? "#ERROR"))
+            : costIndex >= 0 ? row[costIndex] : null;
 
 
 
