@@ -40,6 +40,8 @@ public final class MainActivity extends Activity {
     private TextView status, pending, orderNumbers, lastCheck, errorMessage;
     private Button toggle;
     private Button acknowledgeButton;
+    private Button pairingButton;
+    private Button unpairButton;
     private Button fullScreenSettings;
     private Button notificationsSettings;
     private TextView setupStatus;
@@ -167,9 +169,12 @@ public final class MainActivity extends Activity {
             startActivity(new Intent(this, StaffPortalActivity.class));
         });
 
-        Button pairing = button("📱 ลงทะเบียน Android Terminal (ครั้งเดียว)", Color.WHITE, INK);
-        addTop(root, pairing, 12);
-        pairing.setOnClickListener(v -> showPairingDialog());
+        pairingButton = button("📱 ลงทะเบียนอุปกรณ์หน้าร้าน", Color.WHITE, INK);
+        addTop(root, pairingButton, 12);
+        pairingButton.setOnClickListener(v -> showPairingDialog());
+        unpairButton = button("↪ ยกเลิกการจับคู่ / เปลี่ยนบัญชี", Color.rgb(255, 245, 216), INK);
+        addTop(root, unpairButton, 12);
+        unpairButton.setOnClickListener(v -> showUnpairDialog());
         stationPairStatus = label("สถานะการจับคู่: ไม่ได้เชื่อมต่อ", 12, SECONDARY, false);
         addTop(root, stationPairStatus, 8);
 
@@ -194,7 +199,7 @@ public final class MainActivity extends Activity {
             "5. ปิดหน้าจอได้ และตรวจว่าการแจ้งเตือนกำลังทำงานยังแสดงอยู่\n\n" +
             "ครั้งแรกระบบจะข้ามออเดอร์ที่เกิดก่อนเปิดแอป แต่รับออเดอร์ใหม่ทันที", 14, SECONDARY, false), 10);
         addTop(tips, label(
-            "Android Terminal ใช้รหัสลงทะเบียนจาก Manager ครั้งเดียว " +
+            "อุปกรณ์หน้าร้านใช้รหัสลงทะเบียนจาก Manager ครั้งเดียว " +
             "และ Staff Mode จะเข้าสู่บัญชีประจำเครื่องอัตโนมัติ โดยเสียงเตือนยังทำงานต่อ", 13, INK, true), 12);
         addTop(tips, label(
             "ควรเปิด Battery → Unrestricted และต่ออินเทอร์เน็ตไว้ตลอด " +
@@ -217,8 +222,8 @@ public final class MainActivity extends Activity {
         container.addView(code, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         new AlertDialog.Builder(this)
-            .setTitle("ลงทะเบียน Android Terminal")
-            .setMessage("Manager สร้างบัญชีและรหัสติดตั้งที่ Android Terminals\\nStaff Mode จะเชื่อมบัญชีประจำเครื่อง")
+            .setTitle("ลงทะเบียนอุปกรณ์หน้าร้าน")
+            .setMessage("Manager สร้างบัญชีและรหัสจับคู่ที่หน้า อุปกรณ์หน้าร้าน\nStaff Mode จะเชื่อมบัญชีประจำเครื่อง")
             .setView(container)
             .setNegativeButton("ยกเลิก", null)
             .setPositiveButton("จับคู่", (dialog, which) ->
@@ -230,6 +235,25 @@ public final class MainActivity extends Activity {
                     }
                 }))
             .show();
+    }
+
+    private void showUnpairDialog() {
+        String label = prefs.getString(StationHealth.LABEL, "บัญชีเดิม");
+        new AlertDialog.Builder(this)
+            .setTitle("ยกเลิกการจับคู่เครื่อง")
+            .setMessage("ยกเลิกการจับคู่ " + label +
+                " และปิดบัญชี Staff เดิม?\n\nข้อมูลคำสั่งซื้อจะไม่ถูกลบ " +
+                "แต่ต้องให้ Manager ออกรหัสใหม่ก่อนใช้บัญชีอื่น " +
+                "ระบบแจ้งเตือนยังทำงาน แต่การรับทราบข้ามเครื่องจะหยุดจนกว่าจะจับคู่ใหม่")
+            .setNegativeButton("กลับ", null)
+            .setPositiveButton("ยกเลิกการจับคู่", (dialog, which) -> {
+                unpairButton.setEnabled(false);
+                StationHealth.unpair(this, (ok, message) -> {
+                    unpairButton.setEnabled(true);
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                    render();
+                });
+            }).show();
     }
 
     private void sendAction(String action) {
@@ -250,6 +274,9 @@ public final class MainActivity extends Activity {
         status.setTextColor(running ? TEAL : WARNING);
         toggle.setText(running ? "■ หยุดตรวจสอบออเดอร์" : "▶ เริ่มตรวจสอบออเดอร์");
         String pairedToken = prefs.getString(StationHealth.TOKEN, "");
+        boolean paired = pairedToken != null && pairedToken.matches("[a-f0-9]{64}");
+        if (pairingButton != null) pairingButton.setVisibility(paired ? View.GONE : View.VISIBLE);
+        if (unpairButton != null) unpairButton.setVisibility(paired ? View.VISIBLE : View.GONE);
         acknowledgeButton.setText(pairedToken != null && pairedToken.matches("[a-f0-9]{64}")
             ? "✓ รับทราบทุกเครื่อง — หยุดเสียง"
             : "✓ รับทราบเฉพาะเครื่องนี้");

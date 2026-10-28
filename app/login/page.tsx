@@ -33,7 +33,7 @@ const MANAGER_NAVIGATION: NavigationItem[] = [
   { name: "ลูกค้า", href: "/customers", description: "จัดการบัญชีลูกค้า B2B" },
   { name: "สินค้าและราคา", href: "/catalog", description: "สินค้า รูปภาพ และราคาพิเศษ" },
   { name: "พนักงาน", href: "/staff", description: "บัญชีและข้อมูลพนักงาน" },
-  { name: "Android Terminals", href: "/terminals", description: "สร้างบัญชีเครื่อง จับคู่ และดูสถานะ" },
+  { name: "อุปกรณ์หน้าร้าน", href: "/terminals", description: "ลงทะเบียนอุปกรณ์ จัดการบัญชี และดูสถานะ" },
   { name: "สิทธิ์ LINE", href: "/line-access", description: "จัดการสิทธิ์ผู้ใช้ LINE" },
   { name: "KPI", href: "/kpi", description: "ติดตามผลการดำเนินงาน" },
 ];

@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.webkit.CookieManager;
+import android.webkit.WebStorage;
 import org.json.JSONObject;
 import org.json.JSONArray;
 import java.util.List;
@@ -36,6 +38,13 @@ final class StationHealth {
             callback.onComplete(false, "รหัสจับคู่ต้องมี 32 ตัวอักษร (A–F และ 0–9)");
             return;
         }
+        SharedPreferences existing = app.getSharedPreferences(
+            AlarmMonitorService.PREFS, Context.MODE_PRIVATE);
+        String currentToken = existing.getString(TOKEN, "");
+        if (currentToken != null && currentToken.matches("[a-f0-9]{64}")) {
+            callback.onComplete(false, "กรุณายกเลิกการจับคู่บัญชีเดิมก่อนเปลี่ยนเครื่อง");
+            return;
+        }
         network.execute(() -> {
             try {
                 JSONObject payload = new JSONObject().put("code", code.toUpperCase());
@@ -54,6 +63,49 @@ final class StationHealth {
             } catch (Exception e) {
                 ui.post(() -> callback.onComplete(false, e.getMessage()));
             }
+        });
+    }
+
+    /** Server-side revocation must succeed before clearing local identity.
+     * A device cannot silently discard its token while leaving access active.
+     * OMS WebView storage is cleared so the next account cannot inherit a
+     * previous terminal's Staff session.
+     */
+    static void unpair(Context context, Callback callback) {
+        Context app = context.getApplicationContext();
+        SharedPreferences pref = app.getSharedPreferences(AlarmMonitorService.PREFS, Context.MODE_PRIVATE);
+        String token = pref.getString(TOKEN, "");
+        if (token == null || !token.matches("[a-f0-9]{64}")) {
+            clearLocalEnrollment(app);
+            clearWebSession(() -> callback.onComplete(true, "เครื่องยังไม่ได้จับคู่"));
+            return;
+        }
+        network.execute(() -> {
+            try {
+                JSONObject response = post("unpair", token, new JSONObject());
+                if (!response.optBoolean("success"))
+                    throw new Exception(response.optString("error", "ยกเลิกการจับคู่ไม่สำเร็จ"));
+                clearLocalEnrollment(app);
+                ui.post(() -> clearWebSession(() -> callback.onComplete(true,
+                    "ยกเลิกการจับคู่สำเร็จ สามารถลงทะเบียนบัญชีอื่นได้")));
+            } catch (Exception e) {
+                ui.post(() -> callback.onComplete(false,
+                    "ไม่สามารถยกเลิกการจับคู่ผ่าน OMS ได้ กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่"));
+            }
+        });
+    }
+
+    private static void clearLocalEnrollment(Context app) {
+        app.getSharedPreferences(AlarmMonitorService.PREFS, Context.MODE_PRIVATE).edit()
+            .remove(TOKEN).remove(LABEL).remove(DEDICATED).remove(PAIR_ERROR).commit();
+    }
+
+    private static void clearWebSession(Runnable completed) {
+        // Always called on the UI thread.
+        CookieManager.getInstance().removeAllCookies(removed -> {
+            CookieManager.getInstance().flush();
+            WebStorage.getInstance().deleteAllData();
+            completed.run();
         });
     }
 

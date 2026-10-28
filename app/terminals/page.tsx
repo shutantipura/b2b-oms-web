@@ -13,11 +13,12 @@ const TASKS=[
 type Terminal={
  id:string;label:string;last_seen_at:string|null;last_success_at:string|null;
  monitor_active:boolean;pending_count:number;revoked_at:string|null;
- app_version:string|null;staff:{staff_name:string;staff_code:string;is_active:boolean}|null;
+ app_version:string|null;staff:{id:string;staff_name:string;staff_code:string;is_active:boolean}|null;
 };
 type PendingTerminal={id:string;label:string;expires_at:string;staffId:string;staffCode:string};
+type InactiveTerminal={id:string;label:string;staffCode:string};
 type ResponseBody={
- terminals?:Terminal[];pending?:PendingTerminal[];label?:string;pairingCode?:string;expiresAt?:string;
+ terminals?:Terminal[];pending?:PendingTerminal[];inactive?:InactiveTerminal[];label?:string;pairingCode?:string;expiresAt?:string;
  staffCode?:string;success?:boolean;error?:string;
 };
 async function managerRequest(url:string,init:RequestInit={}) {
@@ -30,6 +31,7 @@ async function managerRequest(url:string,init:RequestInit={}) {
 export default function TerminalsPage() {
  const [terminals,setTerminals]=useState<Terminal[]>([]);
  const [pending,setPending]=useState<PendingTerminal[]>([]);
+ const [inactive,setInactive]=useState<InactiveTerminal[]>([]);
  const [name,setName]=useState("Android-001");
  const [stages,setStages]=useState<string[]>(TASKS.map(s=>s.id));
  const [code,setCode]=useState("");
@@ -45,6 +47,7 @@ export default function TerminalsPage() {
    if(!response.ok)throw new Error(data.error||"Cannot load terminals");
    setTerminals(data.terminals??[]);
    setPending(data.pending??[]);
+   setInactive(data.inactive??[]);
    setError("");
   }catch(e){setError(e instanceof Error?e.message:"Unable to load terminals");}
   finally{setLoading(false);}
@@ -70,22 +73,22 @@ export default function TerminalsPage() {
   }catch(e){setError(e instanceof Error?e.message:"Could not create terminal");}
   finally{setBusy(false);}
  }
- async function reissue(item:PendingTerminal){
+ async function reissue(staffId:string,label:string){
   if(busy)return;
   setBusy(true);setError("");setCode("");
   try{
    const response=await managerRequest("/api/admin/terminals",{method:"POST",
-    body:JSON.stringify({reissueStaffId:item.staffId})});
+    body:JSON.stringify({reissueStaffId:staffId})});
    const data=await response.json() as ResponseBody;
    if(!response.ok||!data.pairingCode)throw new Error(data.error??"Cannot generate another code");
    setCode(data.pairingCode);setExpires(data.expiresAt??"");
-   setCreatedName(data.label??item.label);
+   setCreatedName(data.label??label);
    await refresh();
   }catch(e){setError(e instanceof Error?e.message:"Cannot reissue enrollment code");}
   finally{setBusy(false);}
  }
  async function revoke(item:Terminal){
-  if(!window.confirm(`ยกเลิก Android terminal ${item.label}?\n\nการทำเช่นนี้จะยกเลิก Alarm Pairing และปิดบัญชี OMS ของเครื่องนี้`))return;
+  if(!window.confirm(`ปิดใช้งานอุปกรณ์ ${item.label}?\n\nระบบจะยกเลิกการจับคู่และปิดบัญชี Staff โดยเก็บประวัติไว้`))return;
   setBusy(true);setError("");
   try{
    const r=await managerRequest("/api/admin/terminals",{method:"DELETE",
@@ -96,8 +99,35 @@ export default function TerminalsPage() {
   }catch(e){setError(e instanceof Error?e.message:"Unable to revoke");}
   finally{setBusy(false);}
  }
+ async function deactivatePending(item:PendingTerminal){
+  if(!window.confirm(`ปิดบัญชี ${item.label} ที่ยังไม่ได้จับคู่?\n\nรหัสจับคู่ทั้งหมดของบัญชีนี้จะหมดอายุ`))return;
+  setBusy(true);setError("");
+  try{
+   const r=await managerRequest("/api/admin/terminals",{method:"DELETE",
+    body:JSON.stringify({staffId:item.staffId})});
+   const result=await r.json() as ResponseBody;
+   if(!r.ok||!result.success)throw new Error(result.error||"Unable to deactivate");
+   if(createdName===item.label)setCode("");
+   await refresh();
+  }catch(e){setError(e instanceof Error?e.message:"Cannot deactivate account");}
+  finally{setBusy(false);}
+ }
+ async function activate(staffId:string,label:string){
+  if(!window.confirm(`เปิดใช้งาน ${label} และออกรหัสจับคู่ใหม่?\n\nต้องนำรหัสไปกรอกบน Android ภายใน 15 นาที`))return;
+  setBusy(true);setError("");setCode("");
+  try{
+   const r=await managerRequest("/api/admin/terminals",{method:"POST",
+    body:JSON.stringify({activateStaffId:staffId})});
+   const result=await r.json() as ResponseBody;
+   if(!r.ok||!result.pairingCode)throw new Error(result.error||"Cannot activate account");
+   setCode(result.pairingCode);setExpires(result.expiresAt??"");
+   setCreatedName(result.label??label);
+   await refresh();
+  }catch(e){setError(e instanceof Error?e.message:"Cannot activate account");}
+  finally{setBusy(false);}
+ }
  function health(t:Terminal){
-   if(t.revoked_at)return "ยกเลิกการใช้งาน";
+   if(t.revoked_at||!t.staff?.is_active)return "ปิดใช้งาน · ต้องจับคู่ใหม่";
    if(!t.last_seen_at)return "ลงทะเบียนแล้ว · รอสัญญาณ";
    if(Date.now()-Date.parse(t.last_seen_at)>90000)return "ไม่ออนไลน์";
    if(!t.monitor_active)return "ออนไลน์ · ปิดการตรวจสอบ";
@@ -112,19 +142,19 @@ export default function TerminalsPage() {
      ← หน้าหลัก Manager
     </Link>
     <section className="rounded-3xl border border-[#CDE5DE] bg-white p-5 sm:p-7">
-     <p className="text-xs font-extrabold tracking-wider text-[#008E89]">LOTUS'S B2B / DEVICE MANAGEMENT</p>
-     <h1 className="mt-2 text-2xl font-black">Android Terminals</h1>
+     <p className="text-xs font-extrabold tracking-wider text-[#008E89]">LOTUS’S B2B / STORE DEVICES</p>
+     <h1 className="mt-2 text-2xl font-black">อุปกรณ์หน้าร้าน</h1>
      <p className="mt-2 text-sm leading-6 text-[#607E75]">
-      หนึ่งเครื่อง = หนึ่งบัญชี OMS Staff + หนึ่ง Alarm Station โดยสร้างรหัสติดตั้งครั้งเดียว
-      เมื่อติดตั้งแล้วเครื่องจะรับออเดอร์และเปิด OMS ด้วยบัญชีของเครื่องโดยอัตโนมัติ
+      หนึ่งเครื่อง = หนึ่งบัญชี OMS Staff + หนึ่งสถานีแจ้งเตือน ใช้รหัสจับคู่ครั้งเดียว
+      สามารถปิด/เปิดบัญชีใหม่ และเปลี่ยนบัญชีที่จับคู่ได้โดยไม่ต้องลบประวัติ
      </p>
      <p className="mt-3 rounded-xl bg-[#FFF8E5] p-3 text-xs leading-5 text-[#785F24]">
-      กรุณาสร้างรหัสเมื่อมีเครื่อง Android อยู่ด้วย เพราะรหัสหมดอายุใน 15 นาที
-      หลังจับคู่แล้วไม่ต้องเข้าสู่ระบบ Staff ด้วยรหัสผ่านทุกครั้ง
+      ติดตั้งแอป Android ให้พร้อมก่อนสร้างรหัส เพราะรหัสหมดอายุใน 15 นาที
+      หากต้องการเปลี่ยนบัญชีบนเครื่อง ให้กด “ยกเลิกการจับคู่” ในแอป แล้วให้ Manager ออกรหัสบัญชีใหม่
      </p>
     </section>
     <section className="space-y-4 rounded-3xl border border-[#CDE5DE] bg-white p-5 sm:p-7">
-     <h2 className="text-lg font-black">เพิ่ม Android Terminal</h2>
+     <h2 className="text-lg font-black">เพิ่มบัญชีประจำเครื่อง Android</h2>
      <div>
       <label htmlFor="terminal-name" className="mb-1 block text-sm font-bold">ชื่อเครื่อง</label>
       <input id="terminal-name" value={name} onChange={e=>setName(e.target.value)}
@@ -143,7 +173,7 @@ export default function TerminalsPage() {
      </fieldset>
      <p className="text-xs leading-5 text-[#71877F]">เครื่องใช้บัญชี Staff ไม่ใช่ Manager; สิทธิ์งานแก้ไขภายหลังได้ในหน้า พนักงาน</p>
      <button type="button" disabled={busy} onClick={()=>void create()}
-      className="min-h-12 w-full rounded-xl bg-[#02B0AF] px-5 py-3 font-black text-white disabled:opacity-40">
+      className="min-h-12 w-full rounded-xl bg-[#007F80] px-5 py-3 font-black text-white disabled:opacity-40">
       {busy?"กำลังสร้างบัญชี...":"สร้างบัญชีและรหัสจับคู่เครื่อง"}
      </button>
      {code&&<div className="rounded-2xl border border-[#81CDC0] bg-[#E8F8F4] p-4">
@@ -158,12 +188,12 @@ export default function TerminalsPage() {
     {error&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
     <section className="space-y-3">
      <div className="flex items-center justify-between">
-      <h2 className="text-lg font-black">Android Terminals</h2>
+      <h2 className="text-lg font-black">สถานะอุปกรณ์และบัญชี</h2>
       <button onClick={()=>void refresh()} className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-[#008E89]">↻ รีเฟรช</button>
      </div>
      {loading&&<p className="text-sm">กำลังโหลด...</p>}
-     {!loading&&!terminals.length&&!pending.length&&<p className="rounded-xl border bg-white p-4 text-sm text-[#668479]">
-      ยังไม่มี Terminal ที่จับคู่สำเร็จ · สร้าง Terminal ใหม่เมื่อได้รับ Android Device
+     {!loading&&!terminals.length&&!pending.length&&!inactive.length&&<p className="rounded-xl border bg-white p-4 text-sm text-[#668479]">
+      ยังไม่มีอุปกรณ์ · สร้างบัญชีเมื่อพร้อมติดตั้งแอป Android
      </p>}
      {pending.map(p=><article key={p.staffId}
         className="rounded-2xl border border-[#EADAAE] bg-white p-4">
@@ -176,9 +206,13 @@ export default function TerminalsPage() {
         <p className="mt-2 text-xs text-[#6A8279]">
          รหัสล่าสุดหมดอายุ: {new Date(p.expires_at).toLocaleString("th-TH",{timeZone:"Asia/Bangkok"})}
         </p>
-        <button type="button" disabled={busy} onClick={()=>void reissue(p)}
+        <button type="button" disabled={busy} onClick={()=>void reissue(p.staffId,p.label)}
          className="mt-3 rounded-xl border border-[#A3DCD2] px-3 py-2 text-sm font-bold text-[#008E87] disabled:opacity-50">
           สร้างรหัสจับคู่ใหม่สำหรับบัญชีนี้
+        </button>
+        <button type="button" disabled={busy} onClick={()=>void deactivatePending(p)}
+         className="ml-2 mt-3 rounded-xl border border-red-200 px-3 py-2 text-sm font-bold text-red-700 disabled:opacity-50">
+          ปิดใช้งานบัญชี
         </button>
        </article>)}
      {terminals.map(t=><article key={t.id} className="rounded-2xl border border-[#CDE5DE] bg-white p-4">
@@ -193,11 +227,29 @@ export default function TerminalsPage() {
        ล่าสุด: {t.last_seen_at?new Date(t.last_seen_at).toLocaleString("th-TH",{timeZone:"Asia/Bangkok"}):"ยังไม่มีสัญญาณ"}
        {" · "}ออเดอร์ยังไม่ได้รับทราบ: {t.pending_count}
       </p>
-      {!t.revoked_at&&<button disabled={busy} onClick={()=>void revoke(t)}
-       className="mt-3 rounded-xl border border-red-200 px-3 py-2 text-sm font-bold text-red-700 disabled:opacity-40">
-       ยกเลิกเครื่องและปิดบัญชี OMS
-      </button>}
+      {!t.revoked_at
+       ?<button disabled={busy} onClick={()=>void revoke(t)}
+         className="mt-3 rounded-xl border border-red-200 px-3 py-2 text-sm font-bold text-red-700 disabled:opacity-40">
+         ปิดใช้งานและยกเลิกการจับคู่
+        </button>
+       :t.staff&&<button disabled={busy}
+         onClick={()=>void (t.staff!.is_active
+           ?reissue(t.staff!.id,t.label):activate(t.staff!.id,t.label))}
+         className="mt-3 rounded-xl bg-[#007F80] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">
+         {t.staff.is_active?"สร้างรหัสจับคู่ใหม่":"เปิดใช้งานและสร้างรหัสจับคู่ใหม่"}
+        </button>}
      </article>)}
+     {inactive.map(item=><article key={item.id}
+       className="rounded-2xl border border-[#EADAAE] bg-white p-4">
+       <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-bold">{item.label} · {item.staffCode}</h3>
+        <span className="rounded-full bg-[#FFF2D9] px-3 py-1 text-xs font-bold text-[#916000]">ปิดใช้งาน · ยังไม่จับคู่</span>
+       </div>
+       <button type="button" disabled={busy} onClick={()=>void activate(item.id,item.label)}
+        className="mt-3 rounded-xl bg-[#007F80] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">
+        เปิดใช้งานและสร้างรหัสจับคู่ใหม่
+       </button>
+      </article>)}
     </section>
    </div>
   </main>

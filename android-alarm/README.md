@@ -1,4 +1,4 @@
-# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.7)
+# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.8)
 
 An Android app for the existing OMS that requires no LINE or staff login.
 
@@ -158,3 +158,45 @@ The Android phone must be able to reach OMS to retrieve new orders and to authen
 **Security considerations:** Keep the Android phone under the store's physical control, use a device lock / company kiosk policy, and revoke a lost device promptly. A compromised terminal's pairing token could authorize its fixed staff identity until revoked. Neither pairing nor login changes an order status by itself; OMS task actions still require permissions. Employee-level accountability is intentionally not provided.
 
 **Physical QA required:** test fresh installation and permission prompts; first-open alarm; paired cross-device ACK; one-code Staff auto-login; photo-upload camera; session refresh/reopen; battery restrictions and lockscreen; disable/revoke access; reissue expired code. Do not treat the prototype as fully production certified until this is tested on the exact company-managed hardware.
+
+## Unpair, deactivate and re-enroll store devices (v0.8)
+
+No terminal account is permanently deleted. Each Android device keeps its own
+Staff identity and alarm-station record for auditability.
+
+**Change the account on the same Android phone:**
+
+1. Install/open **Lotus's B2B Alarm 0.8**. Keep the device online.
+2. Tap **ยกเลิกการจับคู่ / เปลี่ยนบัญชี** and confirm.
+   This calls `POST /api/alarm-station/unpair` using the old station token.
+   The server revokes that station and disables its Staff account; the app then
+   clears the token and OMS WebView cookies/storage. If the server cannot confirm
+   revocation, the app keeps the old pairing and asks the user to retry.
+3. On the manager page **อุปกรณ์หน้าร้าน** (`/terminals`), either reactivate
+   the old named account, or create/select another account.
+4. Generate a new single-use code (15-minute expiry) **after** the app is ready.
+5. On Android, tap **ลงทะเบียนอุปกรณ์หน้าร้าน** and enter the new code.
+   Staff Mode then uses the selected account. Native alarms continue even while
+   the device is briefly unpaired, but shared acknowledgements require pairing.
+
+**Lost phone or remote deactivation:**
+
+- A manager may disable a paired or still-pending account from the dashboard.
+  This revokes station access and expires unused pairing codes. Historical
+  pairing/Staff records are retained.
+- A disabled account can be activated again with a *new* enrollment code. The
+  old station secret remains revoked and cannot be restored.
+- The old phone may still display its former local label until the user taps
+  **ยกเลิกการจับคู่**, but it can no longer authenticate a new Staff session or
+  acknowledge alarms across devices using the revoked station token.
+- This deliberately does not implement permanent deletion, nor an iOS app.
+
+**Safety:** Never overwrite one saved station token with another. Unpair online
+first. A revoked historical token is allowed to clear its own local state but
+must not deactivate any later replacement session for the same Staff account.
+
+**Acceptance checks:** pair Android-001; unpair it; verify its old token is
+rejected by `staff-session` and shared `ack`; activate Android-001 with a
+fresh code and pair it again; repeat using a different existing terminal
+account; verify staff permissions, shared acknowledgement and OMS WebView
+session isolation after account switching.

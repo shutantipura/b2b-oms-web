@@ -52,6 +52,7 @@ public final class StaffPortalActivity extends Activity {
     private TextView title;
     private String pendingStaffTokenHash;
     private boolean activationPageReady=false;
+    private String tokenAtOpen="";
 
     private interface ValueCallbackFileChooser {
         void finish(Uri[] result);
@@ -59,6 +60,8 @@ public final class StaffPortalActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        tokenAtOpen=getSharedPreferences(AlarmMonitorService.PREFS, MODE_PRIVATE)
+            .getString(StationHealth.TOKEN, "");
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         buildLayout();
         configureWebView();
@@ -297,6 +300,17 @@ public final class StaffPortalActivity extends Activity {
         chooser = null;
         cameraOutput = null;
         cameraFile = null;
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        // If this device switched its terminal identity, discard any old Staff view.
+        String current=getSharedPreferences(AlarmMonitorService.PREFS, MODE_PRIVATE)
+            .getString(StationHealth.TOKEN, "");
+        if (tokenAtOpen==null ? current!=null : !tokenAtOpen.equals(current)) {
+            if (webView!=null) webView.loadUrl("about:blank");
+            finish();
+        }
     }
 
     @Override protected void onSaveInstanceState(Bundle state) {
