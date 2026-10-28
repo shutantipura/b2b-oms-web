@@ -565,7 +565,7 @@ export default function MiniAppCheckoutPage() {
                 {hasPieceOrders ? "ไม่รวมรายการสั่งเป็นชิ้น · คิดราคาจากน้ำหนักจริง" : "ยอดจริงขึ้นอยู่กับจำนวนที่หยิบได้"}
               </p>
             </div>
-            <strong className="text-xl font-black text-[#008F8D]">฿{formatMoney(estimatedTotal)}</strong>
+            <strong className="text-xl font-black text-[#008F8D]">{hasPieceOrders && estimatedTotal === 0 ? "รอชั่งน้ำหนัก" : `฿${formatMoney(estimatedTotal)}`}</strong>
           </div>
         </section>
 
@@ -708,7 +708,7 @@ export default function MiniAppCheckoutPage() {
               <span className="block text-[13px] font-extrabold leading-5 sm:text-sm">{submitting ? "กำลังส่งคำสั่งซื้อ..." : mergeIntoOrderNumber ? "ยืนยันการจัดส่งร่วมกัน" : "ยืนยันคำสั่งซื้อ"}</span>
               <span className="mt-1 hidden text-[11px] leading-4 text-white/80 min-[390px]:block">{submitting ? "กรุณารอสักครู่" : mergeIntoOrderNumber ? "สร้างคำสั่งซื้อย่อย →" : "ส่งรายการให้ทีมงานตรวจสอบ →"}</span>
             </span>
-            <span className="miniapp-cta-price text-right text-[clamp(15px,4.9vw,21px)] font-black">~฿{formatMoney(estimatedTotal)}</span>
+            <span className="miniapp-cta-price text-right text-[clamp(15px,4.9vw,21px)] font-black">{hasPieceOrders && estimatedTotal === 0 ? "รอชั่งน้ำหนัก" : `~฿${formatMoney(estimatedTotal)}`}</span>
           </button>
         </div>
       </div>
