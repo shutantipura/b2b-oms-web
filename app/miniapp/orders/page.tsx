@@ -23,6 +23,8 @@ type OrderItem = {
   estimatedSubtotal?: number | null;
   unitPrice?: number | null;
   priceIsCurrentEstimate?: boolean;
+  isPiece?: boolean;
+  pricePerKg?: number | null;
 };
 
 type Order = {
@@ -460,8 +462,9 @@ export default function CustomerOrdersPage() {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-sm font-bold">{item.productName}</p>
-                                  {item.unitPrice !== null && item.unitPrice !== undefined && <p className="mt-1 text-xs font-semibold text-[#008F8D]">฿{money(item.unitPrice)} / {item.unit}</p>}
-                                  {item.estimatedSubtotal !== null && item.estimatedSubtotal !== undefined && <p className="mt-1 text-sm font-extrabold text-[#009F9D]">รวมประมาณ ฿{money(item.estimatedSubtotal)}</p>}
+                                  {item.isPiece && <p className="mt-1 text-xs font-semibold text-[#8D671C]">สั่งเป็นชิ้น · ราคาคิดตามน้ำหนักจริง{item.pricePerKg != null ? ` (฿${money(item.pricePerKg)} / กก.)` : ""}</p>}
+                                  {!item.isPiece && item.unitPrice !== null && item.unitPrice !== undefined && <p className="mt-1 text-xs font-semibold text-[#008F8D]">฿{money(item.unitPrice)} / {item.unit}</p>}
+                                  {!item.isPiece && item.estimatedSubtotal !== null && item.estimatedSubtotal !== undefined && <p className="mt-1 text-sm font-extrabold text-[#009F9D]">รวมประมาณ ฿{money(item.estimatedSubtotal)}</p>}
                                   {item.priceIsCurrentEstimate && <p className="mt-1 text-[10px] text-[#82968D]">* ประเมินจากราคาปัจจุบัน</p>}
                                 </div>
                               </div>
