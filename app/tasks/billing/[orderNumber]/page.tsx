@@ -320,7 +320,7 @@ export default function BillingPage() {
       ? await supabase.from("group_billing_lines")
           .select(`
             id,product_name_snapshot,requested_qty,confirmed_qty,actual_qty,
-            unit_snapshot,unit_price_snapshot,piece_price_per_kg_snapshot,products(sku)
+            unit_snapshot,unit_price_snapshot,sources,products(sku)
           `)
           .eq("root_order_id",loadedOrder.id)
           .order("product_name_snapshot",{ascending:true})
@@ -352,11 +352,24 @@ export default function BillingPage() {
 
 
 
-    setItems(
-
-      (itemData ?? []) as unknown as OrderItem[]
-
-    );
+    // group_billing_lines holds the effective per-unit price and a sources
+    // audit array, not piece_price_per_kg_snapshot (which is only in order_items).
+    // Mark lines weighed in kg by the original order sources; normal piece
+    // products continue to use their own per-piece selling price.
+    const billingItems: OrderItem[] = grouped
+      ? (itemData ?? []).map((row) => {
+          const sourceRows = (row as { sources?: unknown }).sources;
+          const measuredKg = Array.isArray(sourceRows) && sourceRows.some(
+            (source: unknown) => Boolean(source) && typeof source === "object" &&
+              "picked_unit" in source && source.picked_unit === "กก."
+          );
+          return {
+            ...row,
+            piece_price_per_kg_snapshot: measuredKg ? row.unit_price_snapshot : null,
+          } as OrderItem;
+        })
+      : (itemData ?? []) as unknown as OrderItem[];
+    setItems(billingItems);
 
 
 
