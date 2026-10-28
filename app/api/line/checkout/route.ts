@@ -27,6 +27,7 @@ type CheckoutItem = {
   productName: string;
   unit: string;
   quantity: number;
+  isPiece: boolean;
   normalPrice: number;
   effectivePrice: number;
   hasSpecialPrice: boolean;
@@ -354,7 +355,8 @@ async function verifyLineAndCustomer(
 async function buildCart(
   supabase: any,
   customerId: string,
-  cart: Cart
+  cart: Cart,
+  pieceProductIds: string[]
 ): Promise<
   CheckoutItem[]
 > {
@@ -537,6 +539,7 @@ async function buildCart(
   // 4. BUILD CHECKOUT ITEMS
   // -------------------------------------------------
 
+  const selectedPieces = new Set(pieceProductIds);
   const checkoutItems:
     CheckoutItem[] =
     products.map(
@@ -564,7 +567,12 @@ async function buildCart(
               product.id
             ]
           );
-
+        const requestedPieces = selectedPieces.has(product.id);
+        const kgPriced = /kg|กก|กิโล/i.test(product.unit);
+        if (requestedPieces && (!kgPriced ||
+          !Number.isSafeInteger(quantity) || quantity > 1000)) {
+          throw new Error("สั่งเป็นชิ้นได้เฉพาะสินค้าคิดราคาเป็น กก. และจำนวนต้องเป็นจำนวนเต็ม 1–1,000 ชิ้น");
+        }
         return {
           id:
             product.id,
@@ -579,6 +587,7 @@ async function buildCart(
             product.unit,
 
           quantity,
+          isPiece: requestedPieces,
 
           normalPrice,
 
@@ -588,9 +597,9 @@ async function buildCart(
             specialPrice !==
             undefined,
 
+          // Piece count is NOT a weight. Never multiply by per-kg price.
           estimatedSubtotal:
-            quantity *
-            effectivePrice,
+            requestedPieces ? 0 : quantity * effectivePrice,
         };
       }
     );
@@ -873,11 +882,16 @@ export async function POST(
     // CART DATA
     // -------------------------------------------------
 
+    const pieceProductIds = Array.isArray(body.pieceProductIds)
+      ? body.pieceProductIds.filter((id: unknown): id is string =>
+          typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200)
+      : [];
     const items =
       await buildCart(
         supabase,
         customer.id,
-        cart
+        cart,
+        pieceProductIds
       );
 
     // =================================================
@@ -1022,6 +1036,7 @@ export async function POST(
 
           quantity:
             item.quantity,
+          order_unit: item.isPiece ? "piece" : "kg",
         })
       );
 
