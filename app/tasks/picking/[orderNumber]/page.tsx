@@ -1134,12 +1134,12 @@ export default function PickingPage() {
                             ยืนยัน
                           </p>
                           <p className="mt-1 truncate text-base font-extrabold text-[#21463A]" title={String(amounts.confirmed)}>
-                            {formatPickingQuantity(amounts.confirmed)}
+                            {formatPickingQuantity(amounts.confirmed)} {weighed ? "ชิ้น" : ""}
                           </p>
                         </div>
                         <label className="w-[76px] rounded-lg border-2 border-[#62C8C2] bg-[#F0FBFA] px-1 py-1.5 text-center sm:w-28">
-                          <span className="block text-[10px] font-extrabold text-[#007C76] sm:text-xs" title="จำนวนที่หยิบจริง">
-                            หยิบจริง
+                          <span className="block text-[10px] font-extrabold text-[#007C76] sm:text-xs" title={weighed ? "น้ำหนักชั่งจริง กก." : "จำนวนที่หยิบจริง"}>
+                            {weighed ? "หยิบจริง (กก.)" : "หยิบจริง"}
                           </span>
                           <input
                             type="number"
@@ -1147,7 +1147,7 @@ export default function PickingPage() {
                             min="0"
                             step={item.unit_snapshot === "ชิ้น" && !weighed ? "1" : "0.001"}
                             required
-                            aria-label={`จำนวนที่หยิบจริงของ ${item.product_name_snapshot}`}
+                            aria-label={`${weighed ? "น้ำหนักชั่งจริง กก." : "จำนวนที่หยิบจริง"} ของ ${item.product_name_snapshot}`}
                             value={actual[item.id] ?? ""}
                             onChange={(event) =>
                               setActual((previous) => ({
@@ -1169,7 +1169,7 @@ export default function PickingPage() {
                          title="จำนวนที่ยืนยัน">ยืนยัน</p>
                       <p className="mt-1 truncate text-[15px] font-extrabold text-[#21463A] sm:text-lg"
                          title={String(amounts.confirmed)}>
-                        {formatPickingQuantity(amounts.confirmed)}
+                        {formatPickingQuantity(amounts.confirmed)} {weighed ? "ชิ้น" : ""}
                       </p>
                     </div>
                     <div className="min-w-0 rounded-lg bg-[#F3F7F5] px-1.5 py-2 text-center sm:px-3">
@@ -1177,7 +1177,7 @@ export default function PickingPage() {
                          title="จำนวนที่หยิบแล้ว">หยิบแล้ว</p>
                       <p className="mt-1 truncate text-[15px] font-extrabold text-[#21463A] sm:text-lg"
                          title={String(amounts.alreadyPicked)}>
-                        {formatPickingQuantity(amounts.alreadyPicked)}
+                        {formatPickingQuantity(amounts.alreadyPicked)} {weighed ? "กก." : ""}
                       </p>
                     </div>
                     <div className="min-w-0 rounded-lg bg-[#FFF6DF] px-1.5 py-2 text-center sm:px-3">
@@ -1185,7 +1185,7 @@ export default function PickingPage() {
                          title="จำนวนที่ต้องหยิบเพิ่ม">หยิบเพิ่ม</p>
                       <p className="mt-1 truncate text-[15px] font-extrabold text-[#8C671A] sm:text-lg"
                          title={String(amounts.additionalToPick)}>
-                        {formatPickingQuantity(amounts.additionalToPick)}
+                        {weighed ? "ชั่งจริง" : formatPickingQuantity(amounts.additionalToPick)}
                       </p>
                     </div>
                     <label className={`min-w-0 rounded-lg border-2 px-1 py-1.5 text-center sm:px-2 ${
@@ -1194,7 +1194,7 @@ export default function PickingPage() {
                         : "border-[#DCE9E4] bg-[#F3F7F5]"
                     }`}>
                       <span className="block min-h-7 text-[10px] font-extrabold leading-[14px] text-[#007C76] sm:text-xs"
-                            title="จำนวนที่หยิบจริงทั้งหมด">หยิบจริงรวม</span>
+                            title={weighed ? "น้ำหนักชั่งจริงทั้งหมด กก." : "จำนวนที่หยิบจริงทั้งหมด"}>{weighed ? "หยิบจริงรวม (กก.)" : "หยิบจริงรวม"}</span>
                       {needsInput ? (
                         <input
                           type="number"
@@ -1202,7 +1202,7 @@ export default function PickingPage() {
                           min={amounts.alreadyPicked}
                           step={item.unit_snapshot === "ชิ้น" && !weighed ? "1" : "0.001"}
                           required
-                          aria-label={`จำนวนที่หยิบจริงทั้งหมดของ ${item.product_name_snapshot}`}
+                          aria-label={`${weighed ? "น้ำหนักชั่งจริงทั้งหมด กก." : "จำนวนที่หยิบจริงทั้งหมด"} ของ ${item.product_name_snapshot}`}
                           value={actual[item.id] ?? ""}
                           onChange={(event) =>
                             setActual((previous) => ({
@@ -1214,7 +1214,7 @@ export default function PickingPage() {
                         />
                       ) : (
                         <p className="mt-1 truncate text-[15px] font-extrabold text-[#006E6A] sm:text-lg">
-                          {formatPickingQuantity(Number(item.actual_qty ?? 0))}
+                          {formatPickingQuantity(Number(item.actual_qty ?? 0))} {weighed ? "กก." : ""}
                         </p>
                       )}
                     </label>
@@ -1222,7 +1222,7 @@ export default function PickingPage() {
                   )}
                   {addonMode && (
                     <p className="mt-1 text-right text-[10px] text-[#71877E]">
-                      หน่วย: {item.unit_snapshot}
+                      หน่วยยืนยัน: {item.unit_snapshot} · หน่วยหยิบจริง: {weighed ? "กก." : item.unit_snapshot}
                     </p>
                   )}
                 </div>
