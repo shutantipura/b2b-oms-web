@@ -255,10 +255,11 @@ export default function CatalogExportButton({
   }
 
   return (
-    <div className="rounded-xl border border-[#BDE1D8] bg-[#F3FAF7] p-4">
+    <div className="rounded-xl border border-[#BDE1D8] bg-[#F1FAF5] p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-bold text-[#205849]">ส่งออกข้อมูลล่าสุด (Excel)</p>
+          <p className="text-xs font-extrabold tracking-wide text-[#0C8F7F]">ขั้นตอน 1 · ดาวน์โหลดข้อมูลจริง</p>
+          <p className="mt-1 text-base font-extrabold text-[#205849]">Excel ฉบับปัจจุบันจากระบบ</p>
           <p className="mt-1 text-xs leading-relaxed text-[#617C72]">
             {settings.description} · ใช้ไฟล์นี้เป็นฐานก่อนเพิ่มข้อมูลและนำเข้าครั้งถัดไป
           </p>

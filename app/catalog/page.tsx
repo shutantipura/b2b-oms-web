@@ -4094,109 +4094,82 @@ export default function CatalogPage() {
 
 
 
-      {/* HEADER */}
-
-
-
-      <header className="bg-white border-b">
-
-
-
-        <div className="max-w-5xl mx-auto px-5 py-6">
-
-
-
+        <header className="bg-[#17473D] text-white">
+        <div className="mx-auto max-w-6xl px-5 pb-16 pt-7 sm:px-6 sm:pb-20">
           <button
-
             type="button"
-
-            onClick={() =>
-
-              router.push(
-
-                "/login"
-
-              )
-
-            }
-
-            className="text-sm text-gray-500"
-
+            onClick={() => router.push("/login")}
+            className="text-sm font-semibold text-[#C9E2D8] hover:text-white"
           >
-
             ← กลับหน้าหลัก
-
           </button>
-
-
-
-          <div className="mt-4">
-
-
-
-            <p className="text-sm text-gray-500 font-semibold">
-
-              ผู้จัดการ
-
-            </p>
-
-
-
-            <h1 className="text-3xl font-bold mt-1">
-
-              จัดการแคตตาล็อก
-
+          <div className="mt-7 max-w-2xl">
+            <span className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold tracking-wide text-[#DDF3E8]">
+              MANAGER · CATALOG MANAGEMENT
+            </span>
+            <h1 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
+              จัดการข้อมูลสินค้า
             </h1>
-
-
-
-            <p className="text-gray-500 mt-2">
-
-              นำเข้าและจัดการ Product Master ราคาปกติ ราคาพิเศษ รูปสินค้า และรายการสินค้าที่แสดงให้ลูกค้า
-
+            <p className="mt-3 text-sm leading-7 text-[#D4E7DE] sm:text-base">
+              จัดการราคาปกติ ต้นทุน สินค้าที่แสดง รูปภาพ และราคาพิเศษจากข้อมูลปัจจุบันในระบบ
             </p>
-
-
-
           </div>
-
-
-
         </div>
-
-
-
       </header>
 
+      <div className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
+        <section id="catalog-guide" className="-mt-10 relative rounded-2xl border border-[#D8E7E0] bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[#0A8A79]">วิธีอัปเดตข้อมูลอย่างปลอดภัย</p>
+              <h2 className="mt-1 text-xl font-extrabold text-[#173D34]">เริ่มจากไฟล์ล่าสุดทุกครั้ง</h2>
+            </div>
+            <span className="rounded-full bg-[#E8F7F0] px-3 py-1.5 text-xs font-bold text-[#226B58]">
+              Excel → ตรวจสอบ → ยืนยัน
+            </span>
+          </div>
+          <ol className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["01", "ดาวน์โหลดข้อมูลจริง", "เลือกส่วนงานแล้วกดดาวน์โหลด Excel ล่าสุด"],
+              ["02", "เพิ่มหรือแก้ไขแถว", "เก็บข้อมูลเดิมที่ต้องการใช้งานไว้ในไฟล์"],
+              ["03", "อัปโหลดและตรวจสอบ", "เลือกไฟล์ ตรวจ SKU และตัวอย่างก่อนนำเข้า"],
+              ["04", "ยืนยันการนำเข้า", "ตรวจผลสำเร็จและรายการที่ไม่พบ"],
+            ].map(([number, title, description]) => (
+              <li key={number} className="rounded-xl border border-[#E0ECE6] bg-[#F8FBF9] p-3.5">
+                <span className="text-xs font-extrabold text-[#029B89]">{number}</span>
+                <p className="mt-1 text-sm font-bold text-[#244A40]">{title}</p>
+                <p className="mt-1 text-xs leading-5 text-[#6D857B]">{description}</p>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900">
+            แนะนำให้ดาวน์โหลดใหม่ก่อนแก้ไขเสมอ เพื่อไม่ให้ไฟล์เก่าเขียนทับการปรับราย SKU ที่ทำไว้ภายหลัง
+            และหลีกเลี่ยงการแก้ไขรายการเดียวกันระหว่างดาวน์โหลดจนถึงนำเข้า
+          </p>
+        </section>
 
+        <nav aria-label="ไปยังส่วนจัดการข้อมูล" className="sticky top-0 z-20 mt-6 flex gap-2 overflow-x-auto rounded-xl border border-[#D7E7DF] bg-white/95 p-2 shadow-sm backdrop-blur">
+          <a href="#catalog-master" className="whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-bold text-[#226253] transition hover:bg-[#E8F7F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#02B0AF]">01 · สินค้าและราคา</a>
+          <a href="#catalog-visible" className="whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-bold text-[#226253] transition hover:bg-[#E8F7F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#02B0AF]">02 · สินค้าที่แสดง</a>
+          <a href="#catalog-pictures" className="whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-bold text-[#226253] transition hover:bg-[#E8F7F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#02B0AF]">03 · รูปสินค้า</a>
+          <a href="#catalog-special" className="whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-bold text-[#226253] transition hover:bg-[#E8F7F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#02B0AF]">04 · ราคาพิเศษ</a>
+        </nav>
 
-      <div className="max-w-5xl mx-auto p-5 space-y-6">
-
-
+        <div className="mt-6 space-y-8">
 
         {/* ================================================= */}
 
-        {/* 1. SPECIAL CUSTOMER PRICES */}
+        {/* 1. PRODUCT MASTER */}
 
         {/* ================================================= */}
 
 
 
-        <SpecialPriceImportSection />
-
-        {/* ================================================= */}
-
-        {/* 2. PRODUCT MASTER */}
-
-        {/* ================================================= */}
+        <section id="catalog-master" className="scroll-mt-20 overflow-hidden rounded-2xl border border-[#D7E7DF] bg-white shadow-sm">
 
 
 
-        <section className="bg-white border rounded-2xl overflow-hidden">
-
-
-
-          <div className="p-6 border-b">
+          <div className="border-b border-[#E1EEE7] bg-[#F9FCFA] p-5 sm:p-6">
 
 
 
@@ -4204,9 +4177,9 @@ export default function CatalogPage() {
 
 
 
-              <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-bold shrink-0">
+              <div className="w-10 h-10 rounded-full bg-[#087F75] text-white flex items-center justify-center font-extrabold shrink-0">
 
-                2
+                1
 
               </div>
 
@@ -4218,7 +4191,7 @@ export default function CatalogPage() {
 
                 <h2 className="text-xl font-bold">
 
-                  ข้อมูลสินค้าและราคา
+                  Product Master และราคาปกติ
 
                 </h2>
 
@@ -4226,7 +4199,7 @@ export default function CatalogPage() {
 
                 <p className="text-sm text-gray-500 mt-1">
 
-                  อัปโหลดไฟล์ Master Price เพื่อเพิ่มสินค้าใหม่และอัปเดตข้อมูลสินค้าเดิม
+                  จัดการชื่อสินค้า หน่วย ราคาปกติ และต้นทุนราย SKU ทั้งแบบ Excel และรายสินค้า
 
                 </p>
 
@@ -4244,65 +4217,7 @@ export default function CatalogPage() {
 
 
 
-          <div className="p-6">
-
-
-
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
-                <div>
-
-                  <p className="font-semibold text-red-800">
-
-                    รีเซ็ต Product Master
-
-                  </p>
-
-                  <p className="text-sm text-red-700 mt-1">
-
-                    ปิดใช้งานสินค้าทั้งหมดและซ่อนจาก B2B Ordering โดยไม่ลบออเดอร์เก่าหรือประวัติ
-
-                  </p>
-
-                </div>
-
-                <button
-
-                  type="button"
-
-                  onClick={
-
-                    resetAllProducts
-
-                  }
-
-                  disabled={
-
-                    resettingProducts ||
-
-                    readingMaster ||
-
-                    importingMaster
-
-                  }
-
-                  className="shrink-0 bg-white border border-red-300 text-red-700 rounded-xl px-5 py-3 font-semibold disabled:opacity-40"
-
-                >
-
-                  {resettingProducts
-
-                    ? "กำลังรีเซ็ต..."
-
-                    : "รีเซ็ต Product Master ทั้งหมด"}
-
-                </button>
-
-              </div>
-
-            </div>
+          <div className="p-5 sm:p-6">
 
 
 
@@ -4313,12 +4228,12 @@ export default function CatalogPage() {
               />
             </div>
 
-            <ManualMasterPriceEditor
-              disabled={readingMaster || importingMaster || resettingProducts}
-              refreshToken={masterAdjustRevision}
-            />
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-extrabold text-[#20584B]">ขั้นตอน 2 · อัปโหลดไฟล์ที่แก้ไข</h3>
+              <span className="text-xs text-[#7B9387]">ตรวจตัวอย่างก่อนยืนยัน</span>
+            </div>
 
-            <div className="bg-gray-50 rounded-xl p-4 text-sm">
+            <div className="rounded-xl border border-[#E0EBE5] bg-[#F8FAF9] p-4 text-sm">
 
 
 
@@ -5132,7 +5047,7 @@ export default function CatalogPage() {
 
                   }
 
-                  className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-6 disabled:opacity-40"
+                  className="w-full bg-[#087F75] text-white rounded-xl px-5 py-4 transition hover:bg-[#066E65] font-semibold mt-6 disabled:opacity-40"
 
                 >
 
@@ -5158,27 +5073,102 @@ export default function CatalogPage() {
 
 
 
+            <details className="mt-6 rounded-xl border border-[#D7E7DF] bg-[#F9FCFA]">
+              <summary className="cursor-pointer px-4 py-4 text-sm font-bold text-[#205F50]">
+                ต้องการแก้ไขเพียงสินค้าเดียว? เปิดตัวแก้ไขราคาและต้นทุนราย SKU
+              </summary>
+              <div className="px-4 pb-4">
+            <ManualMasterPriceEditor
+              disabled={readingMaster || importingMaster || resettingProducts}
+              refreshToken={masterAdjustRevision}
+            />
+              </div>
+            </details>
+
+            <details className="mt-6 rounded-xl border border-amber-200 bg-amber-50/50">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-amber-800">
+                การจัดการขั้นสูง · รีเซ็ต Product Master ทั้งหมด
+              </summary>
+              <div className="px-4 pb-4">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+                <div>
+
+                  <p className="font-semibold text-red-800">
+
+                    รีเซ็ต Product Master
+
+                  </p>
+
+                  <p className="text-sm text-red-700 mt-1">
+
+                    ปิดใช้งานสินค้าทั้งหมดและซ่อนจาก B2B Ordering โดยไม่ลบออเดอร์เก่าหรือประวัติ
+
+                  </p>
+
+                </div>
+
+                <button
+
+                  type="button"
+
+                  onClick={
+
+                    resetAllProducts
+
+                  }
+
+                  disabled={
+
+                    resettingProducts ||
+
+                    readingMaster ||
+
+                    importingMaster
+
+                  }
+
+                  className="shrink-0 bg-white border border-red-300 text-red-700 rounded-xl px-5 py-3 font-semibold disabled:opacity-40"
+
+                >
+
+                  {resettingProducts
+
+                    ? "กำลังรีเซ็ต..."
+
+                    : "รีเซ็ต Product Master ทั้งหมด"}
+
+                </button>
+
+              </div>
+
+            </div>
+              </div>
+            </details>
+
         </section>
 
 
 
         {/* ================================================= */}
 
-        {/* 3. VISIBLE SKU */}
+        {/* 2. VISIBLE SKU */}
 
         {/* ================================================= */}
 
 
 
-        <section className="bg-white border rounded-2xl overflow-hidden">
+        <section id="catalog-visible" className="scroll-mt-20 overflow-hidden rounded-2xl border border-[#D7E7DF] bg-white shadow-sm">
 
 
 
-          <div className="border-b p-5 sm:p-6">
+          <div className="border-b border-[#E1EEE7] bg-[#F9FCFA] p-5 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-start gap-4">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#02B0AF] font-bold text-white">
-                  3
+                  2
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-xl font-bold">สินค้าที่แสดงให้ลูกค้า</h2>
@@ -5196,47 +5186,7 @@ export default function CatalogPage() {
             </div>
           </div>
 
-          <div className="p-6">
-
-
-
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
-                <div>
-
-                  <p className="font-semibold text-red-800">
-                    รีเซ็ตรายการสินค้าที่แสดง
-                  </p>
-
-                  <p className="text-sm text-red-700 mt-1">
-                    ซ่อนสินค้าที่กำลังแสดงให้ลูกค้าทั้งหมด โดยไม่ลบ Product Master ราคา หรือรูปสินค้า
-                  </p>
-
-                </div>
-
-                <button
-                  type="button"
-                  onClick={
-                    resetVisibleProducts
-                  }
-                  disabled={
-                    resettingVisible ||
-                    readingVisible ||
-                    previewingVisible ||
-                    applyingVisible
-                  }
-                  className="shrink-0 bg-white border border-red-300 text-red-700 rounded-xl px-5 py-3 font-semibold disabled:opacity-40"
-                >
-                  {resettingVisible
-                    ? "กำลังรีเซ็ต..."
-                    : "รีเซ็ตรายการที่แสดงทั้งหมด"}
-                </button>
-
-              </div>
-
-            </div>
+          <div className="p-5 sm:p-6">
 
 
 
@@ -5247,7 +5197,12 @@ export default function CatalogPage() {
               />
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-4 mb-6 text-sm">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-extrabold text-[#20584B]">ขั้นตอน 2 · อัปโหลดไฟล์ที่แก้ไข</h3>
+              <span className="text-xs text-[#7B9387]">ตรวจตัวอย่างก่อนยืนยัน</span>
+            </div>
+
+            <div className="mb-6 rounded-xl border border-[#E0EBE5] bg-[#F8FAF9] p-4 text-sm">
 
               <p className="font-semibold">
 
@@ -6065,7 +6020,7 @@ export default function CatalogPage() {
 
                 }
 
-                className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-6 disabled:opacity-40"
+                className="w-full bg-[#087F75] text-white rounded-xl px-5 py-4 transition hover:bg-[#066E65] font-semibold mt-6 disabled:opacity-40"
 
               >
 
@@ -6521,7 +6476,7 @@ export default function CatalogPage() {
 
                     }
 
-                    className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold disabled:opacity-40"
+                    className="w-full bg-[#087F75] text-white rounded-xl px-5 py-4 transition hover:bg-[#066E65] font-semibold disabled:opacity-40"
 
                   >
 
@@ -6551,13 +6506,58 @@ export default function CatalogPage() {
 
 
 
+            <details className="mt-6 rounded-xl border border-amber-200 bg-amber-50/50">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-amber-800">
+                การจัดการขั้นสูง · ซ่อนสินค้าที่แสดงทั้งหมด
+              </summary>
+              <div className="px-4 pb-4">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+                <div>
+
+                  <p className="font-semibold text-red-800">
+                    รีเซ็ตรายการสินค้าที่แสดง
+                  </p>
+
+                  <p className="text-sm text-red-700 mt-1">
+                    ซ่อนสินค้าที่กำลังแสดงให้ลูกค้าทั้งหมด โดยไม่ลบ Product Master ราคา หรือรูปสินค้า
+                  </p>
+
+                </div>
+
+                <button
+                  type="button"
+                  onClick={
+                    resetVisibleProducts
+                  }
+                  disabled={
+                    resettingVisible ||
+                    readingVisible ||
+                    previewingVisible ||
+                    applyingVisible
+                  }
+                  className="shrink-0 bg-white border border-red-300 text-red-700 rounded-xl px-5 py-3 font-semibold disabled:opacity-40"
+                >
+                  {resettingVisible
+                    ? "กำลังรีเซ็ต..."
+                    : "รีเซ็ตรายการที่แสดงทั้งหมด"}
+                </button>
+
+              </div>
+
+            </div>
+              </div>
+            </details>
+
         </section>
 
 
 
         {/* ================================================= */}
 
-        {/* 4. PICTURE MASTER */}
+        {/* 3. PICTURE MASTER */}
 
         {/* ================================================= */}
 
@@ -6565,6 +6565,21 @@ export default function CatalogPage() {
 
         <div className="space-y-4">
 
+          <PictureImportSection
+
+            key={
+
+              pictureResetKey
+
+            }
+
+          />
+
+          <details className="rounded-xl border border-amber-200 bg-amber-50/50">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-amber-800">
+              การจัดการขั้นสูง · รีเซ็ตรูปสินค้าทั้งหมด
+            </summary>
+            <div className="p-4">
           <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
 
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -6636,30 +6651,18 @@ export default function CatalogPage() {
             )}
 
           </div>
+            </div>
+          </details>
 
-
-
-          <PictureImportSection
-
-            key={
-
-              pictureResetKey
-
-            }
-
-          />
 
 
 
         </div>
 
+        <SpecialPriceImportSection />
 
-
-
-
+        </div>
       </div>
-
-
 
     </main>
 

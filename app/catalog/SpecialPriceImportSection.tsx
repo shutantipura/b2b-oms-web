@@ -806,20 +806,20 @@ export default function SpecialPriceImportSection() {
   }
 
   return (
-    <section className="bg-white border rounded-2xl overflow-hidden">
+    <section id="catalog-special" className="scroll-mt-20 overflow-hidden rounded-2xl border border-[#D7E7DF] bg-white shadow-sm">
 
-      <div className="p-5 border-b sm:p-6">
+      <div className="border-b border-[#E1EEE7] bg-[#F9FCFA] p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-start gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#02B0AF] font-bold text-white">
-              1
+              4
             </div>
             <div className="min-w-0">
               <h2 className="text-xl font-bold text-[#17453F]">
                 ราคาพิเศษรายลูกค้า
               </h2>
               <p className="mt-1 text-sm text-gray-500">
-                นำเข้าราคาพิเศษจำนวนมากจาก Excel หรือแก้ไขราคาทีละสินค้าได้
+                จัดการราคาตกลงเฉพาะลูกค้า พร้อมส่งออกและนำเข้าราคาเดิมได้อย่างปลอดภัย
               </p>
             </div>
           </div>
@@ -834,9 +834,18 @@ export default function SpecialPriceImportSection() {
         </div>
       </div>
 
-      <div className="p-6">
+      <div className="p-5 sm:p-6">
 
-        <div className="bg-gray-50 border rounded-xl p-4">
+        <div className="mb-6">
+          <CatalogExportButton dataset="special" disabled={reading || importing || resetting} />
+        </div>
+
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-extrabold text-[#20584B]">ขั้นตอน 2 · อัปโหลดไฟล์ราคาพิเศษที่แก้ไข</h3>
+          <span className="text-xs text-[#7B9387]">เพิ่มหรืออัปเดตเท่านั้น</span>
+        </div>
+
+        <div className="rounded-xl border border-[#E0EBE5] bg-[#F8FAF9] p-4">
 
           <p className="font-semibold">
             รูปแบบไฟล์
@@ -864,47 +873,6 @@ export default function SpecialPriceImportSection() {
           <p className="text-xs text-gray-500 mt-1">
             Workflow ที่แนะนำ: ดาวน์โหลด Excel ล่าสุด เพิ่มหรือแก้ไขรายการ แล้วนำเข้าซ้ำได้โดยไม่ต้องรีเซ็ต การลบแถวจากไฟล์ไม่ลบราคาเดิมในระบบ
           </p>
-
-        </div>
-
-        <div className="mt-6">
-          <CatalogExportButton dataset="special" disabled={reading || importing || resetting} />
-        </div>
-
-        <div className="mt-6 border border-red-200 bg-red-50 rounded-xl p-5">
-
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
-            <div>
-
-              <p className="font-bold text-red-700">
-                รีเซ็ตราคาพิเศษทั้งหมด
-              </p>
-
-              <p className="text-sm text-red-700 mt-1">
-                ล้างราคาพิเศษที่ใช้งานอยู่ทั้งหมด ลูกค้าทุกคนจะกลับไปใช้ราคาปกติจนกว่าจะนำเข้าไฟล์ใหม่
-              </p>
-
-            </div>
-
-            <button
-              type="button"
-              onClick={
-                resetAllSpecialPrices
-              }
-              disabled={
-                resetting ||
-                importing ||
-                reading
-              }
-              className="shrink-0 bg-white border border-red-300 text-red-700 rounded-xl px-5 py-3 font-semibold disabled:opacity-40"
-            >
-              {resetting
-                ? "กำลังรีเซ็ต..."
-                : "รีเซ็ตราคาพิเศษทั้งหมด"}
-            </button>
-
-          </div>
 
         </div>
 
@@ -1270,7 +1238,7 @@ export default function SpecialPriceImportSection() {
               reading ||
               resetting
             }
-            className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-6 disabled:opacity-40"
+            className="w-full bg-[#087F75] text-white rounded-xl px-5 py-4 transition hover:bg-[#066E65] font-semibold mt-6 disabled:opacity-40"
           >
             {importing
               ? "กำลังนำเข้า..."
@@ -1278,6 +1246,50 @@ export default function SpecialPriceImportSection() {
           </button>
 
         )}
+
+        <details className="mt-6 rounded-xl border border-amber-200 bg-amber-50/50">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-amber-800">
+            การจัดการขั้นสูง · รีเซ็ตราคาพิเศษทั้งหมด
+          </summary>
+          <div className="px-4 pb-4">
+        <div className="mt-6 border border-red-200 bg-red-50 rounded-xl p-5">
+
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+            <div>
+
+              <p className="font-bold text-red-700">
+                รีเซ็ตราคาพิเศษทั้งหมด
+              </p>
+
+              <p className="text-sm text-red-700 mt-1">
+                ล้างราคาพิเศษที่ใช้งานอยู่ทั้งหมด ลูกค้าทุกคนจะกลับไปใช้ราคาปกติจนกว่าจะนำเข้าไฟล์ใหม่
+              </p>
+
+            </div>
+
+            <button
+              type="button"
+              onClick={
+                resetAllSpecialPrices
+              }
+              disabled={
+                resetting ||
+                importing ||
+                reading
+              }
+              className="shrink-0 bg-white border border-red-300 text-red-700 rounded-xl px-5 py-3 font-semibold disabled:opacity-40"
+            >
+              {resetting
+                ? "กำลังรีเซ็ต..."
+                : "รีเซ็ตราคาพิเศษทั้งหมด"}
+            </button>
+
+          </div>
+
+        </div>
+          </div>
+        </details>
 
       </div>
 

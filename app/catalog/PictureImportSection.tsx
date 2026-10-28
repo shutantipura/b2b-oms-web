@@ -630,24 +630,24 @@ export default function PictureImportSection() {
   }
 
   return (
-    <section className="bg-white border rounded-2xl overflow-hidden">
+    <section id="catalog-pictures" className="scroll-mt-20 overflow-hidden rounded-2xl border border-[#D7E7DF] bg-white shadow-sm">
 
-      <div className="p-6 border-b">
+      <div className="border-b border-[#E1EEE7] bg-[#F9FCFA] p-5 sm:p-6">
 
         <div className="flex items-start gap-4">
 
-          <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-bold shrink-0">
-            2
+          <div className="w-10 h-10 rounded-full bg-[#087F75] text-white flex items-center justify-center font-extrabold shrink-0">
+            3
           </div>
 
           <div>
 
             <h2 className="text-xl font-bold">
-              รูปสินค้า
+              Picture Catalog · รูปสินค้า
             </h2>
 
             <p className="text-sm text-gray-500 mt-1">
-              อัปโหลด Picture Catalog เพื่อจับคู่ SKU กับรูปสินค้า
+              ดูแล URL รูปสินค้าปัจจุบันและเพิ่มรูปใหม่ด้วย Excel
             </p>
 
           </div>
@@ -656,13 +656,18 @@ export default function PictureImportSection() {
 
       </div>
 
-      <div className="p-6">
+      <div className="p-5 sm:p-6">
 
         <div className="mb-6">
           <CatalogExportButton dataset="pictures" disabled={reading || importing} />
         </div>
 
-        <div className="bg-gray-50 rounded-xl p-4 text-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-extrabold text-[#20584B]">ขั้นตอน 2 · อัปโหลดไฟล์รูปภาพที่แก้ไข</h3>
+          <span className="text-xs text-[#7B9387]">ตรวจตัวอย่างก่อนยืนยัน</span>
+        </div>
+
+        <div className="rounded-xl border border-[#E0EBE5] bg-[#F8FAF9] p-4 text-sm">
 
           <p className="font-semibold">
             คอลัมน์ที่ระบบใช้
@@ -963,7 +968,7 @@ export default function PictureImportSection() {
                 pictureRows.length ===
                   0
               }
-              className="w-full bg-black text-white rounded-xl px-5 py-4 font-semibold mt-6 disabled:opacity-40"
+              className="w-full bg-[#087F75] text-white rounded-xl px-5 py-4 transition hover:bg-[#066E65] font-semibold mt-6 disabled:opacity-40"
             >
               {importing
                 ? "กำลังนำเข้า..."
