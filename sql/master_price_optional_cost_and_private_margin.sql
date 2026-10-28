@@ -45,45 +45,61 @@ begin
 
   v_received_count := jsonb_array_length(p_rows);
 
-  -- Preserve prior cost if missing or blank; reject malformed supplied costs.
+  -- Blank cost preserves the old value; N/A explicitly clears it.
+  -- Numeric values with extra decimal places are rounded to two.
   if exists (
     select 1 from jsonb_array_elements(p_rows) item
-    where item ? 'cost'
-      and nullif(trim(coalesce(item->>'cost','')), '') is not null
-      and not (trim(item->>'cost') ~ '^[0-9]{1,10}([.][0-9]{1,4})?$')
+    where nullif(trim(coalesce(item->>'cost','')), '') is not null
+      and upper(trim(item->>'cost')) not in ('N/A','NA','#N/A')
+      and not (trim(item->>'cost') ~ '^[0-9]{1,10}([.][0-9]+)?$')
   ) then
-    raise exception 'Invalid cost: use a nonnegative value with up to 4 decimals';
+    raise exception 'Invalid cost: use a nonnegative number or N/A';
+  end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(p_rows) item
+    where trim(coalesce(item->>'cost','')) ~ '^[0-9]{1,10}([.][0-9]+)?$'
+      and round((item->>'cost')::numeric, 2) >= 10000000000
+  ) then
+    raise exception 'Cost exceeds the supported range after rounding';
   end if;
 
   -- Keep this batch in a temporary table so products is scanned/joined
   -- once per batch instead of once per SKU.
   create temporary table product_master_import_rows (
-    sku text primary key,
+    sku text not null,
+    sku_key text primary key,
     product_name text not null,
     unit text not null,
     normal_price numeric not null,
     cost numeric,
+    cost_unavailable boolean not null,
     category text
   ) on commit drop;
 
   insert into pg_temp.product_master_import_rows (
     sku,
+    sku_key,
     product_name,
     unit,
     normal_price,
     cost,
+    cost_unavailable,
     category
   )
-  select distinct on (sku)
+  select distinct on (sku_key)
     sku,
+    sku_key,
     product_name,
     unit,
     normal_price,
     cost,
+    cost_unavailable,
     category
   from (
     select
       trim(coalesce(item ->> 'sku', '')) as sku,
+      public.normalize_b2b_sku(trim(coalesce(item ->> 'sku', ''))) as sku_key,
       trim(coalesce(item ->> 'product_name', '')) as product_name,
       trim(coalesce(item ->> 'unit', '')) as unit,
 
@@ -94,10 +110,12 @@ begin
         else null
       end as normal_price,
 
-      case when nullif(trim(coalesce(item->>'cost','')), '') is null
-        then null
-        else (item->>'cost')::numeric
+      case
+        when nullif(trim(coalesce(item->>'cost','')), '') is null
+          or upper(trim(item->>'cost')) in ('N/A','NA','#N/A') then null
+        else round((item->>'cost')::numeric, 2)
       end as cost,
+      (upper(trim(coalesce(item->>'cost',''))) in ('N/A','NA','#N/A')) as cost_unavailable,
 
       nullif(
         trim(coalesce(item ->> 'category', '')),
@@ -112,7 +130,7 @@ begin
     and unit <> ''
     and normal_price is not null
     and normal_price >= 0
-  order by sku;
+  order by sku_key;
 
   select count(*)
   into v_valid_count
@@ -131,7 +149,7 @@ begin
   where exists (
     select 1
     from public.products p
-    where p.sku = i.sku
+    where p.catalogue_sku_key = i.sku_key
   );
 
   -- Update all existing SKUs in one statement.
@@ -143,7 +161,7 @@ begin
     is_active = true,
     catalogue_updated_at = now()
   from pg_temp.product_master_import_rows i
-  where p.sku = i.sku;
+  where p.catalogue_sku_key = i.sku_key;
 
   -- Insert only SKUs that do not already exist.
   insert into public.products (
@@ -171,7 +189,7 @@ begin
   where not exists (
     select 1
     from public.products p
-    where p.sku = i.sku
+    where p.catalogue_sku_key = i.sku_key
   );
 
   get diagnostics
@@ -180,10 +198,17 @@ begin
   insert into public.product_costs(product_id,cost,updated_at)
   select p.id,i.cost,now()
   from public.products p
-  join pg_temp.product_master_import_rows i on i.sku=p.sku
+  join pg_temp.product_master_import_rows i on i.sku_key=p.catalogue_sku_key
   where i.cost is not null
   on conflict(product_id) do update
   set cost=excluded.cost,updated_at=excluded.updated_at;
+
+  -- Only explicit N/A clears an old cost; an empty cell never does.
+  delete from public.product_costs c
+  using public.products p, pg_temp.product_master_import_rows i
+  where c.product_id = p.id
+    and p.catalogue_sku_key = i.sku_key
+    and i.cost_unavailable;
 
   return jsonb_build_object(
     'success', true,

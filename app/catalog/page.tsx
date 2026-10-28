@@ -90,7 +90,7 @@ type MasterProduct = {
 
   normal_price: number;
 
-  cost: number | null;
+  cost: number | "N/A" | null;
 
 };
 
@@ -313,6 +313,15 @@ function parsePrice(
 }
 
 
+
+// Round decimal cost text using decimal digits (avoids floating-point tie errors).
+function roundCostToTwoDecimals(text: string) {
+  const [whole, fraction = ""] = text.split(".");
+  const cents = Number(whole) * 100
+    + Number((fraction + "00").slice(0, 2))
+    + (fraction.length > 2 && fraction[2] >= "5" ? 1 : 0);
+  return cents / 100;
+}
 
 // =======================================================
 
@@ -1514,17 +1523,29 @@ export default function CatalogPage() {
 
 
           // Blank or missing cost does not overwrite any previously imported cost.
-          const cleanedCost = String(rawCost ?? "").trim().replace(/[,฿]/g, "");
+          const cleanedCost = String(rawCost ?? "").trim().replace(/[,฿\s]/g, "");
           const costProvided = cleanedCost.length > 0;
-          if (costProvided && !/^[0-9]{1,10}(?:\.[0-9]{1,4})?$/.test(cleanedCost)) {
+          const costUnavailable = /^(?:n\/?a|#n\/a)$/i.test(cleanedCost);
+          if (costProvided && !costUnavailable && !/^[0-9]{1,10}(?:\.[0-9]+)?$/.test(cleanedCost)) {
             invalidRows.push({
               rowNumber,
               sku,
-              reason: "ต้นทุน (Cost) ต้องไม่ติดลบ และมีทศนิยมไม่เกิน 4 ตำแหน่ง",
+              reason: "ต้นทุน (Cost) ต้องเป็นตัวเลขไม่ติดลบ หรือ N/A",
             });
             return;
           }
-          const parsedCost = costProvided ? Number(cleanedCost) : null;
+          // Empty cell preserves the old cost; explicit N/A clears it.
+          const parsedCost = costUnavailable
+            ? "N/A" as const
+            : costProvided ? roundCostToTwoDecimals(cleanedCost) : null;
+          if (typeof parsedCost === "number" && parsedCost >= 10_000_000_000) {
+            invalidRows.push({
+              rowNumber,
+              sku,
+              reason: "ต้นทุน (Cost) สูงเกินขอบเขตที่รองรับหลังปัดเศษ",
+            });
+            return;
+          }
 
           const normalized =
 
@@ -4277,7 +4298,7 @@ export default function CatalogPage() {
 
 
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3 text-gray-600">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3 text-gray-600">
 
 
 
@@ -4323,7 +4344,7 @@ export default function CatalogPage() {
 
               <p className="text-xs text-gray-400 mt-3">
 
-                รองรับ Cost (ต้นทุนต่อหน่วยเดียวกับราคา) เพิ่มเติมได้ · หากไม่ระบุ จะเก็บต้นทุนเดิมไว้ · ไม่ต้องมีคอลัมน์ Category — หมวดหมู่สินค้าจัดการผ่าน Visible Products เท่านั้น ระบบจะเลือก Sheet ชื่อ “Master Price” ให้อัตโนมัติ
+                รองรับ Cost (ต้นทุนต่อหน่วยเดียวกับราคา) · ทศนิยมเกิน 2 ตำแหน่งจะปัดเป็น 2 ตำแหน่ง · ใส่ N/A หรือ #N/A เพื่อล้างต้นทุนเดิมและแสดง N/A · ช่องว่างจะเก็บต้นทุนเดิมไว้ · ไม่ต้องมีคอลัมน์ Category — หมวดหมู่สินค้าจัดการผ่าน Visible Products เท่านั้น ระบบจะเลือก Sheet ชื่อ “Master Price” ให้อัตโนมัติ
 
               </p>
 

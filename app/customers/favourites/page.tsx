@@ -96,16 +96,22 @@ function SpecialPriceEditor({
       </p>
       <div className="mb-2 rounded-lg border border-[#E0ECE7] bg-[#F7FBF9] px-2.5 py-2 text-[11px] leading-5">
         {cost === null ? (
-          <span className="text-[#8C7660]">ยังไม่มีต้นทุน — นำเข้าคอลัมน์ cost ใน Master Prices</span>
+          <>
+            <p className="text-[#8C7660]">ต้นทุน <strong>N/A</strong> / {product.unit}</p>
+            <p className="text-[#8C7660]">ราคาปกติ: กำไรขั้นต้น N/A · %GP N/A</p>
+            {draftPrice !== null && (
+              <p className="mt-1 font-semibold text-[#8C7660]">ราคาที่ตั้ง: กำไรขั้นต้น N/A · %GP N/A</p>
+            )}
+          </>
         ) : (
           <>
             <p className="text-[#567569]">ต้นทุน <strong className="text-[#244C3F]">฿{bahtAmount(cost)}</strong> / {product.unit}</p>
             <p className={normalProfit !== null && normalProfit < 0 ? "font-semibold text-red-700" : "text-[#567569]"}>
-              ราคาปกติ: กำไรขั้นต้น {normalProfit !== null && normalProfit < 0 ? "−" : ""}฿{bahtAmount(Math.abs(normalProfit ?? 0))} · Margin {margin(normalPrice, normalProfit ?? 0)}
+              ราคาปกติ: กำไรขั้นต้น {normalProfit !== null && normalProfit < 0 ? "−" : ""}฿{bahtAmount(Math.abs(normalProfit ?? 0))} · %GP {margin(normalPrice, normalProfit ?? 0)}
             </p>
             {proposedProfit !== null && draftPrice !== null && (
               <p className={`mt-1 font-extrabold ${proposedProfit < 0 ? "text-red-700" : "text-[#00877C]"}`}>
-                ราคาที่ตั้ง: กำไรขั้นต้น {proposedProfit < 0 ? "−" : ""}฿{bahtAmount(Math.abs(proposedProfit))} · Margin {margin(draftPrice, proposedProfit)}
+                ราคาที่ตั้ง: กำไรขั้นต้น {proposedProfit < 0 ? "−" : ""}฿{bahtAmount(Math.abs(proposedProfit))} · %GP {margin(draftPrice, proposedProfit)}
                 {proposedProfit < 0 ? " · ต่ำกว่าต้นทุน" : ""}
               </p>
             )}
@@ -990,8 +996,8 @@ export default function CustomerFavouritesPage() {
     const confirmationMargin = estimatedProfit === null
       ? null : nextPrice > 0 ? (100 * estimatedProfit / nextPrice).toFixed(1) + "%" : "—";
     const profitMessage = estimatedProfit === null
-      ? "ต้นทุน: ไม่มีข้อมูล (ไม่สามารถคำนวณ Margin)"
-      : `ต้นทุน: ฿${bahtAmount(unitCost)} / ${product.unit}\nกำไรขั้นต้น: ${estimatedProfit < 0 ? "−" : ""}฿${bahtAmount(Math.abs(estimatedProfit))} · Margin ${confirmationMargin}${estimatedProfit < 0 ? "\n⚠ ราคาขายต่ำกว่าต้นทุน" : ""}`;
+      ? `ต้นทุน: N/A / ${product.unit}\nกำไรขั้นต้น: N/A · %GP N/A`
+      : `ต้นทุน: ฿${bahtAmount(unitCost)} / ${product.unit}\nกำไรขั้นต้น: ${estimatedProfit < 0 ? "−" : ""}฿${bahtAmount(Math.abs(estimatedProfit))} · %GP ${confirmationMargin}${estimatedProfit < 0 ? "\n⚠ ราคาขายต่ำกว่าต้นทุน" : ""}`;
     if (!window.confirm(
       `ยืนยันราคาพิเศษสำหรับ ${customer.customer_name}?\n\n` +
       `${product.product_name}\nSKU: ${product.sku}\n` +
