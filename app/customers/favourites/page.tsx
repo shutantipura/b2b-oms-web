@@ -40,6 +40,11 @@ type CustomerPriceRow = {
   agreed_price: number | string;
 };
 
+type ProductCostRow = {
+  product_id: string;
+  cost: number | string;
+};
+
 type PriceFeedback = {
   kind: "success" | "error";
   text: string;
@@ -54,6 +59,7 @@ function bahtAmount(value: number) {
 
 function SpecialPriceEditor({
   product,
+  cost,
   savedPrice,
   draft,
   busy,
@@ -62,6 +68,7 @@ function SpecialPriceEditor({
   onSave,
 }: {
   product: Product;
+  cost: number | null;
   savedPrice: number | undefined;
   draft: string;
   busy: boolean;
@@ -73,6 +80,12 @@ function SpecialPriceEditor({
     && Number.isFinite(Number(draft))
     && Number(draft) >= 0;
   const changed = valid && (savedPrice === undefined || Number(draft) !== savedPrice);
+  const normalPrice = Number(product.normal_price);
+  const normalProfit = cost === null ? null : normalPrice - cost;
+  const draftPrice = valid ? Number(draft) : null;
+  const proposedProfit = cost !== null && draftPrice !== null ? draftPrice - cost : null;
+  const margin = (price: number, profit: number) =>
+    price > 0 ? `${(100 * profit / price).toFixed(1)}%` : "—";
 
   return (
     <div className="min-w-[160px]">
@@ -81,6 +94,24 @@ function SpecialPriceEditor({
           ? "ยังไม่มีราคาพิเศษ"
           : <>ราคาที่บันทึก: <strong className="text-[#007F79]">฿{bahtAmount(savedPrice)}</strong></>}
       </p>
+      <div className="mb-2 rounded-lg border border-[#E0ECE7] bg-[#F7FBF9] px-2.5 py-2 text-[11px] leading-5">
+        {cost === null ? (
+          <span className="text-[#8C7660]">ยังไม่มีต้นทุน — นำเข้าคอลัมน์ cost ใน Master Prices</span>
+        ) : (
+          <>
+            <p className="text-[#567569]">ต้นทุน <strong className="text-[#244C3F]">฿{bahtAmount(cost)}</strong> / {product.unit}</p>
+            <p className={normalProfit !== null && normalProfit < 0 ? "font-semibold text-red-700" : "text-[#567569]"}>
+              ราคาปกติ: กำไรขั้นต้น {normalProfit !== null && normalProfit < 0 ? "−" : ""}฿{bahtAmount(Math.abs(normalProfit ?? 0))} · Margin {margin(normalPrice, normalProfit ?? 0)}
+            </p>
+            {proposedProfit !== null && draftPrice !== null && (
+              <p className={`mt-1 font-extrabold ${proposedProfit < 0 ? "text-red-700" : "text-[#00877C]"}`}>
+                ราคาที่ตั้ง: กำไรขั้นต้น {proposedProfit < 0 ? "−" : ""}฿{bahtAmount(Math.abs(proposedProfit))} · Margin {margin(draftPrice, proposedProfit)}
+                {proposedProfit < 0 ? " · ต่ำกว่าต้นทุน" : ""}
+              </p>
+            )}
+          </>
+        )}
+      </div>
       <div className="flex items-center gap-2">
 
         <div className="relative min-w-0 flex-1">
@@ -254,6 +285,7 @@ export default function CustomerFavouritesPage() {
     );
 
   const [specialPrices, setSpecialPrices] = useState<Record<string, number>>({});
+  const [productCosts, setProductCosts] = useState<Record<string, number>>({});
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [priceFeedback, setPriceFeedback] = useState<Record<string, PriceFeedback>>({});
   const [savingPriceIds, setSavingPriceIds] = useState<Set<string>>(new Set());
@@ -398,6 +430,7 @@ export default function CustomerFavouritesPage() {
 
     setPricesReady(false);
     setSpecialPrices({});
+    setProductCosts({});
     setPriceDrafts({});
     setPriceFeedback({});
 
@@ -603,6 +636,22 @@ export default function CustomerFavouritesPage() {
       priceMap[row.product_id] = price;
       draftMap[row.product_id] = String(price);
     }
+    // Manager-only RLS protects cost; never include it in customer product data.
+    const { data: costData, error: costError } = await supabase
+      .from("product_costs")
+      .select("product_id,cost")
+      .in("product_id", loadedProducts.map((product) => product.id));
+    if (!isCurrent()) return;
+    const costMap: Record<string, number> = {};
+    if (costError) {
+      setMessage("ไม่สามารถโหลดต้นทุนสำหรับ Manager ได้: " + costError.message);
+    } else {
+      for (const row of (costData ?? []) as ProductCostRow[]) {
+        const value = Number(row.cost);
+        if (Number.isFinite(value) && value >= 0) costMap[row.product_id] = value;
+      }
+    }
+    setProductCosts(costMap);
     setSpecialPrices(priceMap);
     setPriceDrafts(draftMap);
     setPricesReady(true);
@@ -1462,7 +1511,7 @@ export default function CustomerFavouritesPage() {
               </h2>
 
               <p className="text-sm text-gray-500 mt-1">
-                จัดการสินค้า ★ และกำหนดราคาพิเศษราย SKU ได้ทันที กรอกราคาแล้วกด ยืนยันราคา
+                จัดการสินค้า ★ และกำหนดราคาพิเศษราย SKU พร้อมดูต้นทุน กำไรขั้นต้น และ Margin ก่อนบันทึก
               </p>
 
             </div>
@@ -1519,6 +1568,7 @@ export default function CustomerFavouritesPage() {
                       </p>
                       <SpecialPriceEditor
                         product={product}
+                        cost={productCosts[product.id] ?? null}
                         savedPrice={specialPrices[product.id]}
                         draft={priceDrafts[product.id] ?? ""}
                         busy={!pricesReady || savingPriceIds.has(product.id)}
@@ -1572,6 +1622,7 @@ export default function CustomerFavouritesPage() {
                         <td className="min-w-[235px] p-3">
                           <SpecialPriceEditor
                             product={product}
+                            cost={productCosts[product.id] ?? null}
                             savedPrice={specialPrices[product.id]}
                             draft={priceDrafts[product.id] ?? ""}
                             busy={!pricesReady || savingPriceIds.has(product.id)}
