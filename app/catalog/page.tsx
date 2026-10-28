@@ -1523,7 +1523,7 @@ export default function CatalogPage() {
 
 
           // Blank or missing cost does not overwrite any previously imported cost.
-          const cleanedCost = String(rawCost ?? "").trim().replace(/[,฿\s]/g, "");
+          const cleanedCost = String(rawCost ?? "").replace(/[,฿]/g, "").trim();
           const costProvided = cleanedCost.length > 0;
           const costUnavailable = /^(?:n\/?a|#n\/a)$/i.test(cleanedCost);
           if (costProvided && !costUnavailable && !/^[0-9]{1,10}(?:\.[0-9]+)?$/.test(cleanedCost)) {
