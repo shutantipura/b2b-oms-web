@@ -811,7 +811,7 @@ export default function SpecialPriceImportSection() {
       <div className="border-b border-[#DFEEEE] bg-[#F4FBFB] p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-start gap-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#00A6A6] font-bold text-white">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#007F80] font-bold text-white">
               4
             </div>
             <div className="min-w-0">
@@ -1238,7 +1238,7 @@ export default function SpecialPriceImportSection() {
               reading ||
               resetting
             }
-            className="w-full bg-[#00A6A6] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold mt-6 disabled:opacity-40"
+            className="w-full bg-[#007F80] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold mt-6 disabled:opacity-40"
           >
             {importing
               ? "กำลังนำเข้า..."

@@ -4098,7 +4098,7 @@ export default function CatalogPage() {
         <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-7">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-xs font-bold tracking-wide text-[#009B9A]">LOTUS’S B2B · MANAGER</p>
+              <p className="text-xs font-bold tracking-wide text-[#007F80]">LOTUS’S B2B · MANAGER</p>
               <h1 className="mt-1 text-2xl font-extrabold leading-tight tracking-tight text-[#273C45] sm:text-3xl">
                 จัดการข้อมูลสินค้า
               </h1>
@@ -4106,7 +4106,7 @@ export default function CatalogPage() {
                 ราคาและต้นทุน · สินค้าที่แสดง · รูปสินค้า · ราคาพิเศษ
               </p>
             </div>
-            <div className="hidden shrink-0 items-center gap-2 rounded-full bg-[#EAF9F8] px-3 py-2 text-xs font-bold text-[#008D8C] sm:flex">
+            <div className="hidden shrink-0 items-center gap-2 rounded-full bg-[#EAF9F8] px-3 py-2 text-xs font-bold text-[#007F80] sm:flex">
               <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#FFC629]" />
               4 หมวดข้อมูล
             </div>
@@ -4121,13 +4121,13 @@ export default function CatalogPage() {
             <div className="min-w-0 flex-1">
               <h2 className="text-sm font-extrabold text-[#273C45]">เริ่มจาก Excel ล่าสุดก่อนแก้ไขข้อมูล</h2>
               <p className="mt-1 text-xs leading-5 text-[#617781] sm:text-sm">
-                <span className="font-semibold text-[#008F8C]">ดาวน์โหลด</span>
+                <span className="font-semibold text-[#007F80]">ดาวน์โหลด</span>
                 {" → "}เพิ่ม/แก้ไขแถว{" → "}อัปโหลด{" → "}ตรวจสอบและยืนยัน
               </p>
             </div>
           </div>
           <details className="group mt-2 pl-12">
-            <summary className="w-fit cursor-pointer text-xs font-bold text-[#008F8C] hover:underline">
+            <summary className="w-fit cursor-pointer text-xs font-bold text-[#007F80] hover:underline">
               ดูคำแนะนำและข้อควรระวัง
             </summary>
             <div className="mt-3 rounded-lg bg-[#F5FAFA] p-3 text-xs leading-6 text-[#4E6470]">
@@ -4144,10 +4144,10 @@ export default function CatalogPage() {
         </section>
 
         <nav aria-label="ไปยังหมวดจัดการข้อมูล" className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <a href="#catalog-master" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#00A6A6]">01</span> ราคาและต้นทุน</a>
-          <a href="#catalog-visible" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#00A6A6]">02</span> สินค้าที่แสดง</a>
-          <a href="#catalog-pictures" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#00A6A6]">03</span> รูปสินค้า</a>
-          <a href="#catalog-special" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#00A6A6]">04</span> ราคาพิเศษ</a>
+          <a href="#catalog-master" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#007F80]">01</span> ราคาและต้นทุน</a>
+          <a href="#catalog-visible" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#007F80]">02</span> สินค้าที่แสดง</a>
+          <a href="#catalog-pictures" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#007F80]">03</span> รูปสินค้า</a>
+          <a href="#catalog-special" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#007F80]">04</span> ราคาพิเศษ</a>
         </nav>
 
         <div className="mt-4 space-y-5">
@@ -4172,7 +4172,7 @@ export default function CatalogPage() {
 
 
 
-              <div className="w-9 h-9 rounded-lg bg-[#00A6A6] text-white flex items-center justify-center font-extrabold shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-[#007F80] text-white flex items-center justify-center font-extrabold shrink-0">
 
                 1
 
@@ -4274,7 +4274,7 @@ export default function CatalogPage() {
 
                 </span>
 
-                <span className="font-semibold text-[#008F8C]">Cost (optional)</span>
+                <span className="font-semibold text-[#007F80]">Cost (optional)</span>
 
 
 
@@ -5042,7 +5042,7 @@ export default function CatalogPage() {
 
                   }
 
-                  className="w-full bg-[#00A6A6] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold mt-6 disabled:opacity-40"
+                  className="w-full bg-[#007F80] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold mt-6 disabled:opacity-40"
 
                 >
 
@@ -5069,7 +5069,7 @@ export default function CatalogPage() {
 
 
             <details className="mt-6 rounded-xl border border-[#D8E7E7] bg-[#F4FBFB]">
-              <summary className="cursor-pointer px-4 py-4 text-sm font-bold text-[#008F8C]">
+              <summary className="cursor-pointer px-4 py-4 text-sm font-bold text-[#007F80]">
                 ต้องการแก้ไขเพียงสินค้าเดียว? เปิดตัวแก้ไขราคาและต้นทุนราย SKU
               </summary>
               <div className="px-4 pb-4">
@@ -5162,7 +5162,7 @@ export default function CatalogPage() {
           <div className="border-b border-[#DFEEEE] bg-[#F4FBFB] p-4 sm:p-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-start gap-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#00A6A6] font-bold text-white">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#007F80] font-bold text-white">
                   2
                 </div>
                 <div className="min-w-0">
@@ -6015,7 +6015,7 @@ export default function CatalogPage() {
 
                 }
 
-                className="w-full bg-[#00A6A6] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold mt-6 disabled:opacity-40"
+                className="w-full bg-[#007F80] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold mt-6 disabled:opacity-40"
 
               >
 
@@ -6471,7 +6471,7 @@ export default function CatalogPage() {
 
                     }
 
-                    className="w-full bg-[#00A6A6] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold disabled:opacity-40"
+                    className="w-full bg-[#007F80] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold disabled:opacity-40"
 
                   >
 

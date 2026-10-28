@@ -636,7 +636,7 @@ export default function PictureImportSection() {
 
         <div className="flex items-start gap-4">
 
-          <div className="w-9 h-9 rounded-lg bg-[#00A6A6] text-white flex items-center justify-center font-extrabold shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-[#007F80] text-white flex items-center justify-center font-extrabold shrink-0">
             3
           </div>
 
@@ -968,7 +968,7 @@ export default function PictureImportSection() {
                 pictureRows.length ===
                   0
               }
-              className="w-full bg-[#00A6A6] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold mt-6 disabled:opacity-40"
+              className="w-full bg-[#007F80] text-white rounded-xl px-5 py-4 transition hover:bg-[#008F8C] font-semibold mt-6 disabled:opacity-40"
             >
               {importing
                 ? "กำลังนำเข้า..."
