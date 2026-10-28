@@ -3195,7 +3195,7 @@ export default function MiniAppShopPage() {
                 </span>
               </span>
               <span className="miniapp-cta-price text-right">
-                <span className="block text-[clamp(15px,4.8vw,19px)] font-extrabold leading-tight">{hasPieceOrders ? "ตั้งแต่ " : "~"}฿{formatPrice(estimatedTotal)}</span>
+                <span className="block text-[clamp(15px,4.8vw,19px)] font-extrabold leading-tight">{hasPieceOrders && estimatedTotal === 0 ? "รอชั่งจริง" : `${hasPieceOrders ? "ตั้งแต่ " : "~"}฿${formatPrice(estimatedTotal)}`}</span>
                 <span className="block text-[10px] text-white/75">ยอดประมาณการ ›</span>
               </span>
             </button>
@@ -3251,7 +3251,7 @@ export default function MiniAppShopPage() {
                   <p className="text-xs font-bold text-[#607D6B]">ยอดรวมประมาณการ</p>
                   <p className="mt-1 text-[11px] text-[#92A299]">{hasPieceOrders ? "ยังไม่รวมรายการสั่งเป็นชิ้น (คิดราคาหลังชั่งจริง)" : "ยอดจริงอาจเปลี่ยนหลังหยิบสินค้า"}</p>
                 </div>
-                <strong className="text-2xl font-black text-[#007E61]">฿{formatPrice(estimatedTotal)}</strong>
+                <strong className="text-2xl font-black text-[#007E61]">{hasPieceOrders && estimatedTotal === 0 ? "รอชั่งจริง" : "฿" + formatPrice(estimatedTotal)}</strong>
               </div>
               <button
                 type="button"
