@@ -43,8 +43,8 @@ type Metric = {
 };
 
 const BANGKOK_OFFSET = "+07:00";
-const PICK_LEAD_MINUTES = 40;
-const BILL_LEAD_MINUTES = 20;
+const PICK_LEAD_MINUTES = 30;
+const BILL_LEAD_MINUTES = 30;
 
 function getBangkokToday() {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -262,12 +262,12 @@ export default function KPIPage() {
       },
       {
         name: "Pick On Time",
-        description: "จัดสินค้าเสร็จก่อนเริ่มรอบจัดส่งอย่างน้อย 40 นาที",
+        description: "จัดสินค้าเสร็จก่อนเริ่มรอบจัดส่งอย่างน้อย 30 นาที",
         ...picking,
       },
       {
         name: "Bill On Time",
-        description: "ออกบิลเสร็จก่อนเริ่มรอบจัดส่งอย่างน้อย 20 นาที",
+        description: "ออกบิลเสร็จก่อนเริ่มรอบจัดส่งอย่างน้อย 30 นาที",
         ...billing,
       },
       {
