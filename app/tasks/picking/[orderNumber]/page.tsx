@@ -1095,6 +1095,11 @@ export default function PickingPage() {
                       <div className="mt-1 text-[11px] text-[#71877E]">
                         SKU {item.products?.sku ?? "—"}{!addonMode && <span className="ml-1">· {item.unit_snapshot}</span>}
                       </div>
+                      {item.unit_snapshot === "ชิ้น" && (
+                        <p className="mt-1 text-[11px] font-semibold text-[#8D641D]">
+                          สั่งเป็นชิ้น · ชั่งน้ำหนักจริงเพื่อออกบิล
+                        </p>
+                      )}
                       {isAdditional && (
                         <span className="mt-1 inline-flex rounded-full bg-[#FFF3D4] px-2 py-0.5 text-[11px] font-bold text-[#8A6000]">
                           เพิ่มใหม่ +{formatPickingQuantity(Number(item.addon_requested_qty))} {item.unit_snapshot}
@@ -1129,7 +1134,7 @@ export default function PickingPage() {
                             type="number"
                             inputMode="decimal"
                             min="0"
-                            step="0.001"
+                            step={item.unit_snapshot === "ชิ้น" ? "1" : "0.001"}
                             required
                             aria-label={`จำนวนที่หยิบจริงของ ${item.product_name_snapshot}`}
                             value={actual[item.id] ?? ""}
@@ -1184,7 +1189,7 @@ export default function PickingPage() {
                           type="number"
                           inputMode="decimal"
                           min={amounts.alreadyPicked}
-                          step="0.001"
+                          step={item.unit_snapshot === "ชิ้น" ? "1" : "0.001"}
                           required
                           aria-label={`จำนวนที่หยิบจริงทั้งหมดของ ${item.product_name_snapshot}`}
                           value={actual[item.id] ?? ""}
