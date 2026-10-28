@@ -2371,9 +2371,12 @@ export default function MiniAppShopPage() {
 
 
 
+    // Never silently round 2.5 pieces up to 3.
+    if (pieceProductIds.includes(productId) && !Number.isSafeInteger(quantity)) return;
     saveCart({
-      ...cart, [productId]: pieceProductIds.includes(productId)
-        ? Math.max(1, Math.round(quantity)) : roundQuantity(quantity),
+      ...cart, [productId]: quantity <= 1000 || !pieceProductIds.includes(productId)
+        ? roundQuantity(quantity)
+        : Number(cart[productId] ?? 0),
     });
 
   }
@@ -2464,8 +2467,12 @@ export default function MiniAppShopPage() {
 
         } else {
 
-          newCart[productId] = pieceProductIds.includes(productId)
-            ? Math.max(1, Math.round(quantity)) : roundQuantity(quantity);
+          if (pieceProductIds.includes(productId) &&
+              (!Number.isSafeInteger(quantity) || quantity > 1000)) {
+            setMessage("สินค้าที่สั่งเป็นชิ้นต้องเป็นจำนวนเต็ม 1–1,000 ชิ้น");
+          } else {
+            newCart[productId] = roundQuantity(quantity);
+          }
 
         }
 
