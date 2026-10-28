@@ -117,13 +117,33 @@ test("rider page includes products for both grouped and standalone orders", () =
   assert.match(source, /item\.actual_qty/);
 });
 
-test("Android station keeps sounding until authenticated acknowledgement", () => {
+test("public browser alarm uses a read-only feed and local acknowledgements", () => {
   const source = readFileSync(new URL("../app/order-alarm/page.tsx", import.meta.url), "utf8");
-  assert.match(source, /rpc\("get_pending_order_alarms"\)/);
-  assert.match(source, /rpc\("acknowledge_order_alarm"/);
+  assert.match(source, /fetch\("\/api\/order-alarm\/feed"/);
+  assert.match(source, /window\.localStorage\.setItem\(LOCAL_ACK_STORAGE_KEY/);
+  assert.doesNotMatch(source, /rpc\("acknowledge_order_alarm"/);
   assert.match(source, /setInterval\(\(\) => void refresh\(\), 5000\)/);
   assert.match(source, /setInterval\(playPulse, 1550\)/);
   assert.match(source, /alarmsRef\.current\.length > 0/);
   assert.match(source, /navigator\.wakeLock\.request\("screen"\)/);
   assert.match(source, /function testSound\(/);
+});
+
+test("native Android cross-device acknowledgement uses a station bearer token", () => {
+  const source = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/StationHealth.java", import.meta.url), "utf8");
+  const server = readFileSync(new URL("../app/api/alarm-station/ack/route.ts", import.meta.url), "utf8");
+  assert.match(source, /post\("ack", token,/);
+  assert.match(server, /\.is\("revoked_at", null\)/);
+  assert.match(server, /\.eq\("secret_hash", tokenHash\)/);
+});
+
+test("unpairing revokes the old station and clears the Android OMS session", () => {
+  const native = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/StationHealth.java", import.meta.url), "utf8");
+  const server = readFileSync(new URL("../app/api/alarm-station/unpair/route.ts", import.meta.url), "utf8");
+  const manager = readFileSync(new URL("../app/api/admin/terminals/route.ts", import.meta.url), "utf8");
+  assert.match(native, /post\("unpair", token,/);
+  assert.match(native, /WebStorage\.getInstance\(\)\.deleteAllData\(\)/);
+  assert.match(server, /if \(station\.revoked_at\)/);
+  assert.match(server, /update\(\{ revoked_at: now \}\)/);
+  assert.match(manager, /activateStaffId/);
 });
