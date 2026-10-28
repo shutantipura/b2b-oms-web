@@ -1324,14 +1324,18 @@ export async function POST(
                       ? storedLineTotal / requestedNumber
                       : currentPrice
                   ));
-                  // A piece count has no known kg weight yet. Never show
-                  // price-per-piece or a zero subtotal as a true quote.
-                  const estimatedSubtotal = isPiece ? null : (storedLineTotal ?? (
-                    unitPrice !== null && requestedNumber !== null &&
-                    Number.isFinite(unitPrice) && Number.isFinite(requestedNumber)
-                      ? unitPrice * requestedNumber
+                  // A piece count cannot be priced until the picker weighs it.
+                  // actual_qty for these orders is in kilograms.
+                  const actualWeight = actual === null ? null : Number(actual);
+                  const estimatedSubtotal = isPiece
+                    ? actualWeight !== null && Number.isFinite(actualWeight)
+                      ? actualWeight * Number(item.piece_price_per_kg_snapshot)
                       : null
-                  ));
+                    : (storedLineTotal ?? (
+                        unitPrice !== null && requestedNumber !== null &&
+                        Number.isFinite(unitPrice) && Number.isFinite(requestedNumber)
+                          ? unitPrice * requestedNumber : null
+                      ));
 
                   return {
 
@@ -1344,6 +1348,7 @@ export async function POST(
                     productName,
 
                     unitPrice,
+                    actualUnit: isPiece ? "กก." : unit,
                     isPiece,
                     pricePerKg: isPiece ? Number(item.piece_price_per_kg_snapshot) : null,
 
