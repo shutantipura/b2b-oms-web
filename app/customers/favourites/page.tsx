@@ -985,10 +985,18 @@ export default function CustomerFavouritesPage() {
     if (previous !== undefined && previous === nextPrice) return;
 
     const oldLabel = previous === undefined ? "ยังไม่มีราคาพิเศษ" : `฿${bahtAmount(previous)}`;
+    const unitCost = productCosts[product.id];
+    const estimatedProfit = unitCost === undefined ? null : nextPrice - unitCost;
+    const confirmationMargin = estimatedProfit === null
+      ? null : nextPrice > 0 ? (100 * estimatedProfit / nextPrice).toFixed(1) + "%" : "—";
+    const profitMessage = estimatedProfit === null
+      ? "ต้นทุน: ไม่มีข้อมูล (ไม่สามารถคำนวณ Margin)"
+      : `ต้นทุน: ฿${bahtAmount(unitCost)} / ${product.unit}\nกำไรขั้นต้น: ${estimatedProfit < 0 ? "−" : ""}฿${bahtAmount(Math.abs(estimatedProfit))} · Margin ${confirmationMargin}${estimatedProfit < 0 ? "\n⚠ ราคาขายต่ำกว่าต้นทุน" : ""}`;
     if (!window.confirm(
       `ยืนยันราคาพิเศษสำหรับ ${customer.customer_name}?\n\n` +
       `${product.product_name}\nSKU: ${product.sku}\n` +
-      `ราคาปัจจุบัน: ${oldLabel}\nราคาใหม่: ฿${bahtAmount(nextPrice)} / ${product.unit}\n\n` +
+      `ราคาปัจจุบัน: ${oldLabel}\nราคาใหม่: ฿${bahtAmount(nextPrice)} / ${product.unit}\n` +
+      `${profitMessage}\n\n` +
       "การเปลี่ยนราคานี้จะถูกใช้กับคำสั่งซื้อใหม่ของลูกค้ารายนี้"
     )) return;
 
