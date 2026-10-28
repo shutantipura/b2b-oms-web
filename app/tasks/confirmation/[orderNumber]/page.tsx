@@ -1034,7 +1034,7 @@ export default function ConfirmationPage() {
                             <input
                               type="number"
                               min="0"
-                              step="0.001"
+                              step={item.unit_snapshot === "ชิ้น" ? "1" : "0.001"}
                               value={
                                 confirmed[
                                   item.id
