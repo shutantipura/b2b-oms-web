@@ -392,8 +392,8 @@ export default function CustomerOrdersPage() {
                         ) : (
                           <>
                             <p className="text-[11px] text-[#80998B]">{order.finalAmount !== null ? "ยอดสุทธิ" : "ยอดประมาณการ"}</p>
-                            <p className="mt-1 text-lg font-black text-[#009F9D]">{order.finalAmount !== null ? `฿${money(order.finalAmount)}` : order.estimatedAmount !== null && order.estimatedAmount !== undefined ? `~฿${money(order.estimatedAmount)}` : "ยังไม่มีราคา"}</p>
-                            {order.finalAmount === null && <p className="mt-1 text-[10px] leading-4 text-[#68877C]">* ยอดประมาณการ อาจเปลี่ยนหลังหยิบและออกบิล</p>}
+                            <p className="mt-1 text-lg font-black text-[#009F9D]">{order.finalAmount !== null ? `฿${money(order.finalAmount)}` : order.estimatedAmount !== null && order.estimatedAmount !== undefined ? `~฿${money(order.estimatedAmount)}` : order.items.some(item => item.isPiece) ? "รอชั่งน้ำหนัก" : "ยังไม่มีราคา"}</p>
+                            {order.finalAmount === null && <p className="mt-1 text-[10px] leading-4 text-[#68877C]">{order.items.some(item => item.isPiece) ? "* สินค้าสั่งเป็นชิ้น คิดราคาหลังชั่งน้ำหนักและออกบิล" : "* ยอดประมาณการ อาจเปลี่ยนหลังหยิบและออกบิล"}</p>}
                           </>
                         )}
                       </div>
