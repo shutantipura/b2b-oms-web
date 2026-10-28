@@ -230,7 +230,7 @@ begin
   );
 
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.complete_my_billing_no_cv(p_order_number bigint, p_final_amount numeric)
@@ -366,7 +366,7 @@ begin
     'final_bill_amount', p_final_amount
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.complete_my_billing_suspended(p_order_number bigint, p_final_amount numeric)
@@ -517,7 +517,7 @@ begin
     'payment_qr_file_id', v_file_id
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.complete_addon_picking(p_order_number bigint, p_staff_code text, p_items jsonb)
@@ -650,7 +650,7 @@ BEGIN
     )
   );
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.prepare_group_billing(p_order_number bigint, p_staff_code text)
@@ -732,5 +732,5 @@ BEGIN
       SELECT SUM(line_total) FROM public.group_billing_lines WHERE root_order_id=v_root.id
     )));
 END;
-$function$
+$function$;
 
