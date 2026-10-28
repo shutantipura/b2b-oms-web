@@ -50,21 +50,27 @@ type OrderItem = {
   addon_requested_qty: number | string;
   addon_confirmed_qty: number | string | null;
   unit_snapshot: string;
+  piece_price_per_kg_snapshot: number | string | null;
   staff_note: string | null;
   products: {
     sku: string;
     image_url: string | null;
   } | null;
 };
+function picksMeasuredKg(item: OrderItem) {
+  return item.piece_price_per_kg_snapshot != null;
+}
 
 // Quantities shown to a picker are TOTALS. The existing add-on RPC still
 // accepts the newly picked increment, so we convert to that at submission.
 function pickingQuantities(item: OrderItem, addonMode: boolean) {
   const confirmed = Number(item.confirmed_qty ?? 0);
+  const weighed = picksMeasuredKg(item);
   const alreadyPicked =
     addonMode && item.actual_qty !== null ? Number(item.actual_qty) : 0;
   const additionalToPick =
-    addonMode && Number(item.addon_requested_qty) === 0 && item.actual_qty !== null
+    weighed ? 0 // No kg can be inferred from piece counts.
+    : addonMode && Number(item.addon_requested_qty) === 0 && item.actual_qty !== null
       ? 0 // An original SKU was already picked. Do not show it as outstanding.
       : addonMode && Number(item.addon_requested_qty) > 0 && item.actual_qty !== null
         ? Number(item.addon_confirmed_qty ?? 0)
@@ -74,7 +80,7 @@ function pickingQuantities(item: OrderItem, addonMode: boolean) {
     confirmed,
     alreadyPicked,
     additionalToPick,
-    suggestedTotal: alreadyPicked + additionalToPick,
+    suggestedTotal: weighed ? alreadyPicked : alreadyPicked + additionalToPick,
   };
 }
 
@@ -392,6 +398,7 @@ export default function PickingPage() {
           addon_requested_qty,
           addon_confirmed_qty,
           unit_snapshot,
+          piece_price_per_kg_snapshot,
           staff_note,
           products (
             sku,
@@ -437,11 +444,12 @@ export default function PickingPage() {
       (item) => Number(item.addon_requested_qty) > 0
     );
     loadedItems.forEach((item) => {
-      initialActual[item.id] = String(
-        loadedAddonMode
+      // A confirmed count of 3 pieces must never prefill "3 kg".
+      initialActual[item.id] = picksMeasuredKg(item)
+        ? (item.actual_qty === null ? "" : String(item.actual_qty))
+        : String(loadedAddonMode
           ? pickingQuantities(item, true).suggestedTotal
-          : (item.actual_qty ?? item.confirmed_qty ?? 0)
-      );
+          : (item.actual_qty ?? item.confirmed_qty ?? 0));
     });
 
     setActual(
@@ -819,7 +827,8 @@ export default function PickingPage() {
         rawValue.trim() === "" ||
         !Number.isFinite(total) ||
         total < alreadyPicked ||
-        (item.unit_snapshot === "ชิ้น" && !Number.isSafeInteger(total))
+        (item.unit_snapshot === "ชิ้น" && !picksMeasuredKg(item) && !Number.isSafeInteger(total)) ||
+        (picksMeasuredKg(item) && Math.abs(total * 1000 - Math.round(total * 1000)) > 0.00001)
       );
     });
 
@@ -1064,6 +1073,7 @@ export default function PickingPage() {
           <div className="divide-y divide-[#E5EFEB]">
             {displayedItems.map((item, index) => {
               const amounts = pickingQuantities(item, addonMode);
+              const weighed = picksMeasuredKg(item);
               const isAdditional = addonMode && Number(item.addon_requested_qty) > 0;
               const originallyPicked = addonMode && !isAdditional && item.actual_qty !== null;
               const needsInput = !originallyPicked;
@@ -1096,9 +1106,9 @@ export default function PickingPage() {
                       <div className="mt-1 text-[11px] text-[#71877E]">
                         SKU {item.products?.sku ?? "—"}{!addonMode && <span className="ml-1">· {item.unit_snapshot}</span>}
                       </div>
-                      {item.unit_snapshot === "ชิ้น" && (
+                      {weighed && (
                         <p className="mt-1 text-[11px] font-semibold text-[#8D641D]">
-                          สั่งเป็นชิ้น · ชั่งน้ำหนักจริงเพื่อออกบิล
+                          ยืนยันเป็นชิ้น · หยิบจริงชั่งและกรอกน้ำหนัก กก.
                         </p>
                       )}
                       {isAdditional && (
@@ -1135,7 +1145,7 @@ export default function PickingPage() {
                             type="number"
                             inputMode="decimal"
                             min="0"
-                            step={item.unit_snapshot === "ชิ้น" ? "1" : "0.001"}
+                            step={item.unit_snapshot === "ชิ้น" && !weighed ? "1" : "0.001"}
                             required
                             aria-label={`จำนวนที่หยิบจริงของ ${item.product_name_snapshot}`}
                             value={actual[item.id] ?? ""}
@@ -1190,7 +1200,7 @@ export default function PickingPage() {
                           type="number"
                           inputMode="decimal"
                           min={amounts.alreadyPicked}
-                          step={item.unit_snapshot === "ชิ้น" ? "1" : "0.001"}
+                          step={item.unit_snapshot === "ชิ้น" && !weighed ? "1" : "0.001"}
                           required
                           aria-label={`จำนวนที่หยิบจริงทั้งหมดของ ${item.product_name_snapshot}`}
                           value={actual[item.id] ?? ""}
