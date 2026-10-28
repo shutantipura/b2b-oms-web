@@ -66,6 +66,7 @@ type OrderItem = {
   unit_snapshot: string;
 
   unit_price_snapshot: number | string;
+  piece_price_per_kg_snapshot?: number | string | null;
 
 
 
@@ -319,14 +320,14 @@ export default function BillingPage() {
       ? await supabase.from("group_billing_lines")
           .select(`
             id,product_name_snapshot,requested_qty,confirmed_qty,actual_qty,
-            unit_snapshot,unit_price_snapshot,products(sku)
+            unit_snapshot,unit_price_snapshot,piece_price_per_kg_snapshot,products(sku)
           `)
           .eq("root_order_id",loadedOrder.id)
           .order("product_name_snapshot",{ascending:true})
       : await supabase.from("order_items")
           .select(`
             id,product_name_snapshot,requested_qty,confirmed_qty,actual_qty,
-            unit_snapshot,unit_price_snapshot,products(sku)
+            unit_snapshot,unit_price_snapshot,piece_price_per_kg_snapshot,products(sku)
           `)
           .eq("order_id",loadedOrder.id)
           .order("product_name_snapshot",{ascending:true});
@@ -813,6 +814,9 @@ export default function BillingPage() {
 
 
 
+  const hasPieceItems = items.some(item => item.unit_snapshot === "ชิ้น" &&
+    item.piece_price_per_kg_snapshot != null);
+
   const calculatedTotal =
 
     items.reduce(
@@ -1231,9 +1235,9 @@ export default function BillingPage() {
 
                       <td className="p-4 text-right">
 
-                        ฿
-
-                        {price.toFixed(2)}
+                        {item.piece_price_per_kg_snapshot != null
+                          ? `฿${Number(item.piece_price_per_kg_snapshot).toFixed(2)} / กก.`
+                          : `฿${price.toFixed(2)}`}
 
                       </td>
 
@@ -1241,13 +1245,8 @@ export default function BillingPage() {
 
                       <td className="p-4 text-right">
 
-                        ฿
-
-                        {(
-
-                          actual * price
-
-                        ).toFixed(2)}
+                        {item.piece_price_per_kg_snapshot != null
+                          ? "รอน้ำหนักจริง" : `฿${(actual * price).toFixed(2)}`}
 
                       </td>
 
@@ -1279,7 +1278,7 @@ export default function BillingPage() {
 
             <span className="text-gray-500">
 
-              ยอดรวมอ้างอิง:
+              {hasPieceItems ? "ยอดอ้างอิง (ยังไม่รวมสินค้าสั่งเป็นชิ้น):" : "ยอดรวมอ้างอิง:"}
 
             </span>
 
