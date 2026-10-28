@@ -2301,12 +2301,15 @@ export default function MiniAppShopPage() {
 
   function selectOrderUnit(product: Product, pieces: boolean) {
     if (!isWeightedUnit(product.unit) || !customer) return;
+    if (pieceProductIds.includes(product.id) === pieces) return;
     const next = pieces
       ? Array.from(new Set([...pieceProductIds, product.id]))
       : pieceProductIds.filter((id) => id !== product.id);
     setPieceProductIds(next);
     localStorage.setItem(`b2b-cart-pieces-${customer.customerCode}`, JSON.stringify(next));
-    if (pieces && Number(cart[product.id]) > 0 && !Number.isInteger(cart[product.id])) {
+    // Switching units is not converting weight to count. Reset to 1
+    // instead of silently reinterpreting (e.g.) 3 pieces as 3 kg.
+    if (Number(cart[product.id]) > 0) {
       saveCart({ ...cart, [product.id]: 1 });
     }
     setQuantityInputs((current) => {
