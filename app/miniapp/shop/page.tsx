@@ -3141,32 +3141,37 @@ export default function MiniAppShopPage() {
                         {(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) && <p className="mt-1 text-[11px] text-[#9AACA0] line-through">ปกติ ฿{formatPrice(product.normalPrice)}</p>}
                       </div>
                       <div className="mt-auto pt-2.5">
-                        {weighted && (
-                          <div className="mb-2 flex overflow-hidden rounded-lg border border-[#BCE9E5] bg-[#F4FBF9]">
-                            <button type="button" onClick={() => selectOrderUnit(product, false)}
-                              className={`min-h-8 flex-1 text-[11px] font-bold ${!isPiece ? "bg-[#02B0AF] text-white" : "text-[#507C70]"}`}>กก.</button>
-                            <button type="button" onClick={() => selectOrderUnit(product, true)}
-                              className={`min-h-8 flex-1 text-[11px] font-bold ${isPiece ? "bg-[#02B0AF] text-white" : "text-[#507C70]"}`}>ชิ้น</button>
-                          </div>
-                        )}
-                        {isPiece && <p className="mb-2 text-[10px] leading-4 text-[#846419]">ชั่งน้ำหนักจริงก่อนคิดราคา</p>}
-                        {quantity > 0 ? (
-                          <div className="flex h-10 items-center overflow-hidden rounded-xl border border-[#BCE9E5]">
-                            <button type="button" onClick={() => changeQuantity(product, -1)} className="grid h-full w-9 shrink-0 place-items-center bg-[#EFF7F1] text-lg font-bold text-[#009F9D]" aria-label={`ลดจำนวน ${product.productName}`}>−</button>
-                            <input
-                              type="number" min={isPiece ? "1" : "0"} step={isPiece ? "1" : step < 1 ? "any" : step} inputMode={isPiece ? "numeric" : "decimal"} aria-label={`จำนวน ${product.productName}`}
-                              value={quantityInputs[product.id] ?? String(quantity)}
-                              onFocus={() => setQuantityInputs((current) => ({ ...current, [product.id]: String(quantity) }))}
-                              onChange={(event) => updateQuantity(product.id, event.target.value)}
-                              onBlur={() => finishQuantityEdit(product.id)}
-                              onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
-                              className="h-full w-full min-w-0 flex-1 bg-white text-center text-xs font-extrabold text-[#214937] outline-none"
-                            />
-                            <button type="button" onClick={() => changeQuantity(product, 1)} className="grid h-full w-9 shrink-0 place-items-center bg-[#02B0AF] text-lg font-bold text-white" aria-label={`เพิ่มจำนวน ${product.productName}`}>+</button>
-                          </div>
-                        ) : (
-                          <button type="button" onClick={() => changeQuantity(product, 1)} className="min-h-10 w-full rounded-xl bg-[#02B0AF] px-2 py-2 text-sm font-bold text-white transition hover:bg-[#008F8B]">+ เพิ่มลงตะกร้า</button>
-                        )}
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          {quantity > 0 ? (
+                            <div className="flex h-10 min-w-0 flex-1 items-center overflow-hidden rounded-xl border border-[#BCE9E5]">
+                              <button type="button" onClick={() => changeQuantity(product, -1)} className="grid h-full w-8 shrink-0 place-items-center bg-[#EFF7F1] text-lg font-bold text-[#009F9D]" aria-label={`ลดจำนวน ${product.productName}`}>−</button>
+                              <input
+                                type="number" min={isPiece ? "1" : "0"} step={isPiece ? "1" : step < 1 ? "any" : step} inputMode={isPiece ? "numeric" : "decimal"} aria-label={`จำนวน ${product.productName} หน่วย ${isPiece ? "ชิ้น" : product.unit}`}
+                                value={quantityInputs[product.id] ?? String(quantity)}
+                                onFocus={() => setQuantityInputs((current) => ({ ...current, [product.id]: String(quantity) }))}
+                                onChange={(event) => updateQuantity(product.id, event.target.value)}
+                                onBlur={() => finishQuantityEdit(product.id)}
+                                onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+                                className="h-full min-w-0 flex-1 bg-white px-0 text-center text-xs font-extrabold text-[#214937] outline-none"
+                              />
+                              <button type="button" onClick={() => changeQuantity(product, 1)} className="grid h-full w-8 shrink-0 place-items-center bg-[#02B0AF] text-lg font-bold text-white" aria-label={`เพิ่มจำนวน ${product.productName}`}>+</button>
+                            </div>
+                          ) : (
+                            <button type="button" onClick={() => changeQuantity(product, 1)} className="h-10 min-w-0 flex-1 rounded-xl bg-[#02B0AF] px-1.5 text-xs font-bold text-white transition hover:bg-[#008F8B]">+ เพิ่มลงตะกร้า</button>
+                          )}
+                          {weighted && (
+                            <button
+                              type="button"
+                              onClick={() => selectOrderUnit(product, !isPiece)}
+                              aria-label={`หน่วยปัจจุบัน ${isPiece ? "ชิ้น" : "กก."} แตะเพื่อเปลี่ยนเป็น ${isPiece ? "กก." : "ชิ้น"} สำหรับ ${product.productName}`}
+                              title={`แตะเพื่อเปลี่ยนเป็น ${isPiece ? "กก." : "ชิ้น"}`}
+                              className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border text-[11px] font-extrabold transition active:scale-95 ${isPiece ? "border-[#02B0AF] bg-[#E3F7F3] text-[#007F7B]" : "border-[#BEDFD7] bg-[#F2F9F6] text-[#43766C]"}`}
+                            >
+                              {isPiece ? "ชิ้น" : "กก."}
+                            </button>
+                          )}
+                        </div>
+                        {isPiece && <p className="mt-1 text-[10px] leading-4 text-[#846419]">คิดราคาตามน้ำหนักจริง</p>}
                       </div>
                     </div>
                   </article>
