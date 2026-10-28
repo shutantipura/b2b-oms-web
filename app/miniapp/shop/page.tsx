@@ -164,6 +164,8 @@ function categoryLabel(category: string) {
   return label || "อื่นๆ";
 }
 
+function isWeightedUnit(unit: string) { return /kg|กก|กิโล/i.test(unit); }
+
 function getQuantityStep(
 
   unit: string
@@ -409,6 +411,7 @@ export default function MiniAppShopPage() {
   ] =
 
     useState<Cart>({});
+  const [pieceProductIds, setPieceProductIds] = useState<string[]>([]);
 
 
 
@@ -1174,11 +1177,15 @@ export default function MiniAppShopPage() {
 
 
 
-        setCart(
-
-          cleanedCart
-
-        );
+        setCart(cleanedCart);
+        try {
+          const saved = JSON.parse(localStorage.getItem(
+            `b2b-cart-pieces-${data.customer.customerCode}`) ?? "[]");
+          setPieceProductIds(Array.isArray(saved)
+            ? saved.filter((id: unknown) => typeof id === "string" &&
+                validCartIds.has(id) && Number(cleanedCart[id]) > 0)
+            : []);
+        } catch { setPieceProductIds([]); }
 
 
 
@@ -2292,6 +2299,23 @@ export default function MiniAppShopPage() {
 
 
 
+  function selectOrderUnit(product: Product, pieces: boolean) {
+    if (!isWeightedUnit(product.unit) || !customer) return;
+    const next = pieces
+      ? Array.from(new Set([...pieceProductIds, product.id]))
+      : pieceProductIds.filter((id) => id !== product.id);
+    setPieceProductIds(next);
+    localStorage.setItem(`b2b-cart-pieces-${customer.customerCode}`, JSON.stringify(next));
+    if (pieces && Number(cart[product.id]) > 0 && !Number.isInteger(cart[product.id])) {
+      saveCart({ ...cart, [product.id]: 1 });
+    }
+    setQuantityInputs((current) => {
+      const result = { ...current };
+      delete result[product.id];
+      return result;
+    });
+  }
+
   function updateQuantity(
 
     productId: string,
@@ -2345,17 +2369,8 @@ export default function MiniAppShopPage() {
 
 
     saveCart({
-
-      ...cart,
-
-      [productId]:
-
-        roundQuantity(
-
-          quantity
-
-        ),
-
+      ...cart, [productId]: pieceProductIds.includes(productId)
+        ? Math.max(1, Math.round(quantity)) : roundQuantity(quantity),
     });
 
   }
@@ -2446,17 +2461,8 @@ export default function MiniAppShopPage() {
 
         } else {
 
-          newCart[
-
-            productId
-
-          ] =
-
-            roundQuantity(
-
-              quantity
-
-            );
+          newCart[productId] = pieceProductIds.includes(productId)
+            ? Math.max(1, Math.round(quantity)) : roundQuantity(quantity);
 
         }
 
@@ -2862,6 +2868,7 @@ export default function MiniAppShopPage() {
 
 
 
+  const hasPieceOrders = cartProducts.some(p => pieceProductIds.includes(p.id));
   const estimatedTotal =
 
     cartProducts.reduce(
@@ -2876,9 +2883,7 @@ export default function MiniAppShopPage() {
 
         total +
 
-        product.quantity *
-
-        product.effectivePrice,
+        (pieceProductIds.includes(product.id) ? 0 : product.quantity * product.effectivePrice),
 
       0
 
@@ -3095,6 +3100,8 @@ export default function MiniAppShopPage() {
               {displayedProducts.map((product) => {
                 const step = getQuantityStep(product.unit);
                 const quantity = Number(cart[product.id] ?? 0);
+                const weighted = isWeightedUnit(product.unit);
+                const isPiece = pieceProductIds.includes(product.id);
                 const favouriteBusy = savingFavouriteIds.has(product.id);
                 const hideImage = isLiquorTobaccoCategory(product.category);
                 return (
@@ -3124,11 +3131,20 @@ export default function MiniAppShopPage() {
                         {(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) && <p className="mt-1 text-[11px] text-[#9AACA0] line-through">ปกติ ฿{formatPrice(product.normalPrice)}</p>}
                       </div>
                       <div className="mt-auto pt-2.5">
+                        {weighted && (
+                          <div className="mb-2 flex overflow-hidden rounded-lg border border-[#BCE9E5] bg-[#F4FBF9]">
+                            <button type="button" onClick={() => selectOrderUnit(product, false)}
+                              className={`min-h-8 flex-1 text-[11px] font-bold ${!isPiece ? "bg-[#02B0AF] text-white" : "text-[#507C70]"}`}>กก.</button>
+                            <button type="button" onClick={() => selectOrderUnit(product, true)}
+                              className={`min-h-8 flex-1 text-[11px] font-bold ${isPiece ? "bg-[#02B0AF] text-white" : "text-[#507C70]"}`}>ชิ้น</button>
+                          </div>
+                        )}
+                        {isPiece && <p className="mb-2 text-[10px] leading-4 text-[#846419]">ชั่งน้ำหนักจริงก่อนคิดราคา</p>}
                         {quantity > 0 ? (
                           <div className="flex h-10 items-center overflow-hidden rounded-xl border border-[#BCE9E5]">
                             <button type="button" onClick={() => changeQuantity(product, -1)} className="grid h-full w-9 shrink-0 place-items-center bg-[#EFF7F1] text-lg font-bold text-[#009F9D]" aria-label={`ลดจำนวน ${product.productName}`}>−</button>
                             <input
-                              type="number" min="0" step={step < 1 ? "any" : step} inputMode="decimal" aria-label={`จำนวน ${product.productName}`}
+                              type="number" min={isPiece ? "1" : "0"} step={isPiece ? "1" : step < 1 ? "any" : step} inputMode={isPiece ? "numeric" : "decimal"} aria-label={`จำนวน ${product.productName}`}
                               value={quantityInputs[product.id] ?? String(quantity)}
                               onFocus={() => setQuantityInputs((current) => ({ ...current, [product.id]: String(quantity) }))}
                               onChange={(event) => updateQuantity(product.id, event.target.value)}
@@ -3179,7 +3195,7 @@ export default function MiniAppShopPage() {
                 </span>
               </span>
               <span className="miniapp-cta-price text-right">
-                <span className="block text-[clamp(15px,4.8vw,19px)] font-extrabold leading-tight">~฿{formatPrice(estimatedTotal)}</span>
+                <span className="block text-[clamp(15px,4.8vw,19px)] font-extrabold leading-tight">{hasPieceOrders ? "ตั้งแต่ " : "~"}฿{formatPrice(estimatedTotal)}</span>
                 <span className="block text-[10px] text-white/75">ยอดประมาณการ ›</span>
               </span>
             </button>
@@ -3215,13 +3231,15 @@ export default function MiniAppShopPage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-bold leading-5 text-[#274937]">{product.productName}</p>
                         <p className="mt-1 text-xs text-[#8E9D91]"><span className={(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) ? "font-bold text-[#DC2626]" : ""}>฿{formatPrice(product.effectivePrice)}</span> / {product.unit}</p>
+                        <p className="mt-1 text-xs font-bold text-[#608073]">สั่ง {formatQuantity(product.quantity)} {pieceProductIds.includes(product.id) ? "ชิ้น" : product.unit}</p>
+                        {pieceProductIds.includes(product.id) && <p className="mt-1 text-[11px] text-[#92671B]">คิดราคาเมื่อชั่งน้ำหนักจริง</p>}
                         <div className="mt-3 inline-flex h-9 items-center overflow-hidden rounded-lg border border-[#D3E7D9]">
                           <button type="button" onClick={() => changeQuantity(product, -1)} aria-label={`ลดจำนวน ${product.productName}`} className="h-full w-9 bg-[#EEF7EF] text-lg font-bold text-[#0D8466]">−</button>
                           <span className="min-w-14 px-2 text-center text-xs font-extrabold">{formatQuantity(product.quantity)}</span>
                           <button type="button" onClick={() => changeQuantity(product, 1)} aria-label={`เพิ่มจำนวน ${product.productName}`} className="h-full w-9 bg-[#00886B] text-lg font-bold text-white">+</button>
                         </div>
                       </div>
-                      <p className={`shrink-0 text-sm font-extrabold ${(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) ? "text-[#DC2626]" : "text-[#009F9D]"}`}>฿{formatPrice(product.quantity * product.effectivePrice)}</p>
+                      <p className={`shrink-0 text-sm font-extrabold ${(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) ? "text-[#DC2626]" : "text-[#009F9D]"}`}>{pieceProductIds.includes(product.id) ? "รอชั่งจริง" : "฿" + formatPrice(product.quantity * product.effectivePrice)}</p>
                     </div>
                   ))}
                 </div>
@@ -3231,7 +3249,7 @@ export default function MiniAppShopPage() {
               <div className="mb-4 flex items-end justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold text-[#607D6B]">ยอดรวมประมาณการ</p>
-                  <p className="mt-1 text-[11px] text-[#92A299]">ยอดจริงอาจเปลี่ยนหลังหยิบสินค้า</p>
+                  <p className="mt-1 text-[11px] text-[#92A299]">{hasPieceOrders ? "ยังไม่รวมรายการสั่งเป็นชิ้น (คิดราคาหลังชั่งจริง)" : "ยอดจริงอาจเปลี่ยนหลังหยิบสินค้า"}</p>
                 </div>
                 <strong className="text-2xl font-black text-[#007E61]">฿{formatPrice(estimatedTotal)}</strong>
               </div>
@@ -3243,7 +3261,7 @@ export default function MiniAppShopPage() {
               >ดำเนินการสั่งซื้อ <span className="ml-1">→</span></button>
               <div className="mt-3 flex justify-center gap-4">
                 <button type="button" onClick={() => setShowCart(false)} className="px-3 py-2 text-xs font-bold text-[#58806A]">เลือกซื้อสินค้าต่อ</button>
-                {cartProducts.length > 0 && <button type="button" onClick={() => { if (window.confirm("ต้องการล้างสินค้าทั้งหมดในตะกร้าหรือไม่?")) { saveCart({}); setQuantityInputs({}); setShowCart(false); } }} className="px-3 py-2 text-xs font-semibold text-[#B65B53]">ล้างตะกร้า</button>}
+                {cartProducts.length > 0 && <button type="button" onClick={() => { if (window.confirm("ต้องการล้างสินค้าทั้งหมดในตะกร้าหรือไม่?")) { saveCart({}); setPieceProductIds([]); localStorage.removeItem(`b2b-cart-pieces-${customer.customerCode}`); setQuantityInputs({}); setShowCart(false); } }} className="px-3 py-2 text-xs font-semibold text-[#B65B53]">ล้างตะกร้า</button>}
               </div>
             </div>
           </section>
