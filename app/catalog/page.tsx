@@ -4311,6 +4311,8 @@ export default function CatalogPage() {
 
                 </span>
 
+                <span className="font-semibold text-[#00877C]">Cost (optional)</span>
+
 
 
 
@@ -4321,7 +4323,7 @@ export default function CatalogPage() {
 
               <p className="text-xs text-gray-400 mt-3">
 
-                ไม่ต้องมีคอลัมน์ Category — หมวดหมู่สินค้าจัดการผ่าน Visible Products เท่านั้น ระบบจะเลือก Sheet ชื่อ “Master Price” ให้อัตโนมัติ
+                รองรับ Cost (ต้นทุนต่อหน่วยเดียวกับราคา) เพิ่มเติมได้ · หากไม่ระบุ จะเก็บต้นทุนเดิมไว้ · ไม่ต้องมีคอลัมน์ Category — หมวดหมู่สินค้าจัดการผ่าน Visible Products เท่านั้น ระบบจะเลือก Sheet ชื่อ “Master Price” ให้อัตโนมัติ
 
               </p>
 
