@@ -1582,7 +1582,7 @@ export default function OrderDetailsPage() {
                       <td className="p-4 text-right">
 
                         {item.actual_qty !== null ? (item.piece_price_per_kg_snapshot != null
-                            ? "รอชั่งจริง"
+                            ? "คิดตามน้ำหนักจริง (ดูยอดในบิล)"
                             : `฿${(actual * price).toFixed(2)}`) : "—"}
 
                       </td>
