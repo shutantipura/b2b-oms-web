@@ -118,6 +118,10 @@ export default function DeliveryPage() {
 
 
 
+  const [editingMap, setEditingMap] = useState(false);
+  const [mapDraft, setMapDraft] = useState("");
+  const [savingMap, setSavingMap] = useState(false);
+
   const [order, setOrder] =
 
     useState<OrderDetails | null>(null);
@@ -257,11 +261,8 @@ export default function DeliveryPage() {
 
 
 
-    setOrder(
-
-      orderData as unknown as OrderDetails
-
-    );
+    setOrder(orderData as unknown as OrderDetails);
+    setMapDraft(orderData.delivery_address ?? orderData.customers?.delivery_map_url ?? "");
 
     // Delivery displays what was actually picked and billed. Group roots use
     // the same consolidated lines as Billing, avoiding duplicated /x items.
@@ -650,6 +651,31 @@ export default function DeliveryPage() {
 
 
 
+  async function saveDeliveryMap() {
+    const nextUrl = mapDraft.trim();
+    try {
+      const parsed = new URL(nextUrl);
+      if (parsed.protocol !== "https:") throw new Error("กรุณาใช้ลิงก์ Google Maps แบบ HTTPS");
+    } catch {
+      setMessage("กรุณากรอกลิงก์ Google Maps ที่ถูกต้อง");
+      return;
+    }
+    setSavingMap(true);
+    setMessage("");
+    const { error } = await supabase.rpc("update_my_delivery_map", {
+      p_order_number: orderNumber,
+      p_map_url: nextUrl,
+    });
+    if (error) {
+      setMessage("เปลี่ยนตำแหน่งจัดส่งไม่สำเร็จ: " + error.message);
+    } else {
+      setOrder((previous) => previous ? { ...previous, delivery_address: nextUrl } : previous);
+      setEditingMap(false);
+      setMessage("✓ อัปเดตตำแหน่งจัดส่งสำหรับออเดอร์นี้แล้ว");
+    }
+    setSavingMap(false);
+  }
+
   async function releaseTask() {
 
     const confirmedRelease =
@@ -1023,6 +1049,30 @@ export default function DeliveryPage() {
           </div>
 
 
+
+          <div className="mt-3">
+            {!editingMap ? (
+              <button type="button" onClick={() => { setMapDraft(deliveryMapUrl ?? ""); setEditingMap(true); }}
+                className="rounded-xl border border-[#02B0AF] px-4 py-2.5 font-semibold text-[#007F79]">
+                ✏️ เปลี่ยนตำแหน่ง Google Maps
+              </button>
+            ) : (
+              <div className="rounded-xl border p-4">
+                <label htmlFor="delivery-map-edit" className="block text-sm font-bold mb-2">ลิงก์ Google Maps ใหม่</label>
+                <input id="delivery-map-edit" type="url" value={mapDraft} onChange={(event) => setMapDraft(event.target.value)}
+                  placeholder="https://maps.app.goo.gl/..." className="w-full rounded-lg border px-3 py-3" />
+                <p className="mt-2 text-xs text-gray-500">เปลี่ยนเฉพาะออเดอร์นี้ ไม่เปลี่ยนที่อยู่ประจำของลูกค้า</p>
+                <div className="mt-3 flex gap-2">
+                  <button type="button" disabled={savingMap} onClick={() => void saveDeliveryMap()}
+                    className="rounded-lg bg-[#02B0AF] px-4 py-2.5 font-bold text-white disabled:opacity-50">
+                    {savingMap ? "กำลังบันทึก..." : "บันทึกตำแหน่ง"}
+                  </button>
+                  <button type="button" disabled={savingMap} onClick={() => setEditingMap(false)}
+                    className="rounded-lg border px-4 py-2.5">ยกเลิก</button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="mt-5">
 
