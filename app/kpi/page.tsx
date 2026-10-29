@@ -18,11 +18,48 @@ type KPIOrder = {
   payment_on_time: boolean | null;
 };
 
+type KPIStage = "confirmation" | "picking" | "billing" | "delivery" | "payment_verification";
+
 type HistoryRow = {
   order_id: string;
   to_status: string | null;
   created_at: string;
+  stage: string | null;
+  performed_by_staff_id: string | null;
 };
+
+type TaskClaimRow = {
+  order_id: string;
+  stage: string;
+  staff_id: string;
+};
+
+type StaffRow = {
+  id: string;
+  staff_name: string;
+  account_type: string;
+};
+
+type InvolvedStaff = {
+  id: string;
+  name: string;
+  isManager: boolean;
+};
+
+type PeopleByOrder = Record<string, Partial<Record<KPIStage, InvolvedStaff[]>>>;
+
+type KPIIssue = {
+  label: string;
+  stage: KPIStage;
+};
+
+const KPI_STAGES: KPIStage[] = [
+  "confirmation", "picking", "billing", "delivery", "payment_verification",
+];
+
+function isKPIStage(stage: string | null): stage is KPIStage {
+  return stage !== null && KPI_STAGES.some((value) => value === stage);
+}
 
 type CompletionTimes = {
   pickingAt?: string;
@@ -107,14 +144,14 @@ function countTrue(values: Array<boolean | null | undefined>) {
   };
 }
 
-function kpiExceptions(order: EvaluatedOrder): string[] {
-  const issues: string[] = [];
-  if (order.confirmation_on_time === false) issues.push("Stock Check On Time");
-  if (order.pickOnTime === false) issues.push("Pick On Time");
-  if (order.billOnTime === false) issues.push("Bill On Time");
-  if (order.delivery_on_time === false) issues.push("Delivery On Time");
-  if (order.short_pick === true) issues.push("Short Pick Rate");
-  if (order.payment_on_time === false) issues.push("Payment On Time");
+function kpiExceptions(order: EvaluatedOrder): KPIIssue[] {
+  const issues: KPIIssue[] = [];
+  if (order.confirmation_on_time === false) issues.push({ label: "Stock Check On Time", stage: "confirmation" });
+  if (order.pickOnTime === false) issues.push({ label: "Pick On Time", stage: "picking" });
+  if (order.billOnTime === false) issues.push({ label: "Bill On Time", stage: "billing" });
+  if (order.delivery_on_time === false) issues.push({ label: "Delivery On Time", stage: "delivery" });
+  if (order.short_pick === true) issues.push({ label: "Short Pick Rate", stage: "picking" });
+  if (order.payment_on_time === false) issues.push({ label: "Payment On Time", stage: "payment_verification" });
   return issues;
 }
 
@@ -122,6 +159,8 @@ export default function KPIPage() {
   const [selectedDate, setSelectedDate] = useState(getBangkokToday);
   const [orders, setOrders] = useState<KPIOrder[]>([]);
   const [completionTimes, setCompletionTimes] = useState<Record<string, CompletionTimes>>({});
+  const [involvedByOrder, setInvolvedByOrder] = useState<PeopleByOrder>({});
+  const [staffUnavailable, setStaffUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -141,6 +180,8 @@ export default function KPIPage() {
       setMessage("ไม่สามารถโหลดข้อมูล KPI ได้: " + error.message);
       setOrders([]);
       setCompletionTimes({});
+      setInvolvedByOrder({});
+      setStaffUnavailable(false);
       setLoading(false);
       return;
     }
@@ -150,27 +191,44 @@ export default function KPIPage() {
       .filter((order) => order.status !== "cancelled")
       .map((order) => order.order_id);
 
-    // Picking completion: use the timestamp exposed by the operational KPI RPC.
-    // Billing completion: use the recorded transition to ready_for_delivery.
-    // History also provides a fallback for older picking records.
+    // Reuse recorded task activity for both KPI completion times and the people
+    // involved in each failed stage. Claims capture released/taken-over work;
+    // history also captures staff actions that do not create a claim.
     const groups = Array.from(
-      { length: Math.ceil(ids.length / 100) },
-      (_, index) => ids.slice(index * 100, (index + 1) * 100)
+      { length: Math.ceil(ids.length / 25) },
+      (_, index) => ids.slice(index * 25, (index + 1) * 25)
     );
-
-    const historyResults = await Promise.all(
-      groups.map((group) =>
-        supabase
-          .from("order_history")
-          .select("order_id,to_status,created_at")
-          .in("order_id", group)
-          .in("to_status", ["awaiting_billing", "ready_for_delivery"])
-          .order("created_at", { ascending: true })
-      )
-    );
+    const [historyResults, claimResults] = await Promise.all([
+      Promise.all(
+        groups.map((group) =>
+          supabase
+            .from("order_history")
+            .select("order_id,to_status,created_at,stage,performed_by_staff_id")
+            .in("order_id", group)
+            .order("created_at", { ascending: true })
+        )
+      ),
+      Promise.all(
+        groups.map((group) =>
+          supabase
+            .from("task_claims")
+            .select("order_id,stage,staff_id")
+            .in("order_id", group)
+        )
+      ),
+    ]);
     if (requestId !== requestIdRef.current) return;
 
     const completions: Record<string, CompletionTimes> = {};
+    const involvedIds: Record<string, Partial<Record<KPIStage, Set<string>>>> = {};
+    const allStaffIds = new Set<string>();
+    const addInvolved = (orderId: string, stage: string | null, staffId: string | null) => {
+      if (!isKPIStage(stage) || !staffId) return;
+      const stages = (involvedIds[orderId] ??= {});
+      (stages[stage] ??= new Set<string>()).add(staffId);
+      allStaffIds.add(staffId);
+    };
+
     let historyUnavailable = false;
     for (const result of historyResults) {
       if (result.error) {
@@ -184,14 +242,76 @@ export default function KPIPage() {
         if (row.to_status === "awaiting_billing") times.pickingAt = row.created_at;
         if (row.to_status === "ready_for_delivery") times.billingAt = row.created_at;
         completions[row.order_id] = times;
+        addInvolved(row.order_id, row.stage, row.performed_by_staff_id);
       }
+    }
+
+    let participantUnavailable = historyUnavailable;
+    for (const result of claimResults) {
+      if (result.error) {
+        participantUnavailable = true;
+        console.error("KPI task-claims query:", result.error);
+        continue;
+      }
+      for (const claim of (result.data ?? []) as TaskClaimRow[]) {
+        addInvolved(claim.order_id, claim.stage, claim.staff_id);
+      }
+    }
+
+    const staffIds = Array.from(allStaffIds);
+    const staffGroups = Array.from(
+      { length: Math.ceil(staffIds.length / 100) },
+      (_, index) => staffIds.slice(index * 100, (index + 1) * 100)
+    );
+    const staffResults = await Promise.all(
+      staffGroups.map((group) =>
+        supabase.from("staff").select("id,staff_name,account_type").in("id", group)
+      )
+    );
+    if (requestId !== requestIdRef.current) return;
+
+    const staffMap = new Map<string, StaffRow>();
+    for (const result of staffResults) {
+      if (result.error) {
+        participantUnavailable = true;
+        console.error("KPI staff-name query:", result.error);
+        continue;
+      }
+      for (const staff of (result.data ?? []) as StaffRow[]) {
+        staffMap.set(staff.id, staff);
+      }
+    }
+
+    const involved: PeopleByOrder = {};
+    for (const [orderId, stages] of Object.entries(involvedIds)) {
+      const people: Partial<Record<KPIStage, InvolvedStaff[]>> = {};
+      for (const stage of KPI_STAGES) {
+        const idsForStage = stages[stage];
+        if (!idsForStage) continue;
+        people[stage] = Array.from(idsForStage).map((id) => {
+          const staff = staffMap.get(id);
+          return {
+            id,
+            name: staff?.staff_name?.trim() || "ไม่พบชื่อพนักงาน",
+            isManager: staff?.account_type === "manager",
+          };
+        }).sort((a, b) => a.name.localeCompare(b.name, "th"));
+      }
+      involved[orderId] = people;
     }
 
     setOrders(loaded);
     setCompletionTimes(completions);
+    setInvolvedByOrder(involved);
+    setStaffUnavailable(participantUnavailable);
+    const warnings: string[] = [];
     if (historyUnavailable) {
-      setMessage("บางรายการไม่สามารถอ่านประวัติการจบงานได้ ค่า Pick On Time และ Bill On Time อาจแสดงไม่ครบ");
+      warnings.push("บางรายการไม่สามารถอ่านประวัติการจบงานได้ ค่า Pick On Time และ Bill On Time อาจแสดงไม่ครบ");
     }
+    if (participantUnavailable) {
+      warnings.push("บางรายการไม่สามารถโหลดรายชื่อผู้ปฏิบัติงานได้ครบ");
+    }
+    setMessage(warnings.join(" · "));
     setNowMs(Date.now());
     setLoading(false);
   }
@@ -389,7 +509,7 @@ export default function KPIPage() {
             <div>
               <h2 className="text-base font-extrabold">คำสั่งซื้อที่ไม่ผ่าน KPI</h2>
               <p className="mt-0.5 text-[11px] text-[#718D84]">
-                แสดงเฉพาะรายการที่พบปัญหาจากเกณฑ์ที่วัดได้
+                แสดงรายชื่อผู้เกี่ยวข้องตามขั้นตอนงานที่ไม่ผ่าน KPI (อาจมีหลายคนหากส่งต่องาน)
               </p>
             </div>
             <span className="shrink-0 rounded-lg bg-[#FFF1E8] px-2.5 py-1 text-xs font-extrabold text-[#C2410C]">
@@ -415,15 +535,26 @@ export default function KPIPage() {
                     <p className="mt-0.5 text-[11px] text-[#8AA097]">
                       เลขที่ #{order.order_number} · ส่ง {order.delivery_slot ?? "ไม่ระบุรอบ"}
                     </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {issues.map((issue) => (
-                        <span
-                          key={issue}
-                          className="rounded-lg border border-[#FED7AA] bg-[#FFF7ED] px-2 py-1 text-[10px] font-bold text-[#C2410C]"
-                        >
-                          {issue}
-                        </span>
-                      ))}
+                    <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                      {issues.map(({ label, stage }) => {
+                        const people = involvedByOrder[order.order_id]?.[stage] ?? [];
+                        return (
+                          <div key={label} className="min-w-0 rounded-xl border border-[#FDE5CC] bg-[#FFFBF7] px-2.5 py-2">
+                            <span className="inline-flex rounded-lg border border-[#FED7AA] bg-[#FFF7ED] px-2 py-1 text-[10px] font-bold text-[#C2410C]">
+                              {label}
+                            </span>
+                            <p className="mt-1 break-words text-[11px] leading-4 text-[#52786F]">
+                              <span className="font-extrabold">ผู้เกี่ยวข้อง: </span>
+                              {people.length > 0 ? people.map((person, index) => (
+                                <span key={person.id}>
+                                  {index > 0 ? " · " : ""}{person.name}
+                                  {person.isManager && <span className="font-bold text-[#A66D23]"> (Manager)</span>}
+                                </span>
+                              )) : staffUnavailable ? "ข้อมูลรายชื่อไม่ครบ" : "ยังไม่พบผู้ปฏิบัติงาน"}
+                            </p>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                   <Link
