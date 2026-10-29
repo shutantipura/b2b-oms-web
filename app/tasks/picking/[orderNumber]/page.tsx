@@ -1163,7 +1163,7 @@ export default function PickingPage() {
                       <div className={`grid gap-2 sm:gap-3 ${weighed ? "grid-cols-3" : "grid-cols-2"}`}>
                         <div className="flex min-w-0 flex-col justify-center rounded-lg border border-[#E1EAE7] bg-white px-2 py-2 text-center">
                           <p className="text-[11px] font-semibold text-[#688178]">
-                            ยืนยัน ({weighed ? "ชิ้น" : item.unit_snapshot})
+                            ยืนยัน <span className="font-extrabold text-[#A65D00]">({weighed ? "ชิ้น" : item.unit_snapshot})</span>
                           </p>
                           <p className="mt-2 text-base font-extrabold text-[#234C40]">
                             {formatPickingQuantity(amounts.confirmed)}
@@ -1171,7 +1171,7 @@ export default function PickingPage() {
                         </div>
                         <label className="flex min-w-0 flex-col justify-center rounded-lg border border-[#8DD4CE] bg-white px-2 py-1.5 text-center">
                           <span className="text-[11px] font-bold text-[#007C76]">
-                            หยิบจริง ({weighed ? "ชิ้น" : item.unit_snapshot})
+                            หยิบจริง <span className="font-extrabold text-[#A65D00]">({weighed ? "ชิ้น" : item.unit_snapshot})</span>
                           </span>
                           <input
                             type="number"
@@ -1195,7 +1195,7 @@ export default function PickingPage() {
                         {weighed && (
                           <label className="flex min-w-0 flex-col justify-center rounded-lg border border-[#8DD4CE] bg-white px-2 py-1.5 text-center">
                             <span className="text-[11px] font-bold text-[#007C76]">
-                              ชั่งจริง (กก.)
+                              ชั่งจริง <span className="font-extrabold text-[#A65D00]">(กก.)</span>
                             </span>
                             <input
                               type="number"
