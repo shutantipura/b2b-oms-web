@@ -1136,8 +1136,8 @@ export default function PickingPage() {
                         SKU {item.products?.sku ?? "—"}{!addonMode && <span className="ml-1">· {item.unit_snapshot}</span>}
                       </div>
                       {weighed && (
-                        <p className="mt-1 text-[11px] font-semibold text-[#8D641D]">
-                          นับชิ้นเพื่อเช็กของครบ · ชั่งกิโลกรัมเพื่อออกบิล
+                        <p className="mt-1 text-[11px] font-semibold text-[#13877E]">
+                          ชิ้นสำหรับตรวจจำนวน · กก. สำหรับคิดบิล
                         </p>
                       )}
                       {isAdditional && (
@@ -1156,82 +1156,62 @@ export default function PickingPage() {
                         </span>
                       )}
                     </div>
-                    {!addonMode && !weighed && (
-                      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-                        <div className="w-[52px] rounded-lg bg-[#F3F7F5] px-1 py-2 text-center sm:w-20">
-                          <p className="text-[10px] font-semibold text-[#647E73] sm:text-xs" title="จำนวนที่ยืนยัน">
-                            ยืนยัน
-                          </p>
-                          <p className="mt-1 truncate text-base font-extrabold text-[#21463A]" title={String(amounts.confirmed)}>
-                            {formatPickingQuantity(amounts.confirmed)} {weighed ? "ชิ้น" : ""}
-                          </p>
-                        </div>
-                        <label className="w-[76px] rounded-lg border-2 border-[#62C8C2] bg-[#F0FBFA] px-1 py-1.5 text-center sm:w-28">
-                          <span className="block text-[10px] font-extrabold text-[#007C76] sm:text-xs" title={weighed ? "น้ำหนักชั่งจริง กก." : "จำนวนที่หยิบจริง"}>
-                            {weighed ? "หยิบจริง (กก.)" : "หยิบจริง"}
-                          </span>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            min="0"
-                            step={item.unit_snapshot === "ชิ้น" && !weighed ? "1" : "0.001"}
-                            required
-                            aria-label={`${weighed ? "น้ำหนักชั่งจริง กก." : "จำนวนที่หยิบจริง"} ของ ${item.product_name_snapshot}`}
-                            value={actual[item.id] ?? ""}
-                            onChange={(event) =>
-                              setActual((previous) => ({
-                                ...previous,
-                                [item.id]: event.target.value,
-                              }))
-                            }
-                            className="mt-1 block min-h-10 w-full min-w-0 rounded-md border border-[#9ADBD7] bg-white px-0.5 py-1 text-center text-base font-extrabold text-[#006E6A]"
-                          />
-                        </label>
-                      </div>
-                    )}
                   </div>
 
-                  {!addonMode && weighed && (
-                    <div className="mt-2 rounded-xl border border-[#BCE7E3] bg-[#F5FCFB] p-2 sm:p-3">
-                      <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
-                        <div className="flex min-w-0 flex-col justify-center rounded-lg bg-white px-1 py-2 text-center">
-                          <p className="text-[10px] font-semibold text-[#66867D] sm:text-xs">ยืนยัน (ชิ้น)</p>
-                          <p className="mt-1 text-base font-extrabold text-[#234C40]">
+                  {!addonMode && (
+                    <div className="mt-2 rounded-xl border border-[#D5EAE6] bg-[#F7FAF9] p-2 sm:p-2.5">
+                      <div className={`grid gap-2 sm:gap-3 ${weighed ? "grid-cols-3" : "grid-cols-2"}`}>
+                        <div className="flex min-w-0 flex-col justify-center rounded-lg border border-[#E1EAE7] bg-white px-2 py-2 text-center">
+                          <p className="text-[11px] font-semibold text-[#688178]">
+                            ยืนยัน ({weighed ? "ชิ้น" : item.unit_snapshot})
+                          </p>
+                          <p className="mt-2 text-base font-extrabold text-[#234C40]">
                             {formatPickingQuantity(amounts.confirmed)}
                           </p>
                         </div>
-                        <label className="min-w-0 rounded-lg border border-[#7ED1CC] bg-white px-1 py-1.5 text-center sm:px-2">
-                          <span className="block text-[10px] font-bold text-[#007C76] sm:text-xs">หยิบจริง (ชิ้น)</span>
+                        <label className="flex min-w-0 flex-col justify-center rounded-lg border border-[#8DD4CE] bg-white px-2 py-1.5 text-center">
+                          <span className="text-[11px] font-bold text-[#007C76]">
+                            หยิบจริง ({weighed ? "ชิ้น" : item.unit_snapshot})
+                          </span>
                           <input
                             type="number"
-                            inputMode="numeric"
+                            inputMode={weighed || item.unit_snapshot === "ชิ้น" ? "numeric" : "decimal"}
                             min="0"
-                            step="1"
+                            step={weighed || item.unit_snapshot === "ชิ้น" ? "1" : "0.001"}
                             required
-                            aria-label={`จำนวนชิ้นที่หยิบจริงของ ${item.product_name_snapshot}`}
-                            value={actualPieces[item.id] ?? ""}
-                            onChange={(event) => setActualPieces((previous) => ({
-                              ...previous, [item.id]: event.target.value,
-                            }))}
-                            className="mt-1 block h-10 w-full min-w-0 rounded-md border border-[#A9DFDC] bg-[#F8FDFC] px-0.5 text-center text-base font-extrabold text-[#006F6A]"
+                            aria-label={`จำนวนหยิบจริงของ ${item.product_name_snapshot} ${weighed ? "ชิ้น" : item.unit_snapshot}`}
+                            value={weighed ? (actualPieces[item.id] ?? "") : (actual[item.id] ?? "")}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              if (weighed) {
+                                setActualPieces((previous) => ({ ...previous, [item.id]: value }));
+                              } else {
+                                setActual((previous) => ({ ...previous, [item.id]: value }));
+                              }
+                            }}
+                            className="mt-1 h-10 w-full min-w-0 rounded-md border border-[#C8E5E0] bg-[#FBFEFD] px-1 text-center text-base font-extrabold text-[#006F6A] outline-none focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/20"
                           />
                         </label>
-                        <label className="min-w-0 rounded-lg border border-[#7ED1CC] bg-white px-1 py-1.5 text-center sm:px-2">
-                          <span className="block text-[10px] font-bold text-[#007C76] sm:text-xs">ชั่งจริง (กก.)</span>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            min="0"
-                            step="0.001"
-                            required
-                            aria-label={`น้ำหนักชั่งจริงเป็นกิโลกรัมของ ${item.product_name_snapshot}`}
-                            value={actual[item.id] ?? ""}
-                            onChange={(event) => setActual((previous) => ({
-                              ...previous, [item.id]: event.target.value,
-                            }))}
-                            className="mt-1 block h-10 w-full min-w-0 rounded-md border border-[#A9DFDC] bg-[#F8FDFC] px-0.5 text-center text-base font-extrabold text-[#006F6A]"
-                          />
-                        </label>
+                        {weighed && (
+                          <label className="flex min-w-0 flex-col justify-center rounded-lg border border-[#8DD4CE] bg-white px-2 py-1.5 text-center">
+                            <span className="text-[11px] font-bold text-[#007C76]">
+                              ชั่งจริง (กก.)
+                            </span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="0.001"
+                              required
+                              aria-label={`น้ำหนักชั่งจริงเป็นกิโลกรัมของ ${item.product_name_snapshot}`}
+                              value={actual[item.id] ?? ""}
+                              onChange={(event) => setActual((previous) => ({
+                                ...previous, [item.id]: event.target.value,
+                              }))}
+                              className="mt-1 h-10 w-full min-w-0 rounded-md border border-[#C8E5E0] bg-[#FBFEFD] px-1 text-center text-base font-extrabold text-[#006F6A] outline-none focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/20"
+                            />
+                          </label>
+                        )}
                       </div>
                     </div>
                   )}
