@@ -16,9 +16,25 @@ final class AlarmSound {
     AlarmSound(Context context) { this.context = context.getApplicationContext(); }
 
     void startRepeating() throws IOException {
-        if (player != null) return;
-        player = createPlayer(context, true);
+        if (player != null || AlarmHours.isQuiet()) return;
+        // Play short clips instead of using MediaPlayer's infinite loop.
+        // Each replay checks the Thailand clock, so even a delayed service
+        // poll cannot leave the sound running through the night.
+        player = createPlayer(context, false);
+        player.setOnCompletionListener(mp -> {
+            if (mp != player) return;
+            if (AlarmHours.isQuiet()) {
+                stop();
+                return;
+            }
+            try { mp.start(); }
+            catch (IllegalStateException ignored) { stop(); }
+        });
         player.start();
+    }
+
+    boolean isActive() {
+        return player != null;
     }
 
     void stop() {

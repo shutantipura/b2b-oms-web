@@ -270,8 +270,10 @@ public final class MainActivity extends Activity {
     private void render() {
         if (prefs == null || status == null) return;
         boolean running = prefs.getBoolean(AlarmMonitorService.MONITORING, false);
-        status.setText(running ? "● กำลังตรวจสอบออเดอร์" : "○ ยังไม่ได้เปิดระบบเตือน");
-        status.setTextColor(running ? TEAL : WARNING);
+        boolean quiet = running && AlarmHours.isQuiet();
+        status.setText(!running ? "○ ยังไม่ได้เปิดระบบเตือน" :
+            quiet ? "🌙 พักเสียง 22:00–07:00 (เวลาไทย)" : "● กำลังตรวจสอบออเดอร์");
+        status.setTextColor(!running ? WARNING : quiet ? SECONDARY : TEAL);
         toggle.setText(running ? "■ หยุดตรวจสอบออเดอร์" : "▶ เริ่มตรวจสอบออเดอร์");
         String pairedToken = prefs.getString(StationHealth.TOKEN, "");
         boolean paired = pairedToken != null && pairedToken.matches("[a-f0-9]{64}");

@@ -52,6 +52,7 @@ public final class AlarmMonitorService extends Service {
     private static final String ALERT_CHANNEL = "oms_alert_popup_v2";
     private static final int MONITOR_NOTICE = 1001, ALERT_NOTICE = 1002;
     private static final long POLL_MS = 15000;
+    private static final long QUIET_POLL_MS = 60000;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService work = Executors.newSingleThreadExecutor();
@@ -61,6 +62,7 @@ public final class AlarmMonitorService extends Service {
     private NotificationManager notices;
     private AlarmSound alarm;
     private Runnable pollingTask;
+    private Runnable quietHoursTransition;
     private volatile boolean running;
     private boolean ringing;
     private String lastNotifiedAlertIds = "";
@@ -141,11 +143,35 @@ public final class AlarmMonitorService extends Service {
         pollingTask = new Runnable() {
             @Override public void run() {
                 if (!running) return;
+                // This check silences even if the OMS is temporarily unreachable.
+                if (AlarmHours.isQuiet()) silenceUrgentAlarm();
                 pollOrders();
-                main.postDelayed(this, POLL_MS);
+                main.postDelayed(this, AlarmHours.isQuiet() ? QUIET_POLL_MS : POLL_MS);
             }
         };
         main.post(pollingTask);
+        scheduleQuietHoursTransition();
+    }
+
+    private void scheduleQuietHoursTransition() {
+        if (quietHoursTransition != null) main.removeCallbacks(quietHoursTransition);
+        quietHoursTransition = () -> {
+            if (!running) return;
+            if (AlarmHours.isQuiet()) silenceUrgentAlarm();
+            updateMonitor();
+            // At 07:00 fetch the overnight queue immediately; at 22:00
+            // refresh the feed but never play audible alerts.
+            pollOrders();
+            scheduleQuietHoursTransition();
+        };
+        main.postDelayed(quietHoursTransition, AlarmHours.millisUntilTransition());
+    }
+
+    private void silenceUrgentAlarm() {
+        alarm.stop();
+        ringing = false;
+        lastNotifiedAlertIds = "";
+        notices.cancel(ALERT_NOTICE);
     }
 
     private void pollOrders() {
@@ -234,16 +260,13 @@ public final class AlarmMonitorService extends Service {
             .putString(LAST_ERROR, "")
             .apply();
 
-        if (pending.isEmpty()) {
-            alarm.stop();
-            ringing = false;
-            lastNotifiedAlertIds = "";
-            notices.cancel(ALERT_NOTICE);
+        if (pending.isEmpty() || AlarmHours.isQuiet()) {
+            silenceUrgentAlarm();
         } else {
-            if (!ringing) {
+            if (!ringing || !alarm.isActive()) {
                 try {
                     alarm.startRepeating();
-                    ringing = true;
+                    ringing = alarm.isActive();
                 } catch (Exception e) {
                     prefs.edit().putString(LAST_ERROR,
                         "เปิดเสียงไม่ได้: " + e.getMessage()).apply();
@@ -387,7 +410,8 @@ public final class AlarmMonitorService extends Service {
 
     private void updateMonitor() {
         if (!running) return;
-        String text = pending.isEmpty() ? "พร้อมรับออเดอร์ใหม่" :
+        String text = AlarmHours.isQuiet() ? "พักเสียง 22:00–07:00 (เวลาไทย)" :
+            pending.isEmpty() ? "พร้อมรับออเดอร์ใหม่" :
             pending.size() + " ออเดอร์ยังไม่ได้รับทราบ";
         notices.notify(MONITOR_NOTICE, monitorNotification(text));
     }
@@ -397,6 +421,7 @@ public final class AlarmMonitorService extends Service {
         prefs.edit().putBoolean(MONITORING, false)
             .putString(PENDING, "[]").putString(NUMBERS, "").apply();
         if (pollingTask != null) main.removeCallbacks(pollingTask);
+        if (quietHoursTransition != null) main.removeCallbacks(quietHoursTransition);
         StationHealth.report(this, false, false, 0, "");
         alarm.stop();
         ringing = false;
@@ -410,6 +435,7 @@ public final class AlarmMonitorService extends Service {
     @Override public void onDestroy() {
         running = false;
         if (pollingTask != null) main.removeCallbacks(pollingTask);
+        if (quietHoursTransition != null) main.removeCallbacks(quietHoursTransition);
         alarm.stop();
         work.shutdownNow();
         super.onDestroy();

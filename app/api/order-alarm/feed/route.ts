@@ -6,7 +6,26 @@ import { createClient } from "@supabase/supabase-js";
 // addresses, product contents, bill amounts or other order details.
 export const dynamic = "force-dynamic";
 
+// Treat 22:00–07:00 in Bangkok as silent hours. The database queue remains
+// untouched, so all still-unacknowledged orders return again from 07:00.
+function isThailandQuietHours(now: Date): boolean {
+  const hour = Number(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).format(now));
+  return hour >= 22 || hour < 7;
+}
+
 export async function GET() {
+  if (isThailandQuietHours(new Date())) {
+    // Old installed APKs will also mute on their next feed check. Crucially,
+    // no alert IDs are acknowledged or marked seen by this response.
+    return NextResponse.json(
+      { alerts: [], quiet_hours: true },
+      { headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
+  }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!url || !secret) {
