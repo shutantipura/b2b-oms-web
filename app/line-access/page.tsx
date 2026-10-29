@@ -122,7 +122,11 @@ type AccessData = {
 
 };
 
-
+// No-CV customers use NCV-* keys internally to preserve unique relationships.
+// Never expose those generated keys as customer/CV numbers in the UI.
+function displayCustomerCode(code: string): string {
+  return /^NCV-/i.test(code) ? "No CV" : code;
+}
 
 export default function LineAccessPage() {
 
@@ -805,7 +809,7 @@ export default function LineAccessPage() {
 
       window.confirm(
 
-        `ยกเลิกสิทธิ์ลูกค้า ${customerCode} จาก ${user.displayName ?? "ผู้ใช้ LINE นี้"} หรือไม่?${user.allCustomersAccess ? "\n\nการยกเลิกเพียงรายเดียวจะปิดโหมดสิทธิ์ลูกค้าทั้งหมดด้วย (สิทธิ์ลูกค้ารายอื่นยังอยู่)" : ""}`
+        `ยกเลิกสิทธิ์ลูกค้า ${customers.find((item) => item.customerCode === customerCode)?.customerName ?? displayCustomerCode(customerCode)} (${displayCustomerCode(customerCode)}) จาก ${user.displayName ?? "ผู้ใช้ LINE นี้"} หรือไม่?${user.allCustomersAccess ? "\n\nการยกเลิกเพียงรายเดียวจะปิดโหมดสิทธิ์ลูกค้าทั้งหมดด้วย (สิทธิ์ลูกค้ารายอื่นยังอยู่)" : ""}`
 
       );
 
@@ -2044,6 +2048,7 @@ export default function LineAccessPage() {
                 const matchingCustomers = availableCustomers.filter(
                   (customer) =>
                     customer.customerCode.toLowerCase().includes(customerQuery) ||
+                    displayCustomerCode(customer.customerCode).toLowerCase().includes(customerQuery) ||
                     customer.customerName.toLowerCase().includes(customerQuery)
                 );
                 const chosenCode = customerSelections[user.lineUserRowId] ?? "";
@@ -2533,11 +2538,7 @@ export default function LineAccessPage() {
 
                                       <p className="font-semibold">
 
-                                        {
-
-                                          customerCode
-
-                                        }
+                                        {displayCustomerCode(customerCode)}
 
                                       </p>
 
@@ -2736,11 +2737,7 @@ export default function LineAccessPage() {
 
                                 >
 
-                                  {
-
-                                    customer.customerCode
-
-                                  }
+                                  {displayCustomerCode(customer.customerCode)}
 
                                   {" — "}
 
