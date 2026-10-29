@@ -848,7 +848,7 @@ export default function PickingPage() {
     ) {
       setMessage(
         picksMeasuredKg(invalidItem)
-          ? `${invalidItem.product_name_snapshot}: กรุณากรอกน้ำหนักชั่งจริงเป็น กก. ไม่ติดลบ และทศนิยมไม่เกิน 3 ตำแหน่ง`
+          ? `${invalidItem.product_name_snapshot}: กรุณากรอกน้ำหนักที่หยิบจริงเป็น กก. ไม่ติดลบ และทศนิยมไม่เกิน 3 ตำแหน่ง`
           : `${invalidItem.product_name_snapshot}: จำนวนหยิบจริงต้องไม่น้อยกว่ายอดเดิม (สินค้าหน่วยชิ้นต้องเป็นจำนวนเต็ม)`
       );
 
@@ -1169,7 +1169,7 @@ export default function PickingPage() {
                             {formatPickingQuantity(amounts.confirmed)}
                           </p>
                         </div>
-                        <label className="flex min-w-0 flex-col justify-center rounded-lg border border-[#8DD4CE] bg-white px-2 py-1.5 text-center">
+                        <label className="flex min-w-0 flex-col justify-center rounded-lg border-2 border-[#48C1B7] bg-[#E5F9F6] px-2 py-1.5 text-center shadow-sm">
                           <span className="text-[11px] font-bold text-[#007C76]">
                             หยิบจริง <span className="font-extrabold text-[#A65D00]">({weighed ? "ชิ้น" : item.unit_snapshot})</span>
                           </span>
@@ -1189,13 +1189,13 @@ export default function PickingPage() {
                                 setActual((previous) => ({ ...previous, [item.id]: value }));
                               }
                             }}
-                            className="mt-1 h-10 w-full min-w-0 rounded-md border border-[#C8E5E0] bg-[#FBFEFD] px-1 text-center text-base font-extrabold text-[#006F6A] outline-none focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/20"
+                            className="mt-1 h-10 w-full min-w-0 rounded-md border border-[#93DAD2] bg-white px-1 text-center text-base font-extrabold text-[#006F6A] outline-none focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/20"
                           />
                         </label>
                         {weighed && (
-                          <label className="flex min-w-0 flex-col justify-center rounded-lg border border-[#8DD4CE] bg-white px-2 py-1.5 text-center">
+                          <label className="flex min-w-0 flex-col justify-center rounded-lg border-2 border-[#48C1B7] bg-[#E5F9F6] px-2 py-1.5 text-center shadow-sm">
                             <span className="text-[11px] font-bold text-[#007C76]">
-                              ชั่งจริง <span className="font-extrabold text-[#A65D00]">(กก.)</span>
+                              หยิบจริง <span className="font-extrabold text-[#A65D00]">(กก.)</span>
                             </span>
                             <input
                               type="number"
@@ -1203,12 +1203,12 @@ export default function PickingPage() {
                               min="0"
                               step="0.001"
                               required
-                              aria-label={`น้ำหนักชั่งจริงเป็นกิโลกรัมของ ${item.product_name_snapshot}`}
+                              aria-label={`น้ำหนักที่หยิบจริงเป็นกิโลกรัมของ ${item.product_name_snapshot}`}
                               value={actual[item.id] ?? ""}
                               onChange={(event) => setActual((previous) => ({
                                 ...previous, [item.id]: event.target.value,
                               }))}
-                              className="mt-1 h-10 w-full min-w-0 rounded-md border border-[#C8E5E0] bg-[#FBFEFD] px-1 text-center text-base font-extrabold text-[#006F6A] outline-none focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/20"
+                              className="mt-1 h-10 w-full min-w-0 rounded-md border border-[#93DAD2] bg-white px-1 text-center text-base font-extrabold text-[#006F6A] outline-none focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/20"
                             />
                           </label>
                         )}
@@ -1239,7 +1239,7 @@ export default function PickingPage() {
                          title="จำนวนที่ต้องหยิบเพิ่ม">หยิบเพิ่ม</p>
                       <p className="mt-1 truncate text-[15px] font-extrabold text-[#8C671A] sm:text-lg"
                          title={String(amounts.additionalToPick)}>
-                        {weighed ? "ชั่งจริง" : formatPickingQuantity(amounts.additionalToPick)}
+                        {weighed ? "หยิบจริง" : formatPickingQuantity(amounts.additionalToPick)}
                       </p>
                     </div>
                     <label className={`min-w-0 rounded-lg border-2 px-1 py-1.5 text-center sm:px-2 ${
@@ -1248,7 +1248,7 @@ export default function PickingPage() {
                         : "border-[#DCE9E4] bg-[#F3F7F5]"
                     }`}>
                       <span className="block min-h-7 text-[10px] font-extrabold leading-[14px] text-[#007C76] sm:text-xs"
-                            title={weighed ? "น้ำหนักชั่งจริงทั้งหมด กก." : "จำนวนที่หยิบจริงทั้งหมด"}>{weighed ? "หยิบจริงรวม (กก.)" : "หยิบจริงรวม"}</span>
+                            title={weighed ? "น้ำหนักที่หยิบจริงทั้งหมด กก." : "จำนวนที่หยิบจริงทั้งหมด"}>{weighed ? "หยิบจริงรวม (กก.)" : "หยิบจริงรวม"}</span>
                       {needsInput ? (
                         <input
                           type="number"
@@ -1256,7 +1256,7 @@ export default function PickingPage() {
                           min={amounts.alreadyPicked}
                           step={item.unit_snapshot === "ชิ้น" && !weighed ? "1" : "0.001"}
                           required
-                          aria-label={`${weighed ? "น้ำหนักชั่งจริงทั้งหมด กก." : "จำนวนที่หยิบจริงทั้งหมด"} ของ ${item.product_name_snapshot}`}
+                          aria-label={`${weighed ? "น้ำหนักที่หยิบจริงทั้งหมด กก." : "จำนวนที่หยิบจริงทั้งหมด"} ของ ${item.product_name_snapshot}`}
                           value={actual[item.id] ?? ""}
                           onChange={(event) =>
                             setActual((previous) => ({
