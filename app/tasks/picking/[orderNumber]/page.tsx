@@ -47,6 +47,7 @@ type OrderItem = {
     | number
     | string
     | null;
+  actual_piece_qty: number | string | null;
   addon_requested_qty: number | string;
   addon_confirmed_qty: number | string | null;
   unit_snapshot: string;
@@ -244,6 +245,9 @@ export default function PickingPage() {
       >
     >({});
 
+  // Only mixed-unit products need both a piece count (KPI) and KG (billing).
+  const [actualPieces, setActualPieces] = useState<Record<string, string>>({});
+
   const [cartPhotoNames, setCartPhotoNames] = useState<(string | null)[]>([null, null]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
@@ -395,6 +399,7 @@ export default function PickingPage() {
           requested_qty,
           confirmed_qty,
           actual_qty,
+          actual_piece_qty,
           addon_requested_qty,
           addon_confirmed_qty,
           unit_snapshot,
@@ -439,6 +444,7 @@ export default function PickingPage() {
         string,
         string
       > = {};
+    const initialPieceCounts: Record<string, string> = {};
 
     const loadedAddonMode = loadedItems.some(
       (item) => Number(item.addon_requested_qty) > 0
@@ -450,11 +456,16 @@ export default function PickingPage() {
         : String(loadedAddonMode
           ? pickingQuantities(item, true).suggestedTotal
           : (item.actual_qty ?? item.confirmed_qty ?? 0));
+      // In an add-on pass, the input counts NEW pieces, never historical pieces.
+      initialPieceCounts[item.id] = loadedAddonMode || item.actual_piece_qty == null
+        ? ""
+        : String(item.actual_piece_qty);
     });
 
     setActual(
       initialActual
     );
+    setActualPieces(initialPieceCounts);
 
     const { data: existingPhotos, error: photoError } = await supabase
       .from("order_files")
@@ -844,6 +855,20 @@ export default function PickingPage() {
       return;
     }
 
+    const invalidPieceItem = actionableItems.find((item) => {
+      if (!picksMeasuredKg(item)) return false;
+      const raw = actualPieces[item.id] ?? "";
+      const pieces = Number(raw);
+      const newlyPickedKg = toPickingRpcQuantity(item, addonMode, Number(actual[item.id]));
+      return raw.trim() === "" || !Number.isSafeInteger(pieces) || pieces < 0 ||
+        ((pieces === 0) !== (Math.abs(newlyPickedKg) < 0.00000001));
+    });
+
+    if (invalidPieceItem) {
+      setMessage(`${invalidPieceItem.product_name_snapshot}: กรุณากรอกจำนวนชิ้นที่หยิบจริงเป็นจำนวนเต็ม และให้น้ำหนักสอดคล้องกับจำนวนชิ้น`);
+      return;
+    }
+
     const missingSku =
       actionableItems.find(
         (item) =>
@@ -862,6 +887,8 @@ export default function PickingPage() {
     const payload = actionableItems.map((item) => ({
       sku: item.products!.sku,
       actual_qty: toPickingRpcQuantity(item, addonMode, Number(actual[item.id])),
+      // The add-on RPC receives incremental pieces, matching its incremental KG.
+      ...(picksMeasuredKg(item) ? { actual_piece_qty: Number(actualPieces[item.id]) } : {}),
     }));
 
     setSubmitting(
@@ -1066,7 +1093,7 @@ export default function PickingPage() {
               disabled={
                 submitting
               }
-              className="bg-black text-white rounded-xl px-5 py-3 font-semibold shrink-0 disabled:opacity-50"
+              className="shrink-0 rounded-xl bg-[#02B0AF] px-5 py-3 font-bold text-white shadow-sm transition-colors hover:bg-[#008E8D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FDBC16] disabled:opacity-50"
             >
               + เพิ่มสินค้า
             </button>
@@ -1110,7 +1137,7 @@ export default function PickingPage() {
                       </div>
                       {weighed && (
                         <p className="mt-1 text-[11px] font-semibold text-[#8D641D]">
-                          ยืนยันเป็นชิ้น · หยิบจริงชั่งและกรอกน้ำหนัก กก.
+                          นับชิ้นเพื่อเช็กของครบ · ชั่งกิโลกรัมเพื่อออกบิล
                         </p>
                       )}
                       {isAdditional && (
@@ -1129,7 +1156,7 @@ export default function PickingPage() {
                         </span>
                       )}
                     </div>
-                    {!addonMode && (
+                    {!addonMode && !weighed && (
                       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                         <div className="w-[52px] rounded-lg bg-[#F3F7F5] px-1 py-2 text-center sm:w-20">
                           <p className="text-[10px] font-semibold text-[#647E73] sm:text-xs" title="จำนวนที่ยืนยัน">
@@ -1163,6 +1190,51 @@ export default function PickingPage() {
                       </div>
                     )}
                   </div>
+
+                  {!addonMode && weighed && (
+                    <div className="mt-2 rounded-xl border border-[#BCE7E3] bg-[#F5FCFB] p-2 sm:p-3">
+                      <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
+                        <div className="flex min-w-0 flex-col justify-center rounded-lg bg-white px-1 py-2 text-center">
+                          <p className="text-[10px] font-semibold text-[#66867D] sm:text-xs">ยืนยัน (ชิ้น)</p>
+                          <p className="mt-1 text-base font-extrabold text-[#234C40]">
+                            {formatPickingQuantity(amounts.confirmed)}
+                          </p>
+                        </div>
+                        <label className="min-w-0 rounded-lg border border-[#7ED1CC] bg-white px-1 py-1.5 text-center sm:px-2">
+                          <span className="block text-[10px] font-bold text-[#007C76] sm:text-xs">หยิบจริง (ชิ้น)</span>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min="0"
+                            step="1"
+                            required
+                            aria-label={`จำนวนชิ้นที่หยิบจริงของ ${item.product_name_snapshot}`}
+                            value={actualPieces[item.id] ?? ""}
+                            onChange={(event) => setActualPieces((previous) => ({
+                              ...previous, [item.id]: event.target.value,
+                            }))}
+                            className="mt-1 block h-10 w-full min-w-0 rounded-md border border-[#A9DFDC] bg-[#F8FDFC] px-0.5 text-center text-base font-extrabold text-[#006F6A]"
+                          />
+                        </label>
+                        <label className="min-w-0 rounded-lg border border-[#7ED1CC] bg-white px-1 py-1.5 text-center sm:px-2">
+                          <span className="block text-[10px] font-bold text-[#007C76] sm:text-xs">ชั่งจริง (กก.)</span>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step="0.001"
+                            required
+                            aria-label={`น้ำหนักชั่งจริงเป็นกิโลกรัมของ ${item.product_name_snapshot}`}
+                            value={actual[item.id] ?? ""}
+                            onChange={(event) => setActual((previous) => ({
+                              ...previous, [item.id]: event.target.value,
+                            }))}
+                            className="mt-1 block h-10 w-full min-w-0 rounded-md border border-[#A9DFDC] bg-[#F8FDFC] px-0.5 text-center text-base font-extrabold text-[#006F6A]"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
 
                   {addonMode && (
                   <div className="mt-3 grid grid-cols-4 gap-1 sm:gap-2">
@@ -1221,6 +1293,32 @@ export default function PickingPage() {
                       )}
                     </label>
                   </div>
+                  )}
+
+                  {addonMode && weighed && needsInput && (
+                    <label className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-[#BCE7E3] bg-[#F2FBFA] px-3 py-2">
+                      <span className="min-w-0">
+                        <span className="block text-xs font-extrabold text-[#007C76]">
+                          {isAdditional ? "หยิบเพิ่ม (ชิ้น)" : "หยิบจริง (ชิ้น)"}
+                        </span>
+                        <span className="block text-[10px] text-[#66867D]">
+                          นับชิ้นสำหรับตรวจ Short Pick
+                        </span>
+                      </span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="0"
+                        step="1"
+                        required
+                        aria-label={`จำนวนชิ้นที่หยิบเพิ่มของ ${item.product_name_snapshot}`}
+                        value={actualPieces[item.id] ?? ""}
+                        onChange={(event) => setActualPieces((previous) => ({
+                          ...previous, [item.id]: event.target.value,
+                        }))}
+                        className="h-10 w-24 shrink-0 rounded-lg border border-[#7ED1CC] bg-white px-2 text-center text-base font-extrabold text-[#006F6A]"
+                      />
+                    </label>
                   )}
                   {addonMode && (
                     <p className="mt-1 text-right text-[10px] text-[#71877E]">
