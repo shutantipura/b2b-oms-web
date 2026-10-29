@@ -3157,7 +3157,7 @@ export default function MiniAppShopPage() {
                               <button type="button" onClick={() => changeQuantity(product, 1)} className="grid h-full w-8 shrink-0 place-items-center bg-[#02B0AF] text-lg font-bold text-white" aria-label={`เพิ่มจำนวน ${product.productName}`}>+</button>
                             </div>
                           ) : (
-                            <button type="button" onClick={() => changeQuantity(product, 1)} className="h-10 min-w-0 flex-1 rounded-xl bg-[#02B0AF] px-1.5 text-xs font-bold text-white transition hover:bg-[#008F8B]">+ เพิ่มลงตะกร้า</button>
+                            <button type="button" onClick={() => changeQuantity(product, 1)} aria-label={`เพิ่ม ${product.productName} ลงตะกร้า`} className="h-10 min-w-0 flex-1 rounded-xl bg-[#02B0AF] px-1.5 text-xs font-bold text-white transition hover:bg-[#008F8B]">เพิ่ม</button>
                           )}
                           {weighted && (
                             <button
