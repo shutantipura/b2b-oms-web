@@ -170,6 +170,8 @@ export default function StaffManagementPage() {
   ] =
     useState(false);
 
+  const [expandedStaffCards, setExpandedStaffCards] = useState<Record<string, boolean>>({});
+
   const [
     creating,
     setCreating,
@@ -1060,7 +1062,7 @@ export default function StaffManagementPage() {
             </div>
           </div>
 
-          <div className="divide-y">
+          <div className="space-y-2.5 bg-[#F8FBFA] p-3">
             {visibleStaff.length ===
             0 ? (
               <div className="p-8 text-center text-gray-500">
@@ -1074,12 +1076,39 @@ export default function StaffManagementPage() {
                     item.id;
 
                   return (
-                    <div
-                      key={
-                        item.id
-                      }
-                      className="p-5"
+                    <article
+                      key={item.id}
+                      className="overflow-hidden rounded-xl border border-[#D8EAE3] bg-white shadow-sm"
                     >
+                      <button
+                        type="button"
+                        aria-expanded={Boolean(expandedStaffCards[item.id])}
+                        aria-controls={`staff-details-${item.id}`}
+                        onClick={() => setExpandedStaffCards((previous) => ({
+                          ...previous,
+                          [item.id]: !previous[item.id],
+                        }))}
+                        className="flex min-h-14 w-full items-center justify-between gap-2 px-3 py-3 text-left transition hover:bg-[#F3FAF8] sm:px-4"
+                      >
+                        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="text-sm font-bold text-[#17453F] sm:text-base">
+                            {item.staffCode} {item.staffName}
+                          </span>
+                          <span className="rounded-full border border-[#BDDBD4] px-2 py-0.5 text-xs font-semibold text-[#416F66]">
+                            {accountLabel(item.accountType)}
+                          </span>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            item.isActive ? "bg-[#E7F8EF] text-green-700" : "bg-gray-100 text-gray-500"
+                          }`}>
+                            {item.isActive ? "ใช้งานอยู่" : "ปิดใช้งาน"}
+                          </span>
+                        </span>
+                        <span aria-hidden="true" className="shrink-0 text-sm font-bold text-[#008F8D]">
+                          {expandedStaffCards[item.id] ? "▲" : "▼"}
+                        </span>
+                      </button>
+                      {expandedStaffCards[item.id] && (
+                        <div id={`staff-details-${item.id}`} className="border-t border-[#E5EFEB] px-3 py-3 sm:px-4">
                       {editing ? (
                         <div className="grid md:grid-cols-[1fr_180px_auto] gap-3 items-end">
                           <label>
@@ -1219,132 +1248,76 @@ export default function StaffManagementPage() {
                           </div>
                         </div>
                       ) : (
-                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-[#385D56]">
+                            <p>โทร: <span className="font-medium text-gray-800">{item.phone || "ยังไม่มีเบอร์โทรศัพท์"}</span></p>
+                            <span>เข้าสู่ระบบผ่าน LINE</span>
+                            {item.isCurrentUser && (
+                              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                บัญชีของคุณ
+                              </span>
+                            )}
+                          </div>
+
                           <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-lg">
-                                {
-                                  item.staffCode
-                                }{" "}
-                                {
-                                  item.staffName
-                                }
-                              </span>
-
-                              <span className="text-xs font-semibold border rounded-full px-2 py-1">
-                                {accountLabel(
-                                  item.accountType
-                                )}
-                              </span>
-
-                              <span
-                                className={`text-xs font-semibold rounded-full px-2 py-1 ${
-                                  item.isActive
-                                    ? "bg-green-50 text-green-700"
-                                    : "bg-gray-100 text-gray-500"
-                                }`}
-                              >
-                                {item.isActive
-                                  ? "ใช้งานอยู่"
-                                  : "ปิดใช้งาน"}
-                              </span>
-
-                              {item.isCurrentUser && (
-                                <span className="text-xs font-semibold bg-blue-50 text-blue-700 rounded-full px-2 py-1">
-                                  บัญชีของคุณ
-                                </span>
-                              )}
-                            </div>
-
-                            <p className="text-sm text-gray-600 mt-2">
-                              โทร: {item.phone || "ยังไม่มีเบอร์โทรศัพท์"}
-                            </p>
-                            <p className="text-sm text-gray-600 mt-2">
-                              เข้าสู่ระบบผ่าน LINE
-                            </p>
-
-                            <div className="flex flex-wrap gap-1.5 mt-3">
+                            <p className="mb-1.5 text-sm font-semibold text-[#315C54]">งานที่อนุญาตให้ทำ</p>
+                            <div className="flex flex-wrap gap-1.5">
                               {item.taskPermissions.length === 0 ? (
-                                <span className="text-xs border border-amber-200 text-amber-700 rounded-full px-2.5 py-1 bg-amber-50">
+                                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-700">
                                   ยังไม่ได้เลือกงานที่พร้อมรับ
                                 </span>
                               ) : (
-                                TASK_OPTIONS.filter(
-                                  (option) =>
-                                    item.taskPermissions.includes(
-                                      option.stage
-                                    )
-                                ).map(
-                                  (option) => (
-                                    <span
-                                      key={option.stage}
-                                      className="text-xs border rounded-full px-2.5 py-1 bg-gray-50"
-                                    >
-                                      {option.label}
-                                    </span>
-                                  )
-                                )
+                                TASK_OPTIONS.filter((option) => item.taskPermissions.includes(option.stage)).map((option) => (
+                                  <span key={option.stage} className="rounded-full border border-[#D7E8E2] bg-[#F4FAF8] px-2.5 py-1 text-xs text-[#416F66]">
+                                    {option.label}
+                                  </span>
+                                ))
                               )}
                             </div>
-
-                            <p className="text-xs text-gray-400 mt-2">
-                              เข้าสู่ระบบล่าสุด:{" "}
-                              {formatDateTime(
-                                item.lastSignInAt
-                              )}
-                            </p>
                           </div>
 
-                          <div className="flex gap-2 flex-wrap">
+                          <p className="text-xs text-gray-500">
+                            เข้าสู่ระบบล่าสุด: {formatDateTime(item.lastSignInAt)}
+                          </p>
+
+                          <div className="flex flex-wrap gap-2 border-t border-[#EDF3F0] pt-3">
                             <Link
                               href="/line-access"
-                              className="border rounded-xl px-4 py-2.5 font-semibold"
+                              className="rounded-lg border px-3 py-2 text-sm font-semibold text-[#007F79]"
                             >
                               สิทธิ์ LINE
                             </Link>
-
                             <button
                               type="button"
-                              onClick={() =>
-                                beginEdit(
-                                  item
-                                )
-                              }
-                              className="border rounded-xl px-4 py-2.5 font-semibold"
+                              onClick={() => beginEdit(item)}
+                              className="rounded-lg border px-3 py-2 text-sm font-semibold"
                             >
                               แก้ไข
                             </button>
-
                             {!item.isCurrentUser && (
                               <button
                                 type="button"
-                                onClick={() =>
-                                  void toggleActive(
-                                    item
-                                  )
-                                }
-                                disabled={
-                                  savingId ===
-                                  item.id
-                                }
+                                onClick={() => void toggleActive(item)}
+                                disabled={savingId === item.id}
                                 className={
                                   item.isActive
-                                    ? "border border-red-300 text-red-700 rounded-xl px-4 py-2.5 font-semibold disabled:opacity-40"
-                                    : "border border-green-300 text-green-700 rounded-xl px-4 py-2.5 font-semibold disabled:opacity-40"
+                                    ? "rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-40"
+                                    : "rounded-lg border border-green-300 px-3 py-2 text-sm font-semibold text-green-700 disabled:opacity-40"
                                 }
                               >
-                                {savingId ===
-                                item.id
+                                {savingId === item.id
                                   ? "กำลังบันทึก..."
                                   : item.isActive
-                                  ? "ปิดใช้งาน"
-                                  : "เปิดใช้งาน"}
+                                    ? "ปิดใช้งาน"
+                                    : "เปิดใช้งาน"}
                               </button>
                             )}
                           </div>
                         </div>
                       )}
-                    </div>
+                        </div>
+                      )}
+                    </article>
                   );
                 }
               )

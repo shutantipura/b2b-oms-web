@@ -33,32 +33,6 @@ type Customer = {
 
 
 
-function prettyText(value: string | null) {
-
-  if (!value) return "—";
-
-
-
-  return value
-
-    .split("_")
-
-    .map(
-
-      (word) =>
-
-        word.charAt(0).toUpperCase() +
-
-        word.slice(1)
-
-    )
-
-    .join(" ");
-
-}
-
-
-
 export default function CustomersPage() {
 
   const [customers, setCustomers] =
@@ -605,198 +579,53 @@ const inactiveCount =
 
           ) : (
 
-            <div className="overflow-x-auto">
-
-
-
-              <table className="w-full">
-
-
-
-                <thead className="bg-gray-50">
-
+            <div className="w-full">
+              <table className="w-full table-fixed">
+                <thead className="bg-[#F4FAF8] text-[#315C54]">
                   <tr>
-
-                    <th className="p-4 text-left">
-
-                      ลูกค้า
-
+                    <th scope="col" className="w-[44%] px-3 py-3 text-left text-sm font-semibold sm:px-4">
+                      ลูกค้า / รหัสลูกค้า
                     </th>
-
-
-
-                    <th className="p-4 text-left">
-
-                      ประเภท
-
+                    <th scope="col" className="w-[38%] px-2 py-3 text-left text-sm font-semibold sm:px-4">
+                      ผู้ติดต่อ / เบอร์โทร
                     </th>
-
-
-
-                    <th className="p-4 text-left">
-
-                      ผู้ติดต่อ
-
+                    <th scope="col" className="w-[18%] px-2 py-3 text-right text-sm font-semibold sm:px-4">
+                      ดู
                     </th>
-
-
-
-                    <th className="p-4 text-left">
-
-                      ที่อยู่
-
-                    </th>
-
-
-
-                    <th className="p-4 text-left">
-
-                      สถานะ
-
-                    </th>
-
-
-
-                    <th className="p-4 text-right">
-
-                      การดำเนินการ
-
-                    </th>
-
                   </tr>
-
                 </thead>
-
-
-
                 <tbody>
-
-                  {filteredCustomers.map(
-
-                    (customer) => (
-
-                      <tr
-
-                        key={customer.id}
-
-                        className="border-t"
-
-                      >
-
-                        <td className="p-4">
-
-                          <div className="font-semibold">
-
-                            {customer.customer_name}
-
-                          </div>
-
-
-
-                          <div className="text-sm text-gray-500">
-
-                            {customer.has_no_cv ? "No CV" : customer.customer_code}
-
-                          </div>
-
-                        </td>
-
-
-
-                        <td className="p-4">
-
-                          {prettyText(
-
-                            customer.customer_type
-
-                          )}
-
-                        </td>
-
-
-
-                        <td className="p-4">
-
-                          <div>
-
-                            {customer.contact_name ??
-
-                              "—"}
-
-                          </div>
-
-
-
-                          <div className="text-sm text-gray-500">
-
-                            {customer.phone ?? ""}
-
-                          </div>
-
-                        </td>
-
-
-
-                        <td className="p-4 max-w-xs">
-
-                          <div className="truncate">
-
-                            {customer.delivery_address ??
-
-                              "—"}
-
-                          </div>
-
-                        </td>
-
-
-
-                        <td className="p-4">
-
-                          <span className="inline-block bg-gray-100 rounded-full px-3 py-1 text-sm font-medium">
-
-                            {customer.is_active
-
-  ? "ใช้งานอยู่"
-
-  : "ไม่ใช้งาน"}
-
-                          </span>
-
-                        </td>
-
-
-
-                        <td className="p-4 text-right">
-
-                          <Link
-
-                            href={`/customers/${customer.customer_code}`}
-
-                            className="inline-block bg-white border rounded-lg px-4 py-2 font-semibold"
-
-                          >
-
-                            ดู
-
-                          </Link>
-
-                        </td>
-
-                      </tr>
-
-                    )
-
-                  )}
-
+                  {filteredCustomers.map((customer) => (
+                    <tr key={customer.id} className="border-t border-[#E6EFEB]">
+                      <td className="px-3 py-3 align-top sm:px-4">
+                        <p className="line-clamp-2 break-words text-sm font-semibold text-[#194840] sm:text-base" title={customer.customer_name}>
+                          {customer.customer_name}
+                        </p>
+                        <p className="mt-1 break-all text-xs text-gray-500 sm:text-sm">
+                          {customer.has_no_cv ? "No CV" : customer.customer_code}
+                        </p>
+                      </td>
+                      <td className="px-2 py-3 align-top sm:px-4">
+                        <p className="line-clamp-2 break-words text-sm text-gray-800 sm:text-base">
+                          {customer.contact_name || "—"}
+                        </p>
+                        <p className="mt-1 break-all text-xs text-gray-500 sm:text-sm">
+                          {customer.phone || "—"}
+                        </p>
+                      </td>
+                      <td className="px-2 py-3 text-right align-top sm:px-4">
+                        <Link
+                          href={`/customers/${customer.customer_code}`}
+                          className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-lg border border-[#B6DDD4] bg-[#EAF8F5] px-2.5 py-2 text-sm font-semibold text-[#007F79] hover:bg-[#DDF2EC] sm:px-4"
+                          aria-label={`ดูข้อมูลลูกค้า ${customer.customer_name}`}
+                        >
+                          ดู
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
-
-
-
               </table>
-
-
-
             </div>
 
           )}
