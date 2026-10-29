@@ -1053,8 +1053,8 @@ export default function DeliveryPage() {
           <div className="mt-3">
             {!editingMap ? (
               <button type="button" onClick={() => { setMapDraft(deliveryMapUrl ?? ""); setEditingMap(true); }}
-                className="rounded-xl border border-[#02B0AF] px-4 py-2.5 font-semibold text-[#007F79]">
-                ✏️ เปลี่ยนตำแหน่ง Google Maps
+                aria-label="เปลี่ยนตำแหน่งจัดส่ง" title="เปลี่ยนตำแหน่งจัดส่ง" className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[#02B0AF] text-[#007F79]">
+                ✏️
               </button>
             ) : (
               <div className="rounded-xl border p-4">
