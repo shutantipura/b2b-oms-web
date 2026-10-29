@@ -112,6 +112,8 @@ type StaffOption = {
 
 
 
+type AccessFilter = "all" | "staff" | "customer" | "unlinked";
+
 type AccessData = {
 
   line_users?: LineUser[];
@@ -246,6 +248,8 @@ export default function LineAccessPage() {
 
 
 
+  const [accountFilter, setAccountFilter] = useState<AccessFilter>("all");
+  const [expandedAccountCards, setExpandedAccountCards] = useState<Record<string, boolean>>({});
   const [expandedLineUsers, setExpandedLineUsers] = useState<Record<string, boolean>>({});
 
   // Customer search belongs to each LINE account, not the global LINE-user filter.
@@ -1443,6 +1447,26 @@ export default function LineAccessPage() {
 
 
 
+  const accountCounts = useMemo(() => {
+    const visible = lineUsers.filter((user) =>
+      statusFilter === "all" ||
+      (statusFilter === "active" ? user.isActive : !user.isActive)
+    );
+    const withStaff = visible.filter((user) => Boolean(user.staff?.isAuthorized)).length;
+    const withCustomers = visible.filter(
+      (user) => user.allCustomersAccess || user.customerCodes.length > 0
+    ).length;
+    return {
+      all: visible.length,
+      staff: withStaff,
+      customer: withCustomers,
+      unlinked: visible.filter(
+        (user) => !user.staff?.isAuthorized &&
+          !user.allCustomersAccess && user.customerCodes.length === 0
+      ).length,
+    };
+  }, [lineUsers, statusFilter]);
+
   const filteredUsers =
 
     useMemo(() => {
@@ -1457,6 +1481,9 @@ export default function LineAccessPage() {
 
 
 
+      const customerNameByCode = new Map(
+        customers.map((customer) => [customer.customerCode, customer.customerName])
+      );
       return lineUsers.filter(
 
         (user) => {
@@ -1489,6 +1516,12 @@ export default function LineAccessPage() {
 
 
 
+          const hasStaff = Boolean(user.staff?.isAuthorized);
+          const hasCustomers = user.allCustomersAccess || user.customerCodes.length > 0;
+          if (accountFilter === "staff" && !hasStaff) return false;
+          if (accountFilter === "customer" && !hasCustomers) return false;
+          if (accountFilter === "unlinked" && (hasStaff || hasCustomers)) return false;
+
           if (!term) {
 
             return true;
@@ -1506,6 +1539,11 @@ export default function LineAccessPage() {
               .toLowerCase();
 
 
+
+          const customerNames = user.customerCodes
+            .map((code) => customerNameByCode.get(code) ?? "")
+            .join(" ")
+            .toLowerCase();
 
           const staffText =
 
@@ -1563,6 +1601,7 @@ export default function LineAccessPage() {
 
               ) ||
 
+            customerNames.includes(term) ||
             customerText.includes(
 
               term
@@ -1588,7 +1627,8 @@ export default function LineAccessPage() {
       search,
 
       statusFilter,
-
+      accountFilter,
+      customers,
     ]);
 
 
@@ -1631,7 +1671,7 @@ export default function LineAccessPage() {
 
   return (
 
-    <main className="min-h-screen bg-gray-100 p-6 md:p-8">
+    <main className="min-h-screen bg-[#F5F9F7] p-3 sm:p-6 md:p-8">
 
 
 
@@ -1741,7 +1781,7 @@ export default function LineAccessPage() {
 
 
 
-        <div className="bg-white border rounded-xl p-5 mb-6">
+        <div className="bg-white border rounded-xl p-4 mb-4">
 
 
 
@@ -1771,7 +1811,7 @@ export default function LineAccessPage() {
 
             }
 
-            placeholder="ชื่อบุคคล ชื่อ LINE, LINE ID, รหัสลูกค้า หรือรหัสพนักงาน..."
+            placeholder="ชื่อบุคคล ชื่อ LINE ชื่อร้าน LINE ID รหัสลูกค้า หรือพนักงาน..."
 
             className="w-full border rounded-lg px-4 py-3"
 
@@ -1831,7 +1871,33 @@ export default function LineAccessPage() {
 
           </div>
 
-
+          <div className="mt-4 border-t border-[#E2EEE9] pt-3">
+            <p className="mb-2 text-xs font-extrabold text-[#52786F]">ประเภทบัญชี LINE</p>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="กรองตามสิทธิ์ LINE">
+              {([
+                ["all", "ทุกบัญชี"],
+                ["staff", "พนักงาน"],
+                ["customer", "ลูกค้า"],
+                ["unlinked", "ไม่มีสิทธิ์"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={accountFilter === value}
+                  onClick={() => setAccountFilter(value)}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-extrabold transition ${accountFilter === value
+                    ? "border-[#008F8D] bg-[#02B0AF] text-white"
+                    : "border-[#CFDFDA] bg-white text-[#426D62] hover:border-[#02B0AF]"}`}
+                >
+                  {label}
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${accountFilter === value ? "bg-white/20" : "bg-[#EDF5F2]"}`}>
+                    {accountCounts[value]}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-[#78918A]">บัญชีที่มีทั้งสิทธิ์พนักงานและลูกค้าจะแสดงในทั้งสองหมวด</p>
+          </div>
 
         </div>
 
@@ -1841,15 +1907,15 @@ export default function LineAccessPage() {
 
 
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-4">
 
 
 
-          <div className="bg-white border rounded-xl p-5">
+          <div className="bg-white border rounded-xl p-3 sm:p-5">
 
 
 
-            <p className="text-sm text-gray-500">
+            <p className="text-[11px] leading-tight sm:text-sm text-gray-500">
 
               บัญชี LINE ที่ใช้งานอยู่
 
@@ -1857,7 +1923,7 @@ export default function LineAccessPage() {
 
 
 
-            <p className="text-3xl font-bold mt-1">
+            <p className="text-2xl sm:text-3xl font-bold mt-1 text-[#008F8D]">
 
               {
 
@@ -1879,11 +1945,11 @@ export default function LineAccessPage() {
 
 
 
-          <div className="bg-white border rounded-xl p-5">
+          <div className="bg-white border rounded-xl p-3 sm:p-5">
 
 
 
-            <p className="text-sm text-gray-500">
+            <p className="text-[11px] leading-tight sm:text-sm text-gray-500">
 
               มีสิทธิ์ลูกค้า
 
@@ -1891,7 +1957,7 @@ export default function LineAccessPage() {
 
 
 
-            <p className="text-3xl font-bold mt-1">
+            <p className="text-2xl sm:text-3xl font-bold mt-1 text-[#008F8D]">
 
 
 
@@ -1923,11 +1989,11 @@ export default function LineAccessPage() {
 
 
 
-          <div className="bg-white border rounded-xl p-5">
+          <div className="bg-white border rounded-xl p-3 sm:p-5">
 
 
 
-            <p className="text-sm text-gray-500">
+            <p className="text-[11px] leading-tight sm:text-sm text-gray-500">
 
               มีสิทธิ์พนักงาน
 
@@ -1935,7 +2001,7 @@ export default function LineAccessPage() {
 
 
 
-            <p className="text-3xl font-bold mt-1">
+            <p className="text-2xl sm:text-3xl font-bold mt-1 text-[#008F8D]">
 
 
 
@@ -1971,7 +2037,7 @@ export default function LineAccessPage() {
 
 
 
-        <div className="space-y-5">
+        <div className="space-y-2.5">
 
 
 
@@ -2060,6 +2126,10 @@ export default function LineAccessPage() {
                   ? [chosenCustomer, ...matchingCustomers]
                   : matchingCustomers;
 
+                const hasStaffAccess = Boolean(user.staff?.isAuthorized);
+                const hasCustomerAccess = user.allCustomersAccess || user.customerCodes.length > 0;
+                const accountExpanded = Boolean(expandedAccountCards[user.lineUserRowId]);
+
                 return (
 
                   <section
@@ -2070,12 +2140,52 @@ export default function LineAccessPage() {
 
                     }
 
-                    className="bg-white border rounded-2xl overflow-hidden"
+                    className="overflow-hidden rounded-2xl border border-[#D9EAE3] bg-white shadow-sm"
 
                   >
+                    <button
+                      type="button"
+                      aria-expanded={accountExpanded}
+                      aria-controls={`line-account-details-${user.lineUserRowId}`}
+                      onClick={() => setExpandedAccountCards((previous) => ({
+                        ...previous,
+                        [user.lineUserRowId]: !previous[user.lineUserRowId],
+                      }))}
+                      className="flex w-full items-center gap-2.5 px-3 py-3 text-left transition hover:bg-[#F5FBF9] sm:px-4"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-extrabold text-[#17453F] sm:text-base">
+                          {user.internalName ?? user.displayName ?? "ผู้ใช้ LINE ที่ไม่มีชื่อ"}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11px] text-[#718D84]">
+                          LINE: {user.displayName ?? "—"} · ID …{user.lineUserId.slice(-8)}
+                        </p>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {hasStaffAccess && (
+                            <span className="rounded-md bg-[#E4F7F3] px-1.5 py-0.5 text-[10px] font-bold text-[#007C75]">
+                              พนักงาน{user.staff?.accountType === "manager" ? " · Manager" : ""}
+                            </span>
+                          )}
+                          {hasCustomerAccess && (
+                            <span className="rounded-md bg-[#FFF4D8] px-1.5 py-0.5 text-[10px] font-bold text-[#846019]">
+                              {user.allCustomersAccess ? "ลูกค้าทั้งหมด" : `ลูกค้า ${user.customerCodes.length} ร้าน`}
+                            </span>
+                          )}
+                          {!hasStaffAccess && !hasCustomerAccess && (
+                            <span className="rounded-md bg-[#F2F4F3] px-1.5 py-0.5 text-[10px] font-bold text-[#667A73]">ยังไม่มีสิทธิ์</span>
+                          )}
+                          {!user.isActive && (
+                            <span className="rounded-md bg-[#FEEEEE] px-1.5 py-0.5 text-[10px] font-bold text-[#AD4545]">นำออกแล้ว</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded-lg bg-[#EFF8F5] px-2.5 py-2 text-xs font-extrabold text-[#008F8D]">
+                        {accountExpanded ? "ซ่อน ▲" : "จัดการ ▼"}
+                      </span>
+                    </button>
 
-
-
+                    {accountExpanded && (
+                    <div id={`line-account-details-${user.lineUserRowId}`}>
                     {/* IDENTITY */}
 
 
@@ -3121,6 +3231,8 @@ export default function LineAccessPage() {
 
 
 
+                    </div>
+                    )}
                     </div>
                     )}
 
