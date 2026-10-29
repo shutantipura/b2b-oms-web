@@ -1018,6 +1018,7 @@ export default function DeliveryPage() {
 
 
 
+            <div className="mt-2 flex flex-wrap items-center gap-2">
             {deliveryMapUrl ? (
 
               <a
@@ -1028,7 +1029,7 @@ export default function DeliveryPage() {
 
                 rel="noopener noreferrer"
 
-                className="inline-block mt-2 bg-black text-white rounded-xl px-5 py-3 font-semibold"
+                className="inline-flex min-h-11 items-center bg-black text-white rounded-xl px-5 py-3 font-semibold"
 
               >
 
@@ -1045,18 +1046,14 @@ export default function DeliveryPage() {
               </p>
 
             )}
-
+            <button type="button" onClick={() => { setMapDraft(deliveryMapUrl ?? ""); setEditingMap(true); }} aria-label="เปลี่ยนตำแหน่งจัดส่ง" title="เปลี่ยนตำแหน่งจัดส่ง" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#02B0AF] text-[#007F79]">✏️</button>
+            </div>
           </div>
 
 
 
           <div className="mt-3">
-            {!editingMap ? (
-              <button type="button" onClick={() => { setMapDraft(deliveryMapUrl ?? ""); setEditingMap(true); }}
-                aria-label="เปลี่ยนตำแหน่งจัดส่ง" title="เปลี่ยนตำแหน่งจัดส่ง" className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[#02B0AF] text-[#007F79]">
-                ✏️
-              </button>
-            ) : (
+            {editingMap && (
               <div className="rounded-xl border p-4">
                 <label htmlFor="delivery-map-edit" className="block text-sm font-bold mb-2">ลิงก์ Google Maps ใหม่</label>
                 <input id="delivery-map-edit" type="url" value={mapDraft} onChange={(event) => setMapDraft(event.target.value)}
