@@ -41,6 +41,8 @@ export default function NewCustomerPage() {
   ] =
     useState("");
 
+  const [noCv, setNoCv] = useState(false);
+
   const [
     customerName,
     setCustomerName,
@@ -97,10 +99,9 @@ export default function NewCustomerPage() {
 
     setMessage("");
 
-    const code =
-      customerCode
-        .trim()
-        .toUpperCase();
+    const code = noCv
+      ? "NCV-" + crypto.randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()
+      : customerCode.trim().toUpperCase();
 
     const name =
       customerName.trim();
@@ -108,7 +109,7 @@ export default function NewCustomerPage() {
     const mapUrl =
       deliveryMapUrl.trim();
 
-    if (!code) {
+    if (!noCv && !code) {
       setMessage(
         "กรุณากรอกเลข CV"
       );
@@ -116,6 +117,7 @@ export default function NewCustomerPage() {
     }
 
     if (
+      !noCv &&
       code !== "C001" &&
       !/^\d{10}$/.test(code)
     ) {
@@ -203,6 +205,8 @@ export default function NewCustomerPage() {
           customer_code:
             code,
 
+          has_no_cv: noCv,
+
           customer_name:
             name,
 
@@ -285,7 +289,14 @@ export default function NewCustomerPage() {
           className="bg-white border rounded-2xl p-6"
         >
           <div className="grid md:grid-cols-2 gap-5">
-            <div>
+            <div className="md:col-span-2 rounded-xl border border-[#B8EAE5] bg-[#F4FBFA] p-4">
+              <label className="flex items-center gap-3 text-sm font-semibold text-[#173F3C]">
+                <input type="checkbox" checked={noCv} onChange={(event) => setNoCv(event.target.checked)} className="h-4 w-4 accent-[#00BCB4]" />
+                ไม่มีเลข CV (No CV)
+              </label>
+              <p className="mt-2 text-xs text-[#52786F]">ระบบจะสร้างรหัสภายในเพื่อใช้งาน OMS โดยอัตโนมัติ ไม่ใช่เลข CV จริง</p>
+            </div>
+            {!noCv && <div>
               <label className="block font-medium mb-2">
                 เลข CV *
               </label>
@@ -304,9 +315,9 @@ export default function NewCustomerPage() {
               />
 
               <p className="text-xs text-gray-500 mt-2">
-                เลข CV ใช้เป็นรหัสประจำตัวลูกค้าในระบบ
+                กรอกเลข CV จริง 10 หลัก
               </p>
-            </div>
+            </div>}
 
             <div>
               <label className="block font-medium mb-2">
@@ -364,7 +375,7 @@ export default function NewCustomerPage() {
 
             <div>
               <label className="block font-medium mb-2">
-                ชื่อลูกค้า CV
+                {noCv ? "ชื่อผู้ติดต่อหลัก" : "ชื่อลูกค้า CV"}
               </label>
 
               <input

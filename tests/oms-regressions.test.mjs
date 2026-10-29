@@ -147,3 +147,14 @@ test("unpairing revokes the old station and clears the Android OMS session", () 
   assert.match(server, /update\(\{ revoked_at: now \}\)/);
   assert.match(manager, /activateStaffId/);
 });
+
+test("No CV customer profiles use internal IDs and default billing to B2B Barcode", () => {
+  const create = readFileSync(new URL("../app/customers/new/page.tsx", import.meta.url), "utf8");
+  const edit = readFileSync(new URL("../app/customers/[customerCode]/page.tsx", import.meta.url), "utf8");
+  const billing = readFileSync(new URL("../app/tasks/billing/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  assert.match(create, /"NCV-" \+ crypto\.randomUUID\(\)/);
+  assert.match(create, /has_no_cv: noCv/);
+  assert.match(edit, /setNoCv\(Boolean\(loadedCustomer\.has_no_cv\)\)/);
+  assert.match(edit, /has_no_cv: noCv/);
+  assert.match(billing, /setBillingMode\(loadedOrder\.customers\?\.has_no_cv \? "no_cv" : "normal"\)/);
+});

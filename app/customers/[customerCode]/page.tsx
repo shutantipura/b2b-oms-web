@@ -17,6 +17,7 @@ type Customer = {
   id: string;
 
   customer_code: string;
+  has_no_cv: boolean;
 
   customer_name: string;
 
@@ -217,6 +218,7 @@ export default function CustomerDetailPage() {
   const [customerCodeInput, setCustomerCodeInput] =
 
     useState("");
+  const [noCv, setNoCv] = useState(false);
 
 
 
@@ -313,6 +315,7 @@ export default function CustomerDetailPage() {
         id,
 
         customer_code,
+        has_no_cv,
 
         customer_name,
 
@@ -366,6 +369,8 @@ export default function CustomerDetailPage() {
 
 
     setCustomer(loadedCustomer);
+    setCustomerCodeInput(loadedCustomer.customer_code);
+    setNoCv(Boolean(loadedCustomer.has_no_cv));
     setCvCardUrl(null);
     if (loadedCustomer.cv_card_storage_path) {
       const { data: cvSigned, error: cvError } = await supabase.storage
@@ -710,9 +715,9 @@ export default function CustomerDetailPage() {
 
 
 
-    const nextCustomerCode =
-
-      customerCodeInput.trim();
+    const nextCustomerCode = noCv
+      ? customer.customer_code
+      : customerCodeInput.trim().toUpperCase();
 
 
 
@@ -724,7 +729,7 @@ export default function CustomerDetailPage() {
 
 
 
-    if (!nextCustomerCode) {
+    if (!noCv && !nextCustomerCode) {
 
       setMessage(
 
@@ -740,18 +745,12 @@ export default function CustomerDetailPage() {
 
     // The legacy ABC test account may remain C001.
 
-    // Any changed / real customer เลข CV must be exactly 10 digits.
-
+    // CV is required when switching back from a No CV account.
     if (
-
-      codeChanged &&
-
-      !/^\d{10}$/.test(
-
-        nextCustomerCode
-
-      )
-
+      !noCv &&
+      (codeChanged || customer.has_no_cv) &&
+      nextCustomerCode !== "C001" &&
+      !/^\d{10}$/.test(nextCustomerCode)
     ) {
 
       setMessage(
@@ -922,7 +921,7 @@ export default function CustomerDetailPage() {
 
             nextCustomerCode,
 
-
+          has_no_cv: noCv,
 
           customer_name:
 
@@ -1482,7 +1481,7 @@ export default function CustomerDetailPage() {
 
             <p className="text-gray-500 mt-2">
 
-              {customer.customer_code}
+              {customer.has_no_cv ? "No CV" : customer.customer_code}
 
             </p>
 
@@ -1580,7 +1579,24 @@ export default function CustomerDetailPage() {
 
             <div className="grid md:grid-cols-2 gap-5">
 
-              <div>
+              <div className="md:col-span-2 rounded-xl border border-[#B8EAE5] bg-[#F4FBFA] p-4">
+                <label className="flex items-center gap-3 text-sm font-semibold text-[#173F3C]">
+                  <input
+                    type="checkbox"
+                    checked={noCv}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setNoCv(checked);
+                      if (!checked && customer.has_no_cv) setCustomerCodeInput("");
+                    }}
+                    className="h-4 w-4 accent-[#00BCB4]"
+                  />
+                  ไม่มีเลข CV (No CV)
+                </label>
+                <p className="mt-2 text-xs text-[#52786F]">ระบบจะเก็บรหัสภายในไว้สำหรับ OMS โดยไม่แสดงเป็นเลข CV</p>
+              </div>
+
+              {!noCv && <div>
 
                 <label className="block text-sm font-medium mb-2">
 
@@ -1626,7 +1642,7 @@ export default function CustomerDetailPage() {
 
                 </p>
 
-              </div>
+              </div>}
 
 
 
@@ -1746,7 +1762,7 @@ export default function CustomerDetailPage() {
 
                 <label className="block text-sm font-medium mb-2">
 
-                  ชื่อลูกค้า CV
+                  {noCv ? "ชื่อผู้ติดต่อหลัก" : "ชื่อลูกค้า CV"}
 
                 </label>
 
@@ -1883,8 +1899,7 @@ export default function CustomerDetailPage() {
                   onClick={() => {
 
                     setEditing(false);
-
-
+                    setNoCv(customer.has_no_cv);
 
                     setCustomerCodeInput(
 
@@ -2012,7 +2027,7 @@ export default function CustomerDetailPage() {
 
                 <p className="font-medium">
 
-                  {customer.customer_code}
+                  {customer.has_no_cv ? "No CV" : customer.customer_code}
 
                 </p>
 
@@ -2048,7 +2063,7 @@ export default function CustomerDetailPage() {
 
                 <p className="text-sm text-gray-500">
 
-                  ชื่อลูกค้า CV
+                  {customer.has_no_cv ? "ชื่อผู้ติดต่อหลัก" : "ชื่อลูกค้า CV"}
 
                 </p>
 

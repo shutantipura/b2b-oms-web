@@ -39,6 +39,7 @@ type OrderDetails = {
 
     customer_name: string;
     customer_code: string;
+    has_no_cv: boolean;
     cv_card_storage_path: string | null;
 
     contact_name: string | null;
@@ -233,6 +234,7 @@ export default function BillingPage() {
 
           customer_name,
           customer_code,
+          has_no_cv,
           cv_card_storage_path,
 
           contact_name,
@@ -271,6 +273,7 @@ export default function BillingPage() {
 
     const loadedOrder = orderData as unknown as OrderDetails;
     setOrder(loadedOrder);
+    setBillingMode(loadedOrder.customers?.has_no_cv ? "no_cv" : "normal");
     setCvCardUrl(null);
     setCvCardPreviewError("");
     const cvCardPath = loadedOrder.customers?.cv_card_storage_path;
@@ -1460,6 +1463,9 @@ export default function BillingPage() {
                 ? "CV Card: ไม่บังคับรูปบิล และใช้ CV Card ของลูกค้าแทนรูป QR"
                 : "พักบิล: ต้องแนบรูปพักบิลจาก POS เท่านั้น ไม่ต้องแนบ QR"}
           </p>
+          {order.customers?.has_no_cv && (
+            <p className="mt-2 text-xs font-semibold text-[#007F79]">ลูกค้าไม่มีเลข CV — เลือก B2B Barcode ให้อัตโนมัติ</p>
+          )}
           {billingMode === "suspended" && !order.customers?.cv_card_storage_path && (
             <p className="mt-3 rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
               ยังไม่มี CV Card สำหรับลูกค้ารายนี้ กรุณาอัปโหลดจาก{" "}

@@ -15,6 +15,7 @@ type Customer = {
   id: string;
 
   customer_code: string;
+  has_no_cv: boolean;
 
   customer_name: string;
 
@@ -109,6 +110,7 @@ export default function CustomersPage() {
           id,
 
           customer_code,
+          has_no_cv,
 
           customer_name,
 
@@ -693,7 +695,7 @@ const inactiveCount =
 
                           <div className="text-sm text-gray-500">
 
-                            {customer.customer_code}
+                            {customer.has_no_cv ? "No CV" : customer.customer_code}
 
                           </div>
 
