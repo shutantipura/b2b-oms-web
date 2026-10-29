@@ -59,11 +59,24 @@ type DeliveryItem = {
   product_name_snapshot: string;
   actual_qty: number | string | null;
   unit_snapshot: string;
+  piece_price_per_kg_snapshot?: number | string | null;
+  sources?: unknown;
   products: {
     sku: string;
     image_url: string | null;
   } | null;
 };
+
+// Confirmed pieces and actually picked kilograms must remain distinct.
+// Grouped billing lines retain the picked unit in their source breakdown.
+function pickedQuantityUnit(item: DeliveryItem): string {
+  if (item.piece_price_per_kg_snapshot != null) return "กก.";
+  if (Array.isArray(item.sources) && item.sources.some(
+    (source: unknown) => typeof source === "object" && source !== null &&
+      "picked_unit" in source && source.picked_unit === "กก."
+  )) return "กก.";
+  return item.unit_snapshot;
+}
 
 type OrderFile = {
   id: string;
@@ -270,11 +283,11 @@ export default function DeliveryPage() {
     const isGroupRoot = orderData.group_root_order_id === orderData.id;
     const { data: itemData, error: itemError } = isGroupRoot
       ? await supabase.from("group_billing_lines")
-          .select("id, product_name_snapshot, actual_qty, unit_snapshot, products(sku, image_url)")
+          .select("id, product_name_snapshot, actual_qty, unit_snapshot, sources, products(sku, image_url)")
           .eq("root_order_id", orderData.id)
           .order("product_name_snapshot", { ascending: true })
       : await supabase.from("order_items")
-          .select("id, product_name_snapshot, actual_qty, unit_snapshot, products(sku, image_url)")
+          .select("id, product_name_snapshot, actual_qty, unit_snapshot, piece_price_per_kg_snapshot, products(sku, image_url)")
           .eq("order_id", orderData.id)
           .order("product_name_snapshot", { ascending: true });
 
@@ -1164,7 +1177,7 @@ export default function DeliveryPage() {
                   <div className="max-w-[42%] shrink-0 rounded-xl bg-[#E7F8F5] px-3 py-2 text-right text-[#007F79]">
                     <span className="block text-[11px] font-bold">หยิบจริง</span>
                     <span className="text-base font-extrabold">
-                      {formatQuantity(item.actual_qty)} {item.unit_snapshot}
+                      {formatQuantity(item.actual_qty)} {pickedQuantityUnit(item)}
                     </span>
                   </div>
                 </div>
