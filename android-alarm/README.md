@@ -1,4 +1,4 @@
-# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.9)
+# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.10)
 
 An Android app for the existing OMS that requires no LINE or staff login.
 
@@ -15,12 +15,22 @@ An Android app for the existing OMS that requires no LINE or staff login.
 - Best-effort restart at phone boot.
 - Android 13+ notification permission, Android 14+ special-use foreground service declaration and configurable full-screen alarm permission.
 
+## Fast shared acknowledgement (v0.10)
+
+- Tapping acknowledgement on a paired phone immediately mutes that phone while its server request is in flight.
+- Other ringing phones check the shared OMS feed about every **2 seconds**. They stop when the server records acknowledgement (normally within a couple seconds, plus network delay).
+- When no alarm is pending, polling stays at 15 seconds; during quiet hours it stays at 60 seconds.
+- Only one order-feed request per device is allowed in flight, avoiding request pile-ups when the connection is slow.
+- If server acknowledgement fails, the phone that was temporarily muted resumes any still-pending alarm and shows an error; the order is not falsely marked acknowledged.
+- Unpaired phones still acknowledge locally only. To stop every terminal, pair them with the OMS.
+- This requires installing v0.10 on each terminal; older APKs still use 15-second polling after shared acknowledgement.
+
 ## Automatic quiet hours (Thailand time, v0.9)
 
 - **07:00–21:59:59**: alarms are enabled. A new unacknowledged order rings until acknowledged.
 - **22:00–06:59:59**: the OMS feed suppresses audible alerts, without acknowledging or deleting them. The native app also silences its current alarm at 22:00, even without connectivity.
 - **07:00**: the native app requests the feed immediately; any overnight orders still awaiting acknowledgement become audible. Other paired terminals follow their normal shared-acknowledgement behavior.
-- Overnight Android polling slows to about once a minute to reduce battery/API use; daytime polling remains about every 15 seconds. Android power management or lack of network can delay morning playback.
+- Overnight Android polling slows to about once a minute to reduce battery/API use; daytime idle polling remains about every 15 seconds and ringing polling is about every 2 seconds (v0.10). Android power management or lack of network can delay morning playback.
 - The server-side guard applies to already-installed Android APKs once they poll the OMS. Install v0.9 on each phone for device-side offline muting and more precise boundary handling. The manual **ทดสอบเสียงปลุก** button still deliberately plays a test sound.
 - Monitoring stays enabled overnight; there is no need for staff to turn it back on each morning.
 

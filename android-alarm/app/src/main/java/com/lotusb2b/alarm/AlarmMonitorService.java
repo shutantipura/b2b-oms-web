@@ -52,6 +52,7 @@ public final class AlarmMonitorService extends Service {
     private static final String ALERT_CHANNEL = "oms_alert_popup_v2";
     private static final int MONITOR_NOTICE = 1001, ALERT_NOTICE = 1002;
     private static final long POLL_MS = 15000;
+    private static final long ALERT_POLL_MS = 2000;
     private static final long QUIET_POLL_MS = 60000;
 
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -68,6 +69,7 @@ public final class AlarmMonitorService extends Service {
     private String lastNotifiedAlertIds = "";
     private long lastStationHeartbeat = 0;
     private boolean acknowledgementInProgress = false;
+    private boolean pollInFlight = false;
     private final List<Entry> lastReceived = new ArrayList<>();
 
     private static final class Entry {
@@ -146,11 +148,19 @@ public final class AlarmMonitorService extends Service {
                 // This check silences even if the OMS is temporarily unreachable.
                 if (AlarmHours.isQuiet()) silenceUrgentAlarm();
                 pollOrders();
-                main.postDelayed(this, AlarmHours.isQuiet() ? QUIET_POLL_MS : POLL_MS);
+                scheduleNextPoll();
             }
         };
         main.post(pollingTask);
         scheduleQuietHoursTransition();
+    }
+
+    private void scheduleNextPoll() {
+        if (!running || pollingTask == null) return;
+        main.removeCallbacks(pollingTask);
+        long delay = AlarmHours.isQuiet() ? QUIET_POLL_MS
+            : pending.isEmpty() ? POLL_MS : ALERT_POLL_MS;
+        main.postDelayed(pollingTask, delay);
     }
 
     private void scheduleQuietHoursTransition() {
@@ -162,6 +172,7 @@ public final class AlarmMonitorService extends Service {
             // At 07:00 fetch the overnight queue immediately; at 22:00
             // refresh the feed but never play audible alerts.
             pollOrders();
+            scheduleNextPoll();
             scheduleQuietHoursTransition();
         };
         main.postDelayed(quietHoursTransition, AlarmHours.millisUntilTransition());
@@ -175,6 +186,10 @@ public final class AlarmMonitorService extends Service {
     }
 
     private void pollOrders() {
+        // With a 2-second ringing interval, never queue overlapping
+        // 7-second network requests on the single worker thread.
+        if (!running || pollInFlight) return;
+        pollInFlight = true;
         work.execute(() -> {
             HttpURLConnection conn = null;
             try {
@@ -209,9 +224,13 @@ public final class AlarmMonitorService extends Service {
                     if (id.matches("[0-9a-fA-F-]{36}") && number > 0)
                         received.add(new Entry(id, number, createdAtMs));
                 }
-                main.post(() -> applyAlerts(received));
+                main.post(() -> {
+                    pollInFlight = false;
+                    applyAlerts(received);
+                });
             } catch (Exception e) {
                 main.post(() -> {
+                    pollInFlight = false;
                     if (!running) return;
                     String errorMessage = "เชื่อมต่อ OMS ไม่สำเร็จ กำลังลองใหม่: " + e.getMessage();
                     prefs.edit().putString(LAST_ERROR, errorMessage).apply();
@@ -260,7 +279,7 @@ public final class AlarmMonitorService extends Service {
             .putString(LAST_ERROR, "")
             .apply();
 
-        if (pending.isEmpty() || AlarmHours.isQuiet()) {
+        if (pending.isEmpty() || AlarmHours.isQuiet() || acknowledgementInProgress) {
             silenceUrgentAlarm();
         } else {
             if (!ringing || !alarm.isActive()) {
@@ -282,6 +301,9 @@ public final class AlarmMonitorService extends Service {
         }
         reportStationHealth(true, prefs.getString(LAST_ERROR, ""));
         updateMonitor();
+        // The first alert switches polling to 2 seconds immediately instead
+        // of waiting for the next previously scheduled 15-second check.
+        scheduleNextPoll();
     }
 
     private void reportStationHealth(boolean pollOk, String lastError) {
@@ -305,6 +327,10 @@ public final class AlarmMonitorService extends Service {
         }
 
         acknowledgementInProgress = true;
+        // Never make a staff member wait for the network before silencing
+        // the phone they touched. In-flight polls must not restart it.
+        silenceUrgentAlarm();
+        updateMonitor();
         List<Entry> requested = new ArrayList<>(pending);
         List<String> ids = new ArrayList<>();
         for (Entry e : requested) ids.add(e.id);
@@ -317,9 +343,12 @@ public final class AlarmMonitorService extends Service {
                 markSeenLocally(requested);
                 pollOrders(); // Promptly refresh the shared feed.
             } else {
+                // Restore any still-pending alarm on failure. Newly received
+                // orders are retained in lastReceived while ACK was in flight.
+                applyAlerts(new ArrayList<>(lastReceived));
                 prefs.edit().putString(LAST_ERROR,
                     "รับทราบทุกเครื่องไม่สำเร็จ: " + message +
-                    " · เสียงเตือนยังทำงานอยู่").apply();
+                    " · เสียงเตือนกลับมาทำงานแล้ว").apply();
                 updateMonitor();
             }
         });
@@ -411,6 +440,7 @@ public final class AlarmMonitorService extends Service {
     private void updateMonitor() {
         if (!running) return;
         String text = AlarmHours.isQuiet() ? "พักเสียง 22:00–07:00 (เวลาไทย)" :
+            acknowledgementInProgress ? "กำลังบันทึกการรับทราบ — ปิดเสียงชั่วคราว" :
             pending.isEmpty() ? "พร้อมรับออเดอร์ใหม่" :
             pending.size() + " ออเดอร์ยังไม่ได้รับทราบ";
         notices.notify(MONITOR_NOTICE, monitorNotification(text));
