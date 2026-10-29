@@ -250,7 +250,6 @@ export default function LineAccessPage() {
 
   const [accountFilter, setAccountFilter] = useState<AccessFilter>("all");
   const [expandedAccountCards, setExpandedAccountCards] = useState<Record<string, boolean>>({});
-  const [expandedLineUsers, setExpandedLineUsers] = useState<Record<string, boolean>>({});
 
   // Customer search belongs to each LINE account, not the global LINE-user filter.
   const [customerSearches, setCustomerSearches] =
@@ -2186,320 +2185,93 @@ export default function LineAccessPage() {
 
                     {accountExpanded && (
                     <div id={`line-account-details-${user.lineUserRowId}`}>
-                    {/* IDENTITY */}
+                    {/* Account actions stay in the top-right; the identity is already in the card header. */}
+                    <div className="border-b border-[#E0EEE9] px-4 py-4 sm:px-5">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {user.isActive ? (
+                          <span className="rounded-full bg-[#EAF7F3] px-3 py-1.5 text-xs font-semibold text-[#17766C]">
+                            บัญชี LINE ใช้งานอยู่
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600">
+                            นำออกจากรายการแล้ว
+                          </span>
+                        )}
 
-
-
-                    <div className="p-5 border-b">
-
-
-
-                      <div className="flex flex-wrap justify-between gap-4">
-
-
-
-                        <div className="flex-1 min-w-[260px]">
-
-
-
-                          <h2 className="text-xl font-bold">
-
-                            {
-
-                              user.internalName ??
-
-                              user.displayName ??
-
-                              "ผู้ใช้ LINE ที่ไม่มีชื่อ"
-
+                        {user.isActive ? (
+                          <button
+                            type="button"
+                            onClick={() => setLineUserActive(user, false)}
+                            disabled={statusBusy || !canRemove}
+                            title={
+                              canRemove
+                                ? "นำบัญชี LINE ออกจากรายการใช้งาน"
+                                : "ต้องยกเลิกสิทธิ์ลูกค้าและสิทธิ์พนักงานทั้งหมดก่อน"
                             }
-
-                          </h2>
-
-
-
-                          {user.internalName && (
-
-                            <p className="text-sm text-gray-500 mt-1">
-
-                              ชื่อ LINE: {user.displayName ?? "—"}
-
-                            </p>
-
-                          )}
-
-
-
-                          <p className="text-sm text-gray-500 mt-1 break-all">
-
-                            {
-
-                              user.lineUserId
-
-                            }
-
-                          </p>
-
-
-
-                          <div className="mt-4 max-w-xl">
-
-                            <label className="block text-sm font-semibold mb-2">
-
-                              ชื่อบุคคลใน OMS
-
-                            </label>
-
-
-
-                            <div className="flex flex-col sm:flex-row gap-2">
-
-                              <input
-
-                                value={
-
-                                  nameSelections[
-
-                                    user.lineUserRowId
-
-                                  ] ?? ""
-
-                                }
-
-                                onChange={(event) =>
-
-                                  setNameSelections(
-
-                                    (previous) => ({
-
-                                      ...previous,
-
-                                      [user.lineUserRowId]:
-
-                                        event.target.value,
-
-                                    })
-
-                                  )
-
-                                }
-
-                                placeholder="เช่น สมชาย ใจดี / คุณแอน"
-
-                                disabled={!user.isActive}
-
-                                className="flex-1 border rounded-lg px-3 py-2.5 disabled:bg-gray-100"
-
-                              />
-
-
-
-                              <button
-
-                                type="button"
-
-                                onClick={() =>
-
-                                  saveInternalName(
-
-                                    user
-
-                                  )
-
-                                }
-
-                                disabled={
-
-                                  nameBusy ||
-
-                                  !user.isActive
-
-                                }
-
-                                className="bg-black text-white rounded-lg px-4 py-2.5 font-semibold disabled:opacity-40"
-
-                              >
-
-                                {nameBusy
-
-                                  ? "กำลังบันทึก..."
-
-                                  : "บันทึกชื่อ"}
-
-                              </button>
-
-                            </div>
-
-
-
-                            <p className="text-xs text-gray-500 mt-2">
-
-                              ชื่อนี้ใช้ภายใน OMS เท่านั้น และไม่เปลี่ยนชื่อที่ผู้ใช้ตั้งไว้ใน LINE
-
-                            </p>
-
-                          </div>
-
-
-
-                        </div>
-
-
-
-                        <div className="flex flex-col items-start sm:items-end gap-3">
-
-
-
-                          {user.isActive ? (
-
-                            <span className="inline-block bg-gray-100 rounded-full px-3 py-1 text-sm font-medium">
-
-                              บัญชี LINE ใช้งานอยู่
-
-                            </span>
-
-                          ) : (
-
-                            <span className="inline-block border rounded-full px-3 py-1 text-sm">
-
-                              นำออกจากรายการแล้ว
-
-                            </span>
-
-                          )}
-
-
-
-                          {user.isActive ? (
-
-                            <button
-
-                              type="button"
-
-                              onClick={() =>
-
-                                setLineUserActive(
-
-                                  user,
-
-                                  false
-
-                                )
-
-                              }
-
-                              disabled={
-
-                                statusBusy ||
-
-                                !canRemove
-
-                              }
-
-                              title={
-
-                                canRemove
-
-                                  ? "นำบัญชี LINE ออกจากรายการใช้งาน"
-
-                                  : "ต้องยกเลิกสิทธิ์ลูกค้าและสิทธิ์พนักงานทั้งหมดก่อน"
-
-                              }
-
-                              className="border border-red-300 text-red-700 rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-
-                            >
-
-                              {statusBusy
-
-                                ? "กำลังนำออก..."
-
-                                : "นำบัญชีออก"}
-
-                            </button>
-
-                          ) : (
-
-                            <button
-
-                              type="button"
-
-                              onClick={() =>
-
-                                setLineUserActive(
-
-                                  user,
-
-                                  true
-
-                                )
-
-                              }
-
-                              disabled={
-
-                                statusBusy
-
-                              }
-
-                              className="border border-green-300 text-green-700 rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-40"
-
-                            >
-
-                              {statusBusy
-
-                                ? "กำลังเปิดใช้งาน..."
-
-                                : "เปิดใช้งานอีกครั้ง"}
-
-                            </button>
-
-                          )}
-
-
-
-                          {user.isActive && !canRemove && (
-
-                            <p className="text-xs text-gray-400 max-w-[220px] sm:text-right">
-
-                              ยกเลิกสิทธิ์ลูกค้าและสิทธิ์พนักงานทั้งหมดก่อน จึงจะนำบัญชีออกได้
-
-                            </p>
-
-                          )}
-
-
-
-                        </div>
-
-
-
+                            className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {statusBusy ? "กำลังนำออก..." : "นำบัญชีออก"}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setLineUserActive(user, true)}
+                            disabled={statusBusy}
+                            className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-semibold text-green-700 disabled:opacity-40"
+                          >
+                            {statusBusy ? "กำลังเปิดใช้งาน..." : "เปิดใช้งานอีกครั้ง"}
+                          </button>
+                        )}
                       </div>
 
+                      {user.isActive && !canRemove && (
+                        <p className="mt-1.5 text-right text-[11px] text-[#81958F]">
+                          ยกเลิกสิทธิ์ลูกค้าและสิทธิ์พนักงานทั้งหมดก่อน จึงจะนำบัญชีออกได้
+                        </p>
+                      )}
 
+                      <p className="mt-3 break-all text-xs text-[#81958F]">
+                        LINE ID: {user.lineUserId}
+                      </p>
 
+                      <div className="mt-3 max-w-xl">
+                        <label
+                          htmlFor={`line-internal-name-${user.lineUserRowId}`}
+                          className="mb-2 block text-sm font-semibold"
+                        >
+                          ชื่อบุคคลใน OMS
+                        </label>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <input
+                            id={`line-internal-name-${user.lineUserRowId}`}
+                            value={nameSelections[user.lineUserRowId] ?? ""}
+                            onChange={(event) =>
+                              setNameSelections((previous) => ({
+                                ...previous,
+                                [user.lineUserRowId]: event.target.value,
+                              }))
+                            }
+                            placeholder="เช่น สมชาย ใจดี / คุณแอน"
+                            disabled={!user.isActive}
+                            className="min-w-0 flex-1 rounded-lg border px-3 py-2.5 disabled:bg-gray-100"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => saveInternalName(user)}
+                            disabled={nameBusy || !user.isActive}
+                            className="rounded-lg bg-[#008F8D] px-4 py-2.5 font-semibold text-white disabled:opacity-40"
+                          >
+                            {nameBusy ? "กำลังบันทึก..." : "บันทึกชื่อ"}
+                          </button>
+                        </div>
+                        <p className="mt-2 text-xs text-gray-500">
+                          ชื่อนี้ใช้ภายใน OMS เท่านั้น และไม่เปลี่ยนชื่อที่ผู้ใช้ตั้งไว้ใน LINE
+                        </p>
+                      </div>
                     </div>
 
-
-
-                    <div className="border-b border-[#E0EEE9] px-5 py-3">
-                      <button
-                        type="button"
-                        aria-expanded={Boolean(expandedLineUsers[user.lineUserRowId])}
-                        aria-controls={`line-access-details-${user.lineUserRowId}`}
-                        onClick={() => setExpandedLineUsers((previous) => ({
-                          ...previous,
-                          [user.lineUserRowId]: !previous[user.lineUserRowId],
-                        }))}
-                        className="flex w-full items-center justify-between rounded-xl bg-[#F2FAF8] px-4 py-3 text-left text-sm font-extrabold text-[#007F79]"
-                      >
-                        <span>{expandedLineUsers[user.lineUserRowId] ? "ซ่อนสิทธิ์การเข้าถึง" : "แสดงสิทธิ์การเข้าถึง"}</span>
-                        <span aria-hidden="true">{expandedLineUsers[user.lineUserRowId] ? "▲" : "▼"}</span>
-                      </button>
-                    </div>
-
-                    {expandedLineUsers[user.lineUserRowId] && (
-                    <div id={`line-access-details-${user.lineUserRowId}`} className="grid grid-cols-1 lg:grid-cols-2">
+                    {/* Permissions display whenever the outer account card is expanded. */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2">
 
 
 
@@ -3232,7 +3004,6 @@ export default function LineAccessPage() {
 
 
                     </div>
-                    )}
                     </div>
                     )}
 
