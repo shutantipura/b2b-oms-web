@@ -261,8 +261,9 @@ export default function DeliveryPage() {
 
 
 
-    setOrder(orderData as unknown as OrderDetails);
-    setMapDraft(orderData.delivery_address ?? orderData.customers?.delivery_map_url ?? "");
+    const typedOrder = orderData as unknown as OrderDetails;
+    setOrder(typedOrder);
+    setMapDraft(typedOrder.delivery_address ?? typedOrder.customers?.delivery_map_url ?? "");
 
     // Delivery displays what was actually picked and billed. Group roots use
     // the same consolidated lines as Billing, avoiding duplicated /x items.
