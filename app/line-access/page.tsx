@@ -242,6 +242,8 @@ export default function LineAccessPage() {
 
 
 
+  const [expandedLineUsers, setExpandedLineUsers] = useState<Record<string, boolean>>({});
+
   // Customer search belongs to each LINE account, not the global LINE-user filter.
   const [customerSearches, setCustomerSearches] =
     useState<Record<string, string>>({});
@@ -2365,7 +2367,24 @@ export default function LineAccessPage() {
 
 
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2">
+                    <div className="border-b border-[#E0EEE9] px-5 py-3">
+                      <button
+                        type="button"
+                        aria-expanded={Boolean(expandedLineUsers[user.lineUserRowId])}
+                        aria-controls={`line-access-details-${user.lineUserRowId}`}
+                        onClick={() => setExpandedLineUsers((previous) => ({
+                          ...previous,
+                          [user.lineUserRowId]: !previous[user.lineUserRowId],
+                        }))}
+                        className="flex w-full items-center justify-between rounded-xl bg-[#F2FAF8] px-4 py-3 text-left text-sm font-extrabold text-[#007F79]"
+                      >
+                        <span>{expandedLineUsers[user.lineUserRowId] ? "ซ่อนสิทธิ์การเข้าถึง" : "แสดงสิทธิ์การเข้าถึง"}</span>
+                        <span aria-hidden="true">{expandedLineUsers[user.lineUserRowId] ? "▲" : "▼"}</span>
+                      </button>
+                    </div>
+
+                    {expandedLineUsers[user.lineUserRowId] && (
+                    <div id={`line-access-details-${user.lineUserRowId}`} className="grid grid-cols-1 lg:grid-cols-2">
 
 
 
@@ -3106,6 +3125,7 @@ export default function LineAccessPage() {
 
 
                     </div>
+                    )}
 
 
 
