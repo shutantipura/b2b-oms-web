@@ -720,7 +720,7 @@ export default function StaffManagementPage() {
               <p className="text-gray-500 mt-2">
                 {activeTab === "list"
                   ? "หนึ่งบัญชีต่อหนึ่งพนักงาน พร้อมกำหนดว่าสามารถทำงานประเภทใดได้บ้าง"
-                  : "ตรวจสอบว่าแต่ละคนกำลังรับผิดชอบงานใด และมีใครพร้อมรับงานเพิ่ม"}
+                  : "สรุปจำนวนและประเภทงานที่พนักงานทำเสร็จตามช่วงวันที่เลือก"}
               </p>
             </div>
 
@@ -766,7 +766,7 @@ export default function StaffManagementPage() {
               ? "min-h-12 rounded-xl bg-[#02B0AF] px-3 text-sm font-extrabold text-white"
               : "min-h-12 rounded-xl px-3 text-sm font-extrabold text-[#52786F] hover:bg-[#EFF9F6]"}
           >
-            งานที่รับผิดชอบ
+            ผลงานพนักงาน
           </button>
         </div>
         {activeTab === "list" ? (

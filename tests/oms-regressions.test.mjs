@@ -158,3 +158,48 @@ test("No CV customer profiles use internal IDs and default billing to B2B Barcod
   assert.match(edit, /has_no_cv: noCv/);
   assert.match(billing, /setBillingMode\(loadedOrder\.customers\?\.has_no_cv \? "no_cv" : "normal"\)/);
 });
+
+test("completed task reporting uses Bangkok day boundaries and counts finished claims by type", async () => {
+  const {
+    bangkokCalendarDate,
+    addCalendarDays,
+    completedTaskDateWindow,
+    summarizeCompletedTasks,
+  } = await import("../lib/staffTaskReport.ts");
+
+  assert.equal(
+    bangkokCalendarDate(new Date("2026-10-28T18:00:00.000Z")),
+    "2026-10-29"
+  );
+  assert.equal(addCalendarDays("2026-10-30", 2), "2026-11-01");
+  assert.deepEqual(
+    completedTaskDateWindow("2026-10-29", "2026-10-29"),
+    {
+      fromInclusive: "2026-10-28T17:00:00.000Z",
+      toExclusive: "2026-10-29T17:00:00.000Z",
+    }
+  );
+  assert.throws(
+    () => completedTaskDateWindow("2026-10-30", "2026-10-29"),
+    /วันที่เริ่มต้น/
+  );
+
+  const tasks = [
+    { id: "1", staff_id: "s1", stage: "confirmation", claim_status: "completed", completed_at: "2026-10-29T01:00:00Z" },
+    { id: "2", staff_id: "s1", stage: "picking", claim_status: "completed", completed_at: "2026-10-29T02:00:00Z" },
+    { id: "3", staff_id: "s2", stage: "billing", claim_status: "completed", completed_at: "2026-10-29T03:00:00Z" },
+    { id: "4", staff_id: "s1", stage: "picking", claim_status: "released", completed_at: null },
+  ];
+  const counts = summarizeCompletedTasks(tasks);
+  assert.equal(counts.overall.total, 3);
+  assert.equal(counts.overall.byStage.picking, 1);
+  assert.equal(counts.overall.byStage.billing, 1);
+  assert.equal(counts.byStaff.get("s1")?.total, 2);
+  assert.equal(counts.byStaff.get("s2")?.byStage.billing, 1);
+
+  const page = readFileSync(new URL("../components/StaffResponsibilities.tsx", import.meta.url), "utf8");
+  assert.match(page, /\.eq\("claim_status", "completed"\)/);
+  assert.match(page, /\.gte\("completed_at", fromInclusive\)/);
+  assert.match(page, /\.lt\("completed_at", toExclusive\)/);
+  assert.match(page, /\.range\(page \* PAGE_SIZE,/);
+});
