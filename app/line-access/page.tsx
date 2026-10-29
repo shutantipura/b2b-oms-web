@@ -2186,7 +2186,7 @@ export default function LineAccessPage() {
                     {accountExpanded && (
                     <div id={`line-account-details-${user.lineUserRowId}`}>
                     {/* Account actions stay in the top-right; the identity is already in the card header. */}
-                    <div className="border-b border-[#E0EEE9] px-4 py-4 sm:px-5">
+                    <div className="border-b border-[#E0EEE9] px-4 py-3">
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         {user.isActive ? (
                           <span className="rounded-full bg-[#EAF7F3] px-3 py-1.5 text-xs font-semibold text-[#17766C]">
@@ -2226,7 +2226,7 @@ export default function LineAccessPage() {
 
                       {user.isActive && !canRemove && (
                         <p className="mt-1.5 text-right text-[11px] text-[#81958F]">
-                          ยกเลิกสิทธิ์ลูกค้าและสิทธิ์พนักงานทั้งหมดก่อน จึงจะนำบัญชีออกได้
+                          ยกเลิกสิทธิ์ที่เชื่อมอยู่ก่อน จึงจะนำบัญชีออกได้
                         </p>
                       )}
 
@@ -2234,14 +2234,14 @@ export default function LineAccessPage() {
                         LINE ID: {user.lineUserId}
                       </p>
 
-                      <div className="mt-3 max-w-xl">
+                      <div className="mt-2.5 max-w-xl">
                         <label
                           htmlFor={`line-internal-name-${user.lineUserRowId}`}
-                          className="mb-2 block text-sm font-semibold"
+                          className="mb-1 block text-base font-semibold"
                         >
                           ชื่อบุคคลใน OMS
                         </label>
-                        <div className="flex flex-col gap-2 sm:flex-row">
+                        <div className="flex items-center gap-2">
                           <input
                             id={`line-internal-name-${user.lineUserRowId}`}
                             value={nameSelections[user.lineUserRowId] ?? ""}
@@ -2253,19 +2253,19 @@ export default function LineAccessPage() {
                             }
                             placeholder="เช่น สมชาย ใจดี / คุณแอน"
                             disabled={!user.isActive}
-                            className="min-w-0 flex-1 rounded-lg border px-3 py-2.5 disabled:bg-gray-100"
+                            className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-base disabled:bg-gray-100"
                           />
                           <button
                             type="button"
                             onClick={() => saveInternalName(user)}
                             disabled={nameBusy || !user.isActive}
-                            className="rounded-lg bg-[#008F8D] px-4 py-2.5 font-semibold text-white disabled:opacity-40"
+                            className="shrink-0 whitespace-nowrap rounded-lg bg-[#008F8D] px-3 py-2 font-semibold text-base text-white disabled:opacity-40"
                           >
                             {nameBusy ? "กำลังบันทึก..." : "บันทึกชื่อ"}
                           </button>
                         </div>
                         <p className="mt-2 text-xs text-gray-500">
-                          ชื่อนี้ใช้ภายใน OMS เท่านั้น และไม่เปลี่ยนชื่อที่ผู้ใช้ตั้งไว้ใน LINE
+                          ชื่อแสดงเฉพาะใน OMS ไม่เปลี่ยนชื่อ LINE
                         </p>
                       </div>
                     </div>
@@ -2283,7 +2283,7 @@ export default function LineAccessPage() {
 
 
 
-                      <div className="p-5 lg:border-r border-b lg:border-b-0">
+                      <div className="border-b p-4 lg:border-b-0 lg:border-r">
 
 
 
@@ -2297,28 +2297,28 @@ export default function LineAccessPage() {
 
                         <p className="text-sm text-gray-500 mt-1">
 
-                          LINE หนึ่งบัญชีสามารถเข้าถึงลูกค้าได้หลายบัญชี
+                          LINE หนึ่งบัญชีเข้าถึงลูกค้าได้หลายร้าน
 
                         </p>
 
 
 
-                        <div className="flex flex-wrap gap-2 mt-4">
+                        <div className="mt-3 flex flex-wrap gap-2">
                           <button
                             type="button"
                             disabled={!user.isActive || customerBusy || working !== "" || user.allCustomersAccess}
                             onClick={() => void setAllCustomerAccess(user, true)}
-                            className="border border-green-300 text-green-800 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
+                            className="rounded-lg border border-green-300 px-3 py-2 text-base font-semibold text-green-800 disabled:opacity-40"
                           >
-                            {customerBusy ? "กำลังบันทึก..." : user.allCustomersAccess ? "✓ อนุญาตลูกค้าทั้งหมดแล้ว" : "อนุญาตลูกค้าทั้งหมด"}
+                            {customerBusy ? "กำลังบันทึก..." : user.allCustomersAccess ? "✓ อนุญาตทั้งหมดแล้ว" : "อนุญาตทั้งหมด"}
                           </button>
                           <button
                             type="button"
                             disabled={!user.isActive || customerBusy || working !== "" || (user.customerCodes.length === 0 && !user.allCustomersAccess)}
                             onClick={() => void setAllCustomerAccess(user, false)}
-                            className="border border-red-300 text-red-700 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
+                            className="rounded-lg border border-red-300 px-3 py-2 text-base font-semibold text-red-700 disabled:opacity-40"
                           >
-                            {customerBusy ? "กำลังบันทึก..." : "ยกเลิกสิทธิ์ลูกค้าทั้งหมด"}
+                            {customerBusy ? "กำลังบันทึก..." : "ยกเลิกทั้งหมด"}
                           </button>
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
@@ -2327,6 +2327,8 @@ export default function LineAccessPage() {
                             : "เลือกอนุญาตลูกค้าทั้งหมดเพื่อรวมลูกค้าที่สร้างใหม่ในอนาคตด้วย · ไม่เปลี่ยนสิทธิ์พนักงาน"}
                         </p>
 
+                        {user.customerCodes.length > 0 && (
+                          <>
                         <button
                           type="button"
                           aria-expanded={Boolean(expandedCustomerLists[user.lineUserRowId])}
@@ -2337,7 +2339,7 @@ export default function LineAccessPage() {
                               [user.lineUserRowId]: !previous[user.lineUserRowId],
                             }))
                           }
-                          className="mt-5 w-full flex items-center justify-between gap-3 rounded-lg border bg-gray-50 px-4 py-3 text-left text-sm font-semibold hover:bg-gray-100"
+                          className="mt-3 flex w-full items-center justify-between gap-2 rounded-lg border bg-gray-50 px-3 py-2 text-left text-base font-semibold hover:bg-gray-100"
                         >
                           <span>
                             {expandedCustomerLists[user.lineUserRowId]
@@ -2352,7 +2354,7 @@ export default function LineAccessPage() {
 
                         {expandedCustomerLists[user.lineUserRowId] && (
                           <div id={`customer-list-${user.lineUserRowId}`}>
-                        <div className="mt-5 space-y-2">
+                        <div className="mt-2 space-y-2">
 
 
 
@@ -2408,7 +2410,7 @@ export default function LineAccessPage() {
 
                                     }
 
-                                    className="border rounded-lg p-3 flex justify-between items-center gap-3"
+                                    className="flex items-center justify-between gap-2 rounded-lg border p-2.5"
 
                                   >
 
@@ -2470,7 +2472,7 @@ export default function LineAccessPage() {
 
                                       }
 
-                                      className="text-sm border rounded-lg px-3 py-2 disabled:opacity-40"
+                                      className="rounded-lg border px-3 py-2 text-base disabled:opacity-40"
 
                                     >
 
@@ -2501,9 +2503,12 @@ export default function LineAccessPage() {
                           </div>
                         )}
 
+                          </>
+                        )}
+
                         <label
                           htmlFor={`customer-search-${user.lineUserRowId}`}
-                          className="block text-sm font-medium mt-5 mb-2"
+                          className="mb-1 mt-3 block text-base font-semibold"
                         >
                           ค้นหาลูกค้า
                         </label>
@@ -2519,7 +2524,7 @@ export default function LineAccessPage() {
                           }
                           placeholder="ชื่อร้าน หรือรหัส CV"
                           disabled={!user.isActive}
-                          className="w-full border border-[#BBD9D2] rounded-lg px-4 py-3 focus:outline-none focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/15 disabled:bg-gray-100"
+                          className="w-full rounded-lg border border-[#BBD9D2] px-3 py-2 text-base focus:border-[#02B0AF] focus:outline-none focus:ring-2 focus:ring-[#02B0AF]/15 disabled:bg-gray-100"
                         />
                         {customerQuery && (
                           <p role="status" className="mt-2 text-xs text-[#647D74]">
@@ -2529,7 +2534,7 @@ export default function LineAccessPage() {
                           </p>
                         )}
 
-                        <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                        <div className="mt-2 flex items-center gap-2">
 
                           <select
 
@@ -2577,7 +2582,7 @@ export default function LineAccessPage() {
 
                             disabled={!user.isActive}
 
-                            className="flex-1 border rounded-lg px-3 py-3 disabled:bg-gray-100"
+                            className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-base disabled:bg-gray-100"
 
                           >
 
@@ -2663,7 +2668,7 @@ export default function LineAccessPage() {
 
                             }
 
-                            className="bg-black text-white rounded-lg px-5 py-3 font-semibold disabled:opacity-40"
+                            className="shrink-0 rounded-lg bg-[#008F8D] px-4 py-2 text-base font-semibold text-white disabled:opacity-40"
 
                           >
 
@@ -2693,7 +2698,7 @@ export default function LineAccessPage() {
 
 
 
-                      <div className="p-5">
+                      <div className="p-4">
 
 
 
@@ -2707,117 +2712,39 @@ export default function LineAccessPage() {
 
                         <p className="text-sm text-gray-500 mt-1">
 
-                          LINE หนึ่งบัญชีสามารถเชื่อมกับบัญชีพนักงานได้หนึ่งบัญชี
+                          เชื่อมพนักงานได้ 1 บัญชีต่อ LINE
 
                         </p>
 
 
 
-                        <div className="mt-5">
-
-
-
-                          {user.staff &&
-
-                          user.staff
-
-                            .isAuthorized ? (
-
-
-
-                            <div className="border rounded-xl p-4">
-
-
-
-                              <p className="font-bold">
-
-                                {
-
-                                  user.staff.staffCode
-
-                                }
-
-                                {" — "}
-
-                                {
-
-                                  user.staff.staffName
-
-                                }
-
-                              </p>
-
-
-
-                              <p className="text-sm text-gray-500 mt-1">
-
-                                {
-
-                                  user.staff.accountType
-
-                                }
-
-                              </p>
-
-
-
+                        <div className="mt-3">
+                          {user.staff && user.staff.isAuthorized ? (
+                            <div className="flex items-center justify-between gap-3 rounded-xl border border-[#D9EAE3] px-3 py-2.5">
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-base font-semibold" title={`${user.staff.staffCode} — ${user.staff.staffName}`}>
+                                  {user.staff.staffCode} — {user.staff.staffName}
+                                </p>
+                                <p className="mt-0.5 text-sm text-gray-500">
+                                  {user.staff.accountType}
+                                </p>
+                              </div>
                               <button
-
                                 type="button"
-
-                                disabled={
-
-                                  staffBusy ||
-
-                                  !user.isActive
-
-                                }
-
-                                onClick={() =>
-
-                                  revokeStaff(
-
-                                    user
-
-                                  )
-
-                                }
-
-                                className="border rounded-lg px-4 py-2 text-sm mt-4 disabled:opacity-40"
-
+                                disabled={staffBusy || !user.isActive}
+                                onClick={() => revokeStaff(user)}
+                                aria-label={`ยกเลิกสิทธิ์พนักงาน ${user.staff.staffName}`}
+                                className="shrink-0 rounded-lg border px-3 py-2 text-base font-semibold disabled:opacity-40"
                               >
-
-                                ยกเลิกสิทธิ์พนักงาน
-
+                                ยกเลิก
                               </button>
-
-
-
                             </div>
-
-
-
                           ) : (
-
-
-
-                            <p className="text-sm text-gray-400">
-
-                              ไม่มีสิทธิ์พนักงานที่ใช้งานอยู่
-
-                            </p>
-
-
-
+                            <p className="text-sm text-gray-500">ยังไม่เชื่อมบัญชีพนักงาน</p>
                           )}
-
-
-
                         </div>
 
-
-
-                        <div className="flex flex-col sm:flex-row gap-2 mt-5">
+                        <div className="mt-3 flex items-center gap-2">
 
 
 
@@ -2865,7 +2792,7 @@ export default function LineAccessPage() {
 
                             disabled={!user.isActive}
 
-                            className="flex-1 border rounded-lg px-3 py-3 disabled:bg-gray-100"
+                            className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-base disabled:bg-gray-100"
 
                           >
 
@@ -2975,7 +2902,7 @@ export default function LineAccessPage() {
 
                             }
 
-                            className="bg-black text-white rounded-lg px-5 py-3 font-semibold disabled:opacity-40"
+                            className="shrink-0 rounded-lg bg-[#008F8D] px-4 py-2 text-base font-semibold text-white disabled:opacity-40"
 
                           >
 
@@ -2989,7 +2916,7 @@ export default function LineAccessPage() {
 
                               ? "เปลี่ยน"
 
-                              : "อนุญาต"}
+                              : "เพิ่ม"}
 
                           </button>
 
