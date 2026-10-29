@@ -76,12 +76,33 @@ type EvaluatedOrder = KPIOrder & {
 };
 
 type Metric = {
+  group: "on_times" | "stock";
   name: string;
   description: string;
   count: number;
   total: number;
   isExceptionRate?: boolean;
 };
+
+type FinancialSummary = {
+  bill_date: string;
+  total_sales_value: number;
+  total_bills: number;
+  average_sales_per_bill: number | null;
+  gross_profit_percent: number | null;
+  cost_complete_bills: number;
+  missing_cost_lines: number;
+  changed_after_bill_lines: number;
+  cost_basis: string;
+};
+
+const MONEY_FORMAT = new Intl.NumberFormat("th-TH", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+function formatBaht(value: number | null | undefined) {
+  return value == null ? "—" : "฿" + MONEY_FORMAT.format(Number(value));
+}
 
 const BANGKOK_OFFSET = "+07:00";
 const PICK_LEAD_MINUTES = 30;
@@ -172,9 +193,63 @@ function kpiExceptions(order: EvaluatedOrder): KPIIssue[] {
   return issues;
 }
 
+
+function RateMetricCard({ metric, loading }: { metric: Metric; loading: boolean }) {
+  return (
+    <article className="flex min-w-0 flex-col rounded-2xl border border-[#D9EAE3] bg-white p-3 shadow-[0_2px_9px_rgba(18,92,74,0.04)] sm:p-4">
+      <div className="mb-2 h-1 w-8 rounded-full bg-[#02B0AF]" aria-hidden="true" />
+      <p className="min-h-9 text-xs font-extrabold leading-snug text-[#17453F] sm:text-sm">
+        {metric.name}
+      </p>
+      <p className="mt-1 text-2xl font-black tabular-nums text-[#008F8D] sm:text-3xl">
+        {loading ? "…" : formatPercent(metric.count, metric.total)}
+      </p>
+      <p className="mt-1 text-xs font-bold tabular-nums text-[#52786F]">
+        {metric.count} / {metric.total} รายการ
+      </p>
+      <p className="mt-2 flex-1 text-[11px] leading-4 text-[#80988D]">
+        {metric.description}
+      </p>
+      {metric.isExceptionRate && (
+        <p className="mt-2 text-[10px] font-bold text-[#A66D23]">ค่ายิ่งต่ำยิ่งดี</p>
+      )}
+    </article>
+  );
+}
+
+function FinanceMetricCard({
+  name, value, detail, description, caution = false,
+}: {
+  name: string;
+  value: string;
+  detail: string;
+  description: string;
+  caution?: boolean;
+}) {
+  return (
+    <article className="flex min-w-0 flex-col rounded-2xl border border-[#D9EAE3] bg-white p-3 shadow-[0_2px_9px_rgba(18,92,74,0.04)] sm:p-4">
+      <div className="mb-2 h-1 w-8 rounded-full bg-[#02B0AF]" aria-hidden="true" />
+      <p className="min-h-9 text-xs font-extrabold leading-snug text-[#17453F] sm:text-sm">
+        {name}
+      </p>
+      <p className="mt-1 break-words text-xl font-black tabular-nums tracking-tight text-[#008F8D] sm:text-2xl">
+        {value}
+      </p>
+      <p className={`mt-1 text-[11px] font-bold leading-4 ${caution ? "text-[#A66D23]" : "text-[#52786F]"}`}>
+        {detail}
+      </p>
+      <p className="mt-2 flex-1 text-[11px] leading-4 text-[#80988D]">
+        {description}
+      </p>
+    </article>
+  );
+}
+
 export default function KPIPage() {
   const [selectedDate, setSelectedDate] = useState(getBangkokToday);
   const [orders, setOrders] = useState<KPIOrder[]>([]);
+  const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
+  const [financialError, setFinancialError] = useState<string | null>(null);
   const [completionTimes, setCompletionTimes] = useState<Record<string, CompletionTimes>>({});
   const [involvedByOrder, setInvolvedByOrder] = useState<PeopleByOrder>({});
   const [staffUnavailable, setStaffUnavailable] = useState(false);
@@ -188,10 +263,16 @@ export default function KPIPage() {
     setLoading(true);
     setMessage("");
 
-    const { data, error } = await supabase.rpc("get_operational_kpi_orders", {
-      p_delivery_date: date,
-    });
+    // Operational KPIs use delivery date; Financials use actual Bangkok bill date.
+    const [operationalResult, financialResult] = await Promise.all([
+      supabase.rpc("get_operational_kpi_orders", { p_delivery_date: date }),
+      supabase.rpc("get_financial_kpi_summary", { p_bill_date: date }),
+    ]);
     if (requestId !== requestIdRef.current) return;
+
+    const { data, error } = operationalResult;
+    setFinancialSummary(financialResult.error ? null : financialResult.data as FinancialSummary);
+    setFinancialError(financialResult.error?.message ?? null);
 
     if (error) {
       setMessage("ไม่สามารถโหลดข้อมูล KPI ได้: " + error.message);
@@ -397,44 +478,98 @@ export default function KPIPage() {
 
     return [
       {
+        group: "on_times",
         name: "Stock Check On Time",
         description: "เช็คสต็อกเสร็จภายใน 30 นาทีหลังรับคำสั่งซื้อ",
         ...confirmation,
       },
       {
+        group: "on_times",
         name: "Pick On Time",
         description: "จัดสินค้าเสร็จก่อนเริ่มรอบจัดส่งอย่างน้อย 30 นาที",
         ...picking,
       },
       {
+        group: "on_times",
         name: "Bill On Time",
         description: "ออกบิลเสร็จก่อนเริ่มรอบจัดส่งอย่างน้อย 30 นาที",
         ...billing,
       },
       {
+        group: "on_times",
         name: "Delivery On Time",
         description: "จัดส่งภายในเวลาที่ลูกค้าเลือก",
         ...delivery,
       },
       {
+        group: "on_times",
+        name: "Payment On Time",
+        description: "ตรวจสอบการชำระเงินภายใน 21:00 น. ของวันจัดส่ง",
+        ...payment,
+      },
+      {
+        group: "stock",
         name: "Short Stock Rate",
         description: "สัดส่วนคำสั่งซื้อที่ยืนยันสต็อกไม่ครบตามสั่ง หรือเกิด Short Pick",
         ...shortStocks,
         isExceptionRate: true,
       },
       {
+        group: "stock",
         name: "Short Pick Rate",
         description: "สัดส่วนคำสั่งซื้อที่จัดสินค้าไม่ครบตามจำนวนที่ยืนยัน",
         ...shortPicks,
         isExceptionRate: true,
       },
-      {
-        name: "Payment On Time",
-        description: "ตรวจสอบการชำระเงินภายใน 21:00 น. ของวันจัดส่ง",
-        ...payment,
-      },
     ];
   }, [evaluated]);
+
+  const onTimeMetrics = metrics.filter((metric) => metric.group === "on_times");
+  const stockMetrics = metrics.filter((metric) => metric.group === "stock");
+  const billCount = financialSummary?.total_bills ?? 0;
+  const numberOfBills = billCount.toLocaleString("th-TH");
+  const financeDetail = financialSummary
+    ? `${numberOfBills} บิลที่ออกในวันที่เลือก`
+    : financialError ? "โหลดข้อมูลการเงินไม่สำเร็จ" : "—";
+  const grossProfitDetail = !financialSummary
+    ? financialError ? "โหลดข้อมูลการเงินไม่สำเร็จ" : "—"
+    : billCount === 0
+      ? "ยังไม่มีบิลในวันที่เลือก"
+      : financialSummary.missing_cost_lines > 0
+        ? `ขาดต้นทุน ${financialSummary.missing_cost_lines} รายการ · ยังไม่แสดง GP%`
+        : financialSummary.changed_after_bill_lines > 0
+          ? `มีต้นทุนปรับหลังออกบิล ${financialSummary.changed_after_bill_lines} รายการ · เป็นค่าประมาณ`
+          : `ต้นทุนครบ ${financialSummary.cost_complete_bills} / ${numberOfBills} บิล`;
+  const financeCards = [
+    {
+      name: "Total Sales Value",
+      value: loading ? "…" : financialSummary ? formatBaht(financialSummary.total_sales_value) : "—",
+      detail: financeDetail,
+      description: "ยอดรวมจากยอดบิลสุดท้าย รวมการปรับยอดโดย Manager",
+    },
+    {
+      name: "Total Bills",
+      value: loading ? "…" : financialSummary ? numberOfBills : "—",
+      detail: "นับ 1 ครั้งต่อบิล รวมบิลหลักของคำสั่งซื้อ /x",
+      description: "บิลที่ออกในวันนั้นตามเวลาไทย ไม่รวมคำสั่งซื้อยกเลิก",
+    },
+    {
+      name: "Average Sales / Bill",
+      value: loading ? "…" : financialSummary ? formatBaht(financialSummary.average_sales_per_bill) : "—",
+      detail: financeDetail,
+      description: "Total Sales Value ÷ Total Bills",
+    },
+    {
+      name: "Gross Profit %",
+      value: loading ? "…" : financialSummary?.gross_profit_percent == null
+        ? "—" : Number(financialSummary.gross_profit_percent).toFixed(2) + "%",
+      detail: grossProfitDetail,
+      description: "GP% ถ่วงน้ำหนักด้วยยอดขาย · ใช้ต้นทุนล่าสุด จึงเป็นประมาณการย้อนหลัง",
+      caution: Boolean(financialError || (financialSummary && (
+        financialSummary.missing_cost_lines > 0 || financialSummary.changed_after_bill_lines > 0
+      ))),
+    },
+  ];
 
   const exceptions = useMemo(
     () => evaluated
@@ -457,7 +592,7 @@ export default function KPIPage() {
                 KPI / LOTUS'S B2B
               </p>
               <h1 className="mt-1 text-xl font-extrabold sm:text-2xl">ตัวชี้วัดการปฏิบัติงาน</h1>
-              <p className="mt-1 text-xs text-[#6C877E]">ประเมินผลตามวันที่ลูกค้าเลือกจัดส่ง</p>
+              <p className="mt-1 text-xs text-[#6C877E]">On Times และ Stock ตามวันจัดส่ง · Financials ตามวันออกบิล</p>
             </div>
             <button
               type="button"
@@ -471,7 +606,7 @@ export default function KPIPage() {
           <div className="mt-3 flex flex-wrap items-end justify-between gap-3 border-t border-[#E6EFEB] pt-3">
             <div className="min-w-0">
               <label htmlFor="kpi-date" className="mb-1 block text-xs font-bold text-[#52786F]">
-                วันที่จัดส่ง
+                วันที่รายงาน
               </label>
               <input
                 id="kpi-date"
@@ -496,38 +631,83 @@ export default function KPIPage() {
           </div>
         )}
 
-        <section aria-label="สรุป KPI" className="mb-4">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className="text-base font-extrabold">ภาพรวม KPI</h2>
-            <span className="text-[11px] text-[#718D84]">ผ่านเกณฑ์ / รายการที่วัดได้</span>
+        <section aria-label="สรุป KPI แยกตามกลุ่ม" className="mb-5 space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-2 px-1">
+            <div>
+              <h2 className="text-base font-extrabold">ภาพรวม KPI</h2>
+              <p className="mt-0.5 text-[11px] text-[#718D84]">11 ตัวชี้วัด · แบ่งเป็น 3 กลุ่ม</p>
+            </div>
+            <p className="text-[11px] text-[#718D84]">On Times / Stock ตามวันจัดส่ง · Financials ตามวันออกบิล</p>
           </div>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-3">
-            {metrics.map((metric) => (
-              <article
-                key={metric.name}
-                className="flex min-w-0 flex-col rounded-2xl border border-[#D9EAE3] bg-white p-3 shadow-[0_2px_9px_rgba(18,92,74,0.04)] sm:p-4"
-              >
-                <div className="mb-2 h-1 w-8 rounded-full bg-[#02B0AF]" aria-hidden="true" />
-                <p className="min-h-9 text-xs font-extrabold leading-snug text-[#17453F] sm:text-sm">
-                  {metric.name}
-                </p>
-                <p className="mt-1 text-2xl font-black tabular-nums text-[#008F8D] sm:text-3xl">
-                  {loading ? "…" : formatPercent(metric.count, metric.total)}
-                </p>
-                <p className="mt-1 text-xs font-bold tabular-nums text-[#52786F]">
-                  {metric.count} / {metric.total} รายการ
-                </p>
-                <p className="mt-2 flex-1 text-[11px] leading-4 text-[#80988D]">
-                  {metric.description}
-                </p>
-                {metric.isExceptionRate && (
-                  <p className="mt-2 text-[10px] font-bold text-[#A66D23]">ค่ายิ่งต่ำยิ่งดี</p>
-                )}
-              </article>
-            ))}
-          </div>
-          <p className="mt-2 px-1 text-[11px] leading-4 text-[#718D84]">
-            — หมายถึงยังไม่มีรายการที่วัดผลได้ งานที่ยังไม่ถึงกำหนดจะไม่ถูกนับเป็นงานล่าช้า
+
+          <section aria-label="On Times KPIs" className="rounded-2xl border border-[#D9EAE3] bg-[#F0F8F5] p-3 sm:p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="rounded-lg bg-[#D6F4EE] px-2 py-1 text-[11px] font-extrabold text-[#007D79]">01</span>
+                <div>
+                  <h3 className="text-base font-extrabold text-[#17453F]">On Times</h3>
+                  <p className="text-[11px] text-[#718D84]">ความตรงเวลาของงานทั้ง 5 ขั้นตอน</p>
+                </div>
+              </div>
+              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#52786F]">5 KPIs · ค่ายิ่งสูงยิ่งดี</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+              {onTimeMetrics.map((metric) => (
+                <RateMetricCard key={metric.name} metric={metric} loading={loading} />
+              ))}
+            </div>
+          </section>
+
+          <section aria-label="Stock KPIs" className="rounded-2xl border border-[#D9EAE3] bg-[#F0F8F5] p-3 sm:p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="rounded-lg bg-[#D6F4EE] px-2 py-1 text-[11px] font-extrabold text-[#007D79]">02</span>
+                <div>
+                  <h3 className="text-base font-extrabold text-[#17453F]">Stock</h3>
+                  <p className="text-[11px] text-[#718D84]">สต็อกเพียงพอตามสั่ง และหยิบได้ครบตามที่ยืนยัน</p>
+                </div>
+              </div>
+              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#A66D23]">2 KPIs · ค่ายิ่งต่ำยิ่งดี</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              {stockMetrics.map((metric) => (
+                <RateMetricCard key={metric.name} metric={metric} loading={loading} />
+              ))}
+            </div>
+            <p className="mt-2 px-1 text-[11px] leading-4 text-[#718D84]">
+              Short Stock และ Short Pick ใช้ฐานคำสั่งซื้อที่วัดผลได้ชุดเดียวกัน
+            </p>
+          </section>
+
+          <section aria-label="Financial KPIs" className="rounded-2xl border border-[#D9EAE3] bg-[#F0F8F5] p-3 sm:p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="rounded-lg bg-[#D6F4EE] px-2 py-1 text-[11px] font-extrabold text-[#007D79]">03</span>
+                <div>
+                  <h3 className="text-base font-extrabold text-[#17453F]">Financials</h3>
+                  <p className="text-[11px] text-[#718D84]">ยอดขายและกำไรขั้นต้นตามวันที่ออกบิล (เวลาไทย)</p>
+                </div>
+              </div>
+              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#52786F]">4 KPIs · บิลที่ออกจริง</span>
+            </div>
+            {financialError && (
+              <p role="alert" className="mb-3 rounded-lg border border-[#FDE3B0] bg-[#FFF9E9] px-3 py-2 text-xs text-[#92540E]">
+                ไม่สามารถโหลดข้อมูล Financials: {financialError}
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+              {financeCards.map((card) => (
+                <FinanceMetricCard key={card.name} {...card} />
+              ))}
+            </div>
+            <p className="mt-2 px-1 text-[11px] leading-4 text-[#718D84]">
+              ยอดเงินมาจากยอดบิลสุดท้าย ไม่นับออร์เดอร์ยกเลิก และนับกลุ่ม /x เป็นบิลเดียว
+              · GP% ใช้ต้นทุนล่าสุดจาก Master Cost จึงเป็นประมาณการสำหรับวันย้อนหลัง
+            </p>
+          </section>
+
+          <p className="px-1 text-[11px] leading-4 text-[#718D84]">
+            — หมายถึงยังไม่มีรายการที่วัดผลได้ หรือมีข้อมูลต้นทุนไม่ครบ งานที่ยังไม่ถึงกำหนดจะไม่ถูกนับเป็นงานล่าช้า
           </p>
         </section>
 
