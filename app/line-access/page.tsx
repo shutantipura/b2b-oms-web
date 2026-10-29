@@ -2142,99 +2142,108 @@ export default function LineAccessPage() {
                     className="overflow-hidden rounded-2xl border border-[#D9EAE3] bg-white shadow-sm"
 
                   >
-                    <button
-                      type="button"
-                      aria-expanded={accountExpanded}
-                      aria-controls={`line-account-details-${user.lineUserRowId}`}
-                      onClick={() => setExpandedAccountCards((previous) => ({
-                        ...previous,
-                        [user.lineUserRowId]: !previous[user.lineUserRowId],
-                      }))}
-                      className="flex w-full items-center gap-2.5 px-3 py-3 text-left transition hover:bg-[#F5FBF9] sm:px-4"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-extrabold text-[#17453F] sm:text-base">
-                          {user.internalName ?? user.displayName ?? "ผู้ใช้ LINE ที่ไม่มีชื่อ"}
-                        </p>
-                        <p className="mt-0.5 truncate text-[11px] text-[#718D84]">
-                          LINE: {user.displayName ?? "—"} · ID …{user.lineUserId.slice(-8)}
-                        </p>
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {hasStaffAccess && (
-                            <span className="rounded-md bg-[#E4F7F3] px-1.5 py-0.5 text-[10px] font-bold text-[#007C75]">
-                              พนักงาน{user.staff?.accountType === "manager" ? " · Manager" : ""}
+                    {/* Compact header: access badges and account controls share a row. */}
+                    <div className="px-3 pt-2.5 sm:px-4">
+                      <button
+                        type="button"
+                        aria-expanded={accountExpanded}
+                        aria-controls={`line-account-details-${user.lineUserRowId}`}
+                        onClick={() => setExpandedAccountCards((previous) => ({
+                          ...previous,
+                          [user.lineUserRowId]: !previous[user.lineUserRowId],
+                        }))}
+                        className="flex w-full items-center gap-2.5 rounded-lg text-left transition hover:bg-[#F5FBF9]"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-extrabold text-[#17453F] sm:text-base">
+                            {user.internalName ?? user.displayName ?? "ผู้ใช้ LINE ที่ไม่มีชื่อ"}
+                          </p>
+                          <p className="mt-0.5 truncate text-[11px] text-[#718D84]">
+                            LINE: {user.displayName ?? "—"} · ID …{user.lineUserId.slice(-8)}
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-lg bg-[#EFF8F5] px-2.5 py-1.5 text-xs font-extrabold text-[#008F8D]">
+                          {accountExpanded ? "ซ่อน ▲" : "จัดการ ▼"}
+                        </span>
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 px-3 pb-2 pt-1.5 sm:px-4">
+                      <div className="flex flex-wrap gap-1">
+                        {hasStaffAccess && (
+                          <span className="rounded-md bg-[#E4F7F3] px-1.5 py-0.5 text-[10px] font-bold text-[#007C75]">
+                            พนักงาน{user.staff?.accountType === "manager" ? " · Manager" : ""}
+                          </span>
+                        )}
+                        {hasCustomerAccess && (
+                          <span className="rounded-md bg-[#FFF4D8] px-1.5 py-0.5 text-[10px] font-bold text-[#846019]">
+                            {user.allCustomersAccess ? "ลูกค้าทั้งหมด" : `ลูกค้า ${user.customerCodes.length} ร้าน`}
+                          </span>
+                        )}
+                        {!hasStaffAccess && !hasCustomerAccess && (
+                          <span className="rounded-md bg-[#F2F4F3] px-1.5 py-0.5 text-[10px] font-bold text-[#667A73]">
+                            ยังไม่มีสิทธิ์
+                          </span>
+                        )}
+                        {!user.isActive && (
+                          <span className="rounded-md bg-[#FEEEEE] px-1.5 py-0.5 text-[10px] font-bold text-[#AD4545]">
+                            นำออกแล้ว
+                          </span>
+                        )}
+                      </div>
+
+                      {accountExpanded && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {user.isActive ? (
+                            <span className="rounded-full bg-[#EAF7F3] px-2.5 py-1 text-xs font-semibold text-[#17766C]">
+                              บัญชี LINE ใช้งานอยู่
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">
+                              นำออกจากรายการแล้ว
                             </span>
                           )}
-                          {hasCustomerAccess && (
-                            <span className="rounded-md bg-[#FFF4D8] px-1.5 py-0.5 text-[10px] font-bold text-[#846019]">
-                              {user.allCustomersAccess ? "ลูกค้าทั้งหมด" : `ลูกค้า ${user.customerCodes.length} ร้าน`}
-                            </span>
-                          )}
-                          {!hasStaffAccess && !hasCustomerAccess && (
-                            <span className="rounded-md bg-[#F2F4F3] px-1.5 py-0.5 text-[10px] font-bold text-[#667A73]">ยังไม่มีสิทธิ์</span>
-                          )}
-                          {!user.isActive && (
-                            <span className="rounded-md bg-[#FEEEEE] px-1.5 py-0.5 text-[10px] font-bold text-[#AD4545]">นำออกแล้ว</span>
+                          {user.isActive ? (
+                            <button
+                              type="button"
+                              onClick={() => setLineUserActive(user, false)}
+                              disabled={statusBusy || !canRemove}
+                              title={
+                                canRemove
+                                  ? "นำบัญชี LINE ออกจากรายการใช้งาน"
+                                  : "ต้องยกเลิกสิทธิ์ลูกค้าและสิทธิ์พนักงานทั้งหมดก่อน"
+                              }
+                              className="rounded-lg border border-red-300 px-2.5 py-1 text-xs font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {statusBusy ? "กำลังนำออก..." : "นำบัญชีออก"}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setLineUserActive(user, true)}
+                              disabled={statusBusy}
+                              className="rounded-lg border border-green-300 px-2.5 py-1 text-xs font-semibold text-green-700 disabled:opacity-40"
+                            >
+                              {statusBusy ? "กำลังเปิดใช้งาน..." : "เปิดใช้งานอีกครั้ง"}
+                            </button>
                           )}
                         </div>
-                      </div>
-                      <span className="shrink-0 rounded-lg bg-[#EFF8F5] px-2.5 py-2 text-xs font-extrabold text-[#008F8D]">
-                        {accountExpanded ? "ซ่อน ▲" : "จัดการ ▼"}
-                      </span>
-                    </button>
+                      )}
+                    </div>
+
+                    {accountExpanded && user.isActive && !canRemove && (
+                      <p className="px-3 pb-1 text-right text-[11px] text-[#81958F] sm:px-4">
+                        ยกเลิกสิทธิ์ที่เชื่อมอยู่ก่อน จึงจะนำบัญชีออกได้
+                      </p>
+                    )}
 
                     {accountExpanded && (
-                    <div id={`line-account-details-${user.lineUserRowId}`}>
-                    {/* Account actions stay in the top-right; the identity is already in the card header. */}
-                    <div className="border-b border-[#E0EEE9] px-4 py-3">
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        {user.isActive ? (
-                          <span className="rounded-full bg-[#EAF7F3] px-3 py-1.5 text-xs font-semibold text-[#17766C]">
-                            บัญชี LINE ใช้งานอยู่
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600">
-                            นำออกจากรายการแล้ว
-                          </span>
-                        )}
-
-                        {user.isActive ? (
-                          <button
-                            type="button"
-                            onClick={() => setLineUserActive(user, false)}
-                            disabled={statusBusy || !canRemove}
-                            title={
-                              canRemove
-                                ? "นำบัญชี LINE ออกจากรายการใช้งาน"
-                                : "ต้องยกเลิกสิทธิ์ลูกค้าและสิทธิ์พนักงานทั้งหมดก่อน"
-                            }
-                            className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            {statusBusy ? "กำลังนำออก..." : "นำบัญชีออก"}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setLineUserActive(user, true)}
-                            disabled={statusBusy}
-                            className="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-semibold text-green-700 disabled:opacity-40"
-                          >
-                            {statusBusy ? "กำลังเปิดใช้งาน..." : "เปิดใช้งานอีกครั้ง"}
-                          </button>
-                        )}
-                      </div>
-
-                      {user.isActive && !canRemove && (
-                        <p className="mt-1.5 text-right text-[11px] text-[#81958F]">
-                          ยกเลิกสิทธิ์ที่เชื่อมอยู่ก่อน จึงจะนำบัญชีออกได้
-                        </p>
-                      )}
-
-                      <p className="mt-3 break-all text-xs text-[#81958F]">
-                        LINE ID: {user.lineUserId}
-                      </p>
-
-                      <div className="mt-2.5 max-w-xl">
+                      <div id={`line-account-details-${user.lineUserRowId}`}>
+                        <div className="border-b border-[#E0EEE9] px-4 pb-3 pt-1">
+                          <p className="mb-1.5 break-all text-[11px] text-[#81958F]">
+                            LINE ID: {user.lineUserId}
+                          </p>
+                      <div className="max-w-xl">
                         <label
                           htmlFor={`line-internal-name-${user.lineUserRowId}`}
                           className="mb-1 block text-base font-semibold"
