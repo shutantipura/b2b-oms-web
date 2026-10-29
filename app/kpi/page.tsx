@@ -15,6 +15,8 @@ type KPIOrder = {
   billing_completed_at?: string | null;
   delivery_on_time: boolean | null;
   short_pick: boolean | null;
+  stock_check_shortage: boolean | null;
+  short_stock: boolean | null;
   payment_on_time: boolean | null;
 };
 
@@ -51,6 +53,8 @@ type PeopleByOrder = Record<string, Partial<Record<KPIStage, InvolvedStaff[]>>>;
 type KPIIssue = {
   label: string;
   stage: KPIStage;
+  additionalStage?: KPIStage;
+  reason?: string;
 };
 
 const KPI_STAGES: KPIStage[] = [
@@ -150,6 +154,19 @@ function kpiExceptions(order: EvaluatedOrder): KPIIssue[] {
   if (order.pickOnTime === false) issues.push({ label: "Pick On Time", stage: "picking" });
   if (order.billOnTime === false) issues.push({ label: "Bill On Time", stage: "billing" });
   if (order.delivery_on_time === false) issues.push({ label: "Delivery On Time", stage: "delivery" });
+  if (order.short_stock === true) {
+    const fromStockCheck = order.stock_check_shortage === true;
+    const fromPicking = order.short_pick === true;
+    issues.push({
+      label: "Short Stock Rate",
+      stage: fromStockCheck ? "confirmation" : "picking",
+      additionalStage: fromStockCheck && fromPicking ? "picking" : undefined,
+      reason: [
+        ...(fromStockCheck ? ["เช็คสต็อกยืนยันไม่ครบตามที่สั่ง"] : []),
+        ...(fromPicking ? ["หยิบจริงไม่ครบตามที่ยืนยัน"] : []),
+      ].join(" · "),
+    });
+  }
   if (order.short_pick === true) issues.push({ label: "Short Pick Rate", stage: "picking" });
   if (order.payment_on_time === false) issues.push({ label: "Payment On Time", stage: "payment_verification" });
   return issues;
@@ -371,7 +388,11 @@ export default function KPIPage() {
     const picking = countTrue(evaluated.map((order) => order.pickOnTime));
     const billing = countTrue(evaluated.map((order) => order.billOnTime));
     const delivery = countTrue(evaluated.map((order) => order.delivery_on_time));
-    const shortPicks = countTrue(evaluated.map((order) => order.short_pick));
+    // Compare Short Stock and Short Pick on exactly the same eligible orders.
+    // Historical mixed-unit picks with missing piece counts remain N/A.
+    const comparable = evaluated.filter((order) => order.short_pick !== null && order.short_stock !== null);
+    const shortStocks = countTrue(comparable.map((order) => order.short_stock));
+    const shortPicks = countTrue(comparable.map((order) => order.short_pick));
     const payment = countTrue(evaluated.map((order) => order.payment_on_time));
 
     return [
@@ -396,8 +417,14 @@ export default function KPIPage() {
         ...delivery,
       },
       {
+        name: "Short Stock Rate",
+        description: "สัดส่วนคำสั่งซื้อที่ยืนยันสต็อกไม่ครบตามสั่ง หรือเกิด Short Pick",
+        ...shortStocks,
+        isExceptionRate: true,
+      },
+      {
         name: "Short Pick Rate",
-        description: "สัดส่วนคำสั่งซื้อที่จัดสินค้าไม่ครบ",
+        description: "สัดส่วนคำสั่งซื้อที่จัดสินค้าไม่ครบตามจำนวนที่ยืนยัน",
         ...shortPicks,
         isExceptionRate: true,
       },
@@ -536,13 +563,25 @@ export default function KPIPage() {
                       เลขที่ #{order.order_number} · ส่ง {order.delivery_slot ?? "ไม่ระบุรอบ"}
                     </p>
                     <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-                      {issues.map(({ label, stage }) => {
-                        const people = involvedByOrder[order.order_id]?.[stage] ?? [];
+                      {issues.map(({ label, stage, additionalStage, reason }) => {
+                        // A Short Stock failure may come from stock checking, picking, or both.
+                        const stages = additionalStage ? [stage, additionalStage] : [stage];
+                        const allPeople = stages.flatMap(
+                          (taskStage) => involvedByOrder[order.order_id]?.[taskStage] ?? []
+                        );
+                        const people = allPeople.filter(
+                          (person, index) => allPeople.findIndex((entry) => entry.id === person.id) === index
+                        );
                         return (
                           <div key={label} className="min-w-0 rounded-xl border border-[#FDE5CC] bg-[#FFFBF7] px-2.5 py-2">
                             <span className="inline-flex rounded-lg border border-[#FED7AA] bg-[#FFF7ED] px-2 py-1 text-[10px] font-bold text-[#C2410C]">
                               {label}
                             </span>
+                            {reason && (
+                              <p className="mt-1 text-[11px] font-bold leading-4 text-[#995C0A]">
+                                {reason}
+                              </p>
+                            )}
                             <p className="mt-1 break-words text-[11px] leading-4 text-[#52786F]">
                               <span className="font-extrabold">ผู้เกี่ยวข้อง: </span>
                               {people.length > 0 ? people.map((person, index) => (
