@@ -390,3 +390,10 @@ test("production audit: privileged RPCs no longer accessible to anonymous client
   assert.match(sql, /REVOKE ALL ON TABLE public\.favourites FROM anon/);
   assert.match(sql, /managers can update favourites/);
 });
+
+test("production audit: redundant indexes and customer-price RLS policies are cleaned safely", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/20261030123000_cleanup_duplicate_indexes.sql", import.meta.url), "utf8");
+  assert.match(sql, /DROP POLICY IF EXISTS "authenticated users can update customer prices"/);
+  assert.match(sql, /DROP INDEX IF EXISTS public\.favourites_customer_product_unique/);
+  assert.doesNotMatch(sql, /DROP INDEX IF EXISTS public\.products_sku_key/);
+});
