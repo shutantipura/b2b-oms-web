@@ -11,6 +11,7 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../../lib/supabase";
 import DeliverySchedule from "../../../../components/DeliverySchedule";
 import TaskFilePicker from "../../../../components/TaskFilePicker";
+import { prepareOrderPhoto } from "../../../../lib/orderPhotoUpload";
 
 
 
@@ -560,16 +561,17 @@ export default function DeliveryPage() {
     setUploading(true);
     setMessage(`กำลังอัปโหลดหลักฐานการจัดส่ง ${index + 1}...`);
     const fileType = index === 0 ? "delivery_proof" : "delivery_proof_2";
-    const extension = file.name.split(".").pop() || "jpg";
+    const readyFile = await prepareOrderPhoto(file, fileType);
+    const extension = readyFile.name.split(".").pop() || "jpg";
     const storagePath =
       `orders/${orderNumber}/${fileType}/${crypto.randomUUID()}.${extension}`;
 
     try {
       const { error: uploadError } = await supabase.storage
         .from("order-files")
-        .upload(storagePath, file, {
+        .upload(storagePath, readyFile, {
           upsert: false,
-          contentType: file.type || "image/jpeg",
+          contentType: readyFile.type || "image/jpeg",
         });
       if (uploadError) throw new Error("อัปโหลดรูปไม่สำเร็จ: " + uploadError.message);
 
@@ -580,7 +582,7 @@ export default function DeliveryPage() {
           p_file_type: fileType,
           p_storage_path: storagePath,
           p_original_filename: file.name,
-          p_mime_type: file.type || "image/jpeg",
+          p_mime_type: readyFile.type || "image/jpeg",
         }
       );
       if (registerError) throw new Error("บันทึกรูปไม่สำเร็จ: " + registerError.message);

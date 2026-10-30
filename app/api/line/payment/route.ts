@@ -6,6 +6,7 @@ import {
 import {
   createClient,
 } from "@supabase/supabase-js";
+import sharp from "sharp";
 
 type LineVerifyResponse = {
   sub?: string;
@@ -750,26 +751,33 @@ async function submitPayment(
     );
   }
 
-  const originalName =
-    file.name ||
-    "payment-slip";
+  const originalName = file.name || "payment-slip";
+  let uploadName = originalName;
+  let uploadMimeType = mimeType;
+  let uploadBytes = Buffer.from(await file.arrayBuffer());
 
-  const extensionMatch =
-    originalName.match(
-      /\.([A-Za-z0-9]+)$/
-    );
+  if (mimeType.startsWith("image/")) {
+    try {
+      const prepared = await sharp(uploadBytes, { failOn: "error", limitInputPixels: 95_000_000 })
+        .rotate()
+        .resize({ width: 2400, height: 2400, fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 88, mozjpeg: true })
+        .toBuffer();
+      const verified = await sharp(prepared).metadata();
+      if (verified.format === "jpeg" && prepared.length < uploadBytes.length * 0.98) {
+        uploadBytes = prepared;
+        uploadMimeType = "image/jpeg";
+        uploadName = originalName.replace(/\.[^.]+$/, "") + ".jpg";
+      }
+    } catch (error) {
+      // A legacy image decoder must not prevent payment submission.
+      console.warn("Payment slip image could not be optimized", error);
+    }
+  }
 
-  const extension =
-    extensionMatch?.[1]
-      ?.toLowerCase() ??
-    "jpg";
-
-  const storagePath =
-    `orders/${orderNumber}/payment_slip/` +
-    `${crypto.randomUUID()}.${extension}`;
-
-  const bytes =
-    await file.arrayBuffer();
+  const extensionMatch = uploadName.match(/\.([A-Za-z0-9]+)$/);
+  const extension = extensionMatch?.[1]?.toLowerCase() ?? (uploadMimeType === "application/pdf" ? "pdf" : "jpg");
+  const storagePath = `orders/${orderNumber}/payment_slip/${crypto.randomUUID()}.${extension}`;
 
   const {
     error: uploadError,
@@ -778,10 +786,10 @@ async function submitPayment(
       .from("order-files")
       .upload(
         storagePath,
-        bytes,
+        uploadBytes,
         {
           contentType:
-            mimeType,
+            uploadMimeType,
 
           upsert:
             false,
@@ -825,7 +833,7 @@ async function submitPayment(
           originalName,
 
         p_mime_type:
-          mimeType,
+          uploadMimeType,
       }
     );
 

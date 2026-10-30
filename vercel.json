@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/order-photo-retention",
+      "schedule": "0 19 * * *"
+    }
+  ]
+}

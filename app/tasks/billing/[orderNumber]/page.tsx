@@ -11,6 +11,7 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../../lib/supabase";
 import DeliverySchedule from "../../../../components/DeliverySchedule";
 import TaskFilePicker from "../../../../components/TaskFilePicker";
+import { prepareOrderPhoto } from "../../../../lib/orderPhotoUpload";
 
 
 
@@ -516,9 +517,11 @@ export default function BillingPage() {
 
   ) {
 
+    const readyFile = await prepareOrderPhoto(file, fileType);
+
     const extension =
 
-      file.name.split(".").pop() || "jpg";
+      readyFile.name.split(".").pop() || "jpg";
 
 
 
@@ -540,7 +543,7 @@ export default function BillingPage() {
 
           storagePath,
 
-          file,
+          readyFile,
 
           {
 
@@ -548,7 +551,7 @@ export default function BillingPage() {
 
             contentType:
 
-              file.type ||
+              readyFile.type ||
 
               "image/jpeg",
 
@@ -592,7 +595,7 @@ export default function BillingPage() {
 
           p_mime_type:
 
-            file.type ||
+            readyFile.type ||
 
             "image/jpeg",
 

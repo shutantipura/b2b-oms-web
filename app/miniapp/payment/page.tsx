@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
 import { lineApiFetch } from "../../../lib/lineSession";
+import { prepareOrderPhoto } from "../../../lib/orderPhotoUpload";
 
 type DisplayFile = {
   fileType: string;
@@ -225,7 +226,7 @@ export default function MiniAppPaymentPage() {
       formData.append("idToken", idToken);
       formData.append("customerCode", customerCode);
       formData.append("orderNumber", String(data.order.orderNumber));
-      formData.append("file", slipFile);
+      formData.append("file", await prepareOrderPhoto(slipFile, "payment_slip"));
 
       const response = await lineApiFetch("/api/line/payment", {
         method: "POST",

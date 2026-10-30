@@ -427,3 +427,44 @@ test("financial KPIs include only fully completed bills, including all /x member
   assert.match(page, /4 KPIs · Completed เท่านั้น/);
   assert.match(page, /งานค้างชำระ\/รอจัดส่งไม่นับ/);
 });
+
+test("order photos are compressed before uploading without changing staff task flow", () => {
+  const helper = readFileSync(new URL("../lib/orderPhotoUpload.ts", import.meta.url), "utf8");
+  assert.match(helper, /prepareOrderPhoto\(file: File/);
+  assert.match(helper, /!file\.type\.startsWith\("image\/"\)/);
+  assert.match(helper, /optimized\.size >= file\.size \* 0\.98/);
+  assert.match(helper, /kind === "payment_qr"/);
+  for (const filename of [
+    "../app/tasks/picking/[orderNumber]/page.tsx",
+    "../app/tasks/delivery/[orderNumber]/page.tsx",
+    "../app/tasks/billing/[orderNumber]/page.tsx",
+    "../app/orders/[orderNumber]/payment/page.tsx",
+    "../app/miniapp/payment/page.tsx"
+  ]) {
+    const src = readFileSync(new URL(filename, import.meta.url), "utf8");
+    assert.match(src, /prepareOrderPhoto\(/, filename);
+  }
+  const paymentApi = readFileSync(new URL("../app/api/line/payment/route.ts", import.meta.url), "utf8");
+  assert.match(paymentApi, /import sharp from "sharp"/);
+  assert.match(paymentApi, /uploadBytes/);
+  assert.match(paymentApi, /uploadMimeType/);
+});
+
+test("14-day image expiry and 7-day missing-timestamp fallback never delete orders", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/20261030170000_immediate_photo_compression.sql", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../app/api/cron/order-photo-retention/route.ts", import.meta.url), "utf8");
+  const cron = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
+  assert.deepEqual(cron.crons, [{path:"/api/cron/order-photo-retention",schedule:"0 19 * * *"}]);
+  assert.match(sql, /p_action='compress'/);
+  assert.match(sql, /and not \(g\.done/);
+  assert.match(sql, /p_action='delete' and g\.done/);
+  assert.match(sql, /g\.end_time<=now\(\)-interval '14 days'/);
+  assert.match(sql, /g\.end_time<=now\(\)-interval '7 days'/);
+  assert.match(route, /process\.env\.CRON_SECRET/);
+  assert.match(route, /timingSafeEqual/);
+  assert.match(route, /order_photo_retention_candidates/);
+  assert.match(route, /storage\.remove/);
+  assert.match(route, /\.from\("order_files"\)\.delete\(\)/);
+  assert.doesNotMatch(route, /\.from\("orders"\)\.delete\(/);
+  assert.match(route, /payment_qr"/);
+});

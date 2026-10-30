@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../../lib/supabase";
 import DeliverySchedule from "../../../../components/DeliverySchedule";
 import TaskFilePicker from "../../../../components/TaskFilePicker";
+import { prepareOrderPhoto } from "../../../../lib/orderPhotoUpload";
 
 type OrderDetails = {
   id: string;
@@ -295,8 +296,10 @@ export default function StaffPaymentPage() {
       "กำลังอัปโหลดสลิปการชำระเงิน..."
     );
 
+    const readyFile = await prepareOrderPhoto(slipFile, "payment_slip");
+
     const extension =
-      slipFile.name
+      readyFile.name
         .split(".")
         .pop() || "jpg";
 
@@ -310,11 +313,11 @@ export default function StaffPaymentPage() {
       .from("order-files")
       .upload(
         storagePath,
-        slipFile,
+        readyFile,
         {
           upsert: false,
           contentType:
-            slipFile.type ||
+            readyFile.type ||
             "image/jpeg",
         }
       );
@@ -344,7 +347,7 @@ export default function StaffPaymentPage() {
           slipFile.name,
 
         p_mime_type:
-          slipFile.type ||
+          readyFile.type ||
           "image/jpeg",
       }
     );
