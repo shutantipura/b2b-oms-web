@@ -84,6 +84,22 @@ type Metric = {
   isExceptionRate?: boolean;
 };
 
+type CancelledKPIOrder = {
+  order_id: string;
+  order_number: number;
+  customer_name: string | null;
+  delivery_slot: string | null;
+  cancellation_reason: string | null;
+  cancelled_by_staff_id: string | null;
+};
+
+type CancellationSummary = {
+  delivery_date: string;
+  total_orders: number;
+  cancelled_count: number;
+  cancelled_orders: CancelledKPIOrder[];
+};
+
 type FinancialSummary = {
   bill_date: string;
   total_sales_value: number;
@@ -250,6 +266,9 @@ export default function KPIPage() {
   const [orders, setOrders] = useState<KPIOrder[]>([]);
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
   const [financialError, setFinancialError] = useState<string | null>(null);
+  const [cancellationSummary, setCancellationSummary] = useState<CancellationSummary | null>(null);
+  const [cancellationError, setCancellationError] = useState<string | null>(null);
+  const [staffById, setStaffById] = useState<Record<string, InvolvedStaff>>({});
   const [completionTimes, setCompletionTimes] = useState<Record<string, CompletionTimes>>({});
   const [involvedByOrder, setInvolvedByOrder] = useState<PeopleByOrder>({});
   const [staffUnavailable, setStaffUnavailable] = useState(false);
@@ -264,21 +283,29 @@ export default function KPIPage() {
     setMessage("");
 
     // Operational KPIs use delivery date; Financials use actual Bangkok bill date.
-    const [operationalResult, financialResult] = await Promise.all([
+    const [operationalResult, financialResult, cancellationResult] = await Promise.all([
       supabase.rpc("get_operational_kpi_orders", { p_delivery_date: date }),
       supabase.rpc("get_financial_kpi_summary", { p_bill_date: date }),
+      supabase.rpc("get_cancellation_kpi_summary", { p_delivery_date: date }),
     ]);
     if (requestId !== requestIdRef.current) return;
 
     const { data, error } = operationalResult;
     setFinancialSummary(financialResult.error ? null : financialResult.data as FinancialSummary);
     setFinancialError(financialResult.error?.message ?? null);
+    const cancellationData = cancellationResult.error ? null : cancellationResult.data as CancellationSummary | null;
+    setCancellationSummary(cancellationData ? {
+      ...cancellationData,
+      cancelled_orders: Array.isArray(cancellationData.cancelled_orders) ? cancellationData.cancelled_orders : [],
+    } : null);
+    setCancellationError(cancellationResult.error?.message ?? null);
 
     if (error) {
       setMessage("ไม่สามารถโหลดข้อมูล KPI ได้: " + error.message);
       setOrders([]);
       setCompletionTimes({});
       setInvolvedByOrder({});
+      setStaffById({});
       setStaffUnavailable(false);
       setLoading(false);
       return;
@@ -356,6 +383,11 @@ export default function KPIPage() {
       }
     }
 
+    // Include cancellation actors recorded in order_history even if they never
+    // claimed an operational task. An actor means who canceled, not who caused it.
+    for (const canceled of cancellationData?.cancelled_orders ?? []) {
+      if (canceled.cancelled_by_staff_id) allStaffIds.add(canceled.cancelled_by_staff_id);
+    }
     const staffIds = Array.from(allStaffIds);
     const staffGroups = Array.from(
       { length: Math.ceil(staffIds.length / 100) },
@@ -401,6 +433,13 @@ export default function KPIPage() {
     setOrders(loaded);
     setCompletionTimes(completions);
     setInvolvedByOrder(involved);
+    setStaffById(Object.fromEntries(Array.from(staffMap.values()).map((staff) => [
+      staff.id, {
+        id: staff.id,
+        name: staff.staff_name?.trim() || "ไม่พบชื่อพนักงาน",
+        isManager: staff.account_type === "manager",
+      },
+    ])));
     setStaffUnavailable(participantUnavailable);
     const warnings: string[] = [];
     if (historyUnavailable) {
@@ -521,11 +560,20 @@ export default function KPIPage() {
         ...shortPicks,
         isExceptionRate: true,
       },
+      {
+        group: "stock",
+        name: "Cancelled Orders Rate",
+        description: "สัดส่วนคำสั่งซื้อที่ถูกยกเลิก จากคำสั่งซื้อทั้งหมดตามวันจัดส่ง · กลุ่ม /x นับหนึ่งครั้ง",
+        count: cancellationSummary?.cancelled_count ?? 0,
+        total: cancellationSummary?.total_orders ?? 0,
+        isExceptionRate: true,
+      },
     ];
-  }, [evaluated]);
+  }, [evaluated, cancellationSummary]);
 
   const onTimeMetrics = metrics.filter((metric) => metric.group === "on_times");
   const stockMetrics = metrics.filter((metric) => metric.group === "stock");
+  const cancelledOrders = cancellationSummary?.cancelled_orders ?? [];
   const billCount = financialSummary?.total_bills ?? 0;
   const numberOfBills = billCount.toLocaleString("th-TH");
   const financeDetail = financialSummary
@@ -578,6 +626,7 @@ export default function KPIPage() {
       .sort((a, b) => a.order.order_number - b.order.order_number),
     [evaluated]
   );
+  const totalFailedOrders = exceptions.length + cancelledOrders.length;
 
   return (
     <main className="min-h-screen bg-[#F5F9F7] px-3 py-4 text-[#173E31] sm:px-6 sm:py-6">
@@ -592,7 +641,7 @@ export default function KPIPage() {
                 KPI / LOTUS'S B2B
               </p>
               <h1 className="mt-1 text-xl font-extrabold sm:text-2xl">ตัวชี้วัดการปฏิบัติงาน</h1>
-              <p className="mt-1 text-xs text-[#6C877E]">On Times และ Stock ตามวันจัดส่ง · Financials ตามวันออกบิล</p>
+              <p className="mt-1 text-xs text-[#6C877E]">Operational Timeliness และ Order Fulfilment ตามวันจัดส่ง · Sales &amp; Profitability ตามวันออกบิล</p>
             </div>
             <button
               type="button"
@@ -619,7 +668,7 @@ export default function KPIPage() {
             <div className="text-right">
               <p className="text-xs text-[#6C877E]">{prettyDate(selectedDate)}</p>
               <p className="text-sm font-extrabold text-[#008F8D]">
-                {evaluated.length.toLocaleString("th-TH")} คำสั่งซื้อ
+                {(cancellationSummary?.total_orders ?? evaluated.length).toLocaleString("th-TH")} คำสั่งซื้อ
               </p>
             </div>
           </div>
@@ -635,17 +684,17 @@ export default function KPIPage() {
           <div className="flex flex-wrap items-end justify-between gap-2 px-1">
             <div>
               <h2 className="text-base font-extrabold">ภาพรวม KPI</h2>
-              <p className="mt-0.5 text-[11px] text-[#718D84]">11 ตัวชี้วัด · แบ่งเป็น 3 กลุ่ม</p>
+              <p className="mt-0.5 text-[11px] text-[#718D84]">12 ตัวชี้วัด · แบ่งเป็น 3 กลุ่ม</p>
             </div>
-            <p className="text-[11px] text-[#718D84]">On Times / Stock ตามวันจัดส่ง · Financials ตามวันออกบิล</p>
+            <p className="text-[11px] text-[#718D84]">Operational Timeliness / Order Fulfilment ตามวันจัดส่ง · Sales &amp; Profitability ตามวันออกบิล</p>
           </div>
 
-          <section aria-label="On Times KPIs" className="rounded-2xl border border-[#D9EAE3] bg-[#F0F8F5] p-3 sm:p-4">
+          <section aria-label="Operational Timeliness KPIs" className="rounded-2xl border border-[#D9EAE3] bg-[#F0F8F5] p-3 sm:p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="rounded-lg bg-[#D6F4EE] px-2 py-1 text-[11px] font-extrabold text-[#007D79]">01</span>
                 <div>
-                  <h3 className="text-base font-extrabold text-[#17453F]">On Times</h3>
+                  <h3 className="text-base font-extrabold text-[#17453F]">Operational Timeliness</h3>
                   <p className="text-[11px] text-[#718D84]">ความตรงเวลาของงานทั้ง 5 ขั้นตอน</p>
                 </div>
               </div>
@@ -658,33 +707,40 @@ export default function KPIPage() {
             </div>
           </section>
 
-          <section aria-label="Stock KPIs" className="rounded-2xl border border-[#D9EAE3] bg-[#F0F8F5] p-3 sm:p-4">
+          <section aria-label="Order Fulfilment KPIs" className="rounded-2xl border border-[#D9EAE3] bg-[#F0F8F5] p-3 sm:p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="rounded-lg bg-[#D6F4EE] px-2 py-1 text-[11px] font-extrabold text-[#007D79]">02</span>
                 <div>
-                  <h3 className="text-base font-extrabold text-[#17453F]">Stock</h3>
-                  <p className="text-[11px] text-[#718D84]">สต็อกเพียงพอตามสั่ง และหยิบได้ครบตามที่ยืนยัน</p>
+                  <h3 className="text-base font-extrabold text-[#17453F]">Order Fulfilment</h3>
+                  <p className="text-[11px] text-[#718D84]">สต็อกพร้อมขาย หยิบได้ครบ และลดการยกเลิกคำสั่งซื้อ</p>
                 </div>
               </div>
-              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#A66D23]">2 KPIs · ค่ายิ่งต่ำยิ่งดี</span>
+              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#A66D23]">3 KPIs · ค่ายิ่งต่ำยิ่งดี</span>
             </div>
-            <div className="grid grid-cols-2 gap-2.5">
+            {cancellationError && (
+              <p role="alert" className="mb-3 rounded-lg border border-[#FDE3B0] bg-[#FFF9E9] px-3 py-2 text-xs text-[#92540E]">
+                ไม่สามารถโหลด Cancelled Orders Rate: {cancellationError}
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
               {stockMetrics.map((metric) => (
-                <RateMetricCard key={metric.name} metric={metric} loading={loading} />
+                <div key={metric.name} className={metric.name === "Cancelled Orders Rate" ? "col-span-2 sm:col-span-1" : "min-w-0"}>
+                  <RateMetricCard metric={metric} loading={loading} />
+                </div>
               ))}
             </div>
             <p className="mt-2 px-1 text-[11px] leading-4 text-[#718D84]">
-              Short Stock และ Short Pick ใช้ฐานคำสั่งซื้อที่วัดผลได้ชุดเดียวกัน
+              Short Stock และ Short Pick ใช้ฐานคำสั่งซื้อที่วัดผลได้ชุดเดียวกัน · Cancelled Orders ใช้คำสั่งซื้อทั้งหมดตามวันจัดส่ง
             </p>
           </section>
 
-          <section aria-label="Financial KPIs" className="rounded-2xl border border-[#D9EAE3] bg-[#F0F8F5] p-3 sm:p-4">
+          <section aria-label="Sales and Profitability KPIs" className="rounded-2xl border border-[#D9EAE3] bg-[#F0F8F5] p-3 sm:p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="rounded-lg bg-[#D6F4EE] px-2 py-1 text-[11px] font-extrabold text-[#007D79]">03</span>
                 <div>
-                  <h3 className="text-base font-extrabold text-[#17453F]">Financials</h3>
+                  <h3 className="text-base font-extrabold text-[#17453F]">Sales &amp; Profitability</h3>
                   <p className="text-[11px] text-[#718D84]">ยอดขายและกำไรขั้นต้นตามวันที่ออกบิล (เวลาไทย)</p>
                 </div>
               </div>
@@ -692,7 +748,7 @@ export default function KPIPage() {
             </div>
             {financialError && (
               <p role="alert" className="mb-3 rounded-lg border border-[#FDE3B0] bg-[#FFF9E9] px-3 py-2 text-xs text-[#92540E]">
-                ไม่สามารถโหลดข้อมูล Financials: {financialError}
+                ไม่สามารถโหลดข้อมูล Sales &amp; Profitability: {financialError}
               </p>
             )}
             <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
@@ -720,13 +776,13 @@ export default function KPIPage() {
               </p>
             </div>
             <span className="shrink-0 rounded-lg bg-[#FFF1E8] px-2.5 py-1 text-xs font-extrabold text-[#C2410C]">
-              {exceptions.length} รายการ
+              {totalFailedOrders} รายการ
             </span>
           </div>
 
           {loading ? (
             <p className="p-5 text-sm text-[#718D84]">กำลังโหลดข้อมูล KPI...</p>
-          ) : exceptions.length === 0 ? (
+          ) : totalFailedOrders === 0 ? (
             <div className="px-4 py-8 text-center">
               <p className="text-sm font-extrabold text-[#008F8D]">ไม่พบคำสั่งซื้อที่ไม่ผ่าน KPI</p>
               <p className="mt-1 text-xs text-[#80988D]">สำหรับวันที่จัดส่งที่เลือก</p>
@@ -784,6 +840,41 @@ export default function KPIPage() {
                   </Link>
                 </div>
               ))}
+              {cancelledOrders.map((order) => {
+                const actor = order.cancelled_by_staff_id
+                  ? staffById[order.cancelled_by_staff_id] : null;
+                return (
+                  <div key={"cancel-" + order.order_id} className="flex flex-wrap items-center justify-between gap-3 bg-[#FFFBF7] px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-extrabold text-[#17453F]">
+                        {order.customer_name ?? "ไม่ทราบชื่อลูกค้า"}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-[#8AA097]">
+                        เลขที่ #{order.order_number} · ส่ง {order.delivery_slot ?? "ไม่ระบุรอบ"}
+                      </p>
+                      <div className="mt-2 rounded-xl border border-[#FDE5CC] bg-white px-2.5 py-2">
+                        <span className="inline-flex rounded-lg border border-[#FED7AA] bg-[#FFF7ED] px-2 py-1 text-[10px] font-bold text-[#C2410C]">
+                          Cancelled Orders Rate
+                        </span>
+                        <p className="mt-1 break-words text-[11px] leading-4 text-[#995C0A]">
+                          <span className="font-extrabold">เหตุผล: </span>{order.cancellation_reason?.trim() || "ไม่ได้ระบุ"}
+                        </p>
+                        <p className="mt-1 break-words text-[11px] leading-4 text-[#52786F]">
+                          <span className="font-extrabold">ผู้ดำเนินการยกเลิก: </span>
+                          {actor ? (<>{actor.name}{actor.isManager && " (Manager)"}</>)
+                            : staffUnavailable ? "ข้อมูลรายชื่อไม่ครบ" : "ไม่พบผู้ดำเนินการ"}
+                        </p>
+                      </div>
+                    </div>
+                    <Link
+                      href={"/orders/" + order.order_number}
+                      className="shrink-0 rounded-xl border border-[#BBE1D9] bg-[#EAF8F5] px-3 py-2 text-xs font-extrabold text-[#008F8D]"
+                    >
+                      ดูรายละเอียด →
+                    </Link>
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
