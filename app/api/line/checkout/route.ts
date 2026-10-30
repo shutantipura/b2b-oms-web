@@ -53,6 +53,10 @@ type CustomerRow = {
   delivery_address:
     | string
     | null;
+  delivery_map_url: string | null;
+  delivery_map_url_2: string | null;
+  delivery_location_1_name: string | null;
+  delivery_location_2_name: string | null;
   is_active: boolean;
 };
 
@@ -262,6 +266,10 @@ async function verifyLineAndCustomer(
           customer_code,
           customer_name,
           delivery_address,
+          delivery_map_url,
+          delivery_map_url_2,
+          delivery_location_1_name,
+          delivery_location_2_name,
           is_active
         )
       `)
@@ -714,7 +722,7 @@ function extractOrderNumber(
 
 // This is only a preview. The database RPC repeats all checks
 // while locking the primary order so billing cannot start mid-merge.
-async function findMergeCandidates(supabase: any, customerId: string, deliveryDate: string) {
+async function findMergeCandidates(supabase: any, customerId: string, deliveryDate: string, deliveryAddress: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate)) return [];
 
   const { data: orders, error: orderError } = await supabase
@@ -747,7 +755,7 @@ async function findMergeCandidates(supabase: any, customerId: string, deliveryDa
     ...(fileResult.data ?? []).map((file: { order_id: string }) => file.order_id),
   ]);
 
-  return roots.filter((order: { id: string }) => !blocked.has(order.id)).map(
+  return roots.filter((order: { id: string; delivery_address: string }) => !blocked.has(order.id) && order.delivery_address === deliveryAddress).map(
     (order: { order_number: number; delivery_date: string; delivery_slot: string; status: string; delivery_address: string }) => ({
       orderNumber: order.order_number,
       deliveryDate: order.delivery_date,
@@ -913,9 +921,14 @@ export async function POST(
           customerName:
             customer.customer_name,
 
-          deliveryAddress:
-            customer.delivery_address ??
-            "",
+          deliveryAddress: customer.delivery_map_url ?? customer.delivery_address ?? "",
+          deliveryLocations: [
+            { label: customer.delivery_location_1_name?.trim() || "จุดส่ง 1",
+              url: customer.delivery_map_url ?? customer.delivery_address ?? "" },
+            ...(customer.delivery_map_url_2
+              ? [{ label: customer.delivery_location_2_name?.trim() || "จุดส่ง 2",
+                   url: customer.delivery_map_url_2 }] : []),
+          ].filter(location => location.url),
         },
 
         items,
@@ -933,7 +946,12 @@ export async function POST(
       const date = typeof body.deliveryDate === "string" ? body.deliveryDate : "";
       // Pickup is a separate flow: never offer a rider-delivery order as a merge candidate.
       if (body.fulfillmentMethod === "pickup") return NextResponse.json({ mergeCandidates: [] });
-      const mergeCandidates = await findMergeCandidates(supabase, customer.id, date);
+      const chosenAddress = typeof body.deliveryAddress === "string" ? body.deliveryAddress.trim() : "";
+      const allowedAddresses = [customer.delivery_map_url ?? customer.delivery_address, customer.delivery_map_url_2]
+        .filter((url): url is string => Boolean(url));
+      if (!allowedAddresses.includes(chosenAddress))
+        return NextResponse.json({ error: "กรุณาเลือกตำแหน่งจัดส่งที่บันทึกไว้" }, { status: 400 });
+      const mergeCandidates = await findMergeCandidates(supabase, customer.id, date, chosenAddress);
       return NextResponse.json({ mergeCandidates });
     }
 
@@ -991,6 +1009,16 @@ export async function POST(
     }
 
     // -------------------------------------------------
+    // Validate the selected map against this customer's saved locations,
+    // rather than accepting an arbitrary address supplied by the browser.
+    if (fulfillmentMethod === "delivery") {
+      const allowedAddresses = [customer.delivery_map_url ?? customer.delivery_address, customer.delivery_map_url_2]
+        .filter((url): url is string => Boolean(url));
+      if (!allowedAddresses.includes(deliveryAddress)) {
+        return NextResponse.json({ error: "ตำแหน่งจัดส่งไม่ถูกต้อง กรุณาเลือกใหม่" }, { status: 400 });
+      }
+    }
+
     // DELIVERY DATE + SLOT
     //
     // This is checked again SERVER-SIDE.

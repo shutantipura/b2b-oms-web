@@ -226,3 +226,26 @@ test("historical customer order lines use actual picked quantities and saved uni
   assert.match(page, />ยืนยัน<\/p>/);
   assert.match(page, />หยิบจริง<\/p>/);
 });
+
+test("customer delivery locations are saved, selectable, and validated during checkout", () => {
+  const edit = readFileSync(new URL("../app/customers/[customerCode]/page.tsx", import.meta.url), "utf8");
+  const create = readFileSync(new URL("../app/customers/new/page.tsx", import.meta.url), "utf8");
+  const checkout = readFileSync(new URL("../app/miniapp/checkout/page.tsx", import.meta.url), "utf8");
+  const api = readFileSync(new URL("../app/api/line/checkout/route.ts", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../supabase/migrations/20261030100000_customer_dual_delivery_locations.sql", import.meta.url), "utf8");
+  for (const page of [edit, create]) {
+    assert.match(page, /delivery_map_url_2:/);
+    assert.match(page, /delivery_location_1_name:/);
+    assert.match(page, /delivery_location_2_name:/);
+  }
+  assert.match(checkout, /deliveryLocations\?\.\[0\]\?\.url/);
+  assert.match(checkout, /aria-pressed=\{deliveryAddress === location\.url\}/);
+  assert.match(checkout, /deliveryAddress,\s*cart,/);
+  assert.match(api, /allowedAddresses\.includes\(chosenAddress\)/);
+  assert.match(api, /allowedAddresses\.includes\(deliveryAddress\)/);
+  assert.match(api, /order\.delivery_address === deliveryAddress/);
+  assert.match(migration, /v_root\.delivery_address IS DISTINCT FROM p_delivery_address/);
+  // The old rider override stays available for an order already in delivery.
+  const rider = readFileSync(new URL("../app/tasks/delivery/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  assert.match(rider, /update_my_delivery_map/);
+});

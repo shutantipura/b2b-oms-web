@@ -11,6 +11,7 @@ type Customer = {
   customerCode: string;
   customerName: string;
   deliveryAddress: string;
+  deliveryLocations?: { label: string; url: string }[];
 };
 
 type CheckoutItem = {
@@ -233,7 +234,9 @@ export default function MiniAppCheckoutPage() {
 
         const options = data.deliveryOptions ?? [];
         setDeliveryOptions(options);
-        setDeliveryAddress(data.customer.deliveryAddress ?? "");
+        const firstLocation = data.customer.deliveryLocations?.[0]?.url
+          ?? data.customer.deliveryAddress ?? "";
+        setDeliveryAddress(firstLocation);
         if (options[0]) {
           setDeliveryDate(options[0].date);
           setDeliverySlot(options[0].slots[0]?.value ?? "");
@@ -262,7 +265,7 @@ export default function MiniAppCheckoutPage() {
   // Candidates may become ineligible after this check; the submit RPC
   // always rechecks inside the same transaction as the merge.
   useEffect(() => {
-    if (!idToken || !customer || !deliveryDate || fulfillmentMethod === "pickup") {
+    if (!idToken || !customer || !deliveryDate || !deliveryAddress || fulfillmentMethod === "pickup") {
       setMergeCandidates([]);
       setMergeIntoOrderNumber(null);
       setMergeDecisionMade(false);
@@ -289,6 +292,7 @@ export default function MiniAppCheckoutPage() {
             idToken,
             customerCode: customer.customerCode,
             deliveryDate,
+            deliveryAddress,
             cart,
             pieceProductIds,
           }),
@@ -306,15 +310,15 @@ export default function MiniAppCheckoutPage() {
     })();
 
     return () => controller.abort();
-  }, [idToken, customer, deliveryDate, cart, pieceProductIds, mergeRefreshTick, fulfillmentMethod]);
+  }, [idToken, customer, deliveryDate, deliveryAddress, cart, pieceProductIds, mergeRefreshTick, fulfillmentMethod]);
 
   // Only offer the same primary delivery slot when that slot is still
   // selectable because its start time has not passed.
   const selectableMergeCandidates = useMemo(
     () => mergeCandidates.filter((candidate) =>
       fulfillmentMethod === "delivery" &&
-      currentSlots.some((slot) => slot.value === candidate.deliverySlot)),
-    [mergeCandidates, currentSlots, fulfillmentMethod]
+      candidate.deliveryAddress === deliveryAddress && currentSlots.some((slot) => slot.value === candidate.deliverySlot)),
+    [mergeCandidates, currentSlots, fulfillmentMethod, deliveryAddress]
   );
 
   const hasPieceOrders = items.some(item => item.isPiece);
@@ -360,7 +364,8 @@ export default function MiniAppCheckoutPage() {
       setMessage(fulfillmentMethod === "pickup" ? "กรุณาเลือกช่วงเวลารับสินค้า" : "กรุณาเลือกช่วงเวลาจัดส่ง");
       return;
     }
-    if (fulfillmentMethod === "delivery" && !isWebUrl(deliveryAddress.trim())) {
+    if (fulfillmentMethod === "delivery" && (!isWebUrl(deliveryAddress.trim()) ||
+      !(customer.deliveryLocations ?? [{ label: "จุดส่ง 1", url: customer.deliveryAddress }]).some(location => location.url === deliveryAddress))) {
       setMessage("ยังไม่ได้ตั้งค่าลิงก์ Google Maps สำหรับลูกค้ารายนี้ กรุณาติดต่อผู้จัดการ");
       return;
     }
@@ -679,9 +684,21 @@ export default function MiniAppCheckoutPage() {
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#E4F8F6] text-lg">📍</span>
             <h2 className="text-base font-extrabold">ตำแหน่งจัดส่ง</h2>
           </div>
-          <p className="mt-2 text-xs leading-5 text-[#82968D]">ใช้ตำแหน่ง Google Maps ที่ทีมงานบันทึกไว้สำหรับลูกค้ารายนี้</p>
+          <p className="mt-2 text-xs leading-5 text-[#82968D]">เลือกจุดจัดส่งสำหรับคำสั่งซื้อนี้ (ทีมงานบันทึกไว้)</p>
+          <div className="mt-3 grid gap-2">
+            {(customer.deliveryLocations ?? [{ label: "จุดส่ง 1", url: customer.deliveryAddress }]).map((location, index) => (
+              <button key={index} type="button" aria-pressed={deliveryAddress === location.url}
+                onClick={() => { setDeliveryAddress(location.url); setMessage(""); }}
+                className={`flex min-h-14 items-center justify-between gap-2 rounded-xl border-2 px-3 py-3 text-left text-sm font-bold transition ${deliveryAddress === location.url
+                  ? "border-[#02B0AF] bg-[#E5F9F5] text-[#007A75]"
+                  : "border-[#D5E8E2] bg-white text-[#57786E]"}`}>
+                <span className="min-w-0 truncate">📍 {location.label}</span>
+                <span className="shrink-0">{deliveryAddress === location.url ? "✓ เลือกแล้ว" : "เลือก"}</span>
+              </button>
+            ))}
+          </div>
           {isWebUrl(deliveryAddress) ? (
-            <a href={deliveryAddress} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-11 items-center rounded-xl border-2 border-[#B9E9E3] bg-[#EFFAF8] px-4 py-2 text-sm font-extrabold text-[#008F8D]">เปิดตำแหน่งใน Google Maps ↗</a>
+            <a href={deliveryAddress} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-11 items-center rounded-xl border-2 border-[#B9E9E3] bg-[#EFFAF8] px-4 py-2 text-sm font-extrabold text-[#008F8D]">ดูจุดส่งที่เลือกใน Google Maps ↗</a>
           ) : (
             <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-600">ยังไม่ได้ตั้งค่าลิงก์ Google Maps กรุณาติดต่อผู้จัดการ</p>
           )}

@@ -73,6 +73,9 @@ export default function NewCustomerPage() {
   ] =
     useState("");
 
+  const [deliveryMapUrl2, setDeliveryMapUrl2] = useState("");
+  const [locationName1, setLocationName1] = useState("จุดส่ง 1");
+  const [locationName2, setLocationName2] = useState("จุดส่ง 2");
   const [
     riderNote,
     setRiderNote,
@@ -155,6 +158,10 @@ export default function NewCustomerPage() {
       return;
     }
 
+    if (deliveryMapUrl2.trim() && (!isValidWebUrl(deliveryMapUrl2.trim()) || deliveryMapUrl2.trim() === mapUrl)) {
+      setMessage("ลิงก์จุดส่งที่ 2 ไม่ถูกต้องหรือซ้ำกับจุดส่งที่ 1");
+      return;
+    }
     setSaving(true);
 
     const {
@@ -225,6 +232,9 @@ export default function NewCustomerPage() {
 
           delivery_map_url:
             mapUrl,
+          delivery_map_url_2: deliveryMapUrl2.trim() || null,
+          delivery_location_1_name: locationName1.trim() || "จุดส่ง 1",
+          delivery_location_2_name: locationName2.trim() || "จุดส่ง 2",
 
           rider_note:
             riderNote.trim() ||
@@ -412,7 +422,7 @@ export default function NewCustomerPage() {
 
             <div className="md:col-span-2">
               <label className="block font-medium mb-2">
-                ลิงก์ Google Maps *
+                ลิงก์ Google Maps จุดส่งที่ 1 *
               </label>
 
               <input
@@ -433,9 +443,18 @@ export default function NewCustomerPage() {
               </p>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block font-medium mb-2">
-                หมายเหตุถึงไรเดอร์
+            <div className="md:col-span-2 rounded-xl border border-[#D5EAE5] bg-[#F4FBF9] p-3">
+              <p className="mb-3 font-bold text-[#006F69]">จุดจัดส่ง (สูงสุด 2 จุด)</p>
+              <label className="mb-1 block text-sm">ชื่อจุดส่งที่ 1</label>
+              <input value={locationName1} maxLength={50} onChange={e => setLocationName1(e.target.value)}
+                className="mb-3 w-full rounded-lg border px-3 py-2.5" placeholder="หน้าร้าน" />
+              <label className="mb-1 block text-sm">ชื่อจุดส่งที่ 2 (ไม่บังคับ)</label>
+              <input value={locationName2} maxLength={50} onChange={e => setLocationName2(e.target.value)}
+                className="mb-3 w-full rounded-lg border px-3 py-2.5" placeholder="ครัวกลาง" />
+              <input type="url" value={deliveryMapUrl2} onChange={e => setDeliveryMapUrl2(e.target.value)}
+                className="w-full rounded-lg border px-3 py-2.5" placeholder="ลิงก์ Google Maps จุดส่งที่ 2" />
+            </div>
+            <div className="md:col-span-2"><label className="block font-medium mb-2">หมายเหตุถึงไรเดอร์
               </label>
 
               <textarea

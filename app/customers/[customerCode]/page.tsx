@@ -30,6 +30,9 @@ type Customer = {
   delivery_address: string | null;
 
   delivery_map_url: string | null;
+  delivery_map_url_2: string | null;
+  delivery_location_1_name: string | null;
+  delivery_location_2_name: string | null;
 
   rider_note: string | null;
 
@@ -249,6 +252,9 @@ export default function CustomerDetailPage() {
   const [deliveryMapUrl, setDeliveryMapUrl] =
 
     useState("");
+  const [deliveryMapUrl2, setDeliveryMapUrl2] = useState("");
+  const [locationName1, setLocationName1] = useState("จุดส่ง 1");
+  const [locationName2, setLocationName2] = useState("จุดส่ง 2");
 
 
 
@@ -328,6 +334,9 @@ export default function CustomerDetailPage() {
         delivery_address,
 
         delivery_map_url,
+        delivery_map_url_2,
+        delivery_location_1_name,
+        delivery_location_2_name,
 
         rider_note,
         cv_card_storage_path,
@@ -415,17 +424,11 @@ export default function CustomerDetailPage() {
 
 
 
-    setDeliveryMapUrl(
-
-      loadedCustomer.delivery_map_url ??
-
-        (loadedCustomer.delivery_address?.startsWith("http")
-
-          ? loadedCustomer.delivery_address
-
-          : "")
-
-    );
+    setDeliveryMapUrl(loadedCustomer.delivery_map_url ??
+      (loadedCustomer.delivery_address?.startsWith("http") ? loadedCustomer.delivery_address : ""));
+    setDeliveryMapUrl2(loadedCustomer.delivery_map_url_2 ?? "");
+    setLocationName1(loadedCustomer.delivery_location_1_name || "จุดส่ง 1");
+    setLocationName2(loadedCustomer.delivery_location_2_name || "จุดส่ง 2");
 
 
 
@@ -831,6 +834,16 @@ export default function CustomerDetailPage() {
 
 
 
+    if (deliveryMapUrl2.trim()) {
+      try {
+        const second = new URL(deliveryMapUrl2.trim());
+        if (!["https:", "http:"].includes(second.protocol) || deliveryMapUrl2.trim() === deliveryMapUrl.trim())
+          throw new Error("invalid");
+      } catch {
+        setMessage("ลิงก์จุดส่งที่ 2 ไม่ถูกต้องหรือซ้ำกับจุดส่งที่ 1");
+        return;
+      }
+    }
     setSaving(true);
 
     setMessage("");
@@ -950,6 +963,9 @@ export default function CustomerDetailPage() {
           delivery_map_url:
 
             deliveryMapUrl.trim(),
+          delivery_map_url_2: deliveryMapUrl2.trim() || null,
+          delivery_location_1_name: locationName1.trim() || "จุดส่ง 1",
+          delivery_location_2_name: locationName2.trim() || "จุดส่ง 2",
 
 
 
@@ -1826,7 +1842,7 @@ export default function CustomerDetailPage() {
 
                 <label className="block text-sm font-medium mb-2">
 
-                  ลิงก์ Google Maps
+                  ลิงก์ Google Maps · จุดส่งที่ 1
 
                 </label>
 
@@ -1856,11 +1872,19 @@ export default function CustomerDetailPage() {
 
 
 
+              <div className="md:col-span-2 rounded-xl border border-[#D5EAE5] bg-[#F4FBF9] p-3">
+                <p className="mb-3 text-sm font-bold text-[#006F69]">จุดจัดส่ง (สูงสุด 2 จุด)</p>
+                <label className="mb-1 block text-sm">ชื่อจุดส่งที่ 1</label>
+                <input value={locationName1} maxLength={50} onChange={e => setLocationName1(e.target.value)}
+                  className="mb-3 w-full rounded-lg border px-3 py-2.5" placeholder="หน้าร้าน" />
+                <label className="mb-1 block text-sm">ชื่อจุดส่งที่ 2 (ไม่บังคับ)</label>
+                <input value={locationName2} maxLength={50} onChange={e => setLocationName2(e.target.value)}
+                  className="mb-3 w-full rounded-lg border px-3 py-2.5" placeholder="ครัวกลาง" />
+                <input type="url" value={deliveryMapUrl2} onChange={e => setDeliveryMapUrl2(e.target.value)}
+                  className="w-full rounded-lg border px-3 py-2.5" placeholder="ลิงก์ Google Maps จุดส่งที่ 2" />
+              </div>
               <div className="md:col-span-2">
-
-                <label className="block text-sm font-medium mb-2">
-
-                  หมายเหตุถึงไรเดอร์
+                <label className="block text-sm font-medium mb-2">หมายเหตุถึงไรเดอร์
 
                 </label>
 
@@ -2119,7 +2143,7 @@ export default function CustomerDetailPage() {
 
                 <p className="text-sm text-gray-500">
 
-                  ตำแหน่งจัดส่ง
+                  ตำแหน่งจัดส่ง · {customer.delivery_location_1_name || "จุดส่ง 1"}
 
                 </p>
 
@@ -2153,11 +2177,15 @@ export default function CustomerDetailPage() {
 
 
 
+              {customer.delivery_map_url_2 && (
+                <div className="md:col-span-2">
+                  <p className="text-sm text-gray-500">{customer.delivery_location_2_name || "จุดส่ง 2"}</p>
+                  <a href={customer.delivery_map_url_2} target="_blank" rel="noopener noreferrer"
+                    className="mt-2 inline-block rounded-lg bg-[#E9F8F4] px-4 py-2 font-bold text-[#008F8D]">📍 เปิด Google Maps จุดส่งที่ 2</a>
+                </div>
+              )}
               <div className="md:col-span-2">
-
-                <p className="text-sm text-gray-500">
-
-                  หมายเหตุถึงไรเดอร์
+                <p className="text-sm text-gray-500">หมายเหตุถึงไรเดอร์
 
                 </p>
 
