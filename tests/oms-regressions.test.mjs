@@ -249,3 +249,97 @@ test("customer delivery locations are saved, selectable, and validated during ch
   const rider = readFileSync(new URL("../app/tasks/delivery/[orderNumber]/page.tsx", import.meta.url), "utf8");
   assert.match(rider, /update_my_delivery_map/);
 });
+
+test("shortage call reminder follows stock and picking KPI thresholds", async () => {
+  const { confirmationCallShortages, pickingCallShortages } =
+    await import("../lib/shortageCallReminder.ts");
+  const line = (id, unit, requested, confirmed, extra = {}) => ({
+    id, product_name_snapshot: id, unit_snapshot: unit,
+    requested_qty: requested, confirmed_qty: confirmed,
+    addon_requested_qty: 0, addon_confirmed_qty: null,
+    actual_qty: null, actual_piece_qty: null, piece_price_per_kg_snapshot: null,
+    ...extra,
+  });
+
+  const kg = line("fresh-pork", "กก.", 10, 10);
+  const pieces = line("eggs", "ชิ้น", 10, 10);
+  const mixed = line("whole-chicken", "ชิ้น", 3, 3, { piece_price_per_kg_snapshot: 80 });
+
+  // Stock Check has no tolerance, even for a 0.01 kg shortage.
+  assert.deepEqual(
+    confirmationCallShortages([kg], { "fresh-pork": "9.99" }, false),
+    ["fresh-pork"]
+  );
+  assert.deepEqual(
+    confirmationCallShortages([pieces], { eggs: "10" }, false),
+    []
+  );
+  assert.deepEqual(
+    confirmationCallShortages([mixed], { "whole-chicken": "2" }, false),
+    ["whole-chicken"]
+  );
+
+  const acted = (...ids) => new Set(ids);
+  assert.deepEqual(
+    pickingCallShortages([kg], { "fresh-pork": "9.5" }, {}, false, acted("fresh-pork")),
+    { stock: [], pick: [] }
+  );
+  assert.deepEqual(
+    pickingCallShortages([kg], { "fresh-pork": "9.49" }, {}, false, acted("fresh-pork")),
+    { stock: [], pick: ["fresh-pork"] }
+  );
+  assert.deepEqual(
+    pickingCallShortages([pieces], { eggs: "9" }, {}, false, acted("eggs")),
+    { stock: [], pick: ["eggs"] }
+  );
+  // Kilograms (2.4) must never be compared to confirmed pieces (3).
+  assert.deepEqual(
+    pickingCallShortages([mixed], { "whole-chicken": "2.4" }, { "whole-chicken": "3" }, false, acted("whole-chicken")),
+    { stock: [], pick: [] }
+  );
+  assert.deepEqual(
+    pickingCallShortages([mixed], { "whole-chicken": "2.4" }, { "whole-chicken": "2" }, false, acted("whole-chicken")),
+    { stock: [], pick: ["whole-chicken"] }
+  );
+  assert.deepEqual(
+    pickingCallShortages([line("short-stock", "กก.", 10, 9.99)], { "short-stock": "9.99" }, {}, false, acted("short-stock")),
+    { stock: ["short-stock"], pick: [] }
+  );
+
+  const addon = line("addon", "ชิ้น", 8, 6, {
+    actual_qty: 6, addon_requested_qty: 2, addon_confirmed_qty: 1,
+  });
+  assert.deepEqual(
+    confirmationCallShortages([addon], { addon: "1" }, true),
+    ["addon"]
+  );
+  assert.deepEqual(
+    pickingCallShortages([addon], { addon: "7" }, {}, true, acted("addon")),
+    { stock: ["addon"], pick: [] }
+  );
+  const mixedAddon = line("mixed-addon", "ชิ้น", 5, 5, {
+    addon_requested_qty: 2, addon_confirmed_qty: 2, actual_piece_qty: 3,
+    piece_price_per_kg_snapshot: 95,
+  });
+  assert.deepEqual(
+    pickingCallShortages([mixedAddon], { "mixed-addon": "4.5" },
+      { "mixed-addon": "1" }, true, acted("mixed-addon")),
+    { stock: [], pick: ["mixed-addon"] }
+  );
+});
+
+test("stock and picking prompts are non-blocking and contain telephone action", () => {
+  const dialog = readFileSync(new URL("../components/ShortageCallReminder.tsx", import.meta.url), "utf8");
+  assert.match(dialog, /role="dialog"/);
+  assert.match(dialog, /aria-modal="true"/);
+  assert.match(dialog, /tel:/);
+  assert.match(dialog, /onContinue/);
+  assert.match(dialog, /onSkip/);
+  const confirm = readFileSync(new URL("../app/tasks/confirmation/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const pick = readFileSync(new URL("../app/tasks/picking/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  assert.match(confirm, /confirmationCallShortages\(items, confirmed, addonMode\)/);
+  assert.match(pick, /pickingCallShortages\(/);
+  assert.match(confirm, /completeConfirmation\(true\)/);
+  assert.match(pick, /completePicking\(true\)/);
+  assert.match(pick, /if \(\s*!photoUploaded\[0\]/);
+});

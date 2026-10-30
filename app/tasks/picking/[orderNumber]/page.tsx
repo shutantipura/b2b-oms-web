@@ -17,6 +17,8 @@ import {
   supabase,
 } from "../../../../lib/supabase";
 import DeliverySchedule from "../../../../components/DeliverySchedule";
+import ShortageCallReminder from "../../../../components/ShortageCallReminder";
+import { pickingCallShortages } from "../../../../lib/shortageCallReminder";
 import TaskFilePicker from "../../../../components/TaskFilePicker";
 
 type OrderDetails = {
@@ -268,6 +270,7 @@ export default function PickingPage() {
     setSubmitting,
   ] =
     useState(false);
+  const [shortagePrompt, setShortagePrompt] = useState<{ stock: string[]; pick: string[] } | null>(null);
 
   const [
     message,
@@ -816,7 +819,7 @@ export default function PickingPage() {
     }
   }
 
-  async function completePicking() {
+  async function completePicking(bypassCallReminder = false) {
     setMessage("");
 
     if (
@@ -890,6 +893,20 @@ export default function PickingPage() {
       // The add-on RPC receives incremental pieces, matching its incremental KG.
       ...(picksMeasuredKg(item) ? { actual_piece_qty: Number(actualPieces[item.id]) } : {}),
     }));
+
+    // Check the whole order for Stock shortages, and the editable picking
+    // totals for Short Pick. Mixed-unit products use piece counts, not kg.
+    if (!bypassCallReminder) {
+      const shortages = pickingCallShortages(
+        items, actual, actualPieces, addonMode,
+        new Set(actionableItems.map(item => item.id)),
+      );
+      if (shortages.stock.length > 0 || shortages.pick.length > 0) {
+        setShortagePrompt(shortages);
+        return;
+      }
+    }
+    setShortagePrompt(null);
 
     setSubmitting(
       true
@@ -1384,9 +1401,7 @@ export default function PickingPage() {
         <div className="flex justify-end mt-6">
           <button
             type="button"
-            onClick={
-              completePicking
-            }
+            onClick={() => void completePicking()}
             disabled={submitting || uploadingPhoto || !photoUploaded[0]}
             className="bg-black text-white rounded-lg px-8 py-4 font-semibold disabled:opacity-50"
           >
@@ -1396,6 +1411,20 @@ export default function PickingPage() {
           </button>
         </div>
       </div>
+
+      {shortagePrompt && (
+        <ShortageCallReminder
+          stage="picking"
+          customerName={order?.customers?.customer_name ?? "ลูกค้า"}
+          phone={order?.customers?.phone}
+          stockItems={shortagePrompt.stock}
+          pickItems={shortagePrompt.pick}
+          busy={submitting}
+          onCancel={() => setShortagePrompt(null)}
+          onContinue={() => void completePicking(true)}
+          onSkip={() => void completePicking(true)}
+        />
+      )}
 
       {addProductOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center">

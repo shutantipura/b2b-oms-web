@@ -17,6 +17,8 @@ import {
   supabase,
 } from "../../../../lib/supabase";
 import DeliverySchedule from "../../../../components/DeliverySchedule";
+import ShortageCallReminder from "../../../../components/ShortageCallReminder";
+import { confirmationCallShortages } from "../../../../lib/shortageCallReminder";
 
 type OrderDetails = {
   id: string;
@@ -192,6 +194,7 @@ export default function ConfirmationPage() {
     setSubmitting,
   ] =
     useState(false);
+  const [shortagePrompt, setShortagePrompt] = useState<{ stock: string[]; pick: string[] } | null>(null);
 
   const [
     message,
@@ -624,7 +627,7 @@ export default function ConfirmationPage() {
     await loadOrder();
   }
 
-  async function completeConfirmation() {
+  async function completeConfirmation(bypassCallReminder = false) {
     setMessage("");
 
     const invalidItem = actionableItems.find((item) => {
@@ -678,6 +681,16 @@ export default function ConfirmationPage() {
             ),
         })
       );
+
+    // Use exactly the current Stock Check form values; no tolerance.
+    if (!bypassCallReminder) {
+      const stock = confirmationCallShortages(items, confirmed, addonMode);
+      if (stock.length > 0) {
+        setShortagePrompt({ stock, pick: [] });
+        return;
+      }
+    }
+    setShortagePrompt(null);
 
     setSubmitting(
       true
@@ -1147,9 +1160,7 @@ export default function ConfirmationPage() {
         <div className="flex justify-end mt-6">
           <button
             type="button"
-            onClick={
-              completeConfirmation
-            }
+            onClick={() => void completeConfirmation()}
             disabled={
               submitting
             }
@@ -1161,6 +1172,20 @@ export default function ConfirmationPage() {
           </button>
         </div>
       </div>
+
+      {shortagePrompt && (
+        <ShortageCallReminder
+          stage="stock"
+          customerName={order?.customers?.customer_name ?? "ลูกค้า"}
+          phone={order?.customers?.phone}
+          stockItems={shortagePrompt.stock}
+          pickItems={shortagePrompt.pick}
+          busy={submitting}
+          onCancel={() => setShortagePrompt(null)}
+          onContinue={() => void completeConfirmation(true)}
+          onSkip={() => void completeConfirmation(true)}
+        />
+      )}
 
       {addProductOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center">
