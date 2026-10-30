@@ -1,124 +1,147 @@
 package com.lotusb2b.alarm;
 
 import android.content.Context;
+import android.content.res.AssetFileDescriptor;
 import android.media.AudioAttributes;
 import android.media.MediaPlayer;
-import java.io.File;
-import java.io.FileOutputStream;
+import android.os.Handler;
+import android.os.Looper;
 import java.io.IOException;
 
-/** Three-beep alarm repeated on the Android alarm audio stream. */
+/**
+ * Cleaned Lotus's B2B voice recording. One 3.5-second voice call is stored
+ * in res/raw; each repeat is separated by exactly 4 seconds of silence.
+ * The foreground service owns this player so acknowledgement can stop it
+ * immediately, even during the pause. Never use a continuous 18-second
+ * player loop: that leaves a gapless jump from call 3 to call 1.
+ */
 final class AlarmSound {
-    private static final int SAMPLE_RATE = 22050;
+    private static final long PAUSE_MS = 4000L;
     private final Context context;
-    private MediaPlayer player;
+    private final Handler main = new Handler(Looper.getMainLooper());
 
-    AlarmSound(Context context) { this.context = context.getApplicationContext(); }
+    private MediaPlayer player;
+    private Runnable scheduledReplay;
+    private boolean repeating;
+
+    AlarmSound(Context context) {
+        this.context = context.getApplicationContext();
+    }
 
     void startRepeating() throws IOException {
-        if (player != null || AlarmHours.isQuiet()) return;
-        // Play short clips instead of using MediaPlayer's infinite loop.
-        // Each replay checks the Thailand clock, so even a delayed service
-        // poll cannot leave the sound running through the night.
-        player = createPlayer(context, false);
+        if (repeating || AlarmHours.isQuiet()) return;
+        repeating = true;
+        try {
+            playCall();
+        } catch (IOException e) {
+            stop();
+            throw e;
+        }
+    }
+
+    /** Must stay true during the 4-second pause: the feed polls every 2 s. */
+    boolean isActive() {
+        return repeating;
+    }
+
+    /** Immediate local silence on ACK, remote ACK, quiet hours or stop. */
+    void stop() {
+        repeating = false;
+        if (scheduledReplay != null) {
+            main.removeCallbacks(scheduledReplay);
+            scheduledReplay = null;
+        }
+        if (player != null) {
+            MediaPlayer old = player;
+            player = null;
+            old.setOnCompletionListener(null);
+            try { if (old.isPlaying()) old.stop(); }
+            catch (IllegalStateException ignored) {}
+            old.release();
+        }
+    }
+
+    private void playCall() throws IOException {
+        if (!repeating || AlarmHours.isQuiet()) {
+            stop();
+            return;
+        }
+        player = createPlayer(context);
         player.setOnCompletionListener(mp -> {
             if (mp != player) return;
-            if (AlarmHours.isQuiet()) {
+            mp.release();
+            player = null;
+            if (!repeating || AlarmHours.isQuiet()) {
                 stop();
                 return;
             }
-            try { mp.start(); }
-            catch (IllegalStateException ignored) { stop(); }
+            scheduledReplay = () -> {
+                scheduledReplay = null;
+                if (!repeating || AlarmHours.isQuiet()) {
+                    stop();
+                    return;
+                }
+                try {
+                    playCall();
+                } catch (IOException e) {
+                    stop();
+                }
+            };
+            main.postDelayed(scheduledReplay, PAUSE_MS);
         });
         player.start();
     }
 
-    boolean isActive() {
-        return player != null;
-    }
-
-    void stop() {
-        if (player == null) return;
-        try { if (player.isPlaying()) player.stop(); }
-        catch (IllegalStateException ignored) {}
-        player.release();
-        player = null;
-    }
-
+    /** Test button plays exactly three identical calls, with two 4-s pauses. */
     static void testOnce(Context context) throws IOException {
-        final MediaPlayer sample = createPlayer(context, false);
-        sample.setOnCompletionListener(mp -> { mp.release(); });
-        sample.start();
+        new ThreeCallTest(context.getApplicationContext()).start();
     }
 
-    private static MediaPlayer createPlayer(Context context, boolean loop) throws IOException {
-        File file = createSound(context);
+    private static final class ThreeCallTest {
+        private final Context context;
+        private final Handler main = new Handler(Looper.getMainLooper());
+        private int callsLeft = 3;
+
+        ThreeCallTest(Context context) {
+            this.context = context;
+        }
+
+        void start() throws IOException {
+            next();
+        }
+
+        private void next() throws IOException {
+            MediaPlayer sample = createPlayer(context);
+            sample.setOnCompletionListener(mp -> {
+                mp.release();
+                callsLeft--;
+                if (callsLeft > 0) {
+                    main.postDelayed(() -> {
+                        try { next(); }
+                        catch (IOException ignored) {}
+                    }, PAUSE_MS);
+                }
+            });
+            sample.start();
+        }
+    }
+
+    private static MediaPlayer createPlayer(Context context) throws IOException {
         MediaPlayer mp = new MediaPlayer();
-        try {
+        try (AssetFileDescriptor asset = context.getResources()
+                .openRawResourceFd(R.raw.lotus_b2b_voice_call)) {
+            if (asset == null) throw new IOException("Voice alarm resource missing");
             mp.setAudioAttributes(new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ALARM)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
-            mp.setDataSource(file.getAbsolutePath());
-            mp.setLooping(loop);
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build());
+            mp.setDataSource(asset.getFileDescriptor(), asset.getStartOffset(),
+                    asset.getLength());
             mp.prepare();
             return mp;
         } catch (Exception e) {
             mp.release();
-            throw new IOException("Unable to prepare alarm sound", e);
+            throw new IOException("Unable to prepare the recorded voice alarm", e);
         }
-    }
-
-    private static File createSound(Context context) throws IOException {
-        File file = new File(context.getCacheDir(), "oms_alarm_v1.wav");
-        if (file.exists() && file.length() > 10000) return file;
-        final int samples = 22050 * 2;
-        final int length = samples * 2;
-        byte[] header = new byte[44];
-        ascii(header, 0, "RIFF"); int32(header, 4, 36 + length);
-        ascii(header, 8, "WAVE"); ascii(header, 12, "fmt ");
-        int32(header, 16, 16); int16(header, 20, 1); int16(header, 22, 1);
-        int32(header, 24, SAMPLE_RATE); int32(header, 28, SAMPLE_RATE * 2);
-        int16(header, 32, 2); int16(header, 34, 16);
-        ascii(header, 36, "data"); int32(header, 40, length);
-        double[] begins = {0.07, 0.46, 0.85};
-        double[] freqs = {880, 1050, 880};
-        try (FileOutputStream output = new FileOutputStream(file)) {
-            output.write(header);
-            byte[] chunk = new byte[2048];
-            int used = 0;
-            for (int i = 0; i < samples; i++) {
-                double time = i / (double) SAMPLE_RATE;
-                double amplitude = 0;
-                for (int j = 0; j < begins.length; j++) {
-                    double t = time - begins[j];
-                    if (t >= 0 && t < 0.26) {
-                        double envelope = Math.min(1, t / 0.02) *
-                            Math.min(1, (0.26 - t) / 0.03);
-                        amplitude += 0.67 * envelope *
-                            Math.sin(2 * Math.PI * freqs[j] * t);
-                    }
-                }
-                short value = (short)(Math.max(-1, Math.min(1, amplitude)) * 32767);
-                chunk[used++] = (byte)value;
-                chunk[used++] = (byte)(value >>> 8);
-                if (used == chunk.length) {
-                    output.write(chunk);
-                    used = 0;
-                }
-            }
-            if (used > 0) output.write(chunk, 0, used);
-        }
-        return file;
-    }
-
-    private static void ascii(byte[] b, int offset, String value) {
-        for (int i = 0; i < value.length(); i++) b[offset+i] = (byte)value.charAt(i);
-    }
-    private static void int32(byte[] b, int offset, int value) {
-        for (int i = 0; i < 4; i++) b[offset+i] = (byte)(value >>> (i*8));
-    }
-    private static void int16(byte[] b, int offset, int value) {
-        b[offset] = (byte)value;
-        b[offset+1] = (byte)(value >>> 8);
     }
 }

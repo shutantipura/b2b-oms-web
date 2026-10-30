@@ -1,4 +1,4 @@
-# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.10)
+# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.11)
 
 An Android app for the existing OMS that requires no LINE or staff login.
 
@@ -6,7 +6,7 @@ An Android app for the existing OMS that requires no LINE or staff login.
 
 - Foreground Android service runs independently of the browser, including when the screen is locked, subject to Android vendor power management.
 - Read-only OMS alert feed is checked every ~15 seconds.
-- Repeating three-beep alarm on the **alarm volume** stream.
+- Cleaned recorded **Lotus’s B2B voice alarm**, repeated with **four seconds of silence between calls** on the **alarm volume** stream.
 - High-priority **heads-up notification** with one-tap **รับทราบ — หยุดเสียง** and **ดูออเดอร์** actions.
 - Incoming-order activity is independent of the settings/home screen, and can display over a locked screen if Android grants **full-screen alarm intent** permission.
 - The app includes a Settings shortcut for full-screen permission on Android 14+; without it, the alert is still available as a heads-up notification.
@@ -14,6 +14,17 @@ An Android app for the existing OMS that requires no LINE or staff login.
 - Device remembers acknowledged orders. Initial launch ignores existing historical alerts.
 - Best-effort restart at phone boot.
 - Android 13+ notification permission, Android 14+ special-use foreground service declaration and configurable full-screen alarm permission.
+
+## Recorded voice alert (v0.11)
+
+- The former synthesized three-beep tone has been replaced with the cleaned Lotus's B2B voice recording.
+- The test button plays exactly **three identical voice calls**, with **4.0 seconds of silence** between calls.
+- When a real order is pending, the app continues repeating the same voice call with a 4-second pause after each clip until staff acknowledge it.
+- Audio playback stays on the Android **Alarm** stream (not media volume).
+- Acknowledging locally mutes the voice immediately and cancels any scheduled replay; paired devices use the existing rapid shared acknowledgement logic.
+- Quiet hours are still **22:00–07:00 Thailand time**, and no sound is played during that period except a deliberate manual test.
+- The recording is packaged inside the APK; no internet request is needed to load the sound itself. The Android project uses a short Opus/WebM clip of the verified three-call preview, to avoid unnecessary APK size; the 4-second silent intervals are scheduled by the app.
+- Android MediaPlayer's scheduling and device power management may add slight timing latency, but the programmed delay is exactly 4,000 ms.
 
 ## Fast shared acknowledgement (v0.10)
 

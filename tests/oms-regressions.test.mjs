@@ -346,3 +346,23 @@ test("stock and picking prompts are non-blocking and contain telephone action", 
   assert.match(pick, /completePicking\(true\)/);
   assert.match(pick, /if \(\s*!photoUploaded\[0\]/);
 });
+
+test("Android voice alarm repeats with four-second spacing and stops promptly", () => {
+  const sound = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmSound.java", import.meta.url), "utf8");
+  const gradle = readFileSync(new URL("../android-alarm/app/build.gradle", import.meta.url), "utf8");
+  assert.match(sound, /PAUSE_MS = 4000L/);
+  assert.match(sound, /private int callsLeft = 3/);
+  assert.match(sound, /R\.raw\.lotus_b2b_voice_call/);
+  assert.match(sound, /AudioAttributes\.USAGE_ALARM/);
+  assert.match(sound, /main\.removeCallbacks\(scheduledReplay\)/);
+  assert.match(sound, /boolean isActive\(\) \{\s*return repeating;/);
+  assert.match(sound, /AlarmHours\.isQuiet\(\)/);
+  assert.doesNotMatch(sound, /Three-beep alarm/);
+  assert.match(gradle, /versionCode 11/);
+  assert.match(gradle, /noCompress \+= \['webm'\]/);
+  const hours = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmHours.java", import.meta.url), "utf8");
+  assert.match(hours, /hour >= 22 \|\| hour < 7/);
+  const service = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmMonitorService.java", import.meta.url), "utf8");
+  assert.match(service, /private void silenceUrgentAlarm\(\) \{\s*alarm\.stop\(\)/);
+  assert.match(service, /acknowledgementInProgress = true;[\s\S]*?silenceUrgentAlarm\(\)/);
+});

@@ -10,8 +10,8 @@ android {
         applicationId "com.lotusb2b.alarm"
         minSdk 26
         targetSdk 35
-        versionCode 10
-        versionName "0.10.0"
+        versionCode 11
+        versionName "0.11.0"
     }
 
     // Stable release signing is opt-in via protected GitHub Actions secrets.
@@ -34,6 +34,9 @@ android {
             }
         }
     }
+
+    // Preserve WebM/Opus resource bytes for openRawResourceFd playback.
+    androidResources { noCompress += ['webm'] }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
