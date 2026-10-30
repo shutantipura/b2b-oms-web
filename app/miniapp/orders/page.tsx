@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
 import { lineApiFetch } from "../../../lib/lineSession";
+import { historicalLineValues } from "../../../lib/customerOrderHistory";
 
 type Customer = {
   id: string;
@@ -136,6 +137,49 @@ function badgeStyle(status: string) {
   if (status === "awaiting_payment") return "border-[#F5D78D] bg-[#FFF6DA] text-[#946500]";
   if (status === "payment_submitted") return "border-[#C4DAF5] bg-[#EEF6FF] text-[#376C9C]";
   return "border-[#BCE9E4] bg-[#E8F8F6] text-[#008F8D]";
+}
+
+
+function HistoricalOrderItemCard({ item }: { item: OrderItem }) {
+  const values = historicalLineValues({
+    actual: item.actual,
+    actualUnit: item.actualUnit ?? item.unit,
+    isPiece: item.isPiece,
+    unitPrice: item.unitPrice,
+    pricePerKg: item.pricePerKg,
+    priceIsCurrentEstimate: item.priceIsCurrentEstimate,
+  });
+  return (
+    <div className="rounded-xl border border-[#DDECE6] bg-white p-3">
+      <div className="flex items-center gap-3">
+        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-[#E4EEE7] bg-[#F4F8F5]">
+          <div className="absolute inset-0 grid place-items-center text-xl text-[#92AA9D]">📦</div>
+          {item.imageUrl && <img src={item.imageUrl} alt={item.productName} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full bg-white object-contain p-1" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
+        </div>
+        <p className="min-w-0 flex-1 text-sm font-bold leading-5 text-[#21483D]">{item.productName}</p>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-xl border border-[#D7EDE6] bg-[#F2FAF8] p-1.5">
+        <div className="min-w-0 rounded-lg bg-white px-1 py-2 text-center">
+          <p className="text-[10px] font-semibold text-[#789488]">หยิบจริง</p>
+          <p className="mt-1 break-words text-xs font-extrabold tabular-nums text-[#26574C]">
+            {quantityText(values.actual, values.unit)}
+          </p>
+        </div>
+        <div className="min-w-0 rounded-lg bg-white px-1 py-2 text-center">
+          <p className="text-[10px] font-semibold text-[#789488]">ราคาต่อหน่วย</p>
+          <p className="mt-1 break-words text-xs font-extrabold tabular-nums text-[#26574C]">
+            {values.unitPrice === null ? "—" : `฿${money(values.unitPrice)} / ${values.unit}`}
+          </p>
+        </div>
+        <div className="min-w-0 rounded-lg bg-[#E7F8F4] px-1 py-2 text-center">
+          <p className="text-[10px] font-semibold text-[#468277]">มูลค่ารายการ</p>
+          <p className="mt-1 break-words text-xs font-black tabular-nums text-[#008F8D]">
+            {values.lineValue === null ? "—" : `฿${money(values.lineValue)}`}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function CustomerOrdersPage() {
@@ -456,7 +500,9 @@ export default function CustomerOrdersPage() {
                       )}
                       {order.items.length === 0 ? <p className="py-4 text-center text-xs text-[#82968D]">ไม่มีรายละเอียดสินค้า</p> : (
                         <div className="space-y-3">
-                          {order.items.map((item) => (
+                          {order.items.map((item) => mode === "history" ? (
+                             <HistoricalOrderItemCard key={item.id} item={item} />
+                           ) : (
                             <div key={item.id} className="rounded-xl border border-[#E4EEE7] bg-white p-3">
                               <div className="flex items-start gap-3">
                                 <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-[#E4EEE7] bg-[#F4F8F5]">

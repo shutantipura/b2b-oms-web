@@ -203,3 +203,26 @@ test("completed task reporting uses Bangkok day boundaries and counts finished c
   assert.match(page, /\.lt\("completed_at", toExclusive\)/);
   assert.match(page, /\.range\(page \* PAGE_SIZE,/);
 });
+
+
+test("historical customer order lines use actual picked quantities and saved unit prices", async () => {
+  const { historicalLineValues } = await import("../lib/customerOrderHistory.ts");
+  assert.deepEqual(historicalLineValues({ actual: 3.066, actualUnit: "กก.", unitPrice: 121 }),
+    { actual: 3.066, unit: "กก.", unitPrice: 121, lineValue: 370.986 });
+  assert.deepEqual(historicalLineValues({ actual: 2, actualUnit: "ชิ้น", unitPrice: 127 }),
+    { actual: 2, unit: "ชิ้น", unitPrice: 127, lineValue: 254 });
+  assert.deepEqual(historicalLineValues({ actual: 1.104, actualUnit: "กก.", isPiece: true, unitPrice: 0, pricePerKg: 119 }),
+    { actual: 1.104, unit: "กก.", unitPrice: 119, lineValue: 131.376 });
+  assert.deepEqual(historicalLineValues({ actual: null, actualUnit: "ชิ้น", unitPrice: 141 }),
+    { actual: null, unit: "ชิ้น", unitPrice: 141, lineValue: null });
+  assert.deepEqual(historicalLineValues({ actual: 0, actualUnit: "กก.", unitPrice: 95 }),
+    { actual: 0, unit: "กก.", unitPrice: 95, lineValue: 0 });
+  assert.deepEqual(historicalLineValues({ actual: 5, actualUnit: "ชิ้น", unitPrice: 20, priceIsCurrentEstimate: true }),
+    { actual: 5, unit: "ชิ้น", unitPrice: null, lineValue: null });
+  const page = readFileSync(new URL("../app/miniapp/orders/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /mode === "history" \? \([\s\S]*?<HistoricalOrderItemCard/);
+  assert.match(page, /values\.lineValue/);
+  assert.match(page, />สั่งซื้อ<\/p>/);
+  assert.match(page, />ยืนยัน<\/p>/);
+  assert.match(page, />หยิบจริง<\/p>/);
+});
