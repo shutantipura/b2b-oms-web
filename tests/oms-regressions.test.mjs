@@ -412,3 +412,18 @@ test("Android launcher uses the B2B teal adaptive icon without a white tile", ()
   assert.match(foreground, /android:fillColor="#FFFFFF"/);
   assert.match(background, /#02B0AF/);
 });
+
+test("financial KPIs include only fully completed bills, including all /x members", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/20261030143000_financial_kpis_completed_only.sql", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../app/kpi/page.tsx", import.meta.url), "utf8");
+  assert.match(sql, /where o\.status = 'completed'/);
+  assert.match(sql, /member_check\.status is distinct from 'completed'/);
+  assert.match(sql, /o\.final_amount is not null/);
+  assert.match(sql, /group_root_order_id is null or o\.group_root_order_id = o\.id/);
+  assert.match(sql, /h\.action = 'billing_completed'/);
+  assert.match(sql, /p_bill_date::timestamp at time zone 'Asia\/Bangkok'/);
+  assert.match(sql, /public\.can_read_product_costs\(\)/);
+  assert.doesNotMatch(sql, /where o\.status <> 'cancelled'/);
+  assert.match(page, /4 KPIs · Completed เท่านั้น/);
+  assert.match(page, /งานค้างชำระ\/รอจัดส่งไม่นับ/);
+});

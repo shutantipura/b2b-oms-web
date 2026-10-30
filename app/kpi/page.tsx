@@ -284,7 +284,7 @@ export default function KPIPage() {
     setLoading(true);
     setMessage("");
 
-    // Operational KPIs use delivery date; Financials use actual Bangkok bill date.
+    // Operational KPIs use delivery date; Financials use Bangkok bill date but ONLY completed orders.
     const [operationalResult, financialResult, cancellationResult] = await Promise.all([
       supabase.rpc("get_operational_kpi_orders", { p_delivery_date: date }),
       supabase.rpc("get_financial_kpi_summary", { p_bill_date: date }),
@@ -579,12 +579,12 @@ export default function KPIPage() {
   const billCount = financialSummary?.total_bills ?? 0;
   const numberOfBills = billCount.toLocaleString("th-TH");
   const financeDetail = financialSummary
-    ? `${numberOfBills} บิลที่ออกในวันที่เลือก`
+    ? `${numberOfBills} บิลที่เสร็จสมบูรณ์ (ตามวันออกบิล)`
     : financialError ? "โหลดข้อมูลการเงินไม่สำเร็จ" : "—";
   const grossProfitDetail = !financialSummary
     ? financialError ? "โหลดข้อมูลการเงินไม่สำเร็จ" : "—"
     : billCount === 0
-      ? "ยังไม่มีบิลในวันที่เลือก"
+      ? "ยังไม่มีออร์เดอร์ที่เสร็จสมบูรณ์ในวันออกบิลที่เลือก"
       : financialSummary.missing_cost_lines > 0
         ? `ขาดต้นทุน ${financialSummary.missing_cost_lines} รายการ · ยังไม่แสดง GP%`
         : financialSummary.suspicious_cost_lines > 0
@@ -603,7 +603,7 @@ export default function KPIPage() {
       name: "Total Bills",
       value: loading ? "…" : financialSummary ? numberOfBills : "—",
       detail: "นับ 1 ครั้งต่อบิล รวมบิลหลักของคำสั่งซื้อ /x",
-      description: "บิลที่ออกในวันนั้นตามเวลาไทย ไม่รวมคำสั่งซื้อยกเลิก",
+      description: "นับเฉพาะคำสั่งซื้อสถานะ completed · ตามวันออกบิล (เวลาไทย)",
     },
     {
       name: "Average Sales / Bill",
@@ -745,10 +745,10 @@ export default function KPIPage() {
                 <span className="rounded-lg bg-[#D6F4EE] px-2 py-1 text-[11px] font-extrabold text-[#007D79]">03</span>
                 <div>
                   <h3 className="text-base font-extrabold text-[#17453F]">Sales &amp; Profitability</h3>
-                  <p className="text-[11px] text-[#718D84]">ยอดขายและกำไรขั้นต้นตามวันที่ออกบิล (เวลาไทย)</p>
+                  <p className="text-[11px] text-[#718D84]">เฉพาะออร์เดอร์ที่เสร็จสมบูรณ์ · แยกตามวันออกบิล (เวลาไทย)</p>
                 </div>
               </div>
-              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#52786F]">4 KPIs · บิลที่ออกจริง</span>
+              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[#52786F]">4 KPIs · Completed เท่านั้น</span>
             </div>
             {financialError && (
               <p role="alert" className="mb-3 rounded-lg border border-[#FDE3B0] bg-[#FFF9E9] px-3 py-2 text-xs text-[#92540E]">
@@ -761,7 +761,7 @@ export default function KPIPage() {
               ))}
             </div>
             <p className="mt-2 px-1 text-[11px] leading-4 text-[#718D84]">
-              ยอดเงินมาจากยอดบิลสุดท้าย ไม่นับออร์เดอร์ยกเลิก และนับกลุ่ม /x เป็นบิลเดียว
+              นับเฉพาะออร์เดอร์ completed ที่ออกบิลในวันที่เลือก · งานค้างชำระ/รอจัดส่งไม่นับ · กลุ่ม /x นับเป็นบิลเดียวเมื่อทุกส่วนเสร็จสมบูรณ์
               · GP% ใช้ต้นทุนที่บันทึก ณ วันออกบิลสำหรับบิลใหม่ · บิลเก่าที่ไม่มีต้นทุนย้อนหลังแสดงเป็นประมาณการ
             </p>
           </section>
