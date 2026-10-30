@@ -508,6 +508,7 @@ export async function POST(
             customer_code,
 
             customer_name,
+             has_no_cv,
 
             is_active
 
@@ -621,9 +622,8 @@ export async function POST(
 
 
 
-              customerName:
-
-                customer.customer_name,
+              customerName: customer.customer_name,
+               hasNoCv: Boolean(customer.has_no_cv),
 
             };
 
@@ -642,6 +642,7 @@ export async function POST(
           customerCode: string;
 
           customerName: string;
+           hasNoCv: boolean;
 
         }[];
 
@@ -694,6 +695,7 @@ export async function POST(
           customerCode: string;
 
           customerName: string;
+           hasNoCv: boolean;
 
         }
 

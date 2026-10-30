@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
+import { displayCustomerCode } from "../../../lib/customerCodeDisplay";
 import { lineApiFetch } from "../../../lib/lineSession";
 import { historicalLineValues } from "../../../lib/customerOrderHistory";
 
@@ -11,6 +12,7 @@ type Customer = {
   id: string;
   customerCode: string;
   customerName: string;
+  hasNoCv?: boolean;
 };
 
 type OrderItem = {
@@ -341,7 +343,7 @@ export default function CustomerOrdersPage() {
             {availableCustomers.map((option) => (
               <button key={option.id} type="button" onClick={() => void chooseCustomer(option)} className={`${card} w-full p-5 text-left transition hover:border-[#02B0AF]`}>
                 <p className="font-extrabold">{option.customerName}</p>
-                <p className="mt-1 text-xs text-[#82968D]">รหัสลูกค้า {option.customerCode}</p>
+                <p className="mt-1 text-xs text-[#82968D]">รหัสลูกค้า {displayCustomerCode(option.customerCode, option.hasNoCv)}</p>
                 <p className="mt-3 text-sm font-bold text-[#009F9D]">ดูคำสั่งซื้อ →</p>
               </button>
             ))}

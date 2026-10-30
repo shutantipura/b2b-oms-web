@@ -24,6 +24,7 @@ import {
 
 import LotusLoading from "../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
+import { displayCustomerCode } from "../../lib/customerCodeDisplay";
 import { clearLineSessionReload, isLineIdTokenExpired, requestLineSessionReloadOnce, LINE_SESSION_EXPIRED_MESSAGE } from "../../lib/lineSession";
 
 type Customer = {
@@ -34,6 +35,7 @@ type Customer = {
 
   customerName: string;
 
+  hasNoCv?: boolean;
 };
 
 type StaffAccess = {
@@ -1464,7 +1466,7 @@ export default function MiniAppHomePage() {
                     <span className="min-w-0 flex-1">
                       <span className="block break-words text-base font-extrabold leading-6 text-[#244D3F]">{customer.customerName}</span>
                       <span className="mt-1 block text-xs font-medium text-[#859D91]">
-                        รหัสลูกค้า <span className="font-bold tabular-nums text-[#557E70]">{customer.customerCode}</span>
+                        รหัสลูกค้า <span className="font-bold tabular-nums text-[#557E70]">{displayCustomerCode(customer.customerCode, customer.hasNoCv)}</span>
                       </span>
                     </span>
                     <span className="shrink-0 transition group-hover:translate-x-0.5">
@@ -1592,7 +1594,7 @@ export default function MiniAppHomePage() {
 
               {
 
-                selectedCustomer.customerCode
+                displayCustomerCode(selectedCustomer.customerCode, selectedCustomer.hasNoCv)
 
               }
 

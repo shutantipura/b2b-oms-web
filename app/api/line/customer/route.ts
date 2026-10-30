@@ -19,6 +19,7 @@ type CustomerRow = {
   id: string;
   customer_code: string;
   customer_name: string;
+  has_no_cv: boolean;
   is_active: boolean;
 };
 
@@ -311,6 +312,7 @@ export async function POST(
             id,
             customer_code,
             customer_name,
+             has_no_cv,
             is_active
           )
         `)
@@ -376,8 +378,8 @@ export async function POST(
               customerCode:
                 customer.customer_code,
 
-              customerName:
-                customer.customer_name,
+              customerName: customer.customer_name,
+               hasNoCv: Boolean(customer.has_no_cv),
             };
           }
         )
@@ -388,7 +390,8 @@ export async function POST(
             id: string;
             customerCode: string;
             customerName: string;
-          } =>
+             hasNoCv: boolean;
+           } =>
             customer !==
             null
         );

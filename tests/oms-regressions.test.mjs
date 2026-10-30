@@ -468,3 +468,21 @@ test("14-day image expiry and 7-day missing-timestamp fallback never delete orde
   assert.doesNotMatch(route, /\.from\("orders"\)\.delete\(/);
   assert.match(route, /payment_qr"/);
 });
+
+test("No CV customer displays hide internal identifiers without changing customer routing", () => {
+  const label = readFileSync(new URL("../lib/customerCodeDisplay.ts", import.meta.url), "utf8");
+  const home = readFileSync(new URL("../app/miniapp/page.tsx", import.meta.url), "utf8");
+  const tracking = readFileSync(new URL("../app/miniapp/orders/page.tsx", import.meta.url), "utf8");
+  const legacy = readFileSync(new URL("../app/shop/[customerCode]/page.tsx", import.meta.url), "utf8");
+  const access = readFileSync(new URL("../app/api/line/customer/route.ts", import.meta.url), "utf8");
+  const orders = readFileSync(new URL("../app/api/line/orders/route.ts", import.meta.url), "utf8");
+  assert.match(label, /"ไม่มี CV"/);
+  assert.match(label, /\^NCV-/);
+  assert.match(home, /displayCustomerCode\(selectedCustomer\.customerCode, selectedCustomer\.hasNoCv\)/);
+  assert.match(home, /displayCustomerCode\(customer\.customerCode, customer\.hasNoCv\)/);
+  assert.match(tracking, /displayCustomerCode\(option\.customerCode, option\.hasNoCv\)/);
+  assert.match(legacy, /displayCustomerCode\(customer\.customer_code, customer\.has_no_cv\)/);
+  assert.match(access, /has_no_cv,/);
+  assert.match(orders, /has_no_cv,/);
+  assert.match(home, /\`\/miniapp\/shop\?customer=\$\{selectedCustomer\.customerCode\}\`/);
+});

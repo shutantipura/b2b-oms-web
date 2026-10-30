@@ -12,11 +12,13 @@ import {
 } from "next/navigation";
 
 import { supabase } from "../../../lib/supabase";
+import { displayCustomerCode } from "../../../lib/customerCodeDisplay";
 
 type Customer = {
   id: string;
   customer_code: string;
   customer_name: string;
+  has_no_cv: boolean;
   is_active: boolean;
 };
 
@@ -194,6 +196,7 @@ export default function CustomerShopPage() {
           id,
           customer_code,
           customer_name,
+           has_no_cv,
           is_active
         `)
         .eq(
@@ -711,7 +714,7 @@ export default function CustomerShopPage() {
 
               <p className="text-sm text-gray-500">
                 {
-                  customer.customer_code
+                  displayCustomerCode(customer.customer_code, customer.has_no_cv)
                 }
               </p>
 
