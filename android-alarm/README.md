@@ -1,4 +1,4 @@
-# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.11.1)
+# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.11.2)
 
 An Android app for the existing OMS that requires no LINE or staff login.
 
@@ -25,6 +25,12 @@ An Android app for the existing OMS that requires no LINE or staff login.
 - Quiet hours are still **22:00–07:00 Thailand time**, and no sound is played during that period except a deliberate manual test.
 - The recording is packaged inside the APK; no internet request is needed to load the sound itself. The Android project uses a short Opus/WebM clip of the verified three-call preview, to avoid unnecessary APK size; the 4-second silent intervals are scheduled by the app.
 - Android MediaPlayer's scheduling and device power management may add slight timing latency, but the programmed delay is exactly 4,000 ms.
+
+## B2B teal launcher icon (v0.11.2)
+
+- App icon is now a simple white **B2B** logo on a full Lotus's teal (`#02B0AF`) background, replacing the generic Android alarm icon.
+- Adaptive launcher icons support system masks (round, rounded-square, etc.) and Android-themed icons, with no white background.
+- This change affects only the app icon and version; voice audio, customer order alarm, quiet hours and acknowledgements are unchanged.
 
 ## Compatibility update (v0.11.1)
 

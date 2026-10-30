@@ -12,7 +12,8 @@
         android:allowBackup="false"
         android:label="Lotus's B2B Alarm"
         android:usesCleartextTraffic="false"
-        android:icon="@android:drawable/ic_lock_idle_alarm"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:supportsRtl="true">
 

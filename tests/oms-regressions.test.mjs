@@ -358,7 +358,7 @@ test("Android voice alarm repeats with four-second spacing and stops promptly", 
   assert.match(sound, /boolean isActive\(\) \{\s*return repeating;/);
   assert.match(sound, /AlarmHours\.isQuiet\(\)/);
   assert.doesNotMatch(sound, /Three-beep alarm/);
-  assert.match(gradle, /versionCode 12/);
+  assert.match(gradle, /versionCode 13/);
   assert.match(gradle, /noCompress \+= \['webm'\]/);
   const hours = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmHours.java", import.meta.url), "utf8");
   assert.match(hours, /hour >= 22 \|\| hour < 7/);
@@ -396,4 +396,19 @@ test("production audit: redundant indexes and customer-price RLS policies are cl
   assert.match(sql, /DROP POLICY IF EXISTS "authenticated users can update customer prices"/);
   assert.match(sql, /DROP INDEX IF EXISTS public\.favourites_customer_product_unique/);
   assert.doesNotMatch(sql, /DROP INDEX IF EXISTS public\.products_sku_key/);
+});
+
+test("Android launcher uses the B2B teal adaptive icon without a white tile", () => {
+  const manifest = readFileSync(new URL("../android-alarm/app/src/main/AndroidManifest.xml", import.meta.url), "utf8");
+  const adaptive = readFileSync(new URL("../android-alarm/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml", import.meta.url), "utf8");
+  const round = readFileSync(new URL("../android-alarm/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml", import.meta.url), "utf8");
+  const foreground = readFileSync(new URL("../android-alarm/app/src/main/res/drawable/ic_b2b_foreground.xml", import.meta.url), "utf8");
+  const background = readFileSync(new URL("../android-alarm/app/src/main/res/values/ic_launcher_background.xml", import.meta.url), "utf8");
+  assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
+  assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
+  assert.match(adaptive, /@color\/ic_launcher_background/);
+  assert.match(adaptive, /@drawable\/ic_b2b_foreground/);
+  assert.equal(adaptive, round);
+  assert.match(foreground, /android:fillColor="#FFFFFF"/);
+  assert.match(background, /#02B0AF/);
 });
