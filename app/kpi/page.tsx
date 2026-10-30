@@ -109,6 +109,8 @@ type FinancialSummary = {
   cost_complete_bills: number;
   missing_cost_lines: number;
   changed_after_bill_lines: number;
+  unsnapshotted_cost_lines: number;
+  suspicious_cost_lines: number;
   cost_basis: string;
 };
 
@@ -585,9 +587,11 @@ export default function KPIPage() {
       ? "ยังไม่มีบิลในวันที่เลือก"
       : financialSummary.missing_cost_lines > 0
         ? `ขาดต้นทุน ${financialSummary.missing_cost_lines} รายการ · ยังไม่แสดง GP%`
-        : financialSummary.changed_after_bill_lines > 0
-          ? `มีต้นทุนปรับหลังออกบิล ${financialSummary.changed_after_bill_lines} รายการ · เป็นค่าประมาณ`
-          : `ต้นทุนครบ ${financialSummary.cost_complete_bills} / ${numberOfBills} บิล`;
+        : financialSummary.suspicious_cost_lines > 0
+          ? `พบต้นทุนผิดปกติ ${financialSummary.suspicious_cost_lines} รายการ · ยังไม่แสดง GP%`
+          : financialSummary.unsnapshotted_cost_lines > 0
+            ? `บิลเก่า: ไม่มีต้นทุน ณ วันออกบิล ${financialSummary.unsnapshotted_cost_lines} รายการ · เป็นค่าประมาณ`
+            : `ต้นทุน ณ วันออกบิลครบ ${financialSummary.cost_complete_bills} / ${numberOfBills} บิล`;
   const financeCards = [
     {
       name: "Total Sales Value",
@@ -612,9 +616,9 @@ export default function KPIPage() {
       value: loading ? "…" : financialSummary?.gross_profit_percent == null
         ? "—" : Number(financialSummary.gross_profit_percent).toFixed(2) + "%",
       detail: grossProfitDetail,
-      description: "GP% ถ่วงน้ำหนักด้วยยอดขาย · ใช้ต้นทุนล่าสุด จึงเป็นประมาณการย้อนหลัง",
+      description: "GP% ถ่วงน้ำหนักยอดขาย · บิลใหม่ใช้ต้นทุน ณ วันออกบิล · บิลเก่าอาจเป็นค่าประมาณ",
       caution: Boolean(financialError || (financialSummary && (
-        financialSummary.missing_cost_lines > 0 || financialSummary.changed_after_bill_lines > 0
+        financialSummary.missing_cost_lines > 0 || financialSummary.suspicious_cost_lines > 0 || financialSummary.unsnapshotted_cost_lines > 0
       ))),
     },
   ];
@@ -758,7 +762,7 @@ export default function KPIPage() {
             </div>
             <p className="mt-2 px-1 text-[11px] leading-4 text-[#718D84]">
               ยอดเงินมาจากยอดบิลสุดท้าย ไม่นับออร์เดอร์ยกเลิก และนับกลุ่ม /x เป็นบิลเดียว
-              · GP% ใช้ต้นทุนล่าสุดจาก Master Cost จึงเป็นประมาณการสำหรับวันย้อนหลัง
+              · GP% ใช้ต้นทุนที่บันทึก ณ วันออกบิลสำหรับบิลใหม่ · บิลเก่าที่ไม่มีต้นทุนย้อนหลังแสดงเป็นประมาณการ
             </p>
           </section>
 

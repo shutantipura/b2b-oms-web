@@ -37,13 +37,17 @@ export async function GET() {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // Only recent, not-yet-acknowledged orders are made available publicly.
+    // Only recent, non-final, not-yet-acknowledged orders are made available publicly.
     // A station can locally dismiss an alert without mutating the global queue.
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await admin
       .from("order_alerts")
-      .select("id, created_at, orders!inner(order_number)")
+      .select("id, created_at, orders!inner(order_number,status)")
       .is("acknowledged_at", null)
+      // Never send stale alerts for fulfilled or cancelled orders.
+      // Keep their rows intact for audit instead of falsely acknowledging them.
+      .neq("orders.status", "completed")
+      .neq("orders.status", "cancelled")
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(200);

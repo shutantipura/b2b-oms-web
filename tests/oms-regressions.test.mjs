@@ -366,3 +366,27 @@ test("Android voice alarm repeats with four-second spacing and stops promptly", 
   assert.match(service, /private void silenceUrgentAlarm\(\) \{\s*alarm\.stop\(\)/);
   assert.match(service, /acknowledgementInProgress = true;[\s\S]*?silenceUrgentAlarm\(\)/);
 });
+
+test("production audit: alarm feed excludes completed/cancelled orders without falsifying acknowledgements", () => {
+  const source = readFileSync(new URL("../app/api/order-alarm/feed/route.ts", import.meta.url), "utf8");
+  assert.match(source, /orders!inner\(order_number,status\)/);
+  assert.match(source, /\.neq\("orders\.status", "completed"\)/);
+  assert.match(source, /\.neq\("orders\.status", "cancelled"\)/);
+  assert.match(source, /\.is\("acknowledged_at", null\)/);
+  assert.doesNotMatch(source, /\.update\(\s*\{\s*acknowledged_at/);
+});
+test("production audit: financial KPI marks suspicious/historical costs without using them as exact", () => {
+  const page = readFileSync(new URL("../app/kpi/page.tsx", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../supabase/migrations/20261030121000_billing_cost_snapshots.sql", import.meta.url), "utf8");
+  assert.match(page, /financialSummary\.suspicious_cost_lines > 0/);
+  assert.match(page, /financialSummary\.unsnapshotted_cost_lines > 0/);
+  assert.match(migration, /unit_cost_at_billing/);
+  assert.match(migration, /NEW\.action='billing_completed'/);
+  assert.match(migration, /sum\(suspicious_cost_lines\)/);
+});
+test("production audit: privileged RPCs no longer accessible to anonymous clients", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/20261030120000_security_hardening.sql", import.meta.url), "utf8");
+  assert.match(sql, /create_customer_pickup_order[\s\S]*?FROM PUBLIC, anon, authenticated/);
+  assert.match(sql, /REVOKE ALL ON TABLE public\.favourites FROM anon/);
+  assert.match(sql, /managers can update favourites/);
+});
