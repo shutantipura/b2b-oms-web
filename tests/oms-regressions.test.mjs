@@ -335,6 +335,9 @@ test("stock and picking prompts are non-blocking and contain telephone action", 
   assert.match(dialog, /tel:/);
   assert.match(dialog, /onContinue/);
   assert.match(dialog, /onSkip/);
+  assert.match(dialog, /\(ไม่บังคับ\)/);
+  assert.match(dialog, /โทรแล้ว · ปิดงาน/);
+  assert.match(dialog, /ข้ามการโทร · ปิดงาน/);
   const confirm = readFileSync(new URL("../app/tasks/confirmation/[orderNumber]/page.tsx", import.meta.url), "utf8");
   const pick = readFileSync(new URL("../app/tasks/picking/[orderNumber]/page.tsx", import.meta.url), "utf8");
   assert.match(confirm, /confirmationCallShortages\(items, confirmed, addonMode\)/);

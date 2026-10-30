@@ -30,18 +30,15 @@ export default function ShortageCallReminder({
           <div className="flex items-center gap-2.5">
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#FFF1DB] text-2xl" aria-hidden="true">📞</span>
             <div>
-              <p className="text-[11px] font-extrabold text-[#A65D00]">แจ้งเตือนสินค้าขาด</p>
-              <h2 id="shortage-call-title" className="text-lg font-extrabold text-[#17453F]">โทรแจ้งลูกค้าก่อนปิดงาน</h2>
+              <p className="text-[11px] font-extrabold text-[#A65D00]">สินค้าขาด · ${stage === "stock" ? "เช็คสต็อก" : "จัดสินค้า"}</p>
+              <h2 id="shortage-call-title" className="text-lg font-extrabold text-[#17453F]">แนะนำให้โทรแจ้งลูกค้า <span className="whitespace-nowrap text-sm font-bold text-[#A65D00]">(ไม่บังคับ)</span></h2>
             </div>
           </div>
           <button type="button" aria-label="กลับไปตรวจสอบรายการ" disabled={busy} onClick={onCancel}
             className="rounded-xl border border-[#DFE9E5] px-3 py-2 text-[#4C6B60]">✕</button>
         </div>
         <p id="shortage-call-description" className="text-sm leading-6 text-[#58766B]">
-          {stage === "stock"
-            ? "จำนวนที่เช็คสต็อกไม่ครบตามที่ลูกค้าสั่ง แนะนำให้โทรแจ้งก่อนส่งงานไปจัดสินค้า"
-            : "พบสินค้าขาดจากการเช็คสต็อกหรือหยิบจริง แนะนำให้โทรแจ้งก่อนส่งงานไปออกบิล"}
-          {" "}สามารถข้ามได้หากแจ้งลูกค้าแล้วหรือไม่สะดวกโทร
+          พบสินค้าขาด แนะนำให้โทรแจ้งลูกค้าก่อนปิดงาน หรือข้ามได้
         </p>
         <div className="mt-3 rounded-2xl border border-[#D6ECE6] bg-[#F3FBF8] p-3">
           <p className="truncate text-sm font-extrabold text-[#17453F]">{customerName}</p>
@@ -52,7 +49,7 @@ export default function ShortageCallReminder({
             </a>
           ) : (
             <p className="mt-2 rounded-xl bg-[#FFF2E1] px-3 py-2 text-sm font-semibold text-[#955C13]">
-              ไม่มีเบอร์โทรศัพท์ลูกค้าในระบบ — สามารถข้ามได้
+              ไม่มีเบอร์ลูกค้า · ข้ามได้
             </p>
           )}
         </div>
@@ -76,13 +73,12 @@ export default function ShortageCallReminder({
         </div>
         <button type="button" onClick={onContinue} disabled={busy}
           className="mt-4 min-h-12 w-full rounded-xl bg-[#007F7B] px-3 py-3 text-sm font-extrabold text-white disabled:opacity-50">
-          โทรแจ้งแล้ว · ปิดงาน
+          โทรแล้ว · ปิดงาน
         </button>
         <button type="button" onClick={onSkip} disabled={busy}
           className="mt-2 min-h-11 w-full rounded-xl border border-[#D5E8E2] bg-white px-3 py-2.5 text-sm font-bold text-[#567A70] disabled:opacity-50">
-          ข้ามการโทร · ปิดงานต่อ
+          ข้ามการโทร · ปิดงาน
         </button>
-        <p className="mt-2 text-center text-[11px] text-[#8A9B93]">การโทรไม่ใช่เงื่อนไขบังคับในการปิดงาน</p>
       </section>
     </div>
   );
