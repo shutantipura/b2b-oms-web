@@ -756,10 +756,13 @@ async function submitPayment(
   let uploadMimeType = mimeType;
   let uploadBytes = Buffer.from(await file.arrayBuffer());
 
-  if (mimeType.startsWith("image/")) {
+  // Customer photos are normally compressed in the browser. Only optimize
+  // oversized images here (legacy clients or failed browser compression).
+  if (mimeType.startsWith("image/") && uploadBytes.length > 900_000) {
     try {
       const prepared = await sharp(uploadBytes, { failOn: "error", limitInputPixels: 95_000_000 })
         .rotate()
+        .flatten({ background: "#ffffff" })
         .resize({ width: 2400, height: 2400, fit: "inside", withoutEnlargement: true })
         .jpeg({ quality: 88, mozjpeg: true })
         .toBuffer();
