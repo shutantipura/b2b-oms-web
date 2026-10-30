@@ -1,4 +1,4 @@
-# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.11)
+# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.11.1)
 
 An Android app for the existing OMS that requires no LINE or staff login.
 
@@ -15,7 +15,7 @@ An Android app for the existing OMS that requires no LINE or staff login.
 - Best-effort restart at phone boot.
 - Android 13+ notification permission, Android 14+ special-use foreground service declaration and configurable full-screen alarm permission.
 
-## Recorded voice alert (v0.11)
+## Recorded voice alert (v0.11.1)
 
 - The former synthesized three-beep tone has been replaced with the cleaned Lotus's B2B voice recording.
 - The test button plays exactly **three identical voice calls**, with **4.0 seconds of silence** between calls.
@@ -25,6 +25,15 @@ An Android app for the existing OMS that requires no LINE or staff login.
 - Quiet hours are still **22:00–07:00 Thailand time**, and no sound is played during that period except a deliberate manual test.
 - The recording is packaged inside the APK; no internet request is needed to load the sound itself. The Android project uses a short Opus/WebM clip of the verified three-call preview, to avoid unnecessary APK size; the 4-second silent intervals are scheduled by the app.
 - Android MediaPlayer's scheduling and device power management may add slight timing latency, but the programmed delay is exactly 4,000 ms.
+
+## Compatibility update (v0.11.1)
+
+- Rebuilt from the current OMS repository revision after production security and alarm-feed fixes.
+- The backend now excludes alerts associated with completed or cancelled orders; the native client continues to use the same JSON feed without a new login or protocol.
+- Includes the previously verified cleaned Lotus's B2B recorded voice clip, scheduled with 4-second pauses (three calls in the test action).
+- A debug-signed APK can require uninstalling the previous debug build; uninstall clears private pairing, auto-login, locally acknowledged alerts and device settings.
+- If a device is already paired, record the station/Staff account mapping before uninstall. After reinstall, have the manager re-enroll or replace/revoke the orphan pairing in device management. Avoid casually using "unpair" for a reinstall: that action also deactivates the current device Staff account.
+- Open the Android app once after installation and allow notifications and battery exceptions; alarm monitoring starts automatically.
 
 ## Fast shared acknowledgement (v0.10)
 

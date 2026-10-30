@@ -358,7 +358,7 @@ test("Android voice alarm repeats with four-second spacing and stops promptly", 
   assert.match(sound, /boolean isActive\(\) \{\s*return repeating;/);
   assert.match(sound, /AlarmHours\.isQuiet\(\)/);
   assert.doesNotMatch(sound, /Three-beep alarm/);
-  assert.match(gradle, /versionCode 11/);
+  assert.match(gradle, /versionCode 12/);
   assert.match(gradle, /noCompress \+= \['webm'\]/);
   const hours = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmHours.java", import.meta.url), "utf8");
   assert.match(hours, /hour >= 22 \|\| hour < 7/);
