@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { groupOrdersForManagement, orderDisplayNumber } from "../lib/groupOrderDisplay.ts";
+import { combinePickedItems } from "../lib/groupedOrderItems.ts";
 import {
   DELIVERY_RULES,
   getAvailableSlots,
@@ -485,4 +487,55 @@ test("No CV customer displays hide internal identifiers without changing custome
   assert.match(access, /has_no_cv,/);
   assert.match(orders, /has_no_cv,/);
   assert.match(home, /\`\/miniapp\/shop\?customer=\$\{selectedCustomer\.customerCode\}\`/);
+});
+
+test("grouped order list merges only when every /x member has finished picking", () => {
+  const root = { id:"root",order_number:143,group_root_order_id:"root",group_sequence:1,status:"awaiting_billing" };
+  const child = {id:"child",order_number:147,group_root_order_id:"root",group_sequence:2,status:"picking"};
+  const independent = {id:"solo",order_number:149,group_root_order_id:null,group_sequence:null,status:"completed"};
+  let rows = groupOrdersForManagement([root,child,independent]);
+  assert.equal(rows.length, 3);
+  assert.equal(rows[0].consolidated, false);
+  assert.equal(rows[1].consolidated, false);
+  assert.equal(orderDisplayNumber(child,143), "143/2");
+  rows = groupOrdersForManagement([root,{...child,status:"awaiting_billing"},independent]);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].consolidated, true);
+  assert.deepEqual(rows[0].members.map(x=>x.order_number),[143,147]);
+  assert.equal(rows[0].order.order_number, 143);
+  assert.equal(rows[1].order.order_number, 149);
+  assert.equal(groupOrdersForManagement([root,{...child,status:"cancelled"}]).length,2);
+  assert.equal(groupOrdersForManagement([{...root,status:"completed"},{...child,status:"completed"}]).length,1);
+  // Never hide a child when the root is absent from a filtered result.
+  assert.equal(groupOrdersForManagement([child]).length,1);
+});
+
+test("order summary aggregates weighed and piece products without mixing kg with pcs", () => {
+  const base = {product_id:"salmon",unit_snapshot:"ชิ้น",product_name_snapshot:"Salmon",products:{sku:"111"}};
+  const picked = combinePickedItems([
+    {...base,id:"a",order_id:"root",unit_price_snapshot:10,piece_price_per_kg_snapshot:100,requested_qty:1,confirmed_qty:1,actual_qty:1.5},
+    {...base,id:"b",order_id:"child",unit_price_snapshot:10,piece_price_per_kg_snapshot:200,requested_qty:2,confirmed_qty:2,actual_qty:2},
+    {...base,id:"c",order_id:"child",unit_price_snapshot:10,piece_price_per_kg_snapshot:null,requested_qty:3,confirmed_qty:3,actual_qty:3}
+  ]);
+  assert.equal(picked.length,2);
+  const weighed=picked.find(x=>x.piece_price_per_kg_snapshot != null);
+  const pcs=picked.find(x=>x.piece_price_per_kg_snapshot == null);
+  assert.equal(Number(weighed.requested_qty),3);
+  assert.equal(Number(weighed.confirmed_qty),3);
+  assert.equal(Number(weighed.actual_qty),3.5);
+  assert.ok(Math.abs(Number(weighed.piece_price_per_kg_snapshot)-(550/3.5))<0.0001);
+  assert.equal(weighed.sources.length,2);
+  assert.equal(Number(pcs.actual_qty),3);
+});
+
+test("group detail displays consolidated goods and inline /x origin audit", () => {
+  const list = readFileSync(new URL("../app/orders/page.tsx",import.meta.url),"utf8");
+  const detail = readFileSync(new URL("../app/orders/[orderNumber]/page.tsx",import.meta.url),"utf8");
+  assert.match(list,/groupOrdersForManagement\(orders\)/);
+  assert.match(list,/data-testid="consolidated-order-audit"/);
+  assert.match(detail,/isConsolidatedGroup\(members/);
+  assert.match(detail,/combinePickedItems\(pickedLines/);
+  assert.match(detail,/data-testid="grouped-order-audit"/);
+  assert.match(detail,/\.eq\("stage", "picking"\)/);
+  assert.match(detail,/\/orders\/\$\{member.order_number\}/);
 });

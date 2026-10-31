@@ -11,6 +11,8 @@ import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 import { getManagerDeliveryOptions } from "../../../lib/deliveryRules";
 import TaskFilePicker from "../../../components/TaskFilePicker";
+import { isConsolidatedGroup } from "../../../lib/groupOrderDisplay";
+import { combinePickedItems, type PickedItem } from "../../../lib/groupedOrderItems";
 
 
 
@@ -63,6 +65,8 @@ type OrderDetails = {
 type OrderItem = {
 
   id: string;
+  order_id: string;
+  product_id: string;
 
   product_name_snapshot: string;
 
@@ -230,6 +234,16 @@ function fileLabel(type: string, suspendedBilling = false, noCvBilling = false) 
 
 
 
+type GroupAuditMember = {
+  id: string;
+  order_number: number;
+  group_sequence: number | null;
+  status: string;
+  pickedBy: string | null;
+  pickedAt: string | null;
+  lines: OrderItem[];
+};
+
 export default function OrderDetailsPage() {
 
   const params = useParams();
@@ -241,6 +255,7 @@ export default function OrderDetailsPage() {
 
 
   const [groupRootNumber, setGroupRootNumber] = useState<number | null>(null);
+  const [groupAudit, setGroupAudit] = useState<GroupAuditMember[]>([]);
   const [order, setOrder] =
 
     useState<OrderDetails | null>(null);
@@ -408,11 +423,25 @@ export default function OrderDetailsPage() {
 
     // ------------------------------------------------
 
-    // Order items
+    // Order items: preserve original /x rows and show a read-only combined summary.
 
     // ------------------------------------------------
 
-
+    setGroupAudit([]);
+    let readyMembers: { id: string; order_number: number; group_sequence: number | null; status: string }[] = [];
+    if (loadedOrder.group_root_order_id === loadedOrder.id) {
+      const { data: members, error: membersError } = await supabase
+        .from("orders")
+        .select("id,order_number,group_sequence,status")
+        .eq("group_root_order_id", loadedOrder.id)
+        .order("group_sequence", { ascending: true });
+      if (membersError) {
+        setMessage("ไม่สามารถโหลดรายการย่อยได้: " + membersError.message);
+        setLoading(false);
+        return;
+      }
+      if (isConsolidatedGroup(members ?? [])) readyMembers = members ?? [];
+    }
 
     const {
 
@@ -427,6 +456,8 @@ export default function OrderDetailsPage() {
       .select(`
 
         id,
+        order_id,
+        product_id,
 
         product_name_snapshot,
 
@@ -449,7 +480,7 @@ export default function OrderDetailsPage() {
 
       `)
 
-      .eq("order_id", loadedOrder.id)
+      .in("order_id", readyMembers.length ? readyMembers.map(member => member.id) : [loadedOrder.id])
 
       .order(
 
@@ -481,11 +512,25 @@ export default function OrderDetailsPage() {
 
 
 
-    setItems(
-
-      (itemData ?? []) as unknown as OrderItem[]
-
-    );
+    const pickedLines = (itemData ?? []) as unknown as OrderItem[];
+    if (readyMembers.length > 0) {
+      setItems(combinePickedItems(pickedLines as PickedItem[]) as OrderItem[]);
+      const { data: pickClaims } = await supabase.from("task_claims")
+        .select("order_id,completed_at,staff(staff_name)")
+        .in("order_id", readyMembers.map(member => member.id))
+        .eq("stage", "picking")
+        .eq("claim_status", "completed")
+        .order("completed_at", { ascending: false });
+      setGroupAudit(readyMembers.map(member => {
+        const claim = (pickClaims ?? []).find(row => row.order_id === member.id);
+        const staffData = claim?.staff as {staff_name:string} | {staff_name:string}[] | null | undefined;
+        const pickedBy = Array.isArray(staffData) ? staffData[0]?.staff_name : staffData?.staff_name;
+        return { ...member, pickedBy: pickedBy ?? null, pickedAt: claim?.completed_at ?? null,
+          lines: pickedLines.filter(line => line.order_id === member.id) };
+      }));
+    } else {
+      setItems(pickedLines);
+    }
 
 
 
@@ -1105,9 +1150,16 @@ export default function OrderDetailsPage() {
 
             <h1 className="text-3xl font-bold mt-1">
 
-              คำสั่งซื้อ #{order.group_sequence
-                ? `${groupRootNumber ?? order.order_number}/${order.group_sequence}`
-                : order.order_number}
+              คำสั่งซื้อ #{groupAudit.length > 1
+                ? order.order_number
+                : order.group_sequence
+                  ? `${groupRootNumber ?? order.order_number}/${order.group_sequence}`
+                  : order.order_number}
+              {groupAudit.length > 1 && (
+                <span className="ml-2 align-middle text-sm font-bold text-[#008F8D]">
+                  รวม {groupAudit.length} ออเดอร์
+                </span>
+              )}
 
             </h1>
 
@@ -1355,6 +1407,46 @@ export default function OrderDetailsPage() {
 
 
 
+        {groupAudit.length > 1 && (
+          <section className="mb-6 rounded-2xl border border-[#B7E3DB] bg-[#F4FBF9] p-4 sm:p-5" data-testid="grouped-order-audit">
+            <h2 className="text-lg font-bold text-[#17453F]">คำสั่งซื้อรวม #{order.order_number}</h2>
+            <p className="mt-1 text-sm text-[#52786F]">
+              รวมรายการสินค้าเมื่อหยิบครบ · ยังคงตรวจสอบ /1, /2 และผู้หยิบแต่ละรายการได้
+            </p>
+            <div className="mt-3 space-y-2">
+              {groupAudit.map(member => (
+                <details key={member.id} className="rounded-xl border border-[#D3E7E1] bg-white p-3">
+                  <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-sm font-bold text-[#17453F]">
+                    <span>#{order.order_number}/{member.group_sequence ?? 1}</span>
+                    <span className="text-[#52786F]">{prettyText(member.status)}</span>
+                    <span className="font-normal text-[#52786F]">{member.lines.length} รายการ</span>
+                    <span className="ml-auto text-xs text-[#007F79]">รายละเอียด</span>
+                  </summary>
+                  <div className="mt-3 space-y-2 border-t border-[#E4EFEB] pt-3 text-sm">
+                    <p className="text-[#52786F]">
+                      ผู้หยิบ: {member.pickedBy ?? "—"}
+                      {member.pickedAt ? ` · ${new Date(member.pickedAt).toLocaleString("th-TH", {timeZone:"Asia/Bangkok"})}` : ""}
+                    </p>
+                    {member.lines.map(line => (
+                      <div key={line.id} className="flex flex-wrap justify-between gap-2 border-b border-[#F0F5F3] pb-2">
+                        <span className="min-w-0 flex-1">{line.product_name_snapshot}</span>
+                        <span className="tabular-nums text-[#17453F]">
+                          สั่ง {Number(line.requested_qty)} {line.unit_snapshot} ·
+                          หยิบ {line.actual_qty == null ? "—" : Number(line.actual_qty)}
+                          {" "}{line.piece_price_per_kg_snapshot != null ? "กก." : line.unit_snapshot}
+                        </span>
+                      </div>
+                    ))}
+                    <Link href={`/orders/${member.order_number}`} className="inline-block font-bold text-[#007F79] underline">
+                      ดูประวัติคำสั่งซื้อย่อยนี้
+                    </Link>
+                  </div>
+                </details>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ITEMS */}
 
 
@@ -1369,7 +1461,7 @@ export default function OrderDetailsPage() {
 
             <h2 className="font-bold text-lg">
 
-              รายการสินค้า
+              {groupAudit.length > 1 ? "รายการสินค้ารวม" : "รายการสินค้า"}
 
             </h2>
 

@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 
 import { supabase } from "../../lib/supabase";
+import { groupOrdersForManagement, orderDisplayNumber } from "../../lib/groupOrderDisplay";
 import { getOrderDeliveryUrgency, type DeliveryUrgency } from "../../lib/deliveryRules";
 
 type Order = {
@@ -716,21 +717,30 @@ export default function OrdersPage() {
   // COUNTS FOR CURRENT DATE MODE
   // =====================================================
 
+  // Consolidate only after every /x child has finished picking.
+  // The underlying order rows remain untouched for staff attribution and auditing.
+  const orderGroups = useMemo(() => groupOrdersForManagement(orders), [orders]);
+  const visibleOrders = useMemo(() => orderGroups.map(group => group.order), [orderGroups]);
+  const groupsById = useMemo(
+    () => new Map(orderGroups.map(group => [group.order.id, group])),
+    [orderGroups]
+  );
+
   const pendingCount =
     useMemo(
       () =>
-        orders.filter(
+        visibleOrders.filter(
           isPending
         ).length,
       [
-        orders,
+        visibleOrders,
       ]
     );
 
   const completedCount =
     useMemo(
       () =>
-        orders.filter(
+        visibleOrders.filter(
           (
             order
           ) =>
@@ -738,14 +748,14 @@ export default function OrdersPage() {
             "completed"
         ).length,
       [
-        orders,
+        visibleOrders,
       ]
     );
 
   const cancelledCount =
     useMemo(
       () =>
-        orders.filter(
+        visibleOrders.filter(
           (
             order
           ) =>
@@ -753,12 +763,12 @@ export default function OrdersPage() {
             "cancelled"
         ).length,
       [
-        orders,
+        visibleOrders,
       ]
     );
 
   const totalCount =
-    orders.length;
+    visibleOrders.length;
 
   // =====================================================
   // FILTER + FIXED EARLIEST-DELIVERY ORDER
@@ -767,23 +777,27 @@ export default function OrdersPage() {
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return orders
+    return visibleOrders
       .filter((order) => {
         const matchesStatus = statusFilter === "all"
           || (statusFilter === "pending" && isPending(order))
           || (statusFilter === "completed" && order.status === "completed")
           || (statusFilter === "cancelled" && order.status === "cancelled");
 
-        const matchesSearch = !query
-          || String(order.order_number).includes(query)
-          || (order.customers?.customer_name ?? "").toLowerCase().includes(query)
-          || (order.customers?.customer_code ?? "").toLowerCase().includes(query)
-          || (order.customers?.phone ?? "").toLowerCase().includes(query);
+        const group = groupsById.get(order.id);
+        const rootNumber = order.order_number;
+        const matchesSearch = !query || (group?.members ?? [order]).some(member =>
+          String(member.order_number).includes(query)
+          || orderDisplayNumber(member, rootNumber).toLowerCase().includes(query)
+          || (member.customers?.customer_name ?? "").toLowerCase().includes(query)
+          || (member.customers?.customer_code ?? "").toLowerCase().includes(query)
+          || (member.customers?.phone ?? "").toLowerCase().includes(query)
+        );
 
         return matchesStatus && matchesSearch;
       })
       .sort(compareDelivery);
-  }, [orders, search, statusFilter]);
+  }, [visibleOrders, groupsById, search, statusFilter]);
 
   const dateScopeLabel = allDates ? "ทุกวัน" : prettyDate(selectedDate);
 
@@ -957,10 +971,8 @@ export default function OrdersPage() {
             </div>
 
             <span className="text-sm text-gray-500">
-              {
-                filteredOrders.length
-              }{" "}
-              รายการ · เร็วที่สุดก่อน
+              {filteredOrders.length}{" "}
+              รายการ · รวม /x หลังหยิบครบ · เร็วที่สุดก่อน
             </span>
 
           </div>
@@ -1025,6 +1037,7 @@ export default function OrdersPage() {
                   {filteredOrders.map(
                     (order) => {
                       const urgency = getOrderDeliveryUrgency(order, clock);
+                      const group = groupsById.get(order.id);
 
                       return (
                         <tr
@@ -1040,9 +1053,11 @@ export default function OrdersPage() {
                               <div className="font-bold">
                                 #
                                 {
-                                  order.group_root_order_id
-                                    ? `${orders.find(parent=>parent.id===order.group_root_order_id)?.order_number ?? order.order_number}/${order.group_sequence ?? 1}`
-                                    : order.order_number
+                                  group?.consolidated
+                                    ? order.order_number
+                                    : order.group_root_order_id
+                                      ? `${orders.find(parent=>parent.id===order.group_root_order_id)?.order_number ?? order.order_number}/${order.group_sequence ?? 1}`
+                                      : order.order_number
                                 }
                               </div>
 
@@ -1060,13 +1075,31 @@ export default function OrdersPage() {
                             </div>
 
                             <div className="text-sm text-gray-500">
-                              {
-                                order
-                                  .customers
-                                  ?.customer_code ??
-                                "—"
-                              }
+                              {order.customers?.customer_code ?? "—"}
                             </div>
+
+                            {group?.consolidated && (
+                              <details className="mt-2 rounded-lg border border-[#B9E2D9] bg-[#F0FAF7] p-2 text-xs" data-testid="consolidated-order-audit">
+                                <summary className="cursor-pointer font-bold text-[#007F79]">
+                                  รวม {group.members.length} ออเดอร์ · ดู /1, /2 และประวัติ
+                                </summary>
+                                <div className="mt-2 space-y-2">
+                                  {group.members.map(member => (
+                                    <div key={member.id} className="flex flex-wrap items-center gap-2">
+                                      <Link href={`/orders/${member.order_number}`}
+                                        className="font-bold text-[#007F79] underline">
+                                        #{orderDisplayNumber(member, order.order_number)}
+                                      </Link>
+                                      <span className="text-[#52786F]">{prettyStatus(member.status)}</span>
+                                    </div>
+                                  ))}
+                                  <Link href={`/orders/${order.order_number}`}
+                                    className="inline-block font-bold text-[#007F79] underline">
+                                    ดูยอดรวมและรายละเอียดการหยิบทั้งหมด
+                                  </Link>
+                                </div>
+                              </details>
+                            )}
 
                             {/* On phones, show the method without adding another narrow table column. */}
                             <div className="mt-2 lg:hidden">
