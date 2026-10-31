@@ -577,3 +577,30 @@ test("billing supports an optional second bill photo and QR without changing req
   assert.match(migration, /WHEN 'payment_qr_2' THEN v_required_stage:='billing'/);
   assert.match(migration, /order_files_file_type_check/);
 });
+
+test("managers can retrospectively add up to two bill photos without changing order state", () => {
+  const detail = readFileSync(new URL("../app/orders/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../supabase/migrations/20261031193000_manager_retrospective_bill_photos.sql", import.meta.url), "utf8");
+  assert.match(detail, /manager_upload_order_bill_photo/);
+  assert.match(detail, /uploadManagerBillPhoto\(chosen, slot\)/);
+  assert.match(detail, /\["bill", "bill_2"\] as const/);
+  assert.match(detail, /เพิ่มหรือเปลี่ยนรูปบิล \(Manager\)/);
+  assert.match(detail, /order\.final_amount !== null/);
+  assert.match(detail, /"completed", "cancelled"/);
+  assert.match(detail, /prepareOrderPhoto\(file, slot\)/);
+  assert.match(detail, /\.remove\(\[storagePath\]\)/);
+  assert.match(detail, /manager_bill_photo_added/);
+  assert.doesNotMatch(detail, /uploadReprintedCvBill/);
+  assert.match(sql, /account_type = 'manager'/);
+  assert.match(sql, /p_file_type NOT IN \('bill','bill_2'\)/);
+  assert.match(sql, /p_file_type='bill' AND v_order.status='completed'/);
+  assert.match(sql, /order_number = p_order_number FOR UPDATE/);
+  assert.match(sql, /'manager_bill_photo_added'/);
+  assert.match(sql, /previous_file_id/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.manager_upload_order_bill_photo/);
+  assert.match(sql, /'\/bill\/manager\/%'/);
+  assert.match(sql, /'\/bill_2\/manager\/%'/);
+  assert.match(sql, /f\.created_at > now\(\)-interval '14 days'/);
+  assert.doesNotMatch(sql, /SET final_amount\s*=/i);
+  assert.doesNotMatch(sql, /SET status\s*=/i);
+});
