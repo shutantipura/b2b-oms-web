@@ -620,6 +620,10 @@ export default function BillingPage() {
 
 
     if (registerError) {
+      // Avoid leaving an unregistered image consuming storage when the RPC fails.
+      const { error: cleanupError } = await supabase.storage
+        .from("order-files").remove([storagePath]);
+      if (cleanupError) console.warn("Billing upload cleanup failed", cleanupError.message);
 
       throw new Error(
 

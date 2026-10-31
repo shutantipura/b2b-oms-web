@@ -75,6 +75,8 @@ export default function StaffPaymentPage() {
     useState<string | null>(null);
   const [bill2Url, setBill2Url] = useState<string | null>(null);
   const [bill2Name, setBill2Name] = useState<string | null>(null);
+  const [billMime, setBillMime] = useState<string | null>(null);
+  const [bill2Mime, setBill2Mime] = useState<string | null>(null);
 
   const [qrUrl, setQrUrl] =
     useState<string | null>(null);
@@ -139,6 +141,8 @@ export default function StaffPaymentPage() {
     setBillName(null);
     setBill2Url(null);
     setBill2Name(null);
+    setBillMime(null);
+    setBill2Mime(null);
     setQr2Url(null);
     setExistingSlip(false);
     setSlipUrl(null);
@@ -233,6 +237,7 @@ export default function StaffPaymentPage() {
     const bill2 = files.find(file => file.file_type === "bill_2");
     const qr2 = files.find(file => file.file_type === "payment_qr_2");
     if (bill2) {
+      setBill2Mime(bill2.mime_type);
       setBill2Name(bill2.original_filename ?? "บิลรูปที่ 2");
       setBill2Url(await createFileUrl(bill2.storage_path));
     }
@@ -244,6 +249,7 @@ export default function StaffPaymentPage() {
     );
 
     if (bill) {
+      setBillMime(bill.mime_type);
       setBillName(
         bill.original_filename ??
           "ใบเสร็จ"
@@ -528,26 +534,34 @@ export default function StaffPaymentPage() {
             </p>
 
             {billUrl ? (
-              <>
-              <a
-                href={
-                  billUrl
-                }
-                target="_blank"
-                rel="noreferrer"
-                className="inline-block bg-white border rounded-lg px-5 py-3 font-semibold"
-              >
-                เปิด{" "}
-                {billName ??
-                  "ใบเสร็จ"}
-              </a>
-              {bill2Url && (
-                <a href={bill2Url} target="_blank" rel="noreferrer"
-                  className="mt-3 block rounded-lg border border-[#B7E1D4] bg-[#F4FBF9] px-5 py-3 font-semibold text-[#007F79]">
-                  เปิด{bill2Name ?? "บิลรูปที่ 2"}
+              <div className={bill2Url ? "mt-3 grid grid-cols-2 gap-3" : "mt-3"}>
+                <a href={billUrl} target="_blank" rel="noreferrer"
+                  className="min-w-0 rounded-xl border border-[#D6E8E2] bg-[#F8FBFA] p-2 text-center">
+                  {billMime?.startsWith("image/") ? (
+                    <img src={billUrl} alt="บิลรูปที่ 1" loading="lazy"
+                      className="h-36 w-full rounded-lg bg-white object-contain" />
+                  ) : (
+                    <div className="grid h-36 place-items-center rounded-lg bg-white text-sm font-bold text-[#617F73]">เอกสาร / PDF</div>
+                  )}
+                  <span className="mt-2 block break-words text-xs font-bold text-[#007F79]">
+                    {billName ?? "บิลรูปที่ 1"} · เปิดดู
+                  </span>
                 </a>
-              )}
-            </>
+                {bill2Url && (
+                  <a href={bill2Url} target="_blank" rel="noreferrer"
+                    className="min-w-0 rounded-xl border border-[#D6E8E2] bg-[#F8FBFA] p-2 text-center">
+                    {bill2Mime?.startsWith("image/") ? (
+                      <img src={bill2Url} alt="บิลรูปที่ 2" loading="lazy"
+                        className="h-36 w-full rounded-lg bg-white object-contain" />
+                    ) : (
+                      <div className="grid h-36 place-items-center rounded-lg bg-white text-sm font-bold text-[#617F73]">เอกสาร</div>
+                    )}
+                    <span className="mt-2 block break-words text-xs font-bold text-[#007F79]">
+                      {bill2Name ?? "บิลรูปที่ 2"} · เปิดดู
+                    </span>
+                  </a>
+                )}
+              </div>
             ) : (
               <p className={order.billing_account_suspended ? "text-gray-500" : "text-red-600"}>
                 {order.billing_account_suspended ? "CV Card: ไม่จำเป็นต้องแนบรูปบิล" : "ไม่พบไฟล์ใบเสร็จ"}

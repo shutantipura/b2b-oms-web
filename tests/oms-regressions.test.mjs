@@ -564,6 +564,12 @@ test("billing supports an optional second bill photo and QR without changing req
   assert.match(customer, /files\.bill2/);
   assert.match(staff, /bill2Url/);
   assert.match(staff, /qr2Url/);
+  assert.match(staff, /bill2Mime/);
+  assert.match(staff, /alt="บิลรูปที่ 2"/);
+  assert.match(staff, /grid grid-cols-2 gap-3/);
+  // A failed registration must not strand an unregistered image in Storage.
+  assert.match(billing, /Billing upload cleanup failed/);
+  assert.match(billing, /\.remove\(\[storagePath\]\)/);
   assert.match(details, /bill_2: "บิลรูปที่ 2"/);
   assert.match(retention, /"bill_2"/);
   assert.match(retention, /"payment_qr_2"/);
