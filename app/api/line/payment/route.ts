@@ -441,6 +441,7 @@ async function loadPayment(
           "payment_qr_2",
           "delivery_proof",
           "payment_slip",
+          "payment_slip_2",
         ]
       );
 
@@ -479,6 +480,7 @@ async function loadPayment(
         "delivery_proof"
     );
 
+  const slip2File = files.find(file => file.file_type === "payment_slip_2");
   const slipFile =
     files.find(
       (file) =>
@@ -491,6 +493,7 @@ async function loadPayment(
     paymentQr,
     deliveryProof,
     paymentSlip,
+    paymentSlip2,
     bill2,
     paymentQr2,
   ] =
@@ -514,6 +517,7 @@ async function loadPayment(
         supabase,
         slipFile
       ),
+      createSignedFile(supabase, slip2File),
       createSignedFile(supabase, bill2File),
       createSignedFile(supabase, qr2File),
     ]);
@@ -559,6 +563,7 @@ async function loadPayment(
       paymentQr2,
       deliveryProof,
       paymentSlip,
+      paymentSlip2,
     },
   });
 }

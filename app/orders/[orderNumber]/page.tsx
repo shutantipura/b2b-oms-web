@@ -189,6 +189,8 @@ function prettyText(value: string | null) {
     manager_rescheduled_delivery: "ผู้จัดการเปลี่ยนเวลาจัดส่ง",
     cv_card_bill_resolved: "ผู้จัดการเพิ่มบิลพิมพ์ซ้ำและแก้ไขปัญหา CV Card",
     manager_bill_photo_added: "ผู้จัดการเพิ่มหรือเปลี่ยนรูปบิล",
+    manager_payment_slip_added: "ผู้จัดการเพิ่มหรือเปลี่ยนรูปสลิป",
+    staff_secondary_payment_slip_added: "พนักงานเพิ่มสลิปรูปที่ 2",
   };
 
   return (
@@ -227,7 +229,8 @@ function fileLabel(type: string, suspendedBilling = false, noCvBilling = false) 
 
     delivery_proof_2: "หลักฐานการจัดส่ง 2",
 
-    payment_slip: "สลิปการชำระเงิน",
+    payment_slip: "สลิปการชำระเงินรูปที่ 1",
+    payment_slip_2: "สลิปการชำระเงินรูปที่ 2",
 
   };
 
@@ -298,6 +301,8 @@ export default function OrderDetailsPage() {
   const [isManager, setIsManager] = useState(false);
   const [uploadingManagerBill, setUploadingManagerBill] = useState<"bill" | "bill_2" | null>(null);
   const [managerBillMessage, setManagerBillMessage] = useState("");
+  const [uploadingManagerSlip, setUploadingManagerSlip] = useState<"payment_slip" | "payment_slip_2" | null>(null);
+  const [managerSlipMessage, setManagerSlipMessage] = useState("");
   const [editedFinalAmount, setEditedFinalAmount] = useState("");
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [savingAmount, setSavingAmount] = useState(false);
@@ -1002,6 +1007,55 @@ export default function OrderDetailsPage() {
       setManagerBillMessage(error instanceof Error ? error.message : "ไม่สามารถบันทึกรูปบิลได้");
     } finally {
       setUploadingManagerBill(null);
+    }
+  }
+
+  async function uploadManagerSlipPhoto(file: File, slot: "payment_slip" | "payment_slip_2") {
+    if (!isManager || !order || !["completed", "payment_submitted"].includes(order.status) ||
+        (order.group_root_order_id && order.group_root_order_id !== order.id)) {
+      setManagerSlipMessage("เฉพาะ Manager เท่านั้นที่เพิ่มสลิปย้อนหลังหลังส่งหลักฐานการชำระเงินได้");
+      return;
+    }
+    if (uploadingManagerSlip) return;
+    if (!file.type.startsWith("image/") || !file.name.trim() ||
+        file.name.length > 255 || file.size < 1 || file.size > 15 * 1024 * 1024) {
+      setManagerSlipMessage("กรุณาเลือกรูปสลิปไม่เกิน 15 MB");
+      return;
+    }
+    const existing = files.find(x => x.file_type === slot && x.is_current);
+    if (existing && !window.confirm(`ยืนยันเปลี่ยน${slot === "payment_slip" ? "สลิปรูปที่ 1" : "สลิปรูปที่ 2"} ของคำสั่งซื้อ #${order.order_number}?`)) return;
+    setUploadingManagerSlip(slot);
+    setManagerSlipMessage("");
+    let storagePath: string | null = null;
+    try {
+      const optimized = await prepareOrderPhoto(file, slot);
+      const mime = optimized.type.toLowerCase() === "image/jpg" ? "image/jpeg" : optimized.type.toLowerCase();
+      const extensions: Record<string, string> = {
+        "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+        "image/heic": "heic", "image/heif": "heif", "image/avif": "avif"
+      };
+      const ext = extensions[mime];
+      if (!ext || !optimized.size || optimized.size > 15 * 1024 * 1024) throw new Error("ไม่รองรับไฟล์รูปสลิป");
+      storagePath = `orders/${order.order_number}/${slot}/manager/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("order-files").upload(
+        storagePath, optimized, { upsert: false, contentType: mime });
+      if (uploadError) throw new Error("อัปโหลดสลิปไม่สำเร็จ: " + uploadError.message);
+      const { error: registerError } = await supabase.rpc("attach_additional_payment_slip", {
+        p_order_number: order.order_number, p_file_type: slot,
+        p_storage_path: storagePath, p_original_filename: file.name, p_mime_type: mime
+      });
+      if (registerError) throw new Error("บันทึกสลิปไม่สำเร็จ: " + registerError.message);
+      storagePath = null;
+      await loadOrder();
+      setManagerSlipMessage("✓ บันทึกรูปสลิปเรียบร้อยแล้ว · ยอดเงินและสถานะการชำระเงินไม่เปลี่ยน");
+    } catch (error) {
+      if (storagePath) {
+        const { error: cleanupError } = await supabase.storage.from("order-files").remove([storagePath]);
+        if (cleanupError) console.warn("Retrospective slip cleanup failed", cleanupError.message);
+      }
+      setManagerSlipMessage(error instanceof Error ? error.message : "บันทึกสลิปไม่สำเร็จ");
+    } finally {
+      setUploadingManagerSlip(null);
     }
   }
 
@@ -1774,6 +1828,55 @@ export default function OrderDetailsPage() {
               {managerBillMessage && <p role="status" className="mt-3 text-sm font-semibold text-[#17453F]">{managerBillMessage}</p>}
               <p className="mt-2 text-[11px] leading-4 text-[#718C84]">
                 รูปบิลที่เพิ่มย้อนหลังจะเก็บไว้อย่างน้อย 14 วันนับจากวันที่อัปโหลด ตามนโยบายจัดเก็บรูป
+              </p>
+            </div>
+          )}
+          {isManager && ["payment_submitted", "completed"].includes(order.status) &&
+            (!order.group_root_order_id || order.group_root_order_id === order.id) && (
+            <div className="mb-5 rounded-2xl border border-[#B7E1D4] bg-[#F3FBF8] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-bold text-[#17453F]">เพิ่มหรือเปลี่ยนรูปสลิป (Manager)</h3>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#008F8D]">เพิ่มย้อนหลังได้</span>
+              </div>
+              <p className="mt-1 text-xs leading-5 text-[#607D72]">
+                เพิ่มสลิปรูปที่ 1 หรือรูปที่ 2 (ไม่บังคับ) หลังส่งหลักฐานหรือปิดคำสั่งซื้อแล้ว
+                · ไม่เปลี่ยนยอดเงินหรือสถานะการชำระเงิน
+              </p>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {(["payment_slip", "payment_slip_2"] as const).map(slot => {
+                  const existing = files.find(f => f.file_type === slot && f.is_current);
+                  const first = slot === "payment_slip";
+                  return (
+                    <div key={slot} className="min-w-0 rounded-xl border border-[#D8EBE4] bg-white p-3">
+                      <p className="mb-2 text-sm font-bold text-[#17453F]">
+                        {first ? "สลิปรูปที่ 1" : "สลิปรูปที่ 2 (ไม่บังคับ)"}
+                      </p>
+                      <TaskFilePicker
+                        label={first ? "สลิปรูปที่ 1" : "สลิปรูปที่ 2"}
+                        chooseLabel={first ? "เพิ่มสลิปรูปที่ 1" : "เพิ่มสลิปรูปที่ 2"}
+                        replaceLabel={first ? "เปลี่ยนสลิปรูปที่ 1" : "เปลี่ยนสลิปรูปที่ 2"}
+                        accept="image/*"
+                        uploaded={Boolean(existing)}
+                        uploading={uploadingManagerSlip === slot}
+                        disabled={uploadingManagerSlip !== null}
+                        fileName={existing?.original_filename ?? null}
+                        onSelect={(file) => void uploadManagerSlipPhoto(file, slot)}
+                      />
+                      {existing?.url && (
+                        <a href={existing.url} target="_blank" rel="noreferrer" className="mt-3 block">
+                          {existing.mime_type?.startsWith("image/") ?
+                            <img src={existing.url} alt={first ? "สลิปรูปที่ 1" : "สลิปรูปที่ 2"}
+                              className="h-32 w-full rounded-lg bg-[#FAFDFB] object-contain" /> :
+                            <span className="text-sm font-bold text-[#008F8D] underline">เปิดไฟล์สลิปเดิม</span>}
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {managerSlipMessage && <p role="status" className="mt-3 text-sm font-semibold text-[#17453F]">{managerSlipMessage}</p>}
+              <p className="mt-2 text-[11px] leading-4 text-[#718C84]">
+                สลิปที่เพิ่มย้อนหลังจะเก็บอย่างน้อย 14 วันนับจากวันที่อัปโหลด
               </p>
             </div>
           )}

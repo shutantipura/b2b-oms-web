@@ -604,3 +604,36 @@ test("managers can retrospectively add up to two bill photos without changing or
   assert.doesNotMatch(sql, /SET final_amount\s*=/i);
   assert.doesNotMatch(sql, /SET status\s*=/i);
 });
+
+test("optional staff payment slip and retrospective manager slip keep payment state unchanged", () => {
+  const staff = readFileSync(new URL("../app/orders/[orderNumber]/payment/page.tsx", import.meta.url), "utf8");
+  const detail = readFileSync(new URL("../app/orders/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const api = readFileSync(new URL("../app/api/line/payment/route.ts", import.meta.url), "utf8");
+  const miniapp = readFileSync(new URL("../app/miniapp/payment/page.tsx", import.meta.url), "utf8");
+  const helper = readFileSync(new URL("../lib/orderPhotoUpload.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../app/api/cron/order-photo-retention/route.ts", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../supabase/migrations/20261031230000_add_optional_payment_slip_and_manager_retrospective.sql", import.meta.url), "utf8");
+  assert.match(staff, /const \[selectedSlip2, setSelectedSlip2\]/);
+  assert.match(staff, /await uploadSecondarySlip\(selectedSlip2\)/);
+  assert.match(staff, /await supabase\.rpc\("attach_additional_payment_slip"/);
+  assert.match(staff, /order\.status === "payment_submitted"/);
+  assert.match(staff, /เพิ่มหลักฐานได้โดยไม่ปิดงานหรือยืนยันการชำระเงิน/);
+  assert.match(staff, /"payment_slip_2"/);
+  assert.match(detail, /uploadManagerSlipPhoto/);
+  assert.match(detail, /\["payment_slip", "payment_slip_2"\] as const/);
+  assert.match(detail, /manager_payment_slip_added/);
+  assert.match(detail, /\["completed", "payment_submitted"\]\.includes\(order\.status\)|\["payment_submitted", "completed"\]\.includes\(order\.status\)/);
+  assert.match(detail, /\.rpc\("attach_additional_payment_slip"/);
+  assert.match(api, /paymentSlip2,/);
+  assert.match(miniapp, /files\.paymentSlip2\.url/);
+  assert.match(helper, /"payment_slip_2"/);
+  assert.match(route, /"payment_slip_2"/);
+  assert.match(sql, /account_type='manager'/);
+  assert.match(sql, /c\.claim_status='active'/);
+  assert.match(sql, /'payment_slip','payment_slip_2'/);
+  assert.match(sql, /v_order\.status NOT IN \('completed','payment_submitted'\)/);
+  assert.match(sql, /'manager_payment_slip_added'/);
+  assert.ok(sql.includes("payment_slip_2/manager/%"));
+  assert.match(sql, /f\.created_at > now\(\)-interval '14 days'/);
+  assert.doesNotMatch(sql, /UPDATE public\.orders SET status/);
+});

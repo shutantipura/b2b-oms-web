@@ -35,6 +35,7 @@ type PaymentResponse = {
     paymentQr2: DisplayFile | null;
     deliveryProof: DisplayFile | null;
     paymentSlip: DisplayFile | null;
+    paymentSlip2: DisplayFile | null;
   };
   success?: boolean;
   error?: string;
@@ -380,6 +381,11 @@ export default function MiniAppPaymentPage() {
                 <p className="mt-1 text-sm leading-6 text-[#547A6C]">
                   {completed ? "ระบบปิดคำสั่งซื้อหลังได้รับหลักฐานการชำระเงินแล้ว" : "เราได้รับหลักฐานการชำระเงินแล้ว คุณไม่จำเป็นต้องส่งซ้ำ"}
                 </p>
+                {files?.paymentSlip2 && (
+                  <a href={files.paymentSlip2.url} target="_blank" rel="noreferrer" className="mt-3 mr-3 inline-flex min-h-10 items-center font-bold text-[#008F8D] underline underline-offset-4">
+                    ดูสลิปรูปที่ 2
+                  </a>
+                )}
                 {files?.paymentSlip && (
                   <a href={files.paymentSlip.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-10 items-center font-bold text-[#008F8D] underline underline-offset-4">
                     ดูสลิปที่ส่งไว้

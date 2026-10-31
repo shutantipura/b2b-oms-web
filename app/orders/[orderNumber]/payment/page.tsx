@@ -85,6 +85,9 @@ export default function StaffPaymentPage() {
   const [existingSlip, setExistingSlip] =
     useState(false);
   const [slipUrl, setSlipUrl] = useState<string | null>(null);
+  const [slip2Url, setSlip2Url] = useState<string | null>(null);
+  const [slip2Name, setSlip2Name] = useState<string | null>(null);
+  const [selectedSlip2, setSelectedSlip2] = useState<File | null>(null);
 
   // File selection is local-only. Uploading and closing an order require
   // an explicit review action followed by final confirmation.
@@ -146,7 +149,10 @@ export default function StaffPaymentPage() {
     setQr2Url(null);
     setExistingSlip(false);
     setSlipUrl(null);
+    setSlip2Url(null);
+    setSlip2Name(null);
     setSelectedSlip(null);
+    setSelectedSlip2(null);
     setConfirmSubmitOpen(false);
 
     const {
@@ -208,6 +214,7 @@ export default function StaffPaymentPage() {
           "payment_qr",
           "payment_qr_2",
           "payment_slip",
+          "payment_slip_2",
         ]
       );
 
@@ -272,6 +279,11 @@ export default function StaffPaymentPage() {
       setQrUrl(url);
     }
 
+    const slip2 = files.find(file => file.file_type === "payment_slip_2");
+    if (slip2) {
+      setSlip2Name(slip2.original_filename ?? "สลิปรูปที่ 2");
+      setSlip2Url(await createFileUrl(slip2.storage_path));
+    }
     setExistingSlip(Boolean(slip));
     if (slip) setSlipUrl(await createFileUrl(slip.storage_path));
 
@@ -287,6 +299,54 @@ export default function StaffPaymentPage() {
       void loadOrder();
     }
   }, [orderNumber]);
+
+  // Optional evidence is registered before primary payment submission, since
+  // submitting the primary slip closes a staff-submitted order immediately.
+  async function uploadSecondarySlip(file: File) {
+    if (!order || !["awaiting_payment", "payment_submitted"].includes(order.status)) {
+      throw new Error("ขั้นตอนการชำระเงินปิดแล้ว");
+    }
+    if (!file.type.startsWith("image/") || file.size > 15 * 1024 * 1024 || file.size < 1) {
+      throw new Error("รูปสลิปที่ 2 ต้องเป็นรูปภาพไม่เกิน 15 MB");
+    }
+    const optimized = await prepareOrderPhoto(file, "payment_slip_2");
+    const mime = optimized.type.toLowerCase() === "image/jpg" ? "image/jpeg" : optimized.type.toLowerCase();
+    const extensions: Record<string, string> = {
+      "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+      "image/heic": "heic", "image/heif": "heif", "image/avif": "avif",
+    };
+    const ext = extensions[mime];
+    if (!ext || !optimized.size || optimized.size > 15 * 1024 * 1024) {
+      throw new Error("ไม่รองรับไฟล์สลิปที่ 2");
+    }
+    const path = `orders/${orderNumber}/payment_slip_2/staff/${crypto.randomUUID()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("order-files").upload(
+      path, optimized, { upsert: false, contentType: mime });
+    if (upErr) throw new Error("อัปโหลดสลิปที่ 2 ไม่สำเร็จ: " + upErr.message);
+    const { error: regErr } = await supabase.rpc("attach_additional_payment_slip", {
+      p_order_number: orderNumber, p_file_type: "payment_slip_2",
+      p_storage_path: path, p_original_filename: file.name, p_mime_type: mime,
+    });
+    if (regErr) {
+      await supabase.storage.from("order-files").remove([path]);
+      throw new Error("บันทึกสลิปที่ 2 ไม่สำเร็จ: " + regErr.message);
+    }
+  }
+
+  async function addSecondaryAfterCustomerSubmission(file: File) {
+    if (submitting) return;
+    setSubmitting(true);
+    setMessage("กำลังเพิ่มสลิปรูปที่ 2...");
+    try {
+      await uploadSecondarySlip(file);
+      await loadOrder();
+      setMessage("✓ บันทึกสลิปรูปที่ 2 แล้ว · ยังไม่ได้ยืนยันการชำระเงิน");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "เพิ่มสลิปไม่สำเร็จ");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function submitPaymentSlip() {
     // File picker events must never invoke the upload/close-order mutation.
@@ -318,6 +378,15 @@ export default function StaffPaymentPage() {
       "กำลังอัปโหลดสลิปการชำระเงิน..."
     );
 
+    if (selectedSlip2) {
+      try {
+        await uploadSecondarySlip(selectedSlip2);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "ไม่สามารถบันทึกสลิปที่ 2 ได้");
+        setSubmitting(false);
+        return;
+      }
+    }
     const readyFile = await prepareOrderPhoto(slipFile, "payment_slip");
 
     const extension =
@@ -616,6 +685,12 @@ export default function StaffPaymentPage() {
           {existingSlip ? (
             <div className="space-y-3">
               <p className="font-semibold text-[#008F8D]">✓ บันทึกสลิปการชำระเงินเรียบร้อยแล้ว</p>
+              {slip2Url && (
+                <a href={slip2Url} target="_blank" rel="noreferrer"
+                  className="inline-flex rounded-lg border border-[#B7E1D4] bg-[#F4FBF9] px-4 py-2 font-semibold text-[#008F8D] underline">
+                  เปิดสลิปรูปที่ 2 {slip2Name ? `(${slip2Name})` : ""}
+                </a>
+              )}
               {slipUrl ? (
                 <a href={slipUrl} target="_blank" rel="noreferrer"
                   className="inline-flex rounded-lg border px-4 py-2 font-semibold underline">
@@ -623,6 +698,23 @@ export default function StaffPaymentPage() {
                 </a>
               ) : (
                 <p className="text-red-600">ไม่สามารถเปิดสลิปได้ กรุณาตรวจสอบไฟล์ก่อนยืนยัน</p>
+              )}
+              {order.status === "payment_submitted" && (
+                <div className="rounded-xl border border-[#CBE9E1] bg-[#F4FBF9] p-3">
+                  <p className="mb-2 text-sm font-bold text-[#17453F]">สลิปรูปที่ 2 (ไม่บังคับ)</p>
+                  <TaskFilePicker
+                    label="สลิปรูปที่ 2"
+                    chooseLabel="เพิ่มสลิปรูปที่ 2"
+                    replaceLabel="เปลี่ยนสลิปรูปที่ 2"
+                    accept="image/*"
+                    uploaded={Boolean(slip2Url)}
+                    uploading={submitting}
+                    disabled={submitting}
+                    fileName={slip2Name}
+                    selectionHint="เพิ่มหลักฐานได้โดยไม่ปิดงานหรือยืนยันการชำระเงิน"
+                    onSelect={(file) => void addSecondaryAfterCustomerSubmission(file)}
+                  />
+                </div>
               )}
             </div>
           ) : (
@@ -643,6 +735,22 @@ export default function StaffPaymentPage() {
                   setMessage("");
                 }}
               />
+              <div className="mt-4 rounded-xl border border-[#CBE9E1] bg-[#F4FBF9] p-3">
+                <p className="mb-2 text-sm font-bold text-[#17453F]">สลิปรูปที่ 2 (ไม่บังคับ)</p>
+                <TaskFilePicker
+                  label="สลิปรูปที่ 2"
+                  chooseLabel="เลือกรูปสลิปที่ 2"
+                  replaceLabel="เปลี่ยนสลิปที่ 2"
+                  accept="image/*"
+                  uploaded={false}
+                  uploading={submitting}
+                  disabled={submitting || order.status !== "awaiting_payment"}
+                  fileName={selectedSlip2?.name ?? null}
+                  selectionHint="รูปที่ 2 จะส่งพร้อมรูปที่ 1 เมื่อกดยืนยัน"
+                  onSelect={(file) => { setSelectedSlip2(file); setConfirmSubmitOpen(false); }}
+                />
+                {selectedSlip2 && <p className="mt-2 text-xs font-semibold text-[#008F8D]">✓ เลือก {selectedSlip2.name} แล้ว</p>}
+              </div>
               {selectedSlip && (
                 <div className="mt-5 rounded-2xl border-2 border-[#9DDBD2] bg-[#F5FCFA] p-4">
                   <p className="text-base font-extrabold text-[#17453F]">ตรวจสอบสลิปก่อนยืนยัน</p>
