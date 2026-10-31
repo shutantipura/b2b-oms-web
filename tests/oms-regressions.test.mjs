@@ -666,3 +666,22 @@ test("bill and slip image slots enforce consistent task ownership", () => {
   assert.match(sql, /REVOKE ALL ON FUNCTION public\.attach_additional_payment_slip/);
   assert.doesNotMatch(sql, /UPDATE public\.orders SET status/i);
 });
+
+test("primary and optional payment slips share payment-stage permissions and managers retain retrospective upload", () => {
+  const migration = readFileSync(new URL("../supabase/migrations/20261031232500_payment_slip_stage_permissions.sql", import.meta.url), "utf8");
+  const payment = readFileSync(new URL("../app/orders/[orderNumber]/payment/page.tsx", import.meta.url), "utf8");
+  const ownership = readFileSync(new URL("../supabase/migrations/20261031232000_align_optional_payment_slip_ownership.sql", import.meta.url), "utf8");
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.submit_payment_slip_as_staff/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.attach_additional_payment_slip/);
+  assert.match(migration, /p\.stage='payment_verification'/);
+  assert.match(migration, /s\.account_type='manager'/);
+  assert.match(migration, /v_staff\.account_type <> 'manager'/);
+  assert.match(ownership, /Same rule as submit_payment_slip_as_staff/);
+  assert.match(ownership, /c\.claim_status='active'/);
+  assert.match(payment, /uploadRole: "manager" \| "staff"/);
+  assert.match(payment, /order\.status === "payment_submitted"/);
+  assert.match(payment, /staffAccount\.account_type === "manager"/);
+  assert.match(payment, /payment_slip_2\/\$\{uploadRole\}/);
+  assert.match(payment, /กรุณารับงานตรวจสอบการชำระเงินก่อนเพิ่มสลิปรูปที่ 2/);
+  assert.match(payment, /บัญชีพนักงานนี้ไม่มีสิทธิ์ทำงานตรวจสอบการชำระเงิน/);
+});

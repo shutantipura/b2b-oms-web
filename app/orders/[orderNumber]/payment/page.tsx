@@ -319,7 +319,23 @@ export default function StaffPaymentPage() {
     if (!ext || !optimized.size || optimized.size > 15 * 1024 * 1024) {
       throw new Error("ไม่รองรับไฟล์สลิปที่ 2");
     }
-    const path = `orders/${orderNumber}/payment_slip_2/staff/${crypto.randomUUID()}.${ext}`;
+    // For customer-submitted payments, a manager can add evidence without
+    // claiming the payment task. Use the manager storage path so the server
+    // grants the correct permission and the photo gets its own 14-day window.
+    let uploadRole: "manager" | "staff" = "staff";
+    if (order.status === "payment_submitted") {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) throw new Error("กรุณาเข้าสู่ระบบพนักงานอีกครั้ง");
+      const { data: staffAccount, error: staffError } = await supabase
+        .from("staff")
+        .select("account_type")
+        .eq("auth_user_id", authData.user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (staffError || !staffAccount) throw new Error("ไม่สามารถตรวจสอบสิทธิ์พนักงานได้");
+      if (staffAccount.account_type === "manager") uploadRole = "manager";
+    }
+    const path = `orders/${orderNumber}/payment_slip_2/${uploadRole}/${crypto.randomUUID()}.${ext}`;
     const { error: upErr } = await supabase.storage.from("order-files").upload(
       path, optimized, { upsert: false, contentType: mime });
     if (upErr) throw new Error("อัปโหลดสลิปที่ 2 ไม่สำเร็จ: " + upErr.message);
@@ -329,7 +345,12 @@ export default function StaffPaymentPage() {
     });
     if (regErr) {
       await supabase.storage.from("order-files").remove([path]);
-      throw new Error("บันทึกสลิปที่ 2 ไม่สำเร็จ: " + regErr.message);
+      const reason = regErr.message.includes("Claim the payment verification task")
+        ? "กรุณารับงานตรวจสอบการชำระเงินก่อนเพิ่มสลิปรูปที่ 2"
+        : regErr.message.includes("Staff does not have payment verification permission")
+          ? "บัญชีพนักงานนี้ไม่มีสิทธิ์ทำงานตรวจสอบการชำระเงิน"
+          : regErr.message;
+      throw new Error("บันทึกสลิปที่ 2 ไม่สำเร็จ: " + reason);
     }
   }
 
