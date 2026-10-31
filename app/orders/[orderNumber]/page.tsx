@@ -432,7 +432,7 @@ export default function OrderDetailsPage() {
     if (loadedOrder.group_root_order_id === loadedOrder.id) {
       const { data: members, error: membersError } = await supabase
         .from("orders")
-        .select("id,order_number,group_sequence,status")
+        .select("id,order_number,group_sequence,group_root_order_id,status")
         .eq("group_root_order_id", loadedOrder.id)
         .order("group_sequence", { ascending: true });
       if (membersError) {
@@ -1437,9 +1437,11 @@ export default function OrderDetailsPage() {
                         </span>
                       </div>
                     ))}
-                    <Link href={`/orders/${member.order_number}`} className="inline-block font-bold text-[#007F79] underline">
-                      ดูประวัติคำสั่งซื้อย่อยนี้
-                    </Link>
+                    {member.id !== order.id ? (
+                      <Link href={`/orders/${member.order_number}`} className="inline-block font-bold text-[#007F79] underline">
+                        ดูประวัติคำสั่งซื้อย่อยนี้
+                      </Link>
+                    ) : <span className="text-xs text-[#52786F]">ประวัติของ /1 แสดงในส่วนประวัติคำสั่งซื้อนี้</span>}
                   </div>
                 </details>
               ))}
