@@ -30,7 +30,9 @@ type PaymentResponse = {
   };
   files?: {
     bill: DisplayFile | null;
+    bill2: DisplayFile | null;
     paymentQr: DisplayFile | null;
+    paymentQr2: DisplayFile | null;
     deliveryProof: DisplayFile | null;
     paymentSlip: DisplayFile | null;
   };
@@ -420,6 +422,13 @@ export default function MiniAppPaymentPage() {
                 <a href={files.paymentQr.url} target="_blank" rel="noreferrer" className="mt-4 flex min-h-12 w-full items-center justify-center rounded-xl border-2 border-[#BDE4DD] bg-[#F1FAF7] px-4 py-3 text-sm font-extrabold text-[#008F8D]">
                   {order.billingAccountSuspended ? "เปิดรูป CV Card เต็มขนาด ↗" : "เปิดรูป QR เต็มขนาด ↗"}
                 </a>
+                {files.paymentQr2 && !order.billingAccountSuspended && (
+                  <div className="mt-4 rounded-2xl border border-[#D6E8E2] bg-white p-3">
+                    <p className="mb-2 text-sm font-bold text-[#17453F]">รูป QR ชำระเงินที่ 2</p>
+                    <img src={files.paymentQr2.url} alt="QR ชำระเงินที่ 2" loading="lazy" className="mx-auto max-h-[390px] w-full object-contain" />
+                    <a href={files.paymentQr2.url} target="_blank" rel="noreferrer" className="mt-3 block text-center text-sm font-extrabold text-[#008F8D] underline">เปิดรูป QR ที่ 2 เต็มขนาด</a>
+                  </div>
+                )}
                 {canSubmit && (
                   <p className="mt-3 text-center text-xs leading-5 text-[#7A9285]">หลังชำระเงินแล้ว โปรดแนบสลิปในขั้นตอนถัดไป</p>
                 )}
@@ -454,6 +463,16 @@ export default function MiniAppPaymentPage() {
               <a href={files.bill.url} target="_blank" rel="noreferrer" className="mt-3 flex min-h-12 w-full items-center justify-center rounded-xl border border-[#DCEBE4] px-4 py-3 text-sm font-extrabold text-[#008F8D]">
                 เปิดดูบิลเต็มขนาด ↗
               </a>
+              {files.bill2 && (
+                <div className="mt-4 rounded-xl border border-[#D6E8E2] bg-[#F8FAF9] p-3">
+                  <p className="mb-2 text-sm font-bold text-[#17453F]">บิลรูปที่ 2</p>
+                  {isImage(files.bill2) ? (
+                    <img src={files.bill2.url} alt="บิลรูปที่ 2" loading="lazy" className="mx-auto max-h-[450px] w-full object-contain" />
+                  ) : <p className="text-sm">{files.bill2.name}</p>}
+                  <a href={files.bill2.url} target="_blank" rel="noreferrer" className="mt-2 block text-sm font-extrabold text-[#008F8D] underline">เปิดบิลรูปที่ 2 เต็มขนาด</a>
+                </div>
+              )}
+
             </>
           ) : (
             <div className="mt-4 rounded-xl border border-dashed border-[#CFDFD6] bg-[#F8FBF9] px-4 py-6 text-center text-sm text-[#839A8E]">{order.billingAccountSuspended ? "บัญชีลูกค้าถูกระงับ · ไม่ต้องแนบรูปบิล" : "ทีมงานยังไม่ได้แนบบิล"}</div>

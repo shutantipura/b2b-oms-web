@@ -157,6 +157,10 @@ export default function BillingPage() {
   const [billPreviewUrl, setBillPreviewUrl] = useState<string | null>(null);
   const [qrPreviewUrl, setQrPreviewUrl] = useState<string | null>(null);
   const [billMimeType, setBillMimeType] = useState<string | null>(null);
+  const [bill2Name, setBill2Name] = useState<string | null>(null);
+  const [bill2PreviewUrl, setBill2PreviewUrl] = useState<string | null>(null);
+  const [qr2Name, setQr2Name] = useState<string | null>(null);
+  const [qr2PreviewUrl, setQr2PreviewUrl] = useState<string | null>(null);
 
   const [finalAmount, setFinalAmount] =
 
@@ -464,6 +468,8 @@ export default function BillingPage() {
 
 
     const qr = files.find((file) => file.file_type === "payment_qr" && file.is_current && file.order_id===loadedOrder.id);
+    const bill2 = files.find((file) => file.file_type === "bill_2" && file.is_current && file.order_id===loadedOrder.id);
+    const qr2 = files.find((file) => file.file_type === "payment_qr_2" && file.is_current && file.order_id===loadedOrder.id);
 
 
 
@@ -483,6 +489,14 @@ export default function BillingPage() {
     setBillPreviewUrl(billSigned.data?.signedUrl ?? null);
     setQrPreviewUrl(qrSigned.data?.signedUrl ?? null);
     setBillMimeType(bill?.mime_type ?? null);
+    setBill2Name(bill2?.original_filename ?? null);
+    setQr2Name(qr2?.original_filename ?? null);
+    const [extraBill, extraQr] = await Promise.all([
+      bill2 ? supabase.storage.from("order-files").createSignedUrl(bill2.storage_path, 3600) : Promise.resolve({ data: null }),
+      qr2 ? supabase.storage.from("order-files").createSignedUrl(qr2.storage_path, 3600) : Promise.resolve({ data: null }),
+    ]);
+    setBill2PreviewUrl(extraBill.data?.signedUrl ?? null);
+    setQr2PreviewUrl(extraQr.data?.signedUrl ?? null);
 
 
 
@@ -513,7 +527,7 @@ export default function BillingPage() {
 
     file: File,
 
-    fileType: "bill" | "payment_qr"
+    fileType: "bill" | "bill_2" | "payment_qr" | "payment_qr_2"
 
   ) {
 
@@ -677,6 +691,36 @@ export default function BillingPage() {
       setMessage(error instanceof Error ? error.message : "อัปโหลด QR ไม่สำเร็จ");
     } finally {
       setUploadingQr(false);
+    }
+  }
+
+  // Optional secondary photo slots are independent of the required first files.
+  async function uploadOptionalBillingFile(file: File, fileType: "bill_2" | "payment_qr_2") {
+    if (submitting || uploadingBill || uploadingQr) return;
+    const isBill = fileType === "bill_2";
+    const setBusy = isBill ? setUploadingBill : setUploadingQr;
+    setBusy(true);
+    try {
+      setMessage(isBill ? "กำลังบันทึกรูปบิลใบที่ 2..." : "กำลังบันทึกรูป QR ใบที่ 2...");
+      await uploadFile(file, fileType);
+      const { data } = await supabase.from("order_files")
+        .select("storage_path").eq("order_id", order?.id)
+        .eq("file_type", fileType).eq("is_current", true).maybeSingle();
+      const signed = data
+        ? await supabase.storage.from("order-files").createSignedUrl(data.storage_path, 3600)
+        : null;
+      if (isBill) {
+        setBill2Name(file.name);
+        setBill2PreviewUrl(signed?.data?.signedUrl ?? null);
+      } else {
+        setQr2Name(file.name);
+        setQr2PreviewUrl(signed?.data?.signedUrl ?? null);
+      }
+      setMessage("✓ บันทึกรูปที่ 2 เรียบร้อยแล้ว");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "อัปโหลดรูปที่ 2 ไม่สำเร็จ");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -1511,6 +1555,30 @@ export default function BillingPage() {
               fileName={billName}
               onSelect={uploadBill}
             />}
+            {billingMode !== "suspended" && billUploaded && (
+              <div className="mt-3 rounded-xl border border-[#D5ECE6] bg-[#F6FBFA] p-3">
+                <p className="mb-2 text-sm font-bold text-[#17453F]">รูปบิลที่ 2 <span className="font-medium text-[#708D83]">(ไม่บังคับ)</span></p>
+                <TaskFilePicker
+                  appearance="add"
+                  label="รูปบิลที่ 2"
+                  chooseLabel="เพิ่มรูปบิลที่ 2"
+                  replaceLabel="เปลี่ยนรูปบิลที่ 2"
+                  accept="image/*"
+                  uploaded={Boolean(bill2Name)}
+                  uploading={uploadingBill}
+                  disabled={submitting || uploadingQr}
+                  fileName={bill2Name}
+                  onSelect={(file) => uploadOptionalBillingFile(file, "bill_2")}
+                />
+                {bill2PreviewUrl && (
+                  <a href={bill2PreviewUrl} target="_blank" rel="noreferrer" className="mt-3 block">
+                    <img src={bill2PreviewUrl} alt="ตัวอย่างบิลรูปที่ 2" className="max-h-64 w-full rounded-lg border border-[#D5ECE6] bg-white object-contain" />
+                    <span className="mt-2 block text-sm font-bold text-[#008F8D] underline">เปิดรูปบิลที่ 2 เต็มขนาด</span>
+                  </a>
+                )}
+              </div>
+            )}
+
             {billingMode === "no_cv" && (
               <p className="mt-3 rounded-lg border border-[#F6D795] bg-[#FFF8E8] px-3 py-3 text-sm font-bold text-[#8B5300]">
                 กรุณาคิดเงินหน้าเครื่องPOS และถ่ายรูปพักบิล
@@ -1583,6 +1651,29 @@ export default function BillingPage() {
               fileName={qrName}
               onSelect={uploadQr}
             />
+            )}
+            {billingMode === "normal" && qrUploaded && (
+              <div className="mt-3 rounded-xl border border-[#D5ECE6] bg-[#F6FBFA] p-3">
+                <p className="mb-2 text-sm font-bold text-[#17453F]">รูป QR ที่ 2 <span className="font-medium text-[#708D83]">(ไม่บังคับ)</span></p>
+                <TaskFilePicker
+                  appearance="add"
+                  label="รูป QR ที่ 2"
+                  chooseLabel="เพิ่มรูป QR ที่ 2"
+                  replaceLabel="เปลี่ยนรูป QR ที่ 2"
+                  accept="image/*"
+                  uploaded={Boolean(qr2Name)}
+                  uploading={uploadingQr}
+                  disabled={submitting || uploadingBill}
+                  fileName={qr2Name}
+                  onSelect={(file) => uploadOptionalBillingFile(file, "payment_qr_2")}
+                />
+                {qr2PreviewUrl && (
+                  <a href={qr2PreviewUrl} target="_blank" rel="noreferrer" className="mt-3 block">
+                    <img src={qr2PreviewUrl} alt="ตัวอย่าง QR ชำระเงินที่ 2" className="max-h-64 w-full rounded-lg border border-[#D5ECE6] bg-white object-contain" />
+                    <span className="mt-2 block text-sm font-bold text-[#008F8D] underline">เปิดรูป QR ที่ 2 เต็มขนาด</span>
+                  </a>
+                )}
+              </div>
             )}
             {billingMode === "normal" && qrPreviewUrl && (
               <div className="mt-4 rounded-xl border bg-gray-50 p-3">

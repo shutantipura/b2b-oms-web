@@ -436,7 +436,9 @@ async function loadPayment(
         "file_type",
         [
           "bill",
+          "bill_2",
           "payment_qr",
+          "payment_qr_2",
           "delivery_proof",
           "payment_slip",
         ]
@@ -467,6 +469,8 @@ async function loadPayment(
         file.file_type ===
         "payment_qr"
     );
+  const bill2File = files.find(file => file.file_type === "bill_2");
+  const qr2File = files.find(file => file.file_type === "payment_qr_2");
 
   const proofFile =
     files.find(
@@ -487,6 +491,8 @@ async function loadPayment(
     paymentQr,
     deliveryProof,
     paymentSlip,
+    bill2,
+    paymentQr2,
   ] =
     await Promise.all([
       createSignedFile(
@@ -508,6 +514,8 @@ async function loadPayment(
         supabase,
         slipFile
       ),
+      createSignedFile(supabase, bill2File),
+      createSignedFile(supabase, qr2File),
     ]);
 
   return NextResponse.json({
@@ -546,7 +554,9 @@ async function loadPayment(
 
     files: {
       bill,
+      bill2,
       paymentQr,
+      paymentQr2,
       deliveryProof,
       paymentSlip,
     },

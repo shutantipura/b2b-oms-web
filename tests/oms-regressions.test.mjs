@@ -539,3 +539,35 @@ test("group detail displays consolidated goods and inline /x origin audit", () =
   assert.match(detail,/\.eq\("stage", "picking"\)/);
   assert.match(detail,/\/orders\/\$\{member.order_number\}/);
 });
+
+test("billing supports an optional second bill photo and QR without changing required first files", () => {
+  const billing = readFileSync(new URL("../app/tasks/billing/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const helper = readFileSync(new URL("../lib/orderPhotoUpload.ts", import.meta.url), "utf8");
+  const api = readFileSync(new URL("../app/api/line/payment/route.ts", import.meta.url), "utf8");
+  const customer = readFileSync(new URL("../app/miniapp/payment/page.tsx", import.meta.url), "utf8");
+  const staff = readFileSync(new URL("../app/orders/[orderNumber]/payment/page.tsx", import.meta.url), "utf8");
+  const details = readFileSync(new URL("../app/orders/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const retention = readFileSync(new URL("../app/api/cron/order-photo-retention/route.ts", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../supabase/migrations/20261031163000_optional_second_billing_images.sql", import.meta.url), "utf8");
+  assert.match(billing, /uploadOptionalBillingFile\(file, "bill_2"\)/);
+  assert.match(billing, /uploadOptionalBillingFile\(file, "payment_qr_2"\)/);
+  assert.match(billing, /ไม่บังคับ/);
+  assert.match(billing, /!billUploaded/);
+  assert.match(billing, /!qrUploaded/);
+  assert.match(helper, /"bill_2"/);
+  assert.match(helper, /"payment_qr_2"/);
+  assert.match(api, /bill2File/);
+  assert.match(api, /qr2File/);
+  assert.match(api, /bill2,/);
+  assert.match(api, /paymentQr2,/);
+  assert.match(customer, /files\.paymentQr2/);
+  assert.match(customer, /files\.bill2/);
+  assert.match(staff, /bill2Url/);
+  assert.match(staff, /qr2Url/);
+  assert.match(details, /bill_2: "บิลรูปที่ 2"/);
+  assert.match(retention, /"bill_2"/);
+  assert.match(retention, /"payment_qr_2"/);
+  assert.match(migration, /WHEN 'bill_2' THEN v_required_stage:='billing'/);
+  assert.match(migration, /WHEN 'payment_qr_2' THEN v_required_stage:='billing'/);
+  assert.match(migration, /order_files_file_type_check/);
+});

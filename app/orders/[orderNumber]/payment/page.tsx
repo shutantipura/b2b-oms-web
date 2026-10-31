@@ -73,9 +73,12 @@ export default function StaffPaymentPage() {
 
   const [billName, setBillName] =
     useState<string | null>(null);
+  const [bill2Url, setBill2Url] = useState<string | null>(null);
+  const [bill2Name, setBill2Name] = useState<string | null>(null);
 
   const [qrUrl, setQrUrl] =
     useState<string | null>(null);
+  const [qr2Url, setQr2Url] = useState<string | null>(null);
 
   const [existingSlip, setExistingSlip] =
     useState(false);
@@ -134,6 +137,9 @@ export default function StaffPaymentPage() {
     setBillUrl(null);
     setQrUrl(null);
     setBillName(null);
+    setBill2Url(null);
+    setBill2Name(null);
+    setQr2Url(null);
     setExistingSlip(false);
     setSlipUrl(null);
     setSelectedSlip(null);
@@ -194,7 +200,9 @@ export default function StaffPaymentPage() {
         "file_type",
         [
           "bill",
+          "bill_2",
           "payment_qr",
+          "payment_qr_2",
           "payment_slip",
         ]
       );
@@ -221,6 +229,14 @@ export default function StaffPaymentPage() {
       (file) =>
         file.file_type === "payment_qr"
     );
+
+    const bill2 = files.find(file => file.file_type === "bill_2");
+    const qr2 = files.find(file => file.file_type === "payment_qr_2");
+    if (bill2) {
+      setBill2Name(bill2.original_filename ?? "บิลรูปที่ 2");
+      setBill2Url(await createFileUrl(bill2.storage_path));
+    }
+    if (qr2) setQr2Url(await createFileUrl(qr2.storage_path));
 
     const slip = files.find(
       (file) =>
@@ -512,6 +528,7 @@ export default function StaffPaymentPage() {
             </p>
 
             {billUrl ? (
+              <>
               <a
                 href={
                   billUrl
@@ -524,6 +541,13 @@ export default function StaffPaymentPage() {
                 {billName ??
                   "ใบเสร็จ"}
               </a>
+              {bill2Url && (
+                <a href={bill2Url} target="_blank" rel="noreferrer"
+                  className="mt-3 block rounded-lg border border-[#B7E1D4] bg-[#F4FBF9] px-5 py-3 font-semibold text-[#007F79]">
+                  เปิด{bill2Name ?? "บิลรูปที่ 2"}
+                </a>
+              )}
+            </>
             ) : (
               <p className={order.billing_account_suspended ? "text-gray-500" : "text-red-600"}>
                 {order.billing_account_suspended ? "CV Card: ไม่จำเป็นต้องแนบรูปบิล" : "ไม่พบไฟล์ใบเสร็จ"}
@@ -543,6 +567,7 @@ export default function StaffPaymentPage() {
             {order.billing_no_cv ? (
               <p className="text-sm text-gray-500">พักบิล: ไม่จำเป็นต้องใช้ QR ชำระเงิน</p>
             ) : qrUrl ? (
+              <>
               <img
                 src={
                   qrUrl
@@ -550,6 +575,13 @@ export default function StaffPaymentPage() {
                 alt={order.billing_account_suspended ? "CV Card ลูกค้า" : "QR สำหรับชำระเงิน"}
                 className="max-w-full max-h-80 object-contain border rounded-lg"
               />
+              {qr2Url && !order.billing_account_suspended && (
+                <a href={qr2Url} target="_blank" rel="noreferrer" className="mt-3 block rounded-lg border border-[#B7E1D4] bg-[#F4FBF9] p-3">
+                  <p className="mb-2 font-bold text-[#007F79]">QR ชำระเงินที่ 2</p>
+                  <img src={qr2Url} alt="QR ชำระเงินที่ 2" className="max-w-full max-h-80 object-contain"/>
+                </a>
+              )}
+              </>
             ) : (
               <p className="text-red-600">
                 {order.billing_account_suspended ? "ไม่พบรูป CV Card ของลูกค้า" : "ไม่พบ QR สำหรับชำระเงิน"}

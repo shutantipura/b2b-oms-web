@@ -11,7 +11,7 @@ type Photo = { file_id: string; storage_path: string; file_type: string;
   mime_type: string; bytes: number | null; finished_at: string };
 type Action = "delete" | "compress" | "finalize_delete";
 const types = new Set(["cart_photo", "cart_photo_2", "bill", "payment_qr",
-  "payment_slip", "delivery_proof", "delivery_proof_2"]);
+  "payment_slip", "delivery_proof", "delivery_proof_2", "bill_2", "payment_qr_2"]);
 
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -31,8 +31,8 @@ function validFile(file: Photo) {
     !file.storage_path.includes("..") && types.has(file.file_type);
 }
 async function optimize(file: Photo, input: Buffer): Promise<Buffer> {
-  const qr = file.file_type === "payment_qr";
-  const document = ["bill", "payment_slip"].includes(file.file_type);
+  const qr = file.file_type === "payment_qr" || file.file_type === "payment_qr_2";
+  const document = ["bill", "bill_2", "payment_slip"].includes(file.file_type);
   const mime = file.mime_type.split(";")[0].toLowerCase();
   if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) throw Error("Unsupported photo");
   const width = qr ? null : document ? 2400 : 1600;

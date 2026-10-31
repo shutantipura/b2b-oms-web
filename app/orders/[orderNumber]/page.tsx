@@ -206,6 +206,7 @@ function prettyText(value: string | null) {
 
 function fileLabel(type: string, suspendedBilling = false, noCvBilling = false) {
   if (type === "bill" && noCvBilling) return "รูปพักบิล (POS)";
+  if (type === "bill_2" && noCvBilling) return "รูปพักบิลที่ 2 (POS)";
   if (type === "payment_qr" && suspendedBilling) return "CV Card ลูกค้า";
 
   const labels: Record<string, string> = {
@@ -214,9 +215,11 @@ function fileLabel(type: string, suspendedBilling = false, noCvBilling = false) 
 
     cart_photo_2: "รูปรถเข็นสินค้า 2",
 
-    bill: "บิล",
+    bill: "บิลรูปที่ 1",
+    bill_2: "บิลรูปที่ 2",
 
-    payment_qr: "QR ชำระเงิน",
+    payment_qr: "QR ชำระเงินรูปที่ 1",
+    payment_qr_2: "QR ชำระเงินรูปที่ 2",
 
     delivery_proof: "หลักฐานการจัดส่ง 1",
 

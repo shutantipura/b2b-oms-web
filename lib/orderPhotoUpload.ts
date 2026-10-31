@@ -4,14 +4,14 @@
 // QR assets use lossless PNG when already PNG, and never undergo lossy recompression.
 export type OrderPhotoKind =
   | "cart_photo" | "cart_photo_2" | "delivery_proof" | "delivery_proof_2"
-  | "bill" | "payment_qr" | "payment_slip";
+  | "bill" | "bill_2" | "payment_qr" | "payment_qr_2" | "payment_slip";
 
 export async function prepareOrderPhoto(file: File, kind: OrderPhotoKind): Promise<File> {
   if (!file.type.startsWith("image/") || typeof document === "undefined") return file;
-  const isQr = kind === "payment_qr";
+  const isQr = kind === "payment_qr" || kind === "payment_qr_2";
   // QR codes must remain reliably scannable. PNG is lossless; JPEG QR is preserved.
   if (isQr && file.type !== "image/png") return file;
-  const documentPhoto = kind === "bill" || kind === "payment_slip";
+  const documentPhoto = kind === "bill" || kind === "bill_2" || kind === "payment_slip";
   const maxSide = isQr ? null : documentPhoto ? 2400 : 1600;
   const quality = documentPhoto ? 0.88 : 0.76;
   const mime = isQr ? "image/png" : "image/jpeg";
