@@ -637,3 +637,32 @@ test("optional staff payment slip and retrospective manager slip keep payment st
   assert.match(sql, /f\.created_at > now\(\)-interval '14 days'/);
   assert.doesNotMatch(sql, /UPDATE public\.orders SET status/);
 });
+
+test("bill and slip image slots enforce consistent task ownership", () => {
+  const billing = readFileSync(new URL("../app/tasks/billing/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const payment = readFileSync(new URL("../app/orders/[orderNumber]/payment/page.tsx", import.meta.url), "utf8");
+  const manager = readFileSync(new URL("../app/orders/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../supabase/migrations/20261031232000_align_optional_payment_slip_ownership.sql", import.meta.url), "utf8");
+  // Both bills are uploaded via the same claimed-billing-task RPC.
+  assert.match(billing, /fileType: "bill" \| "bill_2" \| "payment_qr"/);
+  assert.match(billing, /"register_my_order_file"/);
+  assert.match(billing, /uploadOptionalBillingFile\(file, "bill_2"\)/);
+  assert.match(billing, /uploadOptionalBillingFile\(file, "payment_qr_2"\)/);
+  // The additional slip is registered before primary slip submission closes the order.
+  assert.match(payment, /await uploadSecondarySlip\(selectedSlip2\)/);
+  assert.match(payment, /"submit_payment_slip_as_staff"/);
+  // Managers can add/replace both bill and slip slots after completion.
+  assert.match(manager, /"manager_upload_order_bill_photo"/);
+  assert.match(manager, /"attach_additional_payment_slip"/);
+  // Pending payment: the optional slip must match the first slip's claim-free requirement.
+  assert.match(sql, /v_order\.status = 'awaiting_payment'/);
+  assert.match(sql, /Same rule as submit_payment_slip_as_staff/);
+  // Customer-submitted pending verification: staff still need an active claim.
+  assert.match(sql, /v_order\.status = 'payment_submitted'/);
+  assert.match(sql, /c\.stage='payment_verification'/);
+  assert.match(sql, /c\.claim_status='active'/);
+  // Manager retrospective path must be tested before the ordinary staff authorization.
+  assert.match(sql, /v_staff\.account_type='manager' AND v_order\.status IN \('completed','payment_submitted'\)/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.attach_additional_payment_slip/);
+  assert.doesNotMatch(sql, /UPDATE public\.orders SET status/i);
+});
