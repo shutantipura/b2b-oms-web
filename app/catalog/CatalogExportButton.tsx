@@ -15,6 +15,8 @@ type ExportRecord = {
   department?: string | null;
   thumbnail_image?: string;
   customer_code?: string;
+  customer_shop_name?: string | null;
+  item_name?: string | null;
   agreed_price?: number | string;
 };
 
@@ -63,11 +65,11 @@ const EXPORT_SETTINGS: Record<SnapshotDataset, {
   special: {
     filePrefix: "customer_special_prices_live",
     sheetName: "Customer Price Override",
-    headers: ["customer_code", "sku", "agreed_price"],
-    columnWidths: [23, 17, 19],
-    skuColumn: 1,
-    numberColumns: [2],
-    description: "ราคาพิเศษที่ใช้งานอยู่ รวมการปรับราย SKU · การลบแถวออกจาก Excel จะไม่ลบราคาเดิม",
+    headers: ["customer_code", "customer_shop_name", "sku", "item_name", "agreed_price"],
+    columnWidths: [23, 43, 17, 56, 19],
+    skuColumn: 2,
+    numberColumns: [4],
+    description: "ราคาพิเศษที่ใช้งานอยู่ พร้อมชื่อร้านและชื่อสินค้า (2 คอลัมน์นี้เพื่ออ่านง่ายเท่านั้น) · การลบแถวออกจาก Excel จะไม่ลบราคาเดิม",
   },
 };
 
@@ -120,7 +122,9 @@ function toExcelRow(dataset: SnapshotDataset, row: ExportRecord): (string | numb
   }
   return [
     requiredText(row.customer_code, "customer_code (" + sku + ")"),
+    String(row.customer_shop_name ?? "").trim(),
     sku,
+    String(row.item_name ?? "").trim(),
     requiredNumber(row.agreed_price, "agreed_price (" + sku + ")"),
   ];
 }
@@ -201,7 +205,7 @@ export default function CatalogExportButton({
         if (dataset === "special") {
           const customerCompare = String(a[0]).localeCompare(String(b[0]));
           if (customerCompare) return customerCompare;
-          return String(a[1]).localeCompare(String(b[1]));
+          return String(a[2]).localeCompare(String(b[2]));
         }
         return String(a[0]).localeCompare(String(b[0]));
       });
