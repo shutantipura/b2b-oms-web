@@ -112,6 +112,13 @@ type VisibleUploadRow = {
 
 type MasterPreview = {
 
+  costColumnFound: boolean;
+  numericCostCount: number;
+  unavailableCostCount: number;
+  blankCostCount: number;
+  invalidCostCount: number;
+  abovePriceCount: number;
+
   totalRows: number;
 
   validRows: number;
@@ -1412,7 +1419,9 @@ export default function CatalogPage() {
 
             ).trim() ===
 
-              "";
+              "" &&
+
+            String(rawCost ?? "").trim() === "";
 
 
 
@@ -1664,6 +1673,13 @@ export default function CatalogPage() {
       setMasterPreview(
 
         {
+
+          costColumnFound: costIndex >= 0,
+          numericCostCount: validRows.filter((row) => typeof row.cost === "number").length,
+          unavailableCostCount: validRows.filter((row) => row.cost === "N/A").length,
+          blankCostCount: validRows.filter((row) => row.cost === null).length,
+          invalidCostCount: invalidRows.filter((row) => row.reason.startsWith("ต้นทุน (Cost)")).length,
+          abovePriceCount: validRows.filter((row) => typeof row.cost === "number" && row.cost > row.normal_price).length,
 
           totalRows,
 
@@ -4622,8 +4638,60 @@ export default function CatalogPage() {
 
 
 
-                {/* Optional cost values are stored privately and displayed only
-                  on the manager customer-price adjustment page. */}
+                {/* Cost validation is based on the same parsed rows sent to the import RPC. */}
+                <div className="mt-5 rounded-2xl border border-[#B7DDD9] bg-[#F4FBF9] p-4 sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-bold text-[#173E31]">การตรวจสอบต้นทุน (Cost Validation)</p>
+                    <span className={masterPreview.costColumnFound
+                      ? "rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800"
+                      : "rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800"}>
+                      {masterPreview.costColumnFound ? "✓ พบคอลัมน์ Cost" : "⚠ ไม่พบคอลัมน์ Cost"}
+                    </span>
+                  </div>
+                  {masterPreview.costColumnFound ? (
+                    <>
+                      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div className="rounded-xl border bg-white p-3">
+                          <p className="text-xs text-gray-500">ต้นทุนตัวเลขที่อ่านได้</p>
+                          <p className="mt-1 text-xl font-bold text-[#173E31]">{masterPreview.numericCostCount.toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-xl border bg-white p-3">
+                          <p className="text-xs text-gray-500">N/A (ล้างต้นทุนเดิม)</p>
+                          <p className="mt-1 text-xl font-bold">{masterPreview.unavailableCostCount.toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-xl border bg-white p-3">
+                          <p className="text-xs text-gray-500">ว่าง (คงต้นทุนเดิม)</p>
+                          <p className="mt-1 text-xl font-bold">{masterPreview.blankCostCount.toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-xl border bg-white p-3">
+                          <p className="text-xs text-gray-500">ต้นทุนไม่ถูกต้อง</p>
+                          <p className={`mt-1 text-xl font-bold ${masterPreview.invalidCostCount > 0 ? "text-red-700" : ""}`}>
+                            {masterPreview.invalidCostCount.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs text-gray-600">
+                        นับจาก {masterPreview.validRows.toLocaleString()} SKU ที่พร้อมนำเข้า (ไม่รวม SKU ซ้ำหรือแถวข้อมูลไม่ถูกต้อง)
+                      </p>
+                      {masterPreview.abovePriceCount > 0 && (
+                        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                          ⚠ พบ {masterPreview.abovePriceCount.toLocaleString()} SKU ที่ต้นทุนสูงกว่าราคาขาย — โปรดตรวจสอบก่อนนำเข้า
+                        </p>
+                      )}
+                      {masterPreview.invalidCostCount > 0 && (
+                        <p className="mt-2 text-sm text-red-700">
+                          แถวที่มีต้นทุนไม่ถูกต้องจะไม่ถูกนำเข้า ตรวจสอบรายละเอียดด้านล่าง
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="mt-3 text-sm text-amber-900">
+                      ไฟล์นี้ไม่มีคอลัมน์ Cost — จะนำเข้าเฉพาะราคาขายและคงต้นทุนที่มีอยู่เดิมไว้
+                      หากต้องการอัปเดตต้นทุน ให้เพิ่มคอลัมน์ชื่อ Cost แล้วเลือกไฟล์อีกครั้ง
+                    </p>
+                  )}
+                </div>
+
               {/* SAMPLE */}
 
 
@@ -4683,6 +4751,12 @@ export default function CatalogPage() {
                           <th className="text-right p-3">
 
                             ราคา
+
+                          </th>
+
+                          <th className="text-right p-3">
+
+                            Cost
 
                           </th>
 
@@ -4788,9 +4862,11 @@ export default function CatalogPage() {
 
                               </td>
 
-
-
-
+                              <td className={`p-3 text-right whitespace-nowrap ${typeof row.cost === "number" && row.cost > row.normal_price ? "text-amber-800 font-semibold" : ""}`}>
+                                {typeof row.cost === "number"
+                                  ? `฿${row.cost.toFixed(2)}`
+                                  : row.cost === "N/A" ? "N/A" : "ว่าง"}
+                              </td>
 
                             </tr>
 
