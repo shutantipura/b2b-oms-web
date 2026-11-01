@@ -15,6 +15,9 @@ type SpecialPriceRow = {
   customer_code: string;
   sku: string;
   agreed_price: number;
+  // Reference columns are optional and never used to set prices.
+  customer_shop_name?: string;
+  item_name?: string;
 };
 
 type InvalidRow = {
@@ -386,6 +389,16 @@ export default function SpecialPriceImportSection() {
           ]
         );
 
+      const customerShopNameIndex =
+        findHeaderIndex(normalizedHeaders, [
+          "customershopname", "customername", "shopname", "ชื่อร้าน", "ชื่อลูกค้า",
+        ]);
+
+      const itemNameIndex =
+        findHeaderIndex(normalizedHeaders, [
+          "itemname", "productname", "product", "ชื่อสินค้า",
+        ]);
+
       const priceIndex =
         findHeaderIndex(
           normalizedHeaders,
@@ -560,6 +573,10 @@ export default function SpecialPriceImportSection() {
 
               agreed_price:
                 price,
+              customer_shop_name: customerShopNameIndex >= 0
+                ? String(row[customerShopNameIndex] ?? "").trim() : "",
+              item_name: itemNameIndex >= 0
+                ? String(row[itemNameIndex] ?? "").trim() : "",
             };
 
           const key =
@@ -667,7 +684,11 @@ export default function SpecialPriceImportSection() {
 
     try {
       while (cursor < rows.length) {
-        const batch = rows.slice(cursor, cursor + batchSize);
+        // Send only the three authoritative columns to Supabase.
+        // Shop and item names are for human-readable Excel files only.
+        const batch = rows.slice(cursor, cursor + batchSize).map(
+          ({ customer_code, sku, agreed_price }) => ({ customer_code, sku, agreed_price })
+        );
         const { data, error } = await supabase.rpc(
           "import_customer_price_batch",
           { p_rows: batch }
@@ -867,6 +888,11 @@ export default function SpecialPriceImportSection() {
           </p>
 
           <p className="text-xs text-gray-500 mt-2">
+            เพิ่มคอลัมน์ customer_shop_name และ item_name ได้ (ไม่บังคับ) เพื่อให้อ่านง่าย
+            · ระบบจะไม่ใช้สองคอลัมน์นี้ในการกำหนดราคา หรือเปลี่ยนชื่อร้าน/สินค้า
+          </p>
+
+          <p className="text-xs text-gray-500 mt-2">
             หากไฟล์มี Sheet ชื่อ Customer Price Override ระบบจะเลือก Sheet นี้ให้อัตโนมัติ
           </p>
 
@@ -1029,7 +1055,15 @@ export default function SpecialPriceImportSection() {
                       </th>
 
                       <th className="text-left p-3">
+                        ชื่อร้าน (ไม่บังคับ)
+                      </th>
+
+                      <th className="text-left p-3">
                         SKU
+                      </th>
+
+                      <th className="text-left p-3">
+                        ชื่อสินค้า (ไม่บังคับ)
                       </th>
 
                       <th className="text-right p-3">
@@ -1067,9 +1101,17 @@ export default function SpecialPriceImportSection() {
                           </td>
 
                           <td className="p-3">
+                            {row.customer_shop_name || "—"}
+                          </td>
+
+                          <td className="p-3">
                             {
                               row.sku
                             }
+                          </td>
+
+                          <td className="p-3">
+                            {row.item_name || "—"}
                           </td>
 
                           <td className="p-3 text-right">
