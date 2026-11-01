@@ -85,6 +85,7 @@ export default function StaffPaymentPage() {
   const [existingSlip, setExistingSlip] =
     useState(false);
   const [slipUrl, setSlipUrl] = useState<string | null>(null);
+  const [slipMime, setSlipMime] = useState<string | null>(null);
   const [slip2Url, setSlip2Url] = useState<string | null>(null);
   const [slip2Name, setSlip2Name] = useState<string | null>(null);
   const [selectedSlip2, setSelectedSlip2] = useState<File | null>(null);
@@ -93,6 +94,7 @@ export default function StaffPaymentPage() {
   // an explicit review action followed by final confirmation.
   const [selectedSlip, setSelectedSlip] = useState<File | null>(null);
   const [selectedSlipUrl, setSelectedSlipUrl] = useState<string | null>(null);
+  const [selectedSlip2Url, setSelectedSlip2Url] = useState<string | null>(null);
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
 
   useEffect(() => {
@@ -104,6 +106,16 @@ export default function StaffPaymentPage() {
     setSelectedSlipUrl(previewUrl);
     return () => URL.revokeObjectURL(previewUrl);
   }, [selectedSlip]);
+
+  useEffect(() => {
+    if (!selectedSlip2) {
+      setSelectedSlip2Url(null);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(selectedSlip2);
+    setSelectedSlip2Url(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [selectedSlip2]);
 
   const [loading, setLoading] =
     useState(true);
@@ -149,6 +161,7 @@ export default function StaffPaymentPage() {
     setQr2Url(null);
     setExistingSlip(false);
     setSlipUrl(null);
+    setSlipMime(null);
     setSlip2Url(null);
     setSlip2Name(null);
     setSelectedSlip(null);
@@ -285,7 +298,10 @@ export default function StaffPaymentPage() {
       setSlip2Url(await createFileUrl(slip2.storage_path));
     }
     setExistingSlip(Boolean(slip));
-    if (slip) setSlipUrl(await createFileUrl(slip.storage_path));
+    if (slip) {
+      setSlipMime(slip.mime_type);
+      setSlipUrl(await createFileUrl(slip.storage_path));
+    }
 
     setLoading(false);
   }
@@ -706,17 +722,28 @@ export default function StaffPaymentPage() {
           {existingSlip ? (
             <div className="space-y-3">
               <p className="font-semibold text-[#008F8D]">✓ บันทึกสลิปการชำระเงินเรียบร้อยแล้ว</p>
-              {slip2Url && (
-                <a href={slip2Url} target="_blank" rel="noreferrer"
-                  className="inline-flex rounded-lg border border-[#B7E1D4] bg-[#F4FBF9] px-4 py-2 font-semibold text-[#008F8D] underline">
-                  เปิดสลิปรูปที่ 2 {slip2Name ? `(${slip2Name})` : ""}
-                </a>
-              )}
               {slipUrl ? (
-                <a href={slipUrl} target="_blank" rel="noreferrer"
-                  className="inline-flex rounded-lg border px-4 py-2 font-semibold underline">
-                  เปิดสลิปเพื่อตรวจสอบ
-                </a>
+                <div className={slip2Url ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
+                  <div className="min-w-0 rounded-xl border border-[#D6EAE2] bg-white p-2">
+                    <p className="mb-2 text-xs font-bold text-[#17453F]">สลิปรูปที่ 1</p>
+                    {slipMime?.startsWith("image/") ? (
+                      <a href={slipUrl} target="_blank" rel="noreferrer">
+                        <img src={slipUrl} alt="สลิปการชำระเงินรูปที่ 1" className="h-40 w-full rounded-lg object-contain" />
+                      </a>
+                    ) : (
+                      <a href={slipUrl} target="_blank" rel="noreferrer" className="text-sm font-bold text-[#008F8D] underline">เปิดไฟล์สลิป / PDF</a>
+                    )}
+                  </div>
+                  {slip2Url && (
+                    <div className="min-w-0 rounded-xl border border-[#D6EAE2] bg-white p-2">
+                      <p className="mb-2 text-xs font-bold text-[#17453F]">สลิปรูปที่ 2</p>
+                      <a href={slip2Url} target="_blank" rel="noreferrer">
+                        <img src={slip2Url} alt="สลิปการชำระเงินรูปที่ 2" className="h-40 w-full rounded-lg object-contain" />
+                        <span className="mt-1 block truncate text-xs text-[#008F8D] underline">{slip2Name ?? "เปิดสลิปรูปที่ 2"}</span>
+                      </a>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <p className="text-red-600">ไม่สามารถเปิดสลิปได้ กรุณาตรวจสอบไฟล์ก่อนยืนยัน</p>
               )}
@@ -729,6 +756,7 @@ export default function StaffPaymentPage() {
                     replaceLabel="เปลี่ยนสลิปรูปที่ 2"
                     accept="image/*"
                     uploaded={Boolean(slip2Url)}
+                    appearance={slip2Url ? "default" : "add"}
                     uploading={submitting}
                     disabled={submitting}
                     fileName={slip2Name}
@@ -752,10 +780,12 @@ export default function StaffPaymentPage() {
                 selectionHint="เลือกไฟล์เพื่อดูตัวอย่างก่อน ยังไม่ส่งสลิปจนกว่าจะกดยืนยัน"
                 onSelect={(file) => {
                   setSelectedSlip(file);
+                  setSelectedSlip2(null);
                   setConfirmSubmitOpen(false);
                   setMessage("");
                 }}
               />
+              {selectedSlip && (
               <div className="mt-4 rounded-xl border border-[#CBE9E1] bg-[#F4FBF9] p-3">
                 <p className="mb-2 text-sm font-bold text-[#17453F]">สลิปรูปที่ 2 (ไม่บังคับ)</p>
                 <TaskFilePicker
@@ -763,7 +793,8 @@ export default function StaffPaymentPage() {
                   chooseLabel="เลือกรูปสลิปที่ 2"
                   replaceLabel="เปลี่ยนสลิปที่ 2"
                   accept="image/*"
-                  uploaded={false}
+                  uploaded={Boolean(selectedSlip2)}
+                  appearance={selectedSlip2 ? "default" : "add"}
                   uploading={submitting}
                   disabled={submitting || order.status !== "awaiting_payment"}
                   fileName={selectedSlip2?.name ?? null}
@@ -772,35 +803,36 @@ export default function StaffPaymentPage() {
                 />
                 {selectedSlip2 && <p className="mt-2 text-xs font-semibold text-[#008F8D]">✓ เลือก {selectedSlip2.name} แล้ว</p>}
               </div>
+              )}
               {selectedSlip && (
                 <div className="mt-5 rounded-2xl border-2 border-[#9DDBD2] bg-[#F5FCFA] p-4">
                   <p className="text-base font-extrabold text-[#17453F]">ตรวจสอบสลิปก่อนยืนยัน</p>
                   <p className="mt-1 text-xs leading-5 text-[#64877C]">ยังไม่ได้ส่งสลิป · สามารถกด “เปลี่ยนรูปสลิปที่เลือก” ด้านบนเพื่อเลือกรูปใหม่ได้ตลอดเวลาก่อนยืนยันขั้นตอนสุดท้าย</p>
-                  {selectedSlipUrl && (
-                    selectedSlip.type.startsWith("image/") ? (
-                      <img
-                        src={selectedSlipUrl}
-                        alt="ตัวอย่างสลิปการชำระเงินที่ยังไม่ได้ส่ง"
-                        className="mx-auto mt-4 max-h-80 w-full rounded-xl border border-[#DAEBE4] bg-white object-contain"
-                      />
-                    ) : (
-                      <a
-                        href={selectedSlipUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-4 block rounded-xl border border-[#CAE5DE] bg-white px-4 py-3 text-center text-sm font-bold text-[#008F8D]"
-                      >
-                        เปิดดูไฟล์ PDF ก่อนยืนยัน
-                      </a>
-                    )
-                  )}
+                  <div className={selectedSlip2 ? "mt-4 grid grid-cols-2 gap-3" : "mt-4 grid grid-cols-1 gap-3"}>
+                    {selectedSlipUrl && (
+                      <div className="min-w-0 rounded-xl border border-[#DAEBE4] bg-white p-2">
+                        <p className="mb-2 text-xs font-bold text-[#17453F]">สลิปรูปที่ 1</p>
+                        {selectedSlip.type.startsWith("image/") ? (
+                          <img src={selectedSlipUrl} alt="ตัวอย่างสลิปการชำระเงินรูปที่ 1 ที่ยังไม่ได้ส่ง" className="max-h-80 w-full rounded-lg object-contain" />
+                        ) : (
+                          <a href={selectedSlipUrl} target="_blank" rel="noreferrer" className="block rounded-lg px-2 py-3 text-center text-sm font-bold text-[#008F8D] underline">เปิดดูไฟล์ PDF ก่อนยืนยัน</a>
+                        )}
+                      </div>
+                    )}
+                    {selectedSlip2 && selectedSlip2Url && (
+                      <div className="min-w-0 rounded-xl border border-[#DAEBE4] bg-white p-2">
+                        <p className="mb-2 text-xs font-bold text-[#17453F]">สลิปรูปที่ 2</p>
+                        <img src={selectedSlip2Url} alt="ตัวอย่างสลิปการชำระเงินรูปที่ 2 ที่ยังไม่ได้ส่ง" className="max-h-80 w-full rounded-lg object-contain" />
+                      </div>
+                    )}
+                  </div>
                   <p className="mt-4 text-xs leading-5 text-[#8E6000]">
                     เมื่อลงทะเบียนสลิปสำเร็จ ระบบจะปิดคำสั่งซื้อนี้ทันที กรุณาตรวจสอบรูปให้ถูกต้องก่อนยืนยัน
                   </p>
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => { setSelectedSlip(null); setConfirmSubmitOpen(false); }}
+                      onClick={() => { setSelectedSlip(null); setSelectedSlip2(null); setConfirmSubmitOpen(false); }}
                       disabled={submitting}
                       className="min-h-12 rounded-xl border border-[#BFDCD4] bg-white px-3 py-3 text-sm font-extrabold text-[#527B6F] disabled:opacity-50"
                     >

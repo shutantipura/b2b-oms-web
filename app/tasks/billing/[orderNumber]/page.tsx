@@ -1559,6 +1559,20 @@ export default function BillingPage() {
               fileName={billName}
               onSelect={uploadBill}
             />}
+            {billPreviewUrl && (
+              <div className="mt-4 rounded-xl border bg-gray-50 p-3">
+                <p className="mb-2 text-sm font-semibold text-[#17453F]">ตัวอย่างบิลที่บันทึกไว้</p>
+                {billMimeType?.startsWith("image/") ? (
+                  <a href={billPreviewUrl} target="_blank" rel="noreferrer">
+                    <img src={billPreviewUrl} alt="ตัวอย่างภาพบิล" className="max-h-72 w-full rounded-lg object-contain" />
+                  </a>
+                ) : (
+                  <a href={billPreviewUrl} target="_blank" rel="noreferrer" className="font-semibold text-[#008F8D] underline">
+                    เปิดไฟล์บิล / PDF
+                  </a>
+                )}
+              </div>
+            )}
             {billingMode !== "suspended" && billUploaded && (
               <div className="mt-3 rounded-xl border border-[#D5ECE6] bg-[#F6FBFA] p-3">
                 <p className="mb-2 text-sm font-bold text-[#17453F]">รูปบิลที่ 2 <span className="font-medium text-[#708D83]">(ไม่บังคับ)</span></p>
@@ -1588,20 +1602,7 @@ export default function BillingPage() {
                 กรุณาคิดเงินหน้าเครื่องPOS และถ่ายรูปพักบิล
               </p>
             )}
-            {billPreviewUrl && (
-              <div className="mt-4 rounded-xl border bg-gray-50 p-3">
-                <p className="mb-2 text-sm font-semibold text-[#17453F]">ตัวอย่างบิลที่บันทึกไว้</p>
-                {billMimeType?.startsWith("image/") ? (
-                  <a href={billPreviewUrl} target="_blank" rel="noreferrer">
-                    <img src={billPreviewUrl} alt="ตัวอย่างภาพบิล" className="max-h-72 w-full rounded-lg object-contain" />
-                  </a>
-                ) : (
-                  <a href={billPreviewUrl} target="_blank" rel="noreferrer" className="font-semibold text-[#008F8D] underline">
-                    เปิดไฟล์บิล / PDF
-                  </a>
-                )}
-              </div>
-            )}
+
 
 
           </div>
@@ -1656,6 +1657,14 @@ export default function BillingPage() {
               onSelect={uploadQr}
             />
             )}
+            {billingMode === "normal" && qrPreviewUrl && (
+              <div className="mt-4 rounded-xl border bg-gray-50 p-3">
+                <p className="mb-2 text-sm font-semibold text-[#17453F]">ตัวอย่าง QR ที่บันทึกไว้</p>
+                <a href={qrPreviewUrl} target="_blank" rel="noreferrer">
+                  <img src={qrPreviewUrl} alt="ตัวอย่าง QR ชำระเงิน" className="max-h-72 w-full rounded-lg object-contain" />
+                </a>
+              </div>
+            )}
             {billingMode === "normal" && qrUploaded && (
               <div className="mt-3 rounded-xl border border-[#D5ECE6] bg-[#F6FBFA] p-3">
                 <p className="mb-2 text-sm font-bold text-[#17453F]">รูป QR ที่ 2 <span className="font-medium text-[#708D83]">(ไม่บังคับ)</span></p>
@@ -1679,14 +1688,7 @@ export default function BillingPage() {
                 )}
               </div>
             )}
-            {billingMode === "normal" && qrPreviewUrl && (
-              <div className="mt-4 rounded-xl border bg-gray-50 p-3">
-                <p className="mb-2 text-sm font-semibold text-[#17453F]">ตัวอย่าง QR ที่บันทึกไว้</p>
-                <a href={qrPreviewUrl} target="_blank" rel="noreferrer">
-                  <img src={qrPreviewUrl} alt="ตัวอย่าง QR ชำระเงิน" className="max-h-72 w-full rounded-lg object-contain" />
-                </a>
-              </div>
-            )}
+
 
 
           </div>

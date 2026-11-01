@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { groupOrdersForManagement, orderDisplayNumber } from "../lib/groupOrderDisplay.ts";
 import { combinePickedItems } from "../lib/groupedOrderItems.ts";
+import { compareOrderFiles } from "../lib/orderFileSort.ts";
 import {
   DELIVERY_RULES,
   getAvailableSlots,
@@ -684,4 +685,57 @@ test("primary and optional payment slips share payment-stage permissions and man
   assert.match(payment, /payment_slip_2\/\$\{uploadRole\}/);
   assert.match(payment, /กรุณารับงานตรวจสอบการชำระเงินก่อนเพิ่มสลิปรูปที่ 2/);
   assert.match(payment, /บัญชีพนักงานนี้ไม่มีสิทธิ์ทำงานตรวจสอบการชำระเงิน/);
+});
+
+test("order files follow workflow stage even when manager photos arrive late", () => {
+  const file = (id, type, createdAt, isCurrent = true) => ({
+    id, file_type: type, created_at: createdAt, is_current: isCurrent,
+  });
+  const sorted = [
+    file("slip", "payment_slip", "2026-10-31T14:00:00Z"),
+    file("delivery2", "delivery_proof_2", "2026-10-31T13:00:00Z"),
+    file("qr2", "payment_qr_2", "2026-10-31T10:00:00Z"),
+    file("bill2", "bill_2", "2026-11-01T18:00:00Z"),
+    file("cart-old", "cart_photo", "2026-10-30T08:00:00Z", false),
+    file("delivery", "delivery_proof", "2026-10-31T12:00:00Z"),
+    file("bill", "bill", "2026-11-01T17:00:00Z"),
+    file("cart-current", "cart_photo", "2026-10-31T08:00:00Z"),
+    file("cart2", "cart_photo_2", "2026-10-31T09:00:00Z"),
+    file("slip2", "payment_slip_2", "2026-10-31T14:30:00Z"),
+    file("qr", "payment_qr", "2026-10-31T09:30:00Z"),
+  ].sort(compareOrderFiles);
+  assert.deepEqual(sorted.map((entry) => entry.id), [
+    "cart-current", "cart-old", "cart2", "bill", "bill2", "qr",
+    "qr2", "delivery", "delivery2", "slip", "slip2",
+  ]);
+});
+
+test("optional second photo only appears after first and both photo previews are available", () => {
+  const picker = readFileSync(new URL("../components/TaskFilePicker.tsx", import.meta.url), "utf8");
+  const picking = readFileSync(new URL("../app/tasks/picking/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const delivery = readFileSync(new URL("../app/tasks/delivery/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const billing = readFileSync(new URL("../app/tasks/billing/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const payment = readFileSync(new URL("../app/orders/[orderNumber]/payment/page.tsx", import.meta.url), "utf8");
+  const manager = readFileSync(new URL("../app/orders/[orderNumber]/page.tsx", import.meta.url), "utf8");
+
+  assert.match(picker, /previewUrl\?: string \| null/);
+  assert.match(picker, /src=\{previewUrl\}/);
+  assert.match(picking, /\{photoUploaded\[0\] && \(/);
+  assert.match(picking, /previewUrl=\{cartPhotoUrls\[0\]\}/);
+  assert.match(picking, /previewUrl=\{cartPhotoUrls\[1\]\}/);
+  assert.match(delivery, /\{photoUploaded\[0\] && \(/);
+  assert.match(delivery, /previewUrl=\{deliveryProofUrls\[0\]\}/);
+  assert.match(delivery, /previewUrl=\{deliveryProofUrls\[1\]\}/);
+  assert.match(billing, /\{billingMode !== "suspended" && billUploaded && \(/);
+  assert.match(billing, /\{billingMode === "normal" && qrUploaded && \(/);
+  assert.ok(billing.indexOf("{billPreviewUrl && (") < billing.indexOf('billingMode !== "suspended" && billUploaded && ('));
+  assert.ok(billing.indexOf("{billingMode === \"normal\" && qrPreviewUrl && (") < billing.indexOf('billingMode === "normal" && qrUploaded && ('));
+  assert.match(payment, /\{selectedSlip && \(\s*<div className="mt-4/);
+  assert.match(payment, /src=\{selectedSlipUrl\}/);
+  assert.match(payment, /src=\{selectedSlip2Url\}/);
+  assert.match(payment, /src=\{slipUrl\}/);
+  assert.match(payment, /src=\{slip2Url\}/);
+  assert.match(manager, /displayFiles\.sort\(compareOrderFiles\)/);
+  assert.match(manager, /slot === "bill" \|\| files\.some/);
+  assert.match(manager, /slot === "payment_slip" \|\| files\.some/);
 });
