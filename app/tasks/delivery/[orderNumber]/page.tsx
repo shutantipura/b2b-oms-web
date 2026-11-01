@@ -144,6 +144,7 @@ export default function DeliveryPage() {
   const [itemsError, setItemsError] = useState("");
 
   const [deliveryPhotoNames, setDeliveryPhotoNames] = useState<(string | null)[]>([null, null]);
+  const [deliveryProofUrls, setDeliveryProofUrls] = useState<(string | null)[]>([null, null]);
 
   const [photoUploaded, setPhotoUploaded] = useState<boolean[]>([false, false]);
 
@@ -380,6 +381,14 @@ export default function DeliveryPage() {
       firstProof?.original_filename ?? null,
       secondProof?.original_filename ?? null,
     ]);
+    const proofUrls = await Promise.all([firstProof, secondProof].map(async (proof) => {
+      if (!proof) return null;
+      const { data, error } = await supabase.storage
+        .from("order-files")
+        .createSignedUrl(proof.storage_path, 60 * 60);
+      return error || !data ? null : data.signedUrl;
+    }));
+    setDeliveryProofUrls(proofUrls);
 
     async function getDisplayFile(
 
@@ -592,6 +601,12 @@ export default function DeliveryPage() {
       );
       setDeliveryPhotoNames((previous) =>
         previous.map((name, photoIndex) => photoIndex === index ? file.name : name)
+      );
+      const { data: signedPreview } = await supabase.storage
+        .from("order-files")
+        .createSignedUrl(storagePath, 60 * 60);
+      setDeliveryProofUrls((previous) =>
+        previous.map((url, photoIndex) => photoIndex === index ? signedPreview?.signedUrl ?? null : url)
       );
       setMessage(`✓ บันทึกหลักฐานการจัดส่ง ${index + 1} เรียบร้อยแล้ว`);
     } catch (error) {
@@ -1329,6 +1344,7 @@ export default function DeliveryPage() {
               uploading={uploading}
               disabled={submitting}
               fileName={deliveryPhotoNames[0]}
+              previewUrl={deliveryProofUrls[0]}
               onSelect={(file) => uploadDeliveryProof(file, 0)}
             />
             {photoUploaded[0] && (
@@ -1342,6 +1358,7 @@ export default function DeliveryPage() {
                 uploading={uploading}
                 disabled={submitting}
                 fileName={deliveryPhotoNames[1]}
+                previewUrl={deliveryProofUrls[1]}
                 onSelect={(file) => uploadDeliveryProof(file, 1)}
               />
             )}

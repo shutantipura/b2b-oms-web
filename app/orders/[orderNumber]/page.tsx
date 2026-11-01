@@ -14,6 +14,7 @@ import TaskFilePicker from "../../../components/TaskFilePicker";
 import { prepareOrderPhoto } from "../../../lib/orderPhotoUpload";
 import { isConsolidatedGroup } from "../../../lib/groupOrderDisplay";
 import { combinePickedItems, type PickedItem } from "../../../lib/groupedOrderItems";
+import { compareOrderFiles } from "../../../lib/orderFileSort";
 
 
 
@@ -663,7 +664,7 @@ export default function OrderDetailsPage() {
 
 
 
-    setFiles(displayFiles);
+    setFiles(displayFiles.sort(compareOrderFiles));
 
 
 
@@ -1797,7 +1798,9 @@ export default function OrderDetailsPage() {
                 · ไม่แก้ยอดเงินหรือสถานะคำสั่งซื้อ
               </p>
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {(["bill", "bill_2"] as const).map((slot) => {
+                {(["bill", "bill_2"] as const)
+                  .filter((slot) => slot === "bill" || files.some((file) => file.file_type === "bill" && file.is_current))
+                  .map((slot) => {
                   const existing = files.find((photo) => photo.file_type === slot && photo.is_current);
                   return (
                     <div key={slot} className="min-w-0 rounded-xl border border-[#D8EBE4] bg-white p-3">
@@ -1810,6 +1813,7 @@ export default function OrderDetailsPage() {
                         replaceLabel={slot === "bill" ? "เปลี่ยนรูปบิลที่ 1" : "เปลี่ยนรูปบิลที่ 2"}
                         accept="image/*"
                         uploaded={Boolean(existing)}
+                        appearance={slot === "bill_2" && !existing ? "add" : "default"}
                         uploading={uploadingManagerBill === slot}
                         disabled={uploadingManagerBill !== null}
                         fileName={existing?.original_filename ?? null}
@@ -1843,7 +1847,9 @@ export default function OrderDetailsPage() {
                 · ไม่เปลี่ยนยอดเงินหรือสถานะการชำระเงิน
               </p>
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {(["payment_slip", "payment_slip_2"] as const).map(slot => {
+                {(["payment_slip", "payment_slip_2"] as const)
+                  .filter((slot) => slot === "payment_slip" || files.some((file) => file.file_type === "payment_slip" && file.is_current))
+                  .map(slot => {
                   const existing = files.find(f => f.file_type === slot && f.is_current);
                   const first = slot === "payment_slip";
                   return (
@@ -1857,6 +1863,7 @@ export default function OrderDetailsPage() {
                         replaceLabel={first ? "เปลี่ยนสลิปรูปที่ 1" : "เปลี่ยนสลิปรูปที่ 2"}
                         accept="image/*"
                         uploaded={Boolean(existing)}
+                        appearance={slot === "payment_slip_2" && !existing ? "add" : "default"}
                         uploading={uploadingManagerSlip === slot}
                         disabled={uploadingManagerSlip !== null}
                         fileName={existing?.original_filename ?? null}

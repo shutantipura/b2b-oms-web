@@ -11,6 +11,7 @@ type TaskFilePickerProps = {
   uploading: boolean;
   disabled?: boolean;
   fileName?: string | null;
+  previewUrl?: string | null;
   selectionHint?: string;
   uploadedHint?: string;
   // Compact plus button, used only to offer an optional second photo.
@@ -27,6 +28,7 @@ export default function TaskFilePicker({
   uploading,
   disabled = false,
   fileName,
+  previewUrl,
   selectionHint,
   uploadedHint,
   appearance = "default",
@@ -82,6 +84,11 @@ export default function TaskFilePicker({
         </p>
       )}
       {fileName && <p className="mt-1 break-all text-xs font-semibold text-[#17453F]">{fileName}</p>}
+      {previewUrl && (
+        <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="mt-3 block" aria-label={`เปิดดู${label}เต็มขนาด`}>
+          <img src={previewUrl} alt={`ตัวอย่าง${label}`} loading="lazy" className="max-h-64 w-full rounded-xl border border-[#D5ECE6] bg-white object-contain" />
+        </a>
+      )}
     </div>
   );
 }

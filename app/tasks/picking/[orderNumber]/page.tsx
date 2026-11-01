@@ -252,6 +252,7 @@ export default function PickingPage() {
   const [actualPieces, setActualPieces] = useState<Record<string, string>>({});
 
   const [cartPhotoNames, setCartPhotoNames] = useState<(string | null)[]>([null, null]);
+  const [cartPhotoUrls, setCartPhotoUrls] = useState<(string | null)[]>([null, null]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const [photoUploaded, setPhotoUploaded] = useState<boolean[]>([false, false]);
@@ -486,6 +487,16 @@ export default function PickingPage() {
       !photoError ? firstPhoto?.original_filename ?? null : null,
       !photoError ? secondPhoto?.original_filename ?? null : null,
     ]);
+
+    // Keep current image previews in sync when revisiting an order.
+    const currentUrls = await Promise.all([firstPhoto, secondPhoto].map(async (photo) => {
+      if (photoError || !photo) return null;
+      const { data, error } = await supabase.storage
+        .from("order-files")
+        .createSignedUrl(photo.storage_path, 60 * 60);
+      return error || !data ? null : data.signedUrl;
+    }));
+    setCartPhotoUrls(currentUrls);
 
     // A merged order archives the old cart images (is_current=false), it does
     // not delete the database rows or the Storage objects. Display those
@@ -812,6 +823,12 @@ export default function PickingPage() {
       ));
       setCartPhotoNames((previous) => previous.map((name, photoIndex) =>
         photoIndex === index ? file.name : name
+      ));
+      const { data: signedPreview } = await supabase.storage
+        .from("order-files")
+        .createSignedUrl(storagePath, 60 * 60);
+      setCartPhotoUrls((previous) => previous.map((url, photoIndex) =>
+        photoIndex === index ? signedPreview?.signedUrl ?? null : url
       ));
       setMessage(`✓ บันทึกรูปรถเข็นสินค้า ${index + 1} เรียบร้อยแล้ว`);
     } catch (error) {
@@ -1375,6 +1392,7 @@ export default function PickingPage() {
               uploading={uploadingPhoto}
               disabled={submitting}
               fileName={cartPhotoNames[0]}
+              previewUrl={cartPhotoUrls[0]}
               onSelect={(file) => uploadCartPhoto(file, 0)}
             />
             {photoUploaded[0] && (
@@ -1388,6 +1406,7 @@ export default function PickingPage() {
                 uploading={uploadingPhoto}
                 disabled={submitting}
                 fileName={cartPhotoNames[1]}
+                previewUrl={cartPhotoUrls[1]}
                 onSelect={(file) => uploadCartPhoto(file, 1)}
               />
             )}
