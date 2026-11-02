@@ -101,7 +101,7 @@ Native Java, Android Gradle Plugin 8.7.3, JDK 17, Android SDK 35; app uses no ru
 The alarm continues working **without login and without pairing**. Pairing enables **two** features: showing the station's health status in the Manager dashboard **and acknowledging an alert on all Android stations**. Unpaired phones can still ring but can only dismiss locally.
 
 1. Manager opens `https://b2b-oms-web.vercel.app/alarm-stations` and chooses a station name.
-2. Click **สร้างรหัสจับคู่เครื่อง**. The 32-character one-time code expires after 15 minutes.
+2. Click **สร้างรหัสจับคู่เครื่อง**. The six-digit numeric one-time code expires after 15 minutes. Leading zeroes count; the pairing API also enforces database-backed limits on guessing attempts.
 3. On Android app v0.6, select **จับคู่เครื่องกับ Dashboard (ทางเลือก)** and type the code.
 4. Keep **เริ่มตรวจสอบออเดอร์** enabled. The app sends health updates around every 45 seconds, while order polling remains every 15 seconds.
 5. Dashboard shows the last heartbeat, successful OMS check, pending count, errors and app version. An absent heartbeat for 90 seconds shows **offline**.

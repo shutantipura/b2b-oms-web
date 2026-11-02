@@ -34,8 +34,8 @@ final class StationHealth {
 
     static void pair(Context context, String code, Callback callback) {
         Context app = context.getApplicationContext();
-        if (!code.matches("[A-Fa-f0-9]{32}")) {
-            callback.onComplete(false, "รหัสจับคู่ต้องมี 32 ตัวอักษร (A–F และ 0–9)");
+        if (!code.matches("[0-9]{6}")) {
+            callback.onComplete(false, "รหัสจับคู่ต้องเป็นตัวเลข 6 หลัก");
             return;
         }
         SharedPreferences existing = app.getSharedPreferences(
@@ -47,7 +47,7 @@ final class StationHealth {
         }
         network.execute(() -> {
             try {
-                JSONObject payload = new JSONObject().put("code", code.toUpperCase());
+                JSONObject payload = new JSONObject().put("code", code);
                 JSONObject response = post("pair", null, payload);
                 if (!response.optBoolean("success")) {
                     throw new Exception(response.optString("error", "จับคู่ไม่สำเร็จ"));
@@ -217,6 +217,7 @@ final class StationHealth {
             int status = conn.getResponseCode();
             if (status < 200 || status >= 300) {
                 if (status == 401) throw new Exception("ไม่รู้จักอุปกรณ์หรือถูกยกเลิกการจับคู่");
+                if (status == 429) throw new Exception("กรอกรหัสหลายครั้งเกินไป กรุณาลองใหม่ภายหลัง");
                 throw new Exception("OMS HTTP " + status);
             }
             StringBuilder result = new StringBuilder();

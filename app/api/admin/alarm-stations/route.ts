@@ -1,6 +1,6 @@
-import { createHash, randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { issueAlarmPairingCode } from "@/lib/alarm-pairing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,10 +23,6 @@ async function requireManager(request: NextRequest) {
     .eq("account_type", "manager")
     .eq("is_active", true).maybeSingle();
   return profile ? db : null;
-}
-
-function hash(value: string) {
-  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 function invalidAccess() {
@@ -60,16 +56,8 @@ export async function POST(request: NextRequest) {
     if (!label || label.length > 80) {
       return NextResponse.json({ error: "Please enter a device name, up to 80 characters" }, { status: 400 });
     }
-    // 128-bit one-use pairing code. No device password or LINE login required.
-    const pairingCode = randomBytes(16).toString("hex").toUpperCase();
-    const expires = new Date(Date.now() + 15 * 60_000).toISOString();
-    const { error } = await db.from("alarm_station_pairing_codes").insert({
-      code_hash: hash(pairingCode),
-      label,
-      expires_at: expires,
-    });
-    if (error) throw error;
-    return NextResponse.json({ pairingCode, expiresAt: expires, label },
+    const { code, expiresAt } = await issueAlarmPairingCode(db, label);
+    return NextResponse.json({ pairingCode: code, expiresAt, label },
       { headers: noCache });
   } catch (error) {
     console.error("[alarm-stations:POST]", error instanceof Error ? error.message : "unknown");

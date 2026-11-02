@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { alarmPairingSourceHash, hashAlarmPairingCode } from "@/lib/alarm-pairing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,9 +13,7 @@ function db() {
   if (!url || !key) throw new Error("Missing Supabase server configuration");
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
-function sha(value: string) {
-  return createHash("sha256").update(value, "utf8").digest("hex");
-}
+const sha=(value:string)=>createHash("sha256").update(value,"utf8").digest("hex");
 
 /** No LINE/staff login required. One-time manager-created code is consumed. */
 export async function POST(request: NextRequest) {
@@ -23,16 +22,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Request too large" }, { status: 413 });
     }
     const body = await request.json().catch(() => ({}));
-    const code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
-    if (!/^[A-F0-9]{32}$/.test(code)) {
-      return NextResponse.json({ error: "Invalid or expired pairing code" }, { status: 400 });
+    const code = typeof body.code === "string" ? body.code.trim() : "";
+    if (!/^[0-9]{6}$/.test(code)) {
+      return NextResponse.json({ error: "Pairing code must be exactly 6 digits" },
+        { status: 400, headers });
     }
     const client = db();
+    // Database-backed limits work across all serverless instances and prevent
+    // a public, anonymous endpoint from brute-forcing a six-digit enrollment PIN.
+    const { data: allowed, error: limitError } = await client.rpc(
+      "allow_alarm_station_pair_attempt",
+      { p_source_hash: alarmPairingSourceHash(request.headers) },
+    );
+    if (limitError) throw limitError;
+    if (allowed !== true) {
+      return NextResponse.json({ error: "Too many pairing attempts. Try again later." },
+        { status: 429, headers: { ...headers, "Retry-After": "900" } });
+    }
     const token = randomBytes(32).toString("hex");
     // The code is consumed and the station created in ONE transaction.
     // A temporary DB error cannot strand an otherwise valid pairing code.
     const { data: stationRows, error } = await client.rpc("claim_alarm_station_pairing", {
-      p_code_hash: sha(code),
+      p_code_hash: hashAlarmPairingCode(code),
       p_station_secret_hash: sha(token),
     });
     if (error) throw error;

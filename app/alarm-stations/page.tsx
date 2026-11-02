@@ -146,12 +146,12 @@ export default function AlarmStationsPage() {
           {code && (
             <div className="mt-4 rounded-2xl border border-[#9DD9CE] bg-[#E6F8F4] p-4">
               <p className="text-sm font-extrabold">รหัสจับคู่เครื่อง (ใช้ได้ครั้งเดียว)</p>
-              <p className="mt-2 break-all font-mono text-lg font-black tracking-wider text-[#00756F]">{code}</p>
+              <p className="mt-3 font-mono text-3xl font-black tracking-[0.16em] tabular-nums text-[#00756F]">{code}</p>
               <button type="button" onClick={() => void navigator.clipboard?.writeText(code)}
                 className="mt-3 rounded-xl border border-[#8ECBC1] bg-white px-4 py-2 text-sm font-bold text-[#007A73]">
                 คัดลอกรหัส
               </button>
-              <p className="mt-2 text-xs text-[#648076]">หมดอายุ {expires ? new Date(expires).toLocaleString("th-TH", {timeZone:"Asia/Bangkok"}) : "—"} · คัดลอกไว้จนกว่าจะใช้งาน</p>
+              <p className="mt-2 text-xs text-[#648076]">รหัสตัวเลข 6 หลัก · หมดอายุ {expires ? new Date(expires).toLocaleString("th-TH", {timeZone:"Asia/Bangkok"}) : "—"} · คัดลอกไว้จนกว่าจะใช้งาน</p>
             </div>
           )}
         </section>

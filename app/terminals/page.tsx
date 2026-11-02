@@ -178,11 +178,11 @@ export default function TerminalsPage() {
      </button>
      {code&&<div className="rounded-2xl border border-[#81CDC0] bg-[#E8F8F4] p-4">
        <p className="font-bold">รหัสสำหรับ {createdName} (ใช้ครั้งเดียว)</p>
-       <p className="my-2 break-all font-mono text-lg font-extrabold tracking-wide text-[#006F6B]">{code}</p>
+       <p className="my-3 font-mono text-3xl font-extrabold tracking-[0.16em] tabular-nums text-[#006F6B]">{code}</p>
        <button onClick={()=>void navigator.clipboard?.writeText(code)}
         className="rounded-lg border border-[#6CB8AF] bg-white px-3 py-2 text-sm font-bold">คัดลอกรหัส</button>
        <p className="mt-2 text-xs">หมดอายุ: {expires?new Date(expires).toLocaleString("th-TH",{timeZone:"Asia/Bangkok"}):"—"}</p>
-       <p className="mt-2 text-xs leading-5">เปิดแอป Android → จับคู่เครื่อง → วางรหัสนี้ แล้วใช้ Staff Mode ได้โดยไม่ต้องพิมพ์ username/password</p>
+       <p className="mt-2 text-xs leading-5">เปิดแอป Android v0.11.6 ขึ้นไป → จับคู่เครื่อง → กรอกรหัสตัวเลข 6 หลัก (รวมเลข 0 ข้างหน้า) แล้วใช้ Staff Mode ได้โดยไม่ต้องพิมพ์ username/password</p>
       </div>}
     </section>
     {error&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}

@@ -2,6 +2,7 @@ package com.lotusb2b.alarm;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.text.InputFilter;
 import android.text.InputType;
 import android.widget.EditText;
 import android.app.NotificationManager;
@@ -214,9 +215,9 @@ public final class MainActivity extends Activity {
     private void showPairingDialog() {
         EditText code = new EditText(this);
         code.setSingleLine(true);
-        code.setAllCaps(true);
-        code.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
-        code.setHint("รหัสจับคู่ 32 ตัวอักษร");
+        code.setInputType(InputType.TYPE_CLASS_NUMBER);
+        code.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});
+        code.setHint("รหัสจับคู่ตัวเลข 6 หลัก");
         LinearLayout container = new LinearLayout(this);
         container.setPadding(dp(18), dp(7), dp(18), 0);
         container.addView(code, new LinearLayout.LayoutParams(

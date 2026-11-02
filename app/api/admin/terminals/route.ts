@@ -1,6 +1,7 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { issueAlarmPairingCode } from "@/lib/alarm-pairing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,6 @@ async function manager(request:NextRequest) {
   return staff ? db : null;
 }
 const forbidden=()=>NextResponse.json({error:"Manager access required"},{status:403,headers:noStore});
-const hash=(s:string)=>createHash("sha256").update(s,"utf8").digest("hex");
 const uuid=/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 
 export async function GET(request:NextRequest) {
@@ -137,13 +137,9 @@ export async function POST(request:NextRequest) {
         .update({expires_at:now}).eq("dedicated_staff_id",staffId)
         .is("consumed_at",null).gt("expires_at",now);
       if(expireErr)throw expireErr;
-      const newCode=randomBytes(16).toString("hex").toUpperCase();
-      const expiresAt=new Date(Date.now()+15*60*1000).toISOString();
-      const {error:pairErr}=await db.from("alarm_station_pairing_codes").insert({
-        code_hash:hash(newCode),label:identity.staff_name,
-        expires_at:expiresAt,dedicated_staff_id:staffId,
-      });
-      if(pairErr)throw pairErr;
+      const {code:newCode,expiresAt}=await issueAlarmPairingCode(
+        db,identity.staff_name,staffId
+      );
       if(activateId) {
         const {error:activateErr}=await db.from("staff")
           .update({is_active:true}).eq("id",staffId).eq("is_active",false);
@@ -198,12 +194,7 @@ export async function POST(request:NextRequest) {
       if(permErr)throw permErr;
     }
 
-    const code=randomBytes(16).toString("hex").toUpperCase();
-    const expiresAt=new Date(Date.now()+15*60*1000).toISOString();
-    const {error:codeErr}=await db.from("alarm_station_pairing_codes").insert({
-      code_hash:hash(code),label,expires_at:expiresAt,dedicated_staff_id:staff.id,
-    });
-    if(codeErr)throw codeErr;
+    const {code,expiresAt}=await issueAlarmPairingCode(db,label,staff.id);
     return NextResponse.json({
       success:true,label,staffCode,staffId:staff.id,
       pairingCode:code,expiresAt,taskPermissions:stages,
