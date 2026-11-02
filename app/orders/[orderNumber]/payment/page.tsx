@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../../lib/supabase";
 import DeliverySchedule from "../../../../components/DeliverySchedule";
 import TaskFilePicker from "../../../../components/TaskFilePicker";
 import { prepareOrderPhoto } from "../../../../lib/orderPhotoUpload";
+import { clearPaymentDraft, loadPaymentDraft, savePaymentDraft } from "../../../../lib/pendingPaymentDraft";
 
 type OrderDetails = {
   id: string;
@@ -96,6 +97,30 @@ export default function StaffPaymentPage() {
   const [selectedSlipUrl, setSelectedSlipUrl] = useState<string | null>(null);
   const [selectedSlip2Url, setSelectedSlip2Url] = useState<string | null>(null);
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
+  const [draftStatus, setDraftStatus] = useState("");
+  const draftOwner = useRef<string | null>(null);
+  const draftRevision = useRef(0);
+  const pendingDraftWrite = useRef<Promise<void>>(Promise.resolve());
+
+  function stageSlipDraft(first: File | null, second: File | null) {
+    const revision = ++draftRevision.current;
+    setDraftStatus("กำลังบันทึกรูปสลิปไว้ในเครื่อง...");
+    pendingDraftWrite.current = pendingDraftWrite.current.catch(() => {}).then(async () => {
+      const owner = draftOwner.current ?? (await supabase.auth.getUser()).data.user?.id;
+      if (!owner) throw new Error("No active staff session");
+      draftOwner.current = owner;
+      if (first) await savePaymentDraft(owner, orderNumber, first, second);
+      else await clearPaymentDraft(owner, orderNumber);
+    }).then(() => {
+      if (draftRevision.current === revision) {
+        setDraftStatus(first ? "✓ บันทึกรูปที่เลือกไว้ในเครื่องนี้แล้ว (ยังไม่ได้ส่ง)" : "");
+      }
+    }).catch(() => {
+      if (draftRevision.current === revision) {
+        setDraftStatus("⚠ ไม่สามารถบันทึกรูปอัตโนมัติได้ กรุณาอย่าปิดหน้าจอก่อนส่งสลิป");
+      }
+    });
+  }
 
   useEffect(() => {
     if (!selectedSlip) {
@@ -148,6 +173,7 @@ export default function StaffPaymentPage() {
   }
 
   async function loadOrder() {
+    ++draftRevision.current;
     setLoading(true);
     setMessage("");
     setOrder(null);
@@ -167,6 +193,7 @@ export default function StaffPaymentPage() {
     setSelectedSlip(null);
     setSelectedSlip2(null);
     setConfirmSubmitOpen(false);
+    setDraftStatus("");
 
     const {
       data: orderData,
@@ -301,6 +328,32 @@ export default function StaffPaymentPage() {
     if (slip) {
       setSlipMime(slip.mime_type);
       setSlipUrl(await createFileUrl(slip.storage_path));
+    }
+
+    // A native acknowledgement may interrupt the WebView. Restore files that
+    // have not been submitted, but never submit them without staff confirmation.
+    if (orderData.status === "awaiting_payment" && !slip) {
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData.user) {
+          draftOwner.current = authData.user.id;
+          await pendingDraftWrite.current;
+          const draft = await loadPaymentDraft(authData.user.id, orderNumber);
+          if (draft) {
+            setSelectedSlip(draft.first);
+            setSelectedSlip2(draft.second);
+            setDraftStatus("✓ กู้คืนรูปสลิปที่เลือกไว้ในเครื่องแล้ว · ยังไม่ได้ส่ง");
+          }
+        }
+      } catch {
+        setDraftStatus("⚠ ไม่สามารถกู้คืนรูปสลิปที่เคยเลือกไว้ได้");
+      }
+    } else {
+      // An order completed on another terminal must not leave a stale local
+      // payment draft waiting for the next person to open this device.
+      void supabase.auth.getUser().then(({ data }) => {
+        if (data.user) return clearPaymentDraft(data.user.id, orderNumber);
+      }).catch(() => {});
     }
 
     setLoading(false);
@@ -500,6 +553,12 @@ export default function StaffPaymentPage() {
     setMessage(
       "บันทึกสลิปโดยพนักงานและปิดคำสั่งซื้อเรียบร้อยแล้ว"
     );
+
+    ++draftRevision.current;
+    await pendingDraftWrite.current;
+    if (draftOwner.current) {
+      await clearPaymentDraft(draftOwner.current, orderNumber).catch(() => {});
+    }
 
     router.push(
       "/tasks"
@@ -783,6 +842,7 @@ export default function StaffPaymentPage() {
                   setSelectedSlip2(null);
                   setConfirmSubmitOpen(false);
                   setMessage("");
+                  stageSlipDraft(file, null);
                 }}
               />
               {selectedSlip && (
@@ -799,7 +859,7 @@ export default function StaffPaymentPage() {
                   disabled={submitting || order.status !== "awaiting_payment"}
                   fileName={selectedSlip2?.name ?? null}
                   selectionHint="รูปที่ 2 จะส่งพร้อมรูปที่ 1 เมื่อกดยืนยัน"
-                  onSelect={(file) => { setSelectedSlip2(file); setConfirmSubmitOpen(false); }}
+                  onSelect={(file) => { setSelectedSlip2(file); setConfirmSubmitOpen(false); stageSlipDraft(selectedSlip, file); }}
                 />
                 {selectedSlip2 && <p className="mt-2 text-xs font-semibold text-[#008F8D]">✓ เลือก {selectedSlip2.name} แล้ว</p>}
               </div>
@@ -808,6 +868,7 @@ export default function StaffPaymentPage() {
                 <div className="mt-5 rounded-2xl border-2 border-[#9DDBD2] bg-[#F5FCFA] p-4">
                   <p className="text-base font-extrabold text-[#17453F]">ตรวจสอบสลิปก่อนยืนยัน</p>
                   <p className="mt-1 text-xs leading-5 text-[#64877C]">ยังไม่ได้ส่งสลิป · สามารถกด “เปลี่ยนรูปสลิปที่เลือก” ด้านบนเพื่อเลือกรูปใหม่ได้ตลอดเวลาก่อนยืนยันขั้นตอนสุดท้าย</p>
+                  {draftStatus && <p role="status" className="mt-2 text-xs font-semibold text-[#527B6F]">{draftStatus}</p>}
                   <div className={selectedSlip2 ? "mt-4 grid grid-cols-2 gap-3" : "mt-4 grid grid-cols-1 gap-3"}>
                     {selectedSlipUrl && (
                       <div className="min-w-0 rounded-xl border border-[#DAEBE4] bg-white p-2">
@@ -832,7 +893,7 @@ export default function StaffPaymentPage() {
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => { setSelectedSlip(null); setSelectedSlip2(null); setConfirmSubmitOpen(false); }}
+                      onClick={() => { setSelectedSlip(null); setSelectedSlip2(null); setConfirmSubmitOpen(false); stageSlipDraft(null, null); }}
                       disabled={submitting}
                       className="min-h-12 rounded-xl border border-[#BFDCD4] bg-white px-3 py-3 text-sm font-extrabold text-[#527B6F] disabled:opacity-50"
                     >

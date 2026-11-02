@@ -40,7 +40,7 @@ export default function DeviceActivationPage(){
   window.addEventListener("terminal-auth-token",complete);
   void complete();
   const timeout=window.setTimeout(()=>{
-   if(!started&&alive){setMessage("ไม่ได้รับข้อมูลการเข้าใช้งานจาก Android กรุณากลับไปหน้า Alarm");setFailed(true);}
+   if(!started&&alive){setMessage("ไม่ได้รับข้อมูลการเข้าใช้งานจาก Android กรุณากดเชื่อมต่อ OMS อีกครั้ง");setFailed(true);}
   },12000);
   return ()=>{alive=false;window.removeEventListener("terminal-auth-token",complete);window.clearTimeout(timeout);};
  },[]);
@@ -51,8 +51,11 @@ export default function DeviceActivationPage(){
     <p className="mt-7 font-black text-[#11584D]">Android Terminal · Staff Mode</p>
     <p role="status" className="mt-4 text-sm leading-6 text-[#678078]">{message}</p>
     {failed&&<p className="mt-5 rounded-xl bg-[#FFF6E2] p-3 text-sm text-[#906016]">
-      โปรดกลับหน้า Alarm และตรวจสอบการจับคู่เครื่องกับ Manager
+      ตรวจสอบอินเทอร์เน็ตหรือการจับคู่กับ Manager แล้วลองเชื่อมต่อใหม่
     </p>}
+    {failed&&<a href="/device-activate?native-retry=1" className="mt-4 inline-flex min-h-12 items-center justify-center rounded-xl bg-[#02B0AF] px-5 text-sm font-extrabold text-white">
+      ↻ ลองเชื่อมต่อ OMS อีกครั้ง
+    </a>}
    </div>
   </main>
  );

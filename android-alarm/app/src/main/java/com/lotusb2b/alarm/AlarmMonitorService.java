@@ -44,6 +44,7 @@ public final class AlarmMonitorService extends Service {
     static final String START = "com.lotusb2b.alarm.START";
     static final String STOP = "com.lotusb2b.alarm.STOP";
     static final String ACK = "com.lotusb2b.alarm.ACK";
+    static final String REFRESH = "com.lotusb2b.alarm.REFRESH";
     private static final String FEED = "https://b2b-oms-web.vercel.app/api/order-alarm/feed";
     private static final String SEEN = "seen_alert_ids";
     private static final String BASELINED = "initial_backlog_suppressed";
@@ -110,6 +111,11 @@ public final class AlarmMonitorService extends Service {
         }
         if (ACK.equals(action)) {
             acknowledge();
+            return START_STICKY;
+        }
+        if (REFRESH.equals(action)) {
+            if (running) pollOrders();
+            else startMonitoring();
             return START_STICKY;
         }
         startMonitoring();

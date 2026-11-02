@@ -33,6 +33,16 @@ final class StationHealth {
     private StationHealth() {}
 
     static void pair(Context context, String code, Callback callback) {
+        pairInternal(context, code, false, callback);
+    }
+
+    /** OMS terminals must reject alarm-only codes before consuming them. */
+    static void pairDedicated(Context context, String code, Callback callback) {
+        pairInternal(context, code, true, callback);
+    }
+
+    private static void pairInternal(Context context, String code,
+                                     boolean requireDedicated, Callback callback) {
         Context app = context.getApplicationContext();
         if (!code.matches("[0-9]{6}")) {
             callback.onComplete(false, "รหัสจับคู่ต้องเป็นตัวเลข 6 หลัก");
@@ -47,7 +57,8 @@ final class StationHealth {
         }
         network.execute(() -> {
             try {
-                JSONObject payload = new JSONObject().put("code", code);
+                JSONObject payload = new JSONObject().put("code", code)
+                    .put("requireDedicated", requireDedicated);
                 JSONObject response = post("pair", null, payload);
                 if (!response.optBoolean("success")) {
                     throw new Exception(response.optString("error", "จับคู่ไม่สำเร็จ"));
@@ -61,7 +72,12 @@ final class StationHealth {
                     .remove(PAIR_ERROR).apply();
                 ui.post(() -> callback.onComplete(true, "จับคู่สำเร็จ: " + label));
             } catch (Exception e) {
-                ui.post(() -> callback.onComplete(false, e.getMessage()));
+                String message = e.getMessage();
+                if (requireDedicated && "OMS HTTP 400".equals(message)) {
+                    message = "รหัสไม่ถูกต้อง หมดอายุ หรือไม่ใช่รหัสจาก Manager → อุปกรณ์หน้าร้าน";
+                }
+                String reported = message == null ? "จับคู่ไม่สำเร็จ" : message;
+                ui.post(() -> callback.onComplete(false, reported));
             }
         });
     }

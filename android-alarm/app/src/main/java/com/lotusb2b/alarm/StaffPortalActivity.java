@@ -3,6 +3,7 @@ package com.lotusb2b.alarm;
 import android.Manifest;
 import android.app.Activity;
 import android.app.DownloadManager;
+import android.app.NotificationManager;
 import android.content.ActivityNotFoundException;
 import android.content.SharedPreferences;
 import android.content.Intent;
@@ -60,6 +61,10 @@ public final class StaffPortalActivity extends Activity {
     private Uri cameraOutput;
     private File cameraFile;
     private TextView title;
+    private TextView monitorHealth;
+    private Button monitorAction;
+    private boolean healthNeedsSettings;
+    private Button retrySession;
     private FrameLayout orderBlocker;
     private TextView alertCount;
     private TextView alertNumbers;
@@ -72,6 +77,8 @@ public final class StaffPortalActivity extends Activity {
         }
     };
     private String pendingStaffTokenHash;
+    private boolean activationFailed;
+    private int activationRequestId;
     private boolean activationPageReady=false;
     private String tokenAtOpen="";
 
@@ -93,21 +100,7 @@ public final class StaffPortalActivity extends Activity {
         if (state != null) {
             webView.restoreState(state);
         } else if (StationHealth.isDedicated(this)) {
-            // One-time terminal enrollment replaces daily OMS credentials.
-            // A short-lived OTP is generated server-side; no staff password
-            // is ever stored on the Android terminal.
-            webView.loadUrl(BASE + "/device-activate");
-            StationHealth.getStaffSession(this, (ok, value) -> {
-                if (isFinishing() || isDestroyed()) return;
-                if (ok) {
-                    pendingStaffTokenHash=value;
-                    deliverStaffToken();
-                } else {
-                    Toast.makeText(this,
-                        "ไม่สามารถเข้าสู่ Staff Mode: " + value, Toast.LENGTH_LONG).show();
-                    webView.loadUrl(BASE + "/device-activate?error=session");
-                }
-            });
+            startStaffActivation();
         } else {
             // Legacy alarm-only stations can still log in manually.
             webView.loadUrl(BASE + "/device-login");
@@ -117,6 +110,34 @@ public final class StaffPortalActivity extends Activity {
                 PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 44);
         }
+    }
+
+    /** Retry uses a new one-time Supabase session without re-pairing. */
+    private void startStaffActivation() {
+        final int requestId = ++activationRequestId;
+        activationFailed = false;
+        pendingStaffTokenHash = null;
+        activationPageReady = false;
+        retrySession.setVisibility(View.GONE);
+        webView.loadUrl(BASE + "/device-activate");
+        StationHealth.getStaffSession(this, (ok, value) -> {
+            if (isFinishing() || isDestroyed() || requestId != activationRequestId) return;
+            if (ok) {
+                pendingStaffTokenHash = value;
+                deliverStaffToken();
+            } else {
+                activationFailed = true;
+                retrySession.setVisibility(View.VISIBLE);
+                Toast.makeText(this,
+                    "ไม่สามารถเข้าสู่ OMS: " + value, Toast.LENGTH_LONG).show();
+                webView.loadUrl(BASE + "/device-activate?error=session");
+            }
+        });
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (activationFailed && StationHealth.isDedicated(this)) startStaffActivation();
     }
 
     private int dp(int value) {
@@ -182,6 +203,44 @@ public final class StaffPortalActivity extends Activity {
         addNav(buttons, "ออเดอร์", "/orders");
         addNav(buttons, "🔔 Alarm", "/terminal-alarm");
         root.addView(buttons);
+
+        LinearLayout healthRow = new LinearLayout(this);
+        healthRow.setOrientation(LinearLayout.HORIZONTAL);
+        healthRow.setGravity(Gravity.CENTER_VERTICAL);
+        healthRow.setPadding(dp(13), dp(6), dp(13), dp(6));
+        monitorHealth = new TextView(this);
+        monitorHealth.setTextSize(12);
+        monitorHealth.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        healthRow.addView(monitorHealth, new LinearLayout.LayoutParams(
+            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        monitorHealth.setGravity(Gravity.CENTER_VERTICAL);
+        monitorHealth.setMinHeight(dp(38));
+        monitorAction = navButton("ลองใหม่", Color.WHITE, TEXT);
+        healthRow.addView(monitorAction, new LinearLayout.LayoutParams(dp(76), dp(38)));
+        monitorAction.setOnClickListener(v -> {
+            if (healthNeedsSettings) {
+                startActivity(new Intent(this, MainActivity.class));
+                return;
+            }
+            SharedPreferences prefs = getSharedPreferences(AlarmMonitorService.PREFS, MODE_PRIVATE);
+            boolean running = prefs.getBoolean(AlarmMonitorService.MONITORING, false);
+            String action = running ? AlarmMonitorService.REFRESH : AlarmMonitorService.START;
+            try {
+                startForegroundService(new Intent(this, AlarmMonitorService.class).setAction(action));
+                monitorHealth.setText("กำลังเชื่อมต่อ OMS...");
+            } catch (RuntimeException e) {
+                prefs.edit().putBoolean(AlarmMonitorService.MONITORING, false)
+                    .putString(AlarmMonitorService.LAST_ERROR,
+                        "เริ่มระบบแจ้งเตือนไม่สำเร็จ: " + e.getMessage()).apply();
+            }
+        });
+        root.addView(healthRow);
+
+        retrySession = navButton("↻ เชื่อมต่อบัญชี OMS อีกครั้ง", Color.rgb(255, 244, 212), TEXT);
+        retrySession.setVisibility(View.GONE);
+        root.addView(retrySession, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+        retrySession.setOnClickListener(v -> startStaffActivation());
 
         webView = new WebView(this);
         root.addView(webView, new LinearLayout.LayoutParams(
@@ -274,6 +333,7 @@ public final class StaffPortalActivity extends Activity {
     private void renderOrderBlocker() {
         if (orderBlocker == null) return;
         SharedPreferences prefs = getSharedPreferences(AlarmMonitorService.PREFS, MODE_PRIVATE);
+        renderMonitorHealth(prefs);
         int count = 0;
         try { count = new JSONArray(prefs.getString(AlarmMonitorService.PENDING, "[]")).length(); }
         catch (Exception ignored) {}
@@ -289,6 +349,60 @@ public final class StaffPortalActivity extends Activity {
         String error = prefs.getString(AlarmMonitorService.LAST_ERROR, "");
         alertError.setText(error);
         alertError.setVisibility(error.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    /** This status is visible above every OMS page, not hidden in Alarm. */
+    private void renderMonitorHealth(SharedPreferences prefs) {
+        if (monitorHealth == null) return;
+        boolean running = prefs.getBoolean(AlarmMonitorService.MONITORING, false);
+        long lastSuccess = prefs.getLong(AlarmMonitorService.LAST_CHECK_EPOCH, 0L);
+        String lastError = prefs.getString(AlarmMonitorService.LAST_ERROR, "");
+        boolean stale = lastSuccess <= 0 ||
+            System.currentTimeMillis() - lastSuccess > 90_000L;
+        boolean notificationsAllowed = Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED;
+        NotificationManager manager = (NotificationManager)
+            getSystemService(NOTIFICATION_SERVICE);
+        notificationsAllowed = notificationsAllowed && manager != null &&
+            manager.areNotificationsEnabled();
+
+        if (!running) {
+            healthNeedsSettings = false;
+            monitorHealth.setText("⚠ Alarm ปิดอยู่ — เครื่องนี้ไม่รับแจ้งเตือน");
+            monitorHealth.setTextColor(Color.rgb(170, 49, 39));
+            monitorAction.setText("เริ่ม");
+            monitorAction.setVisibility(View.VISIBLE);
+        } else if (stale) {
+            healthNeedsSettings = false;
+            monitorHealth.setText(lastSuccess <= 0 ?
+                "● กำลังเชื่อมต่อ OMS ครั้งแรก..." :
+                "⚠ ไม่มีการตรวจออเดอร์สำเร็จเกิน 90 วินาที");
+            monitorHealth.setTextColor(lastSuccess <= 0 ?
+                Color.rgb(154, 103, 22) : Color.rgb(170, 49, 39));
+            monitorAction.setText("ลองใหม่");
+            monitorAction.setVisibility(View.VISIBLE);
+        } else if (!notificationsAllowed) {
+            healthNeedsSettings = true;
+            monitorHealth.setText("⚠ Android ยังไม่อนุญาตการแจ้งเตือน");
+            monitorHealth.setTextColor(Color.rgb(170, 49, 39));
+            monitorAction.setText("ตั้งค่า");
+            monitorAction.setVisibility(View.VISIBLE);
+        } else if (lastError != null && !lastError.isEmpty()) {
+            healthNeedsSettings = false;
+            monitorHealth.setText("⚠ Alarm: " + lastError);
+            monitorHealth.setTextColor(Color.rgb(170, 49, 39));
+            monitorAction.setText("ลองใหม่");
+            monitorAction.setVisibility(View.VISIBLE);
+        } else {
+            healthNeedsSettings = false;
+            String checkedAt = prefs.getString(AlarmMonitorService.LAST_CHECK, "—");
+            monitorHealth.setText(AlarmHours.isQuiet() ?
+                "🌙 Alarm พักเสียงตามเวลาที่ตั้งไว้" :
+                "● รับออเดอร์อยู่ · ตรวจล่าสุด " + checkedAt);
+            monitorHealth.setTextColor(TEAL);
+            monitorAction.setVisibility(View.GONE);
+        }
     }
 
     private boolean trusted(Uri uri) {
@@ -319,6 +433,12 @@ public final class StaffPortalActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 if (trusted(request.getUrl())) {
+                    if (request.isForMainFrame() &&
+                        "/device-activate".equals(request.getUrl().getPath()) &&
+                        "1".equals(request.getUrl().getQueryParameter("native-retry"))) {
+                        startStaffActivation();
+                        return true;
+                    }
                     if (request.isForMainFrame() &&
                         "/terminal-alarm".equals(request.getUrl().getPath())) {
                         // The dashboard's Alarm tile opens the native control

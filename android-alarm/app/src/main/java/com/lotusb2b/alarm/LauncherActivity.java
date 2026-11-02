@@ -1,6 +1,7 @@
 package com.lotusb2b.alarm;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -29,7 +30,8 @@ public final class LauncherActivity extends Activity {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences(AlarmMonitorService.PREFS, MODE_PRIVATE);
         if (isPaired()) {
-            openOms();
+            if (StationHealth.isDedicated(this)) openOms();
+            else showLegacyPairingHelp();
         } else {
             showPairing();
         }
@@ -49,8 +51,12 @@ public final class LauncherActivity extends Activity {
             try {
                 startForegroundService(new Intent(this, AlarmMonitorService.class)
                     .setAction(AlarmMonitorService.START));
-            } catch (RuntimeException ignored) {
-                // Alarm menu displays the service error and a manual Start action.
+            } catch (RuntimeException error) {
+                // The OMS header must report a failed alarm startup; never
+                // silently assume the device is receiving new orders.
+                prefs.edit().putBoolean(AlarmMonitorService.MONITORING, false)
+                    .putString(AlarmMonitorService.LAST_ERROR,
+                        "เริ่มระบบแจ้งเตือนไม่สำเร็จ: " + error.getMessage()).apply();
             }
         }
         Intent portal = new Intent(this, StaffPortalActivity.class);
@@ -116,7 +122,7 @@ public final class LauncherActivity extends Activity {
             if (!value.matches("[0-9]{6}")) return;
             pairButton.setEnabled(false);
             pairButton.setText("กำลังจับคู่อุปกรณ์...");
-            StationHealth.pair(this, value, (success, message) -> {
+            StationHealth.pairDedicated(this, value, (success, message) -> {
                 if (isFinishing() || isDestroyed()) return;
                 if (success) {
                     openOms();
@@ -128,6 +134,38 @@ public final class LauncherActivity extends Activity {
                 }
             });
         });
+        setContentView(root);
+    }
+
+    private void showLegacyPairingHelp() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(Gravity.CENTER_VERTICAL);
+        root.setPadding(dp(25), dp(36), dp(25), dp(36));
+        root.setBackgroundColor(Color.rgb(242, 249, 247));
+        root.addView(text("Lotus’s B2B", 33, TEAL, true));
+        add(root, text("ต้องเปลี่ยนรหัสจับคู่", 23, INK, true), 24);
+        add(root, text("เครื่องนี้เคยจับคู่เป็น Alarm Station เท่านั้น " +
+            "กรุณาขอรหัสจาก Manager → อุปกรณ์หน้าร้าน เพื่อใช้ OMS", 15, INK, false), 14);
+        Button unpair = new Button(this);
+        unpair.setAllCaps(false);
+        unpair.setText("ยกเลิกการจับคู่เดิม");
+        unpair.setMinimumHeight(dp(66));
+        add(root, unpair, 25);
+        unpair.setOnClickListener(v -> new AlertDialog.Builder(this)
+            .setTitle("เปลี่ยนไปใช้ Android Terminal?")
+            .setMessage("การยกเลิกจับคู่เดิมต้องเชื่อมต่อ OMS จากนั้น Manager ต้องให้รหัส Terminal ใหม่")
+            .setNegativeButton("กลับ", null)
+            .setPositiveButton("ยกเลิกจับคู่", (dialog, which) -> {
+                unpair.setEnabled(false);
+                StationHealth.unpair(this, (ok, message) -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    unpair.setEnabled(true);
+                    if (ok) showPairing();
+                    else new AlertDialog.Builder(this).setMessage(message)
+                        .setPositiveButton("ตกลง", null).show();
+                });
+            }).show());
         setContentView(root);
     }
 

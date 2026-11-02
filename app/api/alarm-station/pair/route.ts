@@ -39,11 +39,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Too many pairing attempts. Try again later." },
         { status: 429, headers: { ...headers, "Retry-After": "900" } });
     }
+    const codeHash = hashAlarmPairingCode(code);
+    if (body.requireDedicated === true) {
+      // Check the code's type BEFORE claiming it. This preserves a manager's
+      // one-time code if someone enters an alarm-only code on an OMS terminal.
+      const { data: enrollment, error: enrollmentError } = await client
+        .from("alarm_station_pairing_codes")
+        .select("dedicated_staff_id")
+        .eq("code_hash", codeHash)
+        .is("consumed_at", null)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
+      if (enrollmentError) throw enrollmentError;
+      if (!enrollment?.dedicated_staff_id) {
+        return NextResponse.json({
+          error: "Use a valid code from Manager → Android Terminals (อุปกรณ์หน้าร้าน)",
+        }, { status: 400, headers });
+      }
+    }
     const token = randomBytes(32).toString("hex");
     // The code is consumed and the station created in ONE transaction.
     // A temporary DB error cannot strand an otherwise valid pairing code.
     const { data: stationRows, error } = await client.rpc("claim_alarm_station_pairing", {
-      p_code_hash: hashAlarmPairingCode(code),
+      p_code_hash: codeHash,
       p_station_secret_hash: sha(token),
     });
     if (error) throw error;

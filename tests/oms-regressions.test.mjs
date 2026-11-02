@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { groupOrdersForManagement, orderDisplayNumber } from "../lib/groupOrderDisplay.ts";
 import { combinePickedItems } from "../lib/groupedOrderItems.ts";
 import { compareOrderFiles } from "../lib/orderFileSort.ts";
+import { isFreshPaymentDraft, paymentDraftKey } from "../lib/pendingPaymentDraft.ts";
 import {
   DELIVERY_RULES,
   getAvailableSlots,
@@ -377,14 +378,62 @@ test("Android launcher pairs first, then keeps OMS as the home screen", () => {
   const launcher = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/LauncherActivity.java", import.meta.url), "utf8");
   const manifest = readFileSync(new URL("../android-alarm/app/src/main/AndroidManifest.xml", import.meta.url), "utf8");
   assert.match(manifest, /android:name="\.LauncherActivity"[\s\S]*?android.intent.action.MAIN/);
-  assert.match(launcher, /if \(isPaired\(\)\) \{\s*openOms\(\);\s*\} else \{\s*showPairing\(\);/);
+  assert.match(launcher, /if \(StationHealth\.isDedicated\(this\)\) openOms\(\)/);
+  assert.match(launcher, /else showLegacyPairingHelp\(\)/);
   assert.match(launcher, /new InputFilter\.LengthFilter\(6\)/);
-  assert.match(launcher, /StationHealth\.pair\(this, value/);
+  assert.match(launcher, /StationHealth\.pairDedicated\(this, value/);
   assert.match(launcher, /new Intent\(this, StaffPortalActivity\.class\)/);
   assert.match(launcher, /FLAG_ACTIVITY_CLEAR_TOP \| Intent\.FLAG_ACTIVITY_SINGLE_TOP/);
   assert.match(launcher, /station_initialised_v06/);
   const service = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmMonitorService.java", import.meta.url), "utf8");
   assert.match(service, /if \(paired == null \|\| !paired\.matches\("\[a-f0-9\]\{64\}"\)\)/);
+});
+
+test("dedicated terminal pairing validates code type before consuming it", () => {
+  const api = readFileSync(new URL("../app/api/alarm-station/pair/route.ts", import.meta.url), "utf8");
+  const station = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/StationHealth.java", import.meta.url), "utf8");
+  const requireDedicated = api.indexOf("body.requireDedicated === true");
+  const claim = api.indexOf('client.rpc("claim_alarm_station_pairing"');
+  assert.ok(requireDedicated > 0 && requireDedicated < claim);
+  assert.match(api, /\.select\("dedicated_staff_id"\)/);
+  assert.match(api, /if \(!enrollment\?\.dedicated_staff_id\)/);
+  assert.match(station, /put\("requireDedicated", requireDedicated\)/);
+  assert.match(station, /static void pairDedicated\(/);
+});
+
+test("OMS header reports monitoring health, retries session and checks actual polling", () => {
+  const portal = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/StaffPortalActivity.java", import.meta.url), "utf8");
+  const service = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmMonitorService.java", import.meta.url), "utf8");
+  const activation = readFileSync(new URL("../app/device-activate/page.tsx", import.meta.url), "utf8");
+  assert.match(portal, /root\.addView\(healthRow\)/);
+  assert.match(portal, /renderMonitorHealth\(prefs\)/);
+  assert.match(portal, /System\.currentTimeMillis\(\) - lastSuccess > 90_000L/);
+  assert.match(portal, /manager\.areNotificationsEnabled\(\)/);
+  assert.match(portal, /startStaffActivation\(\)/);
+  assert.match(portal, /retrySession\.setOnClickListener\(v -> startStaffActivation\(\)\)/);
+  assert.match(activation, /\/device-activate\?native-retry=1/);
+  assert.match(service, /static final String REFRESH/);
+  assert.match(service, /if \(REFRESH\.equals\(action\)\)/);
+  assert.match(service, /\.putLong\(LAST_CHECK_EPOCH, System\.currentTimeMillis\(\)\)/);
+});
+
+test("unsent staff payment images are staged, restored, and cleared without submitting", () => {
+  const payment = readFileSync(new URL("../app/orders/[orderNumber]/payment/page.tsx", import.meta.url), "utf8");
+  const draft = readFileSync(new URL("../lib/pendingPaymentDraft.ts", import.meta.url), "utf8");
+  assert.match(payment, /stageSlipDraft\(file, null\)/);
+  assert.match(payment, /stageSlipDraft\(selectedSlip, file\)/);
+  assert.match(payment, /loadPaymentDraft\(authData\.user\.id, orderNumber\)/);
+  assert.match(payment, /stageSlipDraft\(null, null\)/);
+  assert.match(payment, /await clearPaymentDraft\(draftOwner\.current, orderNumber\)/);
+  assert.match(draft, /indexedDB\.open\(DATABASE, 1\)/);
+  assert.match(draft, /const MAX_AGE_MS = 48 \* 60 \* 60 \* 1000/);
+  assert.doesNotMatch(draft, /\.rpc\(|\.storage\.from\(/);
+  const now = Date.now();
+  assert.equal(paymentDraftKey("51a0a579-d4f1-4d61-99d9-cdd012345678", 120), "51a0a579-d4f1-4d61-99d9-cdd012345678:120");
+  assert.throws(() => paymentDraftKey("bad", 120));
+  assert.equal(isFreshPaymentDraft(now - 47 * 60 * 60 * 1000, now), true);
+  assert.equal(isFreshPaymentDraft(now - 49 * 60 * 60 * 1000, now), false);
+  assert.equal(isFreshPaymentDraft(now + 1000, now), false);
 });
 
 test("Android Alarm controls are an OMS menu, not the app home", () => {

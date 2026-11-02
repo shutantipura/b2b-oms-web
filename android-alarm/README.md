@@ -1,8 +1,29 @@
-# Lotus’s B2B Native Android OMS + Alarm (v0.11.9)
+# Lotus’s B2B Native Android OMS + Alarm (v0.11.10)
 
 The Android store terminal opens the existing OMS after one-time six-digit
 manager pairing. Staff credentials are obtained through the existing secure
 device session; there is no daily login prompt.
+
+## OMS reliability + pairing safeguards (v0.11.10)
+
+- The native **Alarm health line is visible on every OMS screen**. It shows the
+  latest successful OMS order-feed poll, warns if monitoring is off or no poll
+  has succeeded for 90 seconds, and offers a restart/retry button. Missing
+  Android notification permission also displays a warning and settings link.
+- The six-digit pairing screen now requires a **dedicated Android Terminal**
+  code from Manager → อุปกรณ์หน้าร้าน, not a legacy alarm-only station code.
+  This is checked before consuming the one-time pairing code on the server.
+- If automatic OMS staff login fails, the app displays a **Retry OMS session**
+  action; staff do not have to unpair to retry a transient network failure.
+- Selected payment-slip images/PDFs remain **unsubmitted** until staff confirm,
+  but are staged in this device's OMS WebView storage for up to 48 hours and
+  automatically restored if the page is reloaded after an interruption. The
+  stored copy is scoped to the signed-in staff account and order, and is
+  removed on cancellation or successful submission. Drafts do not transfer
+  to other devices and do not survive app uninstall/browser-data clearing.
+- Picking, billing and delivery images continue to be uploaded to OMS Storage
+  on selection, as before. The full-screen order acknowledgement keeps the
+  current OMS WebView and in-progress inputs untouched.
 
 ## Pairing-first OMS workflow (v0.11.9)
 
@@ -30,8 +51,9 @@ device session; there is no daily login prompt.
 
 The OMS WebView navigation state is saved/restored by Android. Process death
 while a form is being edited is different from displaying the in-app overlay;
-the latter preserves the live WebView, while device/app process termination
-can still lose form changes that have not been saved to the OMS server.
+the latter preserves the live WebView. Payment-slip selections have local draft
+recovery in v0.11.10; other unsaved form text can still be lost after Android
+fully kills the WebView process, so staff should save/confirm completed steps.
 
 ## Previous Alarm home and test (v0.11.8)
 
