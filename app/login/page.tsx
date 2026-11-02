@@ -180,7 +180,17 @@ export default function OmsHomePage() {
 
   const isManager = staff.account_type === "manager";
   const navigation = isManager ? MANAGER_NAVIGATION : STAFF_NAVIGATION;
-  const shortcuts = navigation.filter((item) => item.href !== "/tasks");
+  // The Android terminal opens OMS first. Its native Alarm menu belongs
+  // immediately beside Order Management, below the large Tasks card.
+  const shortcuts = [
+    ...navigation.filter((item) => item.href === "/orders"),
+    ...(fixedTerminal ? [{
+      name: "Alarm",
+      href: "/terminal-alarm",
+      description: "เสียงเตือน ทดสอบเสียง และตั้งค่าอุปกรณ์",
+    }] : []),
+    ...navigation.filter((item) => item.href !== "/tasks" && item.href !== "/orders"),
+  ];
 
   return (
     <main className="min-h-screen bg-[#F3F8F7] px-4 pb-24 pt-5 sm:px-7 sm:py-8">
@@ -232,12 +242,9 @@ export default function OmsHomePage() {
           </span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {shortcuts.map((item, index) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="oms-dashboard-tile group flex min-h-[130px] flex-col rounded-[20px] border border-[#D8E9E5] bg-white p-4 shadow-[0_4px_16px_rgba(18,96,89,0.05)] transition hover:border-[#90D6CF] sm:p-5"
-            >
+          {shortcuts.map((item, index) => {
+            const className = "oms-dashboard-tile group relative flex min-h-[130px] flex-col rounded-[20px] border border-[#D8E9E5] bg-white p-4 shadow-[0_4px_16px_rgba(18,96,89,0.05)] transition hover:border-[#90D6CF] sm:p-5";
+            const tile = <>
               <span aria-hidden="true" className={index === 0 ? "mb-3 h-1.5 w-9 rounded-full bg-[#FDBC16]" : "mb-3 h-1.5 w-9 rounded-full bg-[#75D9CE]"} />
               <span className="pr-5 text-base font-black leading-snug text-[#17453F]">{item.name}</span>
               <span className="mt-2 pr-9 text-xs leading-5 text-[#77918A]">{item.description}</span>
@@ -249,8 +256,15 @@ export default function OmsHomePage() {
                   <path d="M7 17 17 7M8 7h9v9" />
                 </svg>
               </span>
-            </Link>
-          ))}
+            </>;
+            // A real navigation request lets the Android WebView intercept
+            // this route and open native controls without replacing the page.
+            return item.href === "/terminal-alarm" ? (
+              <a key={item.href} href={item.href} className={className}>{tile}</a>
+            ) : (
+              <Link key={item.href} href={item.href} className={className}>{tile}</Link>
+            );
+          })}
         </div>
       </div>
     </main>

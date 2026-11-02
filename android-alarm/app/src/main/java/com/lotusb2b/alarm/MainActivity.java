@@ -44,12 +44,12 @@ public final class MainActivity extends Activity {
     private Button acknowledgeButton;
     private Button pairingButton;
     private Button unpairButton;
-    private Button toolsToggle;
     private LinearLayout toolsPanel;
     private Button fullScreenSettings;
     private Button notificationsSettings;
     private TextView setupStatus;
     private TextView stationPairStatus;
+    private boolean orderScreenOpen;
     private final Runnable refresh = new Runnable() {
         @Override public void run() {
             render();
@@ -77,6 +77,7 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        orderScreenOpen = false;
         handler.removeCallbacks(refresh);
         handler.post(refresh);
     }
@@ -95,8 +96,13 @@ public final class MainActivity extends Activity {
         root.setPadding(dp(18), dp(30), dp(18), dp(24));
         scroll.addView(root);
 
-        root.addView(label("Lotus’s B2B", 31, TEAL, true));
-        root.addView(label("ORDER ALARM · STORE STATION", 12, SECONDARY, true));
+        root.addView(label("Lotus’s B2B · Alarm", 29, TEAL, true));
+        root.addView(label("ตั้งค่าเสียงและการแจ้งเตือนออเดอร์", 12, SECONDARY, true));
+
+        Button backToOms = compactButton("← กลับหน้า OMS", Color.WHITE, INK);
+        addTop(root, backToOms, 12);
+        // The existing WebView remains in the background with its drafts intact.
+        backToOms.setOnClickListener(v -> finish());
 
         LinearLayout card = card();
         addTop(root, card, 18);
@@ -126,13 +132,6 @@ public final class MainActivity extends Activity {
             }
             sendAction(AlarmMonitorService.ACK);
         });
-
-        // Staff Mode is the everyday action. Alarm monitoring continues in the
-        // foreground service when this portal is opened.
-        Button staffMode = prominentButton("👤 เปิด Staff Mode (OMS)", TEAL, Color.WHITE);
-        addTop(root, staffMode, 14);
-        staffMode.setOnClickListener(v ->
-            startActivity(new Intent(this, StaffPortalActivity.class)));
 
         // Auto-monitoring should almost never be stopped. If it has been
         // stopped, however, the recovery action must be immediately visible.
@@ -180,16 +179,10 @@ public final class MainActivity extends Activity {
             });
         }
 
-        toolsToggle = compactButton("⚙ ตั้งค่าและทดสอบ ▾", Color.WHITE, SECONDARY);
-        addTop(root, toolsToggle, 16);
         toolsPanel = card();
-        toolsPanel.setVisibility(View.GONE);
-        addTop(root, toolsPanel, 8);
-        toolsToggle.setOnClickListener(v -> {
-            boolean opening = toolsPanel.getVisibility() != View.VISIBLE;
-            toolsPanel.setVisibility(opening ? View.VISIBLE : View.GONE);
-            toolsToggle.setText(opening ? "⚙ ซ่อนการตั้งค่า ▴" : "⚙ ตั้งค่าและทดสอบ ▾");
-        });
+        // Alarm now has its own menu: show its controls directly.
+        toolsPanel.setVisibility(View.VISIBLE);
+        addTop(root, toolsPanel, 16);
 
         toolsPanel.addView(label("การจัดการอุปกรณ์", 16, INK, true));
         stopMonitoringButton = compactButton("■ หยุดแจ้งเตือนออเดอร์ชั่วคราว",
@@ -280,7 +273,19 @@ public final class MainActivity extends Activity {
                 StationHealth.unpair(this, (ok, message) -> {
                     unpairButton.setEnabled(true);
                     Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-                    render();
+                    if (ok) {
+                        // Revoke the old OMS session and return to pairing-only.
+                        startService(new Intent(this, AlarmMonitorService.class)
+                            .setAction(AlarmMonitorService.STOP));
+                        prefs.edit().remove("station_initialised_v06").apply();
+                        Intent pairing = new Intent(this, LauncherActivity.class)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                                Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        startActivity(pairing);
+                        finish();
+                    } else {
+                        render();
+                    }
                 });
             }).show();
     }
@@ -322,6 +327,14 @@ public final class MainActivity extends Activity {
         int count = 0;
         try { count = new JSONArray(prefs.getString(AlarmMonitorService.PENDING, "[]")).length(); }
         catch (Exception ignored) {}
+        if (count > 0 && !orderScreenOpen && !isFinishing()) {
+            orderScreenOpen = true;
+            // An alarm arriving while viewing these settings must block them
+            // until acknowledgement just as it blocks OMS forms.
+            startActivity(new Intent(this, IncomingOrderActivity.class));
+        } else if (count == 0) {
+            orderScreenOpen = false;
+        }
         acknowledgeButton.setVisibility(count > 0 ? View.VISIBLE : View.GONE);
         acknowledgeButton.setEnabled(running);
         pending.setText(count + " ออเดอร์ใหม่");
@@ -336,7 +349,7 @@ public final class MainActivity extends Activity {
             stationPairStatus.setText(token != null && !token.isEmpty()
                 ? (StationHealth.isDedicated(this) ? "📱 บัญชีประจำเครื่อง: " : "📡 เครื่องจับคู่แล้ว: ")
                     + label + (problem.isEmpty() ? "" : " · " + problem)
-                : "📱 ยังไม่ได้ลงทะเบียน (Alarm ใช้งานได้โดยไม่ลงทะเบียน)");
+                : "📱 ยังไม่ได้ลงทะเบียน (กลับไปหน้าจับคู่เพื่อใช้งาน)");
         }
         String err = prefs.getString(AlarmMonitorService.LAST_ERROR, "");
         errorMessage.setText(err);

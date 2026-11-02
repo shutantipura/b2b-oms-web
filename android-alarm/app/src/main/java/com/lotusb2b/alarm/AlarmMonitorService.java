@@ -118,6 +118,15 @@ public final class AlarmMonitorService extends Service {
 
     private void startMonitoring() {
         if (running) return;
+        String paired = prefs.getString(StationHealth.TOKEN, "");
+        if (paired == null || !paired.matches("[a-f0-9]{64}")) {
+            // The new terminal experience requires enrollment before any
+            // background alarm can run. Never bypass the pairing-only gate.
+            prefs.edit().putBoolean(MONITORING, false)
+                .putString(PENDING, "[]").putString(NUMBERS, "").apply();
+            stopSelf();
+            return;
+        }
         running = true;
         SharedPreferences.Editor starting = prefs.edit().putBoolean(MONITORING, true);
         // Do this at service activation, not the first successful network
@@ -373,7 +382,8 @@ public final class AlarmMonitorService extends Service {
     }
 
     private PendingIntent openApp() {
-        Intent intent = new Intent(this, MainActivity.class);
+        // The running notification opens OMS, never the alarm settings page.
+        Intent intent = new Intent(this, LauncherActivity.class);
         return PendingIntent.getActivity(this, 100, intent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
@@ -381,8 +391,9 @@ public final class AlarmMonitorService extends Service {
     /** Open the incoming-order screen directly, not the configuration/home activity. */
     private PendingIntent openIncomingOrder() {
         Intent intent = new Intent(this, IncomingOrderActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP |
-            Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        // Do not CLEAR_TOP: that could destroy the OMS WebView and lose an
+        // unfinished order form or an in-progress photo selection.
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         return PendingIntent.getActivity(this, 102, intent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
@@ -426,7 +437,9 @@ public final class AlarmMonitorService extends Service {
             .setCategory(Notification.CATEGORY_ALARM)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
-            .setOngoing(true);
+            // Swiping the Android notification is permitted. It does not
+            // acknowledge the order or stop the independent audio service.
+            .setOngoing(false);
 
         // Android 14+ controls whether a full-screen alarm may appear over
         // the lockscreen. Without permission the user gets a heads-up

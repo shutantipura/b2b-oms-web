@@ -13,6 +13,7 @@ import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.window.OnBackInvokedDispatcher;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -43,6 +44,10 @@ public final class IncomingOrderActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT, () -> {});
+        }
         prefs = getSharedPreferences(AlarmMonitorService.PREFS, MODE_PRIVATE);
         if (Build.VERSION.SDK_INT >= 27) {
             setShowWhenLocked(true);
@@ -87,12 +92,8 @@ public final class IncomingOrderActivity extends Activity {
         ackError.setGravity(Gravity.CENTER);
         add(page, ackError, 12);
 
-        Button back = button("กลับ (เสียงยังดังต่อ)", Color.WHITE, INK);
-        add(page, back, 12);
-        back.setOnClickListener(v -> finish());
-
         TextView foot = text(
-            "การรับทราบจะหยุดเสียงทุกเครื่องที่เชื่อมต่อ (ถ้าจับคู่แล้ว)",
+            "ต้องกดรับทราบก่อนกลับไปทำงาน · การปิดแจ้งเตือน Android ไม่หยุดเสียง",
             13, Color.rgb(97, 124, 114), false);
         foot.setGravity(Gravity.CENTER);
         add(page, foot, 25);
@@ -108,6 +109,11 @@ public final class IncomingOrderActivity extends Activity {
     @Override protected void onPause() {
         handler.removeCallbacks(refresh);
         super.onPause();
+    }
+
+    @Override public void onBackPressed() {
+        // A visible in-app acknowledgement card cannot be dismissed. Only a
+        // successful ACK clears pending alerts and closes this screen.
     }
 
     private void update() {

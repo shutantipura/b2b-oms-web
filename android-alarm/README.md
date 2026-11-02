@@ -1,8 +1,39 @@
-# Lotus’s B2B Native Android App + Staff + Station Health (v0.11.8)
+# Lotus’s B2B Native Android OMS + Alarm (v0.11.9)
 
-An Android app for the existing OMS that requires no LINE or staff login.
+The Android store terminal opens the existing OMS after one-time six-digit
+manager pairing. Staff credentials are obtained through the existing secure
+device session; there is no daily login prompt.
 
-## Home screen and test (v0.11.8)
+## Pairing-first OMS workflow (v0.11.9)
+
+1. A freshly installed, unpaired app shows **only** the full-page six-digit
+   pairing form. Obtain the code from Manager → **อุปกรณ์หน้าร้าน**.
+2. After pairing, the app starts monitoring and opens the **OMS home page**.
+   Future launches skip pairing and open the existing OMS WebView without
+   reloading an unfinished form when the app is simply brought to the front.
+3. The large **Tasks** card remains first. The **Order Management** and
+   **Alarm** tiles sit beside each other underneath it on dedicated terminals.
+   The native OMS header also has an **Alarm** shortcut.
+4. Alarm opens the native screen for monitoring status, Start/Stop, test
+   playback (two calls with four seconds between), permissions and unpairing.
+5. If a new order arrives while staff are in OMS, a large **non-dismissible
+   acknowledgement card** overlays the *existing* WebView. It blocks further
+   tapping but does not navigate, reload the page, reset text inputs, or
+   discard selected photos or active uploads. The card disappears only after
+   the underlying order acknowledgement succeeds.
+6. Outside the app, the Android urgent notification may be swiped away;
+   **this never mutes the alarm**. The audio keeps repeating in the foreground
+   service, and the non-dismissible card still appears on return to OMS.
+   Full-screen interruption outside the app is subject to Android permission.
+7. Unpairing revokes the device session, stops monitoring and restores the
+   pairing-only screen.
+
+The OMS WebView navigation state is saved/restored by Android. Process death
+while a form is being edited is different from displaying the in-app overlay;
+the latter preserves the live WebView, while device/app process termination
+can still lose form changes that have not been saved to the OMS server.
+
+## Previous Alarm home and test (v0.11.8)
 
 - **Open Staff Mode** is the large daily-use button. **Acknowledge** becomes prominent whenever an order is pending, and is hidden when there is nothing to acknowledge.
 - Device setup, unpairing, stopping monitoring and testing are secondary controls. The settings section is collapsed by default, while a stopped alarm reveals a prominent **Start** action.
@@ -17,7 +48,7 @@ An Android app for the existing OMS that requires no LINE or staff login.
 - High-priority **heads-up notification** with one-tap **รับทราบ — หยุดเสียง** and **ดูออเดอร์** actions.
 - Incoming-order activity is independent of the settings/home screen, and can display over a locked screen if Android grants **full-screen alarm intent** permission.
 - The app includes a Settings shortcut for full-screen permission on Android 14+; without it, the alert is still available as a heads-up notification.
-- **Shared acknowledgement** for paired Android stations: any paired phone acknowledges an order globally and all connected phones stop after their next ~15-second poll. No staff login is required for the alarm; devices use their own pairing tokens.\n- Unpaired phones may continue to ring and acknowledge **locally only**. They cannot dismiss alarms on other devices.\n- Global acknowledgement updates only the alert acknowledgement, not the OMS order's workflow/status. The acknowledging station is recorded for audit.
+- **Shared acknowledgement** for paired Android stations: any paired phone acknowledges an order globally and all connected phones stop after their next poll. The app now requires pairing before monitoring starts. Global acknowledgement updates only the alert acknowledgement, not the OMS order's workflow/status. The acknowledging station is recorded for audit.
 - Device remembers acknowledged orders. Initial launch ignores existing historical alerts.
 - Best-effort restart at phone boot.
 - Android 13+ notification permission, Android 14+ special-use foreground service declaration and configurable full-screen alarm permission.
@@ -84,12 +115,12 @@ No Play Store developer account or Firebase project is needed for this prototype
 
 ## Setup
 
-1. Install the APK. **Android does not start freshly installed apps in the background**. Open Lotus's B2B Alarm **once** and allow the Android notification permission if prompted. **The app now starts monitoring automatically**; no need to tap the Start button.
-2. Adjust **Alarm** volume, use **ทดสอบเสียงปลุก** to test.
-3. Check for **กำลังตรวจสอบออเดอร์** and a recent OMS check time. **เริ่มตรวจสอบออเดอร์** is now only needed if someone deliberately stopped monitoring.
+1. Install the APK. **Android does not start freshly installed apps in the background**. Open **Lotus’s B2B**, enter the six-digit Android Terminal pairing code, then allow Android notifications if prompted. Monitoring starts automatically after successful pairing.
+2. From OMS Home, tap **Alarm**. Adjust **Alarm** volume and use **ทดสอบเสียง (2 ครั้ง)** to test.
+3. Check for **กำลังตรวจสอบออเดอร์** and a recent OMS check time inside Alarm. **เริ่มการแจ้งเตือนออเดอร์** is only needed if someone deliberately stopped monitoring.
 4. Wait until the OMS check time updates. Lock the screen.
 5. If the device runs Android 14+, tap **เปิดแจ้งเตือนเต็มหน้าจอ**, and allow the permission in Settings if offered.\n6. Place a new B2B order using your **test customer**; it should ring after the next poll.\n   - Unlocked screen: heads-up alert with **รับทราบ — หยุดเสียง**, and **ดูออเดอร์** opens the dedicated incoming screen.\n   - Locked screen: full-screen incoming alarm if permission is granted, otherwise a heads-up notification.
-7. Tap **รับทราบ — หยุดเสียง** in the notification, or the matching button on the incoming screen. No staff sign-in is required.
+7. Swiping away the Android notification does **not** silence the app. Press **รับทราบออเดอร์ — หยุดเสียง** in the notification action or the in-app acknowledgement card to stop playback. The in-app card cannot be dismissed without acknowledgement.
 
 ## Limitations and costs
 

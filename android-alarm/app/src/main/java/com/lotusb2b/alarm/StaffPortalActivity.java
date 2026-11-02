@@ -1,19 +1,27 @@
 package com.lotusb2b.alarm;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
+import android.content.SharedPreferences;
 import android.content.Intent;
 import android.content.ClipData;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
+import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.window.OnBackInvokedDispatcher;
 import android.webkit.CookieManager;
 import android.webkit.SslErrorHandler;
 import android.net.http.SslError;
@@ -24,12 +32,14 @@ import android.webkit.WebViewClient;
 import android.webkit.WebSettings;
 import org.json.JSONObject;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.core.content.FileProvider;
 import java.io.File;
 import java.io.IOException;
+import org.json.JSONArray;
 
 /**
  * Full staff OMS inside native Android, using the existing responsive
@@ -50,6 +60,17 @@ public final class StaffPortalActivity extends Activity {
     private Uri cameraOutput;
     private File cameraFile;
     private TextView title;
+    private FrameLayout orderBlocker;
+    private TextView alertCount;
+    private TextView alertNumbers;
+    private TextView alertError;
+    private final Handler alarmUi = new Handler(Looper.getMainLooper());
+    private final Runnable refreshAlarm = new Runnable() {
+        @Override public void run() {
+            renderOrderBlocker();
+            alarmUi.postDelayed(this, 500);
+        }
+    };
     private String pendingStaffTokenHash;
     private boolean activationPageReady=false;
     private String tokenAtOpen="";
@@ -64,6 +85,10 @@ public final class StaffPortalActivity extends Activity {
             .getString(StationHealth.TOKEN, "");
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         buildLayout();
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::handleBack);
+        }
         configureWebView();
         if (state != null) {
             webView.restoreState(state);
@@ -86,6 +111,11 @@ public final class StaffPortalActivity extends Activity {
         } else {
             // Legacy alarm-only stations can still log in manually.
             webView.loadUrl(BASE + "/device-login");
+        }
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 44);
         }
     }
 
@@ -114,7 +144,14 @@ public final class StaffPortalActivity extends Activity {
             0, dp(44), 1f);
         params.setMargins(dp(2), 0, dp(2), 0);
         row.addView(b, params);
-        b.setOnClickListener(v -> webView.loadUrl(BASE + route));
+        b.setOnClickListener(v -> {
+            if ("/terminal-alarm".equals(route)) {
+                // Native alarm settings open on top of the same OMS WebView.
+                startActivity(new Intent(this, MainActivity.class));
+            } else {
+                webView.loadUrl(BASE + route);
+            }
+        });
     }
 
     private void buildLayout() {
@@ -127,17 +164,14 @@ public final class StaffPortalActivity extends Activity {
         top.setPadding(dp(10), dp(9), dp(10), dp(9));
         top.setBackgroundColor(Color.rgb(244, 250, 248));
 
-        Button close = navButton("← Alarm", Color.WHITE, TEXT);
-        top.addView(close, new LinearLayout.LayoutParams(dp(94), dp(43)));
-        close.setOnClickListener(v -> finish());
-
         title = new TextView(this);
-        title.setText("Staff Mode · Lotus's B2B");
+        title.setText("Lotus’s B2B · OMS");
         title.setTextSize(15);
         title.setTextColor(TEAL);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setPadding(dp(10), dp(8), 0, 0);
-        top.addView(title, new LinearLayout.LayoutParams(0, dp(43), 1));
+        top.addView(title, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(43)));
         root.addView(top);
 
         LinearLayout buttons = new LinearLayout(this);
@@ -146,14 +180,115 @@ public final class StaffPortalActivity extends Activity {
         addNav(buttons, "หน้าหลัก", "/login");
         addNav(buttons, "งาน", "/tasks");
         addNav(buttons, "ออเดอร์", "/orders");
-        if (!StationHealth.isDedicated(this))
-            addNav(buttons, "ออกจากระบบ", "/device-login?logout=1");
+        addNav(buttons, "🔔 Alarm", "/terminal-alarm");
         root.addView(buttons);
 
         webView = new WebView(this);
         root.addView(webView, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-        setContentView(root);
+        FrameLayout screen = new FrameLayout(this);
+        screen.addView(root, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        // An in-app alert covers, but NEVER replaces or reloads, the WebView.
+        // Inputs, photo selections, uploads and scroll position stay underneath.
+        orderBlocker = createOrderBlocker();
+        screen.addView(orderBlocker, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        orderBlocker.setVisibility(View.GONE);
+        setContentView(screen);
+    }
+
+    private FrameLayout createOrderBlocker() {
+        FrameLayout overlay = new FrameLayout(this);
+        overlay.setBackgroundColor(Color.rgb(242, 249, 247));
+        overlay.setClickable(true);
+        overlay.setFocusable(true);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setPadding(dp(23), dp(30), dp(23), dp(30));
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.WHITE);
+        background.setCornerRadius(dp(24));
+        background.setStroke(dp(2), Color.rgb(173, 225, 216));
+        card.setBackground(background);
+
+        TextView bell = overlayText("🔔", 57, TEAL, true);
+        card.addView(bell);
+        TextView heading = overlayText("มีออเดอร์ B2B ใหม่!", 26, TEXT, true);
+        addAlertChild(card, heading, 12);
+        alertCount = overlayText("กำลังตรวจสอบออเดอร์", 24, TEAL, true);
+        addAlertChild(card, alertCount, 18);
+        alertNumbers = overlayText("", 16, TEXT, true);
+        addAlertChild(card, alertNumbers, 10);
+
+        Button ack = navButton("✓ รับทราบออเดอร์ — หยุดเสียง", TEAL, Color.WHITE);
+        ack.setTextSize(20);
+        ack.setMinimumHeight(dp(82));
+        LinearLayout.LayoutParams ackParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(82));
+        ackParams.topMargin = dp(25);
+        card.addView(ack, ackParams);
+        ack.setOnClickListener(v -> {
+            try {
+                startService(new Intent(this, AlarmMonitorService.class)
+                    .setAction(AlarmMonitorService.ACK));
+            } catch (RuntimeException e) {
+                alertError.setText("รับทราบไม่สำเร็จ กรุณาลองอีกครั้ง");
+                alertError.setVisibility(View.VISIBLE);
+            }
+        });
+        alertError = overlayText("", 13, Color.rgb(179, 64, 48), true);
+        addAlertChild(card, alertError, 13);
+        TextView note = overlayText(
+            "ต้องกดรับทราบก่อนกลับไปทำงาน · งานที่ทำค้างไว้จะยังอยู่", 13,
+            Color.rgb(94, 123, 113), false);
+        addAlertChild(card, note, 15);
+
+        FrameLayout.LayoutParams cardParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.CENTER);
+        cardParams.setMargins(dp(18), dp(18), dp(18), dp(18));
+        overlay.addView(card, cardParams);
+        return overlay;
+    }
+
+    private TextView overlayText(String value, int size, int color, boolean bold) {
+        TextView text = new TextView(this);
+        text.setText(value);
+        text.setTextSize(size);
+        text.setTextColor(color);
+        text.setTypeface(Typeface.DEFAULT, bold ? Typeface.BOLD : Typeface.NORMAL);
+        text.setGravity(Gravity.CENTER);
+        return text;
+    }
+
+    private void addAlertChild(LinearLayout card, View child, int margin) {
+        LinearLayout.LayoutParams layout = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        layout.topMargin = dp(margin);
+        card.addView(child, layout);
+    }
+
+    private void renderOrderBlocker() {
+        if (orderBlocker == null) return;
+        SharedPreferences prefs = getSharedPreferences(AlarmMonitorService.PREFS, MODE_PRIVATE);
+        int count = 0;
+        try { count = new JSONArray(prefs.getString(AlarmMonitorService.PENDING, "[]")).length(); }
+        catch (Exception ignored) {}
+        if (count == 0) {
+            orderBlocker.setVisibility(View.GONE);
+            return;
+        }
+        // Android notification dismissal never changes PENDING: only ACK can
+        // remove this blocker, even if staff press Back or switch OMS pages.
+        orderBlocker.setVisibility(View.VISIBLE);
+        alertCount.setText(count + " ออเดอร์รอรับทราบ");
+        alertNumbers.setText(prefs.getString(AlarmMonitorService.NUMBERS, ""));
+        String error = prefs.getString(AlarmMonitorService.LAST_ERROR, "");
+        alertError.setText(error);
+        alertError.setVisibility(error.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     private boolean trusted(Uri uri) {
@@ -183,7 +318,16 @@ public final class StaffPortalActivity extends Activity {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                if (trusted(request.getUrl())) return false;
+                if (trusted(request.getUrl())) {
+                    if (request.isForMainFrame() &&
+                        "/terminal-alarm".equals(request.getUrl().getPath())) {
+                        // The dashboard's Alarm tile opens the native control
+                        // screen without changing the in-progress OMS page.
+                        startActivity(new Intent(StaffPortalActivity.this, MainActivity.class));
+                        return true;
+                    }
+                    return false;
+                }
                 if (request.isForMainFrame()) external(request.getUrl());
                 return true;
             }
@@ -197,10 +341,10 @@ public final class StaffPortalActivity extends Activity {
 
             @Override public void onPageFinished(WebView view, String url) {
                 activationPageReady = url.startsWith(BASE + "/device-activate");
-                if (activationPageReady) title.setText("Staff Mode · เชื่อมต่อบัญชี");
+                if (activationPageReady) title.setText("Lotus’s B2B · เชื่อมต่อบัญชี");
                 else if (url.contains("/device-login"))
-                    title.setText("Staff Mode · เข้าสู่ระบบ");
-                else title.setText("Staff Mode · Lotus's B2B");
+                    title.setText("Lotus’s B2B · เข้าสู่ระบบ");
+                else title.setText("Lotus’s B2B · OMS");
                 deliverStaffToken();
             }
         });
@@ -310,7 +454,15 @@ public final class StaffPortalActivity extends Activity {
         if (tokenAtOpen==null ? current!=null : !tokenAtOpen.equals(current)) {
             if (webView!=null) webView.loadUrl("about:blank");
             finish();
+            return;
         }
+        alarmUi.removeCallbacks(refreshAlarm);
+        alarmUi.post(refreshAlarm);
+    }
+
+    @Override protected void onPause() {
+        alarmUi.removeCallbacks(refreshAlarm);
+        super.onPause();
     }
 
     @Override protected void onSaveInstanceState(Bundle state) {
@@ -318,12 +470,18 @@ public final class StaffPortalActivity extends Activity {
         super.onSaveInstanceState(state);
     }
 
-    @Override public void onBackPressed() {
+    private void handleBack() {
+        if (orderBlocker != null && orderBlocker.getVisibility() == View.VISIBLE) return;
         if (webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
+        else finish();
+    }
+
+    @Override public void onBackPressed() {
+        handleBack();
     }
 
     @Override protected void onDestroy() {
+        alarmUi.removeCallbacks(refreshAlarm);
         if (chooser != null) {
             chooser.finish(null);
             chooser = null;

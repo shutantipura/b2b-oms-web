@@ -373,16 +373,56 @@ test("Android voice alarm repeats with four-second spacing and stops promptly", 
   assert.match(service, /acknowledgementInProgress = true;[\s\S]*?silenceUrgentAlarm\(\)/);
 });
 
-test("Android home promotes everyday actions and hides setup controls until needed", () => {
+test("Android launcher pairs first, then keeps OMS as the home screen", () => {
+  const launcher = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/LauncherActivity.java", import.meta.url), "utf8");
+  const manifest = readFileSync(new URL("../android-alarm/app/src/main/AndroidManifest.xml", import.meta.url), "utf8");
+  assert.match(manifest, /android:name="\.LauncherActivity"[\s\S]*?android.intent.action.MAIN/);
+  assert.match(launcher, /if \(isPaired\(\)\) \{\s*openOms\(\);\s*\} else \{\s*showPairing\(\);/);
+  assert.match(launcher, /new InputFilter\.LengthFilter\(6\)/);
+  assert.match(launcher, /StationHealth\.pair\(this, value/);
+  assert.match(launcher, /new Intent\(this, StaffPortalActivity\.class\)/);
+  assert.match(launcher, /FLAG_ACTIVITY_CLEAR_TOP \| Intent\.FLAG_ACTIVITY_SINGLE_TOP/);
+  assert.match(launcher, /station_initialised_v06/);
+  const service = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmMonitorService.java", import.meta.url), "utf8");
+  assert.match(service, /if \(paired == null \|\| !paired\.matches\("\[a-f0-9\]\{64\}"\)\)/);
+});
+
+test("Android Alarm controls are an OMS menu, not the app home", () => {
   const main = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/MainActivity.java", import.meta.url), "utf8");
-  assert.match(main, /prominentButton\("👤 เปิด Staff Mode \(OMS\)"/);
-  assert.match(main, /prominentButton\("✓ รับทราบออเดอร์"/);
+  const portal = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/StaffPortalActivity.java", import.meta.url), "utf8");
+  const home = readFileSync(new URL("../app/login/page.tsx", import.meta.url), "utf8");
+  assert.match(main, /Lotus’s B2B · Alarm/);
+  assert.match(main, /backToOms\.setOnClickListener\(v -> finish\(\)\)/);
+  assert.match(main, /toolsPanel\.setVisibility\(View\.VISIBLE\)/);
+  assert.match(main, /stopMonitoringButton\.setOnClickListener\(v -> new AlertDialog\.Builder/);
   assert.match(main, /acknowledgeButton\.setVisibility\(count > 0 \? View\.VISIBLE : View\.GONE\)/);
   assert.match(main, /startMonitoringButton\.setVisibility\(running \? View\.GONE : View\.VISIBLE\)/);
   assert.match(main, /fullScreenSettings\.setVisibility\(granted \? View\.GONE : View\.VISIBLE\)/);
-  assert.match(main, /toolsPanel\.setVisibility\(View\.GONE\)/);
-  assert.match(main, /stopMonitoringButton\.setOnClickListener\(v -> new AlertDialog\.Builder/);
+  assert.match(portal, /addNav\(buttons, "🔔 Alarm", "\/terminal-alarm"\)/);
+  assert.match(portal, /startActivity\(new Intent\(this, MainActivity\.class\)\)/);
+  assert.match(home, /item\.href === "\/orders"/);
+  assert.match(home, /fixedTerminal \? \[\{/);
+  assert.match(home, /href: "\/terminal-alarm"/);
   assert.match(main, /ทดสอบเสียง \(2 ครั้ง\)/);
+});
+
+test("In-app order alert blocks dismissal without reloading unfinished OMS work", () => {
+  const portal = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/StaffPortalActivity.java", import.meta.url), "utf8");
+  const incoming = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/IncomingOrderActivity.java", import.meta.url), "utf8");
+  const service = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmMonitorService.java", import.meta.url), "utf8");
+  assert.match(portal, /screen\.addView\(root,/);
+  assert.match(portal, /screen\.addView\(orderBlocker,/);
+  assert.match(portal, /renderOrderBlocker\(\)/);
+  assert.match(portal, /orderBlocker\.setVisibility\(View\.VISIBLE\)/);
+  assert.match(portal, /if \(orderBlocker != null && orderBlocker\.getVisibility\(\) == View\.VISIBLE\) return;/);
+  assert.match(portal, /webView\.saveState\(state\)/);
+  assert.match(portal, /OnBackInvokedDispatcher\.PRIORITY_DEFAULT, this::handleBack/);
+  assert.match(incoming, /@Override public void onBackPressed\(\) \{/);
+  assert.match(incoming, /OnBackInvokedDispatcher\.PRIORITY_DEFAULT, \(\) -> \{\}/);
+  assert.doesNotMatch(incoming, /กลับ \(เสียงยังดังต่อ\)/);
+  assert.match(service, /setOngoing\(false\)/);
+  assert.match(service, /new Intent\(this, LauncherActivity\.class\)/);
+  assert.doesNotMatch(service, /FLAG_ACTIVITY_CLEAR_TOP \|\s*Intent\.FLAG_ACTIVITY_SINGLE_TOP/);
 });
 
 test("production audit: alarm feed excludes completed/cancelled orders without falsifying acknowledgements", () => {
@@ -777,7 +817,7 @@ test("Android pairing uses six numeric digits and server-backed anti-guess limit
   const stationAdmin = read("../app/api/admin/alarm-stations/route.ts");
   const terminalAdmin = read("../app/api/admin/terminals/route.ts");
   const station = read("../android-alarm/app/src/main/java/com/lotusb2b/alarm/StationHealth.java");
-  const activity = read("../android-alarm/app/src/main/java/com/lotusb2b/alarm/MainActivity.java");
+  const activity = read("../android-alarm/app/src/main/java/com/lotusb2b/alarm/LauncherActivity.java");
   const sql = read("../sql/six_digit_alarm_station_pairing_rate_limit.sql");
 
   assert.match(issuer, /randomInt\(0, 1_000_000\)/);

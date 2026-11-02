@@ -18,7 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Optional pairing: the public alarm keeps ringing without any credentials. */
+/** One-time pairing for a device-bound OMS session and shared alarms. */
 final class StationHealth {
     static final String TOKEN = "station_health_token";
     static final String LABEL = "station_health_label";
