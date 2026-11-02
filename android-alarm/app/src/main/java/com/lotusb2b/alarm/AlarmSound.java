@@ -3,6 +3,7 @@ package com.lotusb2b.alarm;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Handler;
 import android.os.Looper;
@@ -126,7 +127,29 @@ final class AlarmSound {
         }
     }
 
+    /**
+     * The Samsung shop terminals can hide the Alarm slider while showing
+     * Media, Ring and Notification sliders at maximum. Explicitly raise
+     * the separate alarm audio stream before both real and test playback.
+     * Device policies may block volume changes; alerts must still play.
+     */
+    private static void maximizeAlarmVolume(Context context) {
+        AudioManager audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        if (audio == null) return;
+        try {
+            if (!audio.isVolumeFixed()) {
+                int maximum = audio.getStreamMaxVolume(AudioManager.STREAM_ALARM);
+                if (maximum > 0 && audio.getStreamVolume(AudioManager.STREAM_ALARM) < maximum) {
+                    audio.setStreamVolume(AudioManager.STREAM_ALARM, maximum, 0);
+                }
+            }
+        } catch (SecurityException | IllegalArgumentException ignored) {
+            // Respect device policy without preventing order-alert playback.
+        }
+    }
+
     private static MediaPlayer createPlayer(Context context) throws IOException {
+        maximizeAlarmVolume(context);
         MediaPlayer mp = new MediaPlayer();
         try (AssetFileDescriptor asset = context.getResources()
                 .openRawResourceFd(R.raw.lotus_b2b_voice_call)) {

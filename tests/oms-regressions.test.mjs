@@ -739,3 +739,17 @@ test("optional second photo only appears after first and both photo previews are
   assert.match(manager, /slot === "bill" \|\| files\.some/);
   assert.match(manager, /slot === "payment_slip" \|\| files\.some/);
 });
+
+test("Android alarm uses the dedicated maximum-volume stream and retains its existing voice playback", () => {
+  const java = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmSound.java", import.meta.url), "utf8");
+  const manifest = readFileSync(new URL("../android-alarm/app/src/main/AndroidManifest.xml", import.meta.url), "utf8");
+  const gradle = readFileSync(new URL("../android-alarm/app/build.gradle", import.meta.url), "utf8");
+  assert.match(java, /AudioAttributes\.USAGE_ALARM/);
+  assert.match(java, /getStreamMaxVolume\(AudioManager\.STREAM_ALARM\)/);
+  assert.match(java, /setStreamVolume\(AudioManager\.STREAM_ALARM, maximum, 0\)/);
+  assert.match(java, /maximizeAlarmVolume\(context\)/);
+  assert.match(java, /SecurityException \| IllegalArgumentException/);
+  assert.match(manifest, /android\.permission\.MODIFY_AUDIO_SETTINGS/);
+  assert.match(gradle, /versionCode 14/);
+  assert.match(gradle, /versionName "0\.11\.3"/);
+});
