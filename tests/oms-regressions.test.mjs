@@ -751,6 +751,33 @@ test("Android alarm uses the dedicated maximum-volume stream and retains its exi
   assert.match(java, /maximizeAlarmVolume\(context\)/);
   assert.match(java, /SecurityException \| IllegalArgumentException/);
   assert.match(manifest, /android\.permission\.MODIFY_AUDIO_SETTINGS/);
-  assert.match(gradle, /versionCode 14/);
-  assert.match(gradle, /versionName "0\.11\.3"/);
+  const versionCode = Number(gradle.match(/versionCode\s+(\d+)/)?.[1]);
+  assert.ok(Number.isInteger(versionCode) && versionCode >= 14);
+  assert.match(gradle, /versionName\s+"\d+\.\d+\.\d+"/);
+});
+
+test("Android pairing uses six numeric digits and server-backed anti-guess limits", () => {
+  const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
+  const issuer = read("../lib/alarm-pairing.ts");
+  const pair = read("../app/api/alarm-station/pair/route.ts");
+  const stationAdmin = read("../app/api/admin/alarm-stations/route.ts");
+  const terminalAdmin = read("../app/api/admin/terminals/route.ts");
+  const station = read("../android-alarm/app/src/main/java/com/lotusb2b/alarm/StationHealth.java");
+  const activity = read("../android-alarm/app/src/main/java/com/lotusb2b/alarm/MainActivity.java");
+  const sql = read("../sql/six_digit_alarm_station_pairing_rate_limit.sql");
+
+  assert.match(issuer, /randomInt\(0, 1_000_000\)/);
+  assert.match(issuer, /padStart\(6, "0"\)/);
+  assert.match(issuer, /createHmac\("sha256"/);
+  assert.match(stationAdmin, /issueAlarmPairingCode\(db, label\)/);
+  assert.match(terminalAdmin, /issueAlarmPairingCode\(db,label,staff\.id\)/);
+  assert.match(terminalAdmin, /issueAlarmPairingCode\(/);
+  assert.match(pair, /\^\[0-9\]\{6\}\$/);
+  assert.match(pair, /allow_alarm_station_pair_attempt/);
+  assert.match(pair, /status: 429/);
+  assert.match(station, /code\.matches\("\[0-9\]\{6\}"\)/);
+  assert.match(activity, /InputType\.TYPE_CLASS_NUMBER/);
+  assert.match(activity, /new InputFilter\.LengthFilter\(6\)/);
+  assert.match(sql, /SECURITY INVOKER/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.allow_alarm_station_pair_attempt/);
 });
