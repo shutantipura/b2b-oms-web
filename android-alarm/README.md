@@ -1,8 +1,22 @@
-# Lotus’s B2B Native Android OMS + Alarm (v0.11.10)
+# Lotus’s B2B Native Android OMS + Alarm (v0.11.11)
 
 The Android store terminal opens the existing OMS after one-time six-digit
 manager pairing. Staff credentials are obtained through the existing secure
 device session; there is no daily login prompt.
+
+## Simplified tablet navigation (v0.11.11)
+
+- Removed the redundant native title and four-button navigation ribbon above
+  the OMS WebView. The compact alarm-connection status remains visible.
+- Dedicated Android Terminals now have **four matching bottom tabs**: งาน,
+  หน้าหลัก, คำสั่งซื้อ, and a line-art **bell Alarm** tab. Tapping Alarm
+  opens the native alarm settings over OMS, without navigating away from the
+  WebView or discarding in-progress tasks.
+- The duplicated Alarm dashboard tile was removed. On a staff terminal the
+  Order Management shortcut now uses the available width. Ordinary browser
+  OMS users still see the familiar three bottom tabs.
+- This version does not change the alarm sound, pairing, pending-order card,
+  cross-terminal acknowledgements or polling intervals.
 
 ## OMS reliability + pairing safeguards (v0.11.10)
 
@@ -32,9 +46,9 @@ device session; there is no daily login prompt.
 2. After pairing, the app starts monitoring and opens the **OMS home page**.
    Future launches skip pairing and open the existing OMS WebView without
    reloading an unfinished form when the app is simply brought to the front.
-3. The large **Tasks** card remains first. The **Order Management** and
-   **Alarm** tiles sit beside each other underneath it on dedicated terminals.
-   The native OMS header also has an **Alarm** shortcut.
+3. The large **Tasks** card remains first, with **Order Management** beneath
+   it. From v0.11.11 onward the **Alarm** menu is the fourth bottom tab;
+   the duplicated native top navigation and Alarm dashboard tile are removed.
 4. Alarm opens the native screen for monitoring status, Start/Stop, test
    playback (two calls with four seconds between), permissions and unpairing.
 5. If a new order arrives while staff are in OMS, a large **non-dismissible

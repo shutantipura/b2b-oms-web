@@ -60,7 +60,6 @@ public final class StaffPortalActivity extends Activity {
     private ValueCallbackFileChooser chooser;
     private Uri cameraOutput;
     private File cameraFile;
-    private TextView title;
     private TextView monitorHealth;
     private Button monitorAction;
     private boolean healthNeedsSettings;
@@ -159,50 +158,12 @@ public final class StaffPortalActivity extends Activity {
         return b;
     }
 
-    private void addNav(LinearLayout row, String name, String route) {
-        Button b = navButton(name, Color.rgb(228, 248, 244), TEXT);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-            0, dp(44), 1f);
-        params.setMargins(dp(2), 0, dp(2), 0);
-        row.addView(b, params);
-        b.setOnClickListener(v -> {
-            if ("/terminal-alarm".equals(route)) {
-                // Native alarm settings open on top of the same OMS WebView.
-                startActivity(new Intent(this, MainActivity.class));
-            } else {
-                webView.loadUrl(BASE + route);
-            }
-        });
-    }
-
     private void buildLayout() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE);
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setPadding(dp(10), dp(9), dp(10), dp(9));
-        top.setBackgroundColor(Color.rgb(244, 250, 248));
-
-        title = new TextView(this);
-        title.setText("Lotus’s B2B · OMS");
-        title.setTextSize(15);
-        title.setTextColor(TEAL);
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setPadding(dp(10), dp(8), 0, 0);
-        top.addView(title, new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(43)));
-        root.addView(top);
-
-        LinearLayout buttons = new LinearLayout(this);
-        buttons.setOrientation(LinearLayout.HORIZONTAL);
-        buttons.setPadding(dp(6), dp(3), dp(6), dp(6));
-        addNav(buttons, "หน้าหลัก", "/login");
-        addNav(buttons, "งาน", "/tasks");
-        addNav(buttons, "ออเดอร์", "/orders");
-        addNav(buttons, "🔔 Alarm", "/terminal-alarm");
-        root.addView(buttons);
+        // OMS owns its navigation. Keep only native alarm health above the
+        // WebView; the fourth bottom tab opens the native Alarm controls.
 
         LinearLayout healthRow = new LinearLayout(this);
         healthRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -461,10 +422,6 @@ public final class StaffPortalActivity extends Activity {
 
             @Override public void onPageFinished(WebView view, String url) {
                 activationPageReady = url.startsWith(BASE + "/device-activate");
-                if (activationPageReady) title.setText("Lotus’s B2B · เชื่อมต่อบัญชี");
-                else if (url.contains("/device-login"))
-                    title.setText("Lotus’s B2B · เข้าสู่ระบบ");
-                else title.setText("Lotus’s B2B · OMS");
                 deliverStaffToken();
             }
         });

@@ -1,19 +1,31 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import LotusBrand from "@/components/LotusBrand";
 
 type Role = "manager" | "staff" | null;
-type NavIconName = "home" | "tasks" | "orders" | "tower" | "kpi" | "customers" | "staff" | "line" | "catalog";
+type NavIconName = "home" | "tasks" | "orders" | "alarm" | "tower" | "kpi" | "customers" | "staff" | "line" | "catalog";
 
 type NavItem = {
   href: string;
   label: string;
   icon: NavIconName;
 };
+
+function subscribeTerminalMode(changed: () => void) {
+  window.addEventListener("storage", changed);
+  return () => window.removeEventListener("storage", changed);
+}
+
+function currentTerminalMode() {
+  try { return window.localStorage.getItem("lotus-dedicated-terminal") === "1"; }
+  catch { return false; }
+}
+
+function serverTerminalMode() { return false; }
 
 const WORKSPACE_ROOTS = [
   "/login",
@@ -53,6 +65,7 @@ function NavIcon({ name }: { name: NavIconName }) {
     home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v12h14V9" /><path d="M9 21v-8h6v8" /></>,
     tasks: <><rect x="4" y="4" width="16" height="16" rx="3" /><path d="m8 12 2.5 2.5L16 9" /></>,
     orders: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 3.5h6M9 10h6M9 14h6M9 18h4" /></>,
+    alarm: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
     tower: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M7 16v-4m5 4V8m5 8v-6" /></>,
     kpi: <><path d="M3 18h18M5 15l5-5 4 3 5-7" /><path d="M16 6h3v3" /></>,
     customers: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19v-2a5.5 5.5 0 0 1 11 0v2" /><path d="M17 6a3 3 0 0 1 0 6m2 7v-2a5 5 0 0 0-3.2-4.66" /></>,
@@ -82,29 +95,29 @@ function isNavActive(pathname: string, href: string) {
     ));
 }
 
-function OmsMobileNav({ pathname }: { pathname: string }) {
+function OmsMobileNav({ pathname, dedicatedTerminal }: { pathname: string; dedicatedTerminal: boolean }) {
   const items: NavItem[] = [
     { href: "/tasks", label: "งาน", icon: "tasks" },
     { href: "/login", label: "หน้าหลัก", icon: "home" },
-    { href: "/orders", label: "จัดการคำสั่งซื้อ", icon: "orders" },
+    { href: "/orders", label: dedicatedTerminal ? "คำสั่งซื้อ" : "จัดการคำสั่งซื้อ", icon: "orders" },
+    ...(dedicatedTerminal ? [{ href: "/terminal-alarm", label: "Alarm", icon: "alarm" as const }] : []),
   ];
 
   return (
     <nav className="oms-mobile-nav" aria-label="เมนู OMS บนโทรศัพท์">
       {items.map((item) => {
         const active = isNavActive(pathname, item.href);
-        return (
-          <Link
-            href={item.href}
-            key={item.href}
-            className="oms-mobile-tab"
-            aria-current={active ? "page" : undefined}
-            data-active={active ? "true" : undefined}
-          >
-            <NavIcon name={item.icon} />
-            <span>{item.label}</span>
-          </Link>
-        );
+        const tab = <><NavIcon name={item.icon} /><span>{item.label}</span></>;
+        const props = {
+          className: "oms-mobile-tab",
+          "aria-current": active ? "page" as const : undefined,
+          "data-active": active ? "true" : undefined,
+        };
+        // A normal navigation request lets native Android intercept Alarm
+        // without replacing the current OMS WebView or losing unsaved work.
+        return item.href === "/terminal-alarm"
+          ? <a key={item.href} href={item.href} {...props}>{tab}</a>
+          : <Link key={item.href} href={item.href} {...props}>{tab}</Link>;
       })}
     </nav>
   );
@@ -114,6 +127,10 @@ export default function OmsWorkspace({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "";
   const isWorkspace = WORKSPACE_ROOTS.some((root) => matchesRoute(pathname, root));
   const [role, setRole] = useState<Role>(null);
+  // Only native, paired store terminals have a functioning Alarm menu.
+  // Reading browser storage as an external snapshot avoids hydration mismatch.
+  const dedicatedTerminal = useSyncExternalStore(
+    subscribeTerminalMode, currentTerminalMode, serverTerminalMode);
 
   useEffect(() => {
     if (!isWorkspace) return;
@@ -203,7 +220,7 @@ export default function OmsWorkspace({ children }: { children: ReactNode }) {
           </div>
         </header>
       )}
-      {showNav && <OmsMobileNav pathname={pathname} />}
+      {showNav && <OmsMobileNav pathname={pathname} dedicatedTerminal={dedicatedTerminal} />}
       <div className="oms-content">
         {pathname !== "/login" && (
           <div className="mx-auto flex w-full max-w-5xl px-4 pt-3 sm:px-6 sm:pt-4">

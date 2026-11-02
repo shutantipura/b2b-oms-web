@@ -436,10 +436,11 @@ test("unsent staff payment images are staged, restored, and cleared without subm
   assert.equal(isFreshPaymentDraft(now + 1000, now), false);
 });
 
-test("Android Alarm controls are an OMS menu, not the app home", () => {
+test("Android Alarm controls are the fourth matching bottom tab, not a top ribbon", () => {
   const main = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/MainActivity.java", import.meta.url), "utf8");
   const portal = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/StaffPortalActivity.java", import.meta.url), "utf8");
   const home = readFileSync(new URL("../app/login/page.tsx", import.meta.url), "utf8");
+  const workspace = readFileSync(new URL("../components/OmsWorkspace.tsx", import.meta.url), "utf8");
   assert.match(main, /Lotus’s B2B · Alarm/);
   assert.match(main, /backToOms\.setOnClickListener\(v -> finish\(\)\)/);
   assert.match(main, /toolsPanel\.setVisibility\(View\.VISIBLE\)/);
@@ -447,11 +448,17 @@ test("Android Alarm controls are an OMS menu, not the app home", () => {
   assert.match(main, /acknowledgeButton\.setVisibility\(count > 0 \? View\.VISIBLE : View\.GONE\)/);
   assert.match(main, /startMonitoringButton\.setVisibility\(running \? View\.GONE : View\.VISIBLE\)/);
   assert.match(main, /fullScreenSettings\.setVisibility\(granted \? View\.GONE : View\.VISIBLE\)/);
-  assert.match(portal, /addNav\(buttons, "🔔 Alarm", "\/terminal-alarm"\)/);
+  assert.doesNotMatch(portal, /addNav\(buttons,/);
+  assert.match(portal, /root\.addView\(healthRow\)/);
+  assert.match(portal, /"\/terminal-alarm"\.equals\(request\.getUrl\(\)\.getPath\(\)\)/);
   assert.match(portal, /startActivity\(new Intent\(this, MainActivity\.class\)\)/);
   assert.match(home, /item\.href === "\/orders"/);
-  assert.match(home, /fixedTerminal \? \[\{/);
-  assert.match(home, /href: "\/terminal-alarm"/);
+  assert.doesNotMatch(home, /href: "\/terminal-alarm"/);
+  assert.match(workspace, /alarm: <><path/);
+  assert.match(workspace, /dedicatedTerminal \? \[\{ href: "\/terminal-alarm", label: "Alarm", icon: "alarm"/);
+  assert.match(workspace, /\? <a key=\{item\.href\} href=\{item\.href\} \{\.\.\.props\}>\{tab\}<\/a>/);
+  assert.match(workspace, /<OmsMobileNav pathname=\{pathname\} dedicatedTerminal=\{dedicatedTerminal\} \/>/);
+  assert.match(workspace, /localStorage\.getItem\("lotus-dedicated-terminal"\)/);
   assert.match(main, /ทดสอบเสียง \(2 ครั้ง\)/);
 });
 

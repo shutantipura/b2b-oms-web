@@ -180,15 +180,10 @@ export default function OmsHomePage() {
 
   const isManager = staff.account_type === "manager";
   const navigation = isManager ? MANAGER_NAVIGATION : STAFF_NAVIGATION;
-  // The Android terminal opens OMS first. Its native Alarm menu belongs
-  // immediately beside Order Management, below the large Tasks card.
+  // Alarm now lives in the fourth bottom tab on dedicated Android terminals,
+  // so do not duplicate that control as a dashboard card.
   const shortcuts = [
     ...navigation.filter((item) => item.href === "/orders"),
-    ...(fixedTerminal ? [{
-      name: "Alarm",
-      href: "/terminal-alarm",
-      description: "เสียงเตือน ทดสอบเสียง และตั้งค่าอุปกรณ์",
-    }] : []),
     ...navigation.filter((item) => item.href !== "/tasks" && item.href !== "/orders"),
   ];
 
@@ -241,7 +236,7 @@ export default function OmsHomePage() {
             {isManager ? "Manager" : "Staff"}
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className={shortcuts.length === 1 ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3 sm:grid-cols-3"}>
           {shortcuts.map((item, index) => {
             const className = "oms-dashboard-tile group relative flex min-h-[130px] flex-col rounded-[20px] border border-[#D8E9E5] bg-white p-4 shadow-[0_4px_16px_rgba(18,96,89,0.05)] transition hover:border-[#90D6CF] sm:p-5";
             const tile = <>
@@ -257,13 +252,7 @@ export default function OmsHomePage() {
                 </svg>
               </span>
             </>;
-            // A real navigation request lets the Android WebView intercept
-            // this route and open native controls without replacing the page.
-            return item.href === "/terminal-alarm" ? (
-              <a key={item.href} href={item.href} className={className}>{tile}</a>
-            ) : (
-              <Link key={item.href} href={item.href} className={className}>{tile}</Link>
-            );
+            return <Link key={item.href} href={item.href} className={className}>{tile}</Link>;
           })}
         </div>
       </div>
