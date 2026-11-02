@@ -18,6 +18,7 @@ import java.io.IOException;
  */
 final class AlarmSound {
     private static final long PAUSE_MS = 4000L;
+    private static boolean testPlaying;
     private final Context context;
     private final Handler main = new Handler(Looper.getMainLooper());
 
@@ -93,17 +94,24 @@ final class AlarmSound {
         player.start();
     }
 
-    /** Test button plays exactly three identical calls, with two 4-s pauses. */
+    /** Test button plays exactly two identical calls, with one 4-s pause. */
     static void testOnce(Context context) throws IOException {
-        new ThreeCallTest(context.getApplicationContext()).start();
+        if (testPlaying) return;
+        testPlaying = true;
+        try {
+            new TwoCallTest(context.getApplicationContext()).start();
+        } catch (IOException e) {
+            testPlaying = false;
+            throw e;
+        }
     }
 
-    private static final class ThreeCallTest {
+    private static final class TwoCallTest {
         private final Context context;
         private final Handler main = new Handler(Looper.getMainLooper());
-        private int callsLeft = 3;
+        private int callsLeft = 2;
 
-        ThreeCallTest(Context context) {
+        TwoCallTest(Context context) {
             this.context = context;
         }
 
@@ -119,8 +127,10 @@ final class AlarmSound {
                 if (callsLeft > 0) {
                     main.postDelayed(() -> {
                         try { next(); }
-                        catch (IOException ignored) {}
+                        catch (IOException ignored) { testPlaying = false; }
                     }, PAUSE_MS);
+                } else {
+                    testPlaying = false;
                 }
             });
             sample.start();

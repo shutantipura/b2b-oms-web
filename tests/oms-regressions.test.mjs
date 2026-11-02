@@ -354,7 +354,9 @@ test("Android voice alarm repeats with four-second spacing and stops promptly", 
   const sound = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmSound.java", import.meta.url), "utf8");
   const gradle = readFileSync(new URL("../android-alarm/app/build.gradle", import.meta.url), "utf8");
   assert.match(sound, /PAUSE_MS = 4000L/);
-  assert.match(sound, /private int callsLeft = 3/);
+  assert.match(sound, /private int callsLeft = 2/);
+  assert.match(sound, /if \(testPlaying\) return;/);
+  assert.match(sound, /new TwoCallTest/);
   assert.match(sound, /R\.raw\.lotus_b2b_voice_call/);
   assert.match(sound, /AudioAttributes\.USAGE_ALARM/);
   assert.match(sound, /main\.removeCallbacks\(scheduledReplay\)/);
@@ -369,6 +371,18 @@ test("Android voice alarm repeats with four-second spacing and stops promptly", 
   const service = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmMonitorService.java", import.meta.url), "utf8");
   assert.match(service, /private void silenceUrgentAlarm\(\) \{\s*alarm\.stop\(\)/);
   assert.match(service, /acknowledgementInProgress = true;[\s\S]*?silenceUrgentAlarm\(\)/);
+});
+
+test("Android home promotes everyday actions and hides setup controls until needed", () => {
+  const main = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/MainActivity.java", import.meta.url), "utf8");
+  assert.match(main, /prominentButton\("👤 เปิด Staff Mode \(OMS\)"/);
+  assert.match(main, /prominentButton\("✓ รับทราบออเดอร์"/);
+  assert.match(main, /acknowledgeButton\.setVisibility\(count > 0 \? View\.VISIBLE : View\.GONE\)/);
+  assert.match(main, /startMonitoringButton\.setVisibility\(running \? View\.GONE : View\.VISIBLE\)/);
+  assert.match(main, /fullScreenSettings\.setVisibility\(granted \? View\.GONE : View\.VISIBLE\)/);
+  assert.match(main, /toolsPanel\.setVisibility\(View\.GONE\)/);
+  assert.match(main, /stopMonitoringButton\.setOnClickListener\(v -> new AlertDialog\.Builder/);
+  assert.match(main, /ทดสอบเสียง \(2 ครั้ง\)/);
 });
 
 test("production audit: alarm feed excludes completed/cancelled orders without falsifying acknowledgements", () => {

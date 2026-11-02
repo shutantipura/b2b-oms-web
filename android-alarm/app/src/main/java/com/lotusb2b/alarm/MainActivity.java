@@ -39,10 +39,13 @@ public final class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private SharedPreferences prefs;
     private TextView status, pending, orderNumbers, lastCheck, errorMessage;
-    private Button toggle;
+    private Button startMonitoringButton;
+    private Button stopMonitoringButton;
     private Button acknowledgeButton;
     private Button pairingButton;
     private Button unpairButton;
+    private Button toolsToggle;
+    private LinearLayout toolsPanel;
     private Button fullScreenSettings;
     private Button notificationsSettings;
     private TextView setupStatus;
@@ -112,15 +115,10 @@ public final class MainActivity extends Activity {
         setupStatus = label("", 12, WARNING, true);
         addTop(card, setupStatus, 8);
 
-        toggle = button("▶ เริ่มตรวจสอบออเดอร์", TEAL, Color.WHITE);
-        addTop(root, toggle, 18);
-        toggle.setOnClickListener(v -> {
-            boolean running = prefs.getBoolean(AlarmMonitorService.MONITORING, false);
-            sendAction(running ? AlarmMonitorService.STOP : AlarmMonitorService.START);
-        });
-
-        acknowledgeButton = button("✓ รับทราบทุกเครื่อง", Color.WHITE, INK);
-        addTop(root, acknowledgeButton, 10);
+        // Only show acknowledgement when it is actionable. Keep this large
+        // and directly beneath the incoming-order count during an alert.
+        acknowledgeButton = prominentButton("✓ รับทราบออเดอร์", Color.rgb(255, 192, 37), INK);
+        addTop(root, acknowledgeButton, 14);
         acknowledgeButton.setOnClickListener(v -> {
             if (!prefs.getBoolean(AlarmMonitorService.MONITORING, false)) {
                 Toast.makeText(this, "กรุณาเริ่มตรวจสอบก่อน", Toast.LENGTH_SHORT).show();
@@ -129,8 +127,27 @@ public final class MainActivity extends Activity {
             sendAction(AlarmMonitorService.ACK);
         });
 
+        // Staff Mode is the everyday action. Alarm monitoring continues in the
+        // foreground service when this portal is opened.
+        Button staffMode = prominentButton("👤 เปิด Staff Mode (OMS)", TEAL, Color.WHITE);
+        addTop(root, staffMode, 14);
+        staffMode.setOnClickListener(v ->
+            startActivity(new Intent(this, StaffPortalActivity.class)));
+
+        // Auto-monitoring should almost never be stopped. If it has been
+        // stopped, however, the recovery action must be immediately visible.
+        startMonitoringButton = prominentButton("▶ เริ่มการแจ้งเตือนออเดอร์", TEAL, Color.WHITE);
+        addTop(root, startMonitoringButton, 10);
+        startMonitoringButton.setOnClickListener(v -> sendAction(AlarmMonitorService.START));
+
+        stationPairStatus = label("สถานะการจับคู่: ไม่ได้เชื่อมต่อ", 12, SECONDARY, false);
+        addTop(root, stationPairStatus, 16);
+        pairingButton = compactButton("📱 ลงทะเบียนอุปกรณ์หน้าร้าน", Color.WHITE, INK);
+        addTop(root, pairingButton, 8);
+        pairingButton.setOnClickListener(v -> showPairingDialog());
+
         if (Build.VERSION.SDK_INT >= 34) {
-            fullScreenSettings = button("🔔 เปิดแจ้งเตือนเต็มหน้าจอ", Color.rgb(255, 245, 216), INK);
+            fullScreenSettings = compactButton("🔔 เปิดแจ้งเตือนเต็มหน้าจอ", Color.rgb(255, 245, 216), INK);
             addTop(root, fullScreenSettings, 10);
             fullScreenSettings.setOnClickListener(v -> {
                 Intent settingsIntent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
@@ -145,7 +162,7 @@ public final class MainActivity extends Activity {
         }
 
         if (Build.VERSION.SDK_INT >= 33) {
-            notificationsSettings = button("🔔 เปิดสิทธิ์แจ้งเตือน Android",
+            notificationsSettings = compactButton("🔔 เปิดสิทธิ์แจ้งเตือน Android",
                 Color.rgb(225, 247, 244), INK);
             addTop(root, notificationsSettings, 10);
             notificationsSettings.setOnClickListener(v -> {
@@ -163,24 +180,36 @@ public final class MainActivity extends Activity {
             });
         }
 
-        Button staffMode = button("👤 เปิด Staff Mode (OMS)", Color.WHITE, INK);
-        addTop(root, staffMode, 12);
-        staffMode.setOnClickListener(v -> {
-            // Deliberately independent: do NOT stop background monitoring.
-            startActivity(new Intent(this, StaffPortalActivity.class));
+        toolsToggle = compactButton("⚙ ตั้งค่าและทดสอบ ▾", Color.WHITE, SECONDARY);
+        addTop(root, toolsToggle, 16);
+        toolsPanel = card();
+        toolsPanel.setVisibility(View.GONE);
+        addTop(root, toolsPanel, 8);
+        toolsToggle.setOnClickListener(v -> {
+            boolean opening = toolsPanel.getVisibility() != View.VISIBLE;
+            toolsPanel.setVisibility(opening ? View.VISIBLE : View.GONE);
+            toolsToggle.setText(opening ? "⚙ ซ่อนการตั้งค่า ▴" : "⚙ ตั้งค่าและทดสอบ ▾");
         });
 
-        pairingButton = button("📱 ลงทะเบียนอุปกรณ์หน้าร้าน", Color.WHITE, INK);
-        addTop(root, pairingButton, 12);
-        pairingButton.setOnClickListener(v -> showPairingDialog());
-        unpairButton = button("↪ ยกเลิกการจับคู่ / เปลี่ยนบัญชี", Color.rgb(255, 245, 216), INK);
-        addTop(root, unpairButton, 12);
-        unpairButton.setOnClickListener(v -> showUnpairDialog());
-        stationPairStatus = label("สถานะการจับคู่: ไม่ได้เชื่อมต่อ", 12, SECONDARY, false);
-        addTop(root, stationPairStatus, 8);
+        toolsPanel.addView(label("การจัดการอุปกรณ์", 16, INK, true));
+        stopMonitoringButton = compactButton("■ หยุดแจ้งเตือนออเดอร์ชั่วคราว",
+            Color.rgb(250, 247, 241), SECONDARY);
+        addTop(toolsPanel, stopMonitoringButton, 10);
+        stopMonitoringButton.setOnClickListener(v -> new AlertDialog.Builder(this)
+            .setTitle("หยุดการแจ้งเตือนออเดอร์?")
+            .setMessage("เครื่องนี้จะไม่ส่งเสียงเมื่อมีออเดอร์ใหม่จนกว่าจะเปิดการแจ้งเตือนอีกครั้ง")
+            .setNegativeButton("ยกเลิก", null)
+            .setPositiveButton("หยุดชั่วคราว", (dialog, which) ->
+                sendAction(AlarmMonitorService.STOP))
+            .show());
 
-        Button test = button("🔊 ทดสอบเสียงปลุก", Color.rgb(225, 247, 244), INK);
-        addTop(root, test, 10);
+        unpairButton = compactButton("↪ ยกเลิกการจับคู่ / เปลี่ยนบัญชี",
+            Color.rgb(250, 247, 241), SECONDARY);
+        addTop(toolsPanel, unpairButton, 10);
+        unpairButton.setOnClickListener(v -> showUnpairDialog());
+
+        Button test = compactButton("🔊 ทดสอบเสียง (2 ครั้ง)", Color.rgb(225, 247, 244), INK);
+        addTop(toolsPanel, test, 10);
         test.setOnClickListener(v -> {
             try {
                 AlarmSound.testOnce(this);
@@ -189,9 +218,8 @@ public final class MainActivity extends Activity {
             }
         });
 
-        LinearLayout tips = card();
-        addTop(root, tips, 19);
-        tips.addView(label("ตั้งค่าอุปกรณ์", 17, INK, true));
+        LinearLayout tips = toolsPanel;
+        addTop(tips, label("วิธีตั้งค่าอุปกรณ์", 16, INK, true), 20);
         addTop(tips, label(
             "1. อนุญาตการแจ้งเตือนของแอป\n" +
             "2. เพิ่มระดับเสียงปลุก (Alarm volume)\n" +
@@ -275,7 +303,8 @@ public final class MainActivity extends Activity {
         status.setText(!running ? "○ ยังไม่ได้เปิดระบบเตือน" :
             quiet ? "🌙 พักเสียง 22:00–07:00 (เวลาไทย)" : "● กำลังตรวจสอบออเดอร์");
         status.setTextColor(!running ? WARNING : quiet ? SECONDARY : TEAL);
-        toggle.setText(running ? "■ หยุดตรวจสอบออเดอร์" : "▶ เริ่มตรวจสอบออเดอร์");
+        startMonitoringButton.setVisibility(running ? View.GONE : View.VISIBLE);
+        stopMonitoringButton.setVisibility(running ? View.VISIBLE : View.GONE);
         String pairedToken = prefs.getString(StationHealth.TOKEN, "");
         boolean paired = pairedToken != null && pairedToken.matches("[a-f0-9]{64}");
         if (pairingButton != null) pairingButton.setVisibility(paired ? View.GONE : View.VISIBLE);
@@ -287,14 +316,14 @@ public final class MainActivity extends Activity {
             NotificationManager manager = (NotificationManager) getSystemService(
                 Context.NOTIFICATION_SERVICE);
             boolean granted = manager != null && manager.canUseFullScreenIntent();
-            fullScreenSettings.setText(granted
-                ? "✓ อนุญาตแจ้งเตือนเต็มหน้าจอแล้ว"
-                : "🔔 เปิดแจ้งเตือนเต็มหน้าจอ");
+            fullScreenSettings.setVisibility(granted ? View.GONE : View.VISIBLE);
             fullScreenSettings.setEnabled(!granted);
         }
         int count = 0;
         try { count = new JSONArray(prefs.getString(AlarmMonitorService.PENDING, "[]")).length(); }
         catch (Exception ignored) {}
+        acknowledgeButton.setVisibility(count > 0 ? View.VISIBLE : View.GONE);
+        acknowledgeButton.setEnabled(running);
         pending.setText(count + " ออเดอร์ใหม่");
         pending.setTextColor(count > 0 ? WARNING : TEAL);
         String numbers = prefs.getString(AlarmMonitorService.NUMBERS, "");
@@ -373,6 +402,22 @@ public final class MainActivity extends Activity {
         style.setCornerRadius(dp(15));
         style.setStroke(dp(1), Color.rgb(183, 218, 208));
         view.setBackground(style);
+        return view;
+    }
+
+    private Button prominentButton(String value, int bg, int fg) {
+        Button view = button(value, bg, fg);
+        view.setTextSize(19);
+        view.setMinimumHeight(dp(76));
+        view.setPadding(dp(16), dp(14), dp(16), dp(14));
+        return view;
+    }
+
+    private Button compactButton(String value, int bg, int fg) {
+        Button view = button(value, bg, fg);
+        view.setTextSize(13);
+        view.setMinimumHeight(dp(46));
+        view.setPadding(dp(12), dp(8), dp(12), dp(8));
         return view;
     }
 

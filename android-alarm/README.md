@@ -1,6 +1,13 @@
-# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.11.3)
+# Lotus’s B2B Native Android App + Staff + Station Health (v0.11.8)
 
 An Android app for the existing OMS that requires no LINE or staff login.
+
+## Home screen and test (v0.11.8)
+
+- **Open Staff Mode** is the large daily-use button. **Acknowledge** becomes prominent whenever an order is pending, and is hidden when there is nothing to acknowledge.
+- Device setup, unpairing, stopping monitoring and testing are secondary controls. The settings section is collapsed by default, while a stopped alarm reveals a prominent **Start** action.
+- The full-screen-alert permission button is hidden once permission has been granted.
+- The sound test now plays exactly **two** calls, separated by **four seconds**. Tapping Test again while a test is already running does not start another overlapping sequence.
 
 ## Already implemented
 
@@ -26,7 +33,7 @@ An Android app for the existing OMS that requires no LINE or staff login.
 ## Recorded voice alert (v0.11.1)
 
 - The former synthesized three-beep tone has been replaced with the cleaned Lotus's B2B voice recording.
-- The test button plays exactly **three identical voice calls**, with **4.0 seconds of silence** between calls.
+- The test button plays exactly **two identical voice calls**, with **4.0 seconds of silence** between them.
 - When a real order is pending, the app continues repeating the same voice call with a 4-second pause after each clip until staff acknowledge it.
 - Audio playback stays on the Android **Alarm** stream (not media volume).
 - Acknowledging locally mutes the voice immediately and cancels any scheduled replay; paired devices use the existing rapid shared acknowledgement logic.
