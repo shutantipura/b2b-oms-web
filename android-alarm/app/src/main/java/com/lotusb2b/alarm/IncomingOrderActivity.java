@@ -35,6 +35,7 @@ public final class IncomingOrderActivity extends Activity {
     private TextView orders;
     private TextView ackError;
     private Button ack;
+    private boolean openOmsAfterAcknowledgement;
     private final Runnable refresh = new Runnable() {
         @Override public void run() {
             update();
@@ -81,6 +82,10 @@ public final class IncomingOrderActivity extends Activity {
         ack = button("✓ รับทราบทุกเครื่อง", TEAL, Color.WHITE);
         add(page, ack, 32);
         ack.setOnClickListener(v -> {
+            // This is an explicit user action. Only after the server-backed
+            // acknowledgement removes pending alerts may OMS open. An alert
+            // cleared remotely without a tap simply dismisses this screen.
+            openOmsAfterAcknowledgement = true;
             Intent intent = new Intent(this, AlarmMonitorService.class);
             intent.setAction(AlarmMonitorService.ACK);
             startService(intent);
@@ -123,6 +128,14 @@ public final class IncomingOrderActivity extends Activity {
             total = new JSONArray(prefs.getString(AlarmMonitorService.PENDING, "[]")).length();
         } catch (Exception ignored) {}
         if (total == 0) {
+            if (openOmsAfterAcknowledgement && !isFinishing()) {
+                openOmsAfterAcknowledgement = false;
+                // LauncherActivity reuses the existing OMS WebView if one is
+                // already open, preserving unsaved forms and photo selections.
+                Intent oms = new Intent(this, LauncherActivity.class);
+                oms.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivity(oms);
+            }
             finish();
             return;
         }

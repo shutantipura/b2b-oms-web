@@ -423,6 +423,10 @@ public final class AlarmMonitorService extends Service {
 
     private Notification newAlertNotification() {
         PendingIntent incoming = openIncomingOrder();
+        // A deliberate tap opens OMS and its non-dismissible native order
+        // blocker. Only the automatic full-screen interruption uses the
+        // separate incoming-order activity over the lock screen.
+        PendingIntent oms = openApp();
         String pairingToken = prefs.getString(StationHealth.TOKEN, "");
         boolean paired = pairingToken != null && pairingToken.matches("[a-f0-9]{64}");
         String numbers = prefs.getString(NUMBERS, "");
@@ -433,9 +437,9 @@ public final class AlarmMonitorService extends Service {
             .setContentText(pending.size() + " ออเดอร์รอรับทราบ • แตะเพื่อดู")
             .setStyle(new Notification.BigTextStyle().bigText(
                 pending.size() + " ออเดอร์รอรับทราบ: " + numbers))
-            .setContentIntent(incoming)
+            .setContentIntent(oms)
             .addAction(new Notification.Action.Builder(
-                android.R.drawable.ic_menu_view, "ดูออเดอร์", incoming).build())
+                android.R.drawable.ic_menu_view, "ดูออเดอร์", oms).build())
             .addAction(new Notification.Action.Builder(
                 android.R.drawable.ic_menu_close_clear_cancel,
                 paired ? "✓ รับทราบทุกเครื่อง" : "✓ รับทราบเครื่องนี้",

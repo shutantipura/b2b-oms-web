@@ -1,8 +1,24 @@
-# Lotus’s B2B Native Android OMS + Alarm (v0.11.12)
+# Lotus’s B2B Native Android OMS + Alarm (v0.11.13)
 
 The Android store terminal opens the existing OMS after one-time six-digit
 manager pairing. Staff credentials are obtained through the existing secure
 device session; there is no daily login prompt.
+
+## Notification-to-OMS navigation (v0.11.13)
+
+- Tapping the **new-order notification body** or **ดูออเดอร์** now opens
+  the existing OMS activity directly. Its mandatory acknowledgement overlay
+  still blocks work until a successful server-backed acknowledgement; the
+  existing WebView and unfinished work are reused rather than discarded.
+- Android's automatically launched full-screen/lock-screen alarm still uses
+  the separate acknowledgement screen. After the user explicitly taps
+  **รับทราบ** and the pending alert is cleared, OMS opens automatically.
+  When an alert is acknowledged remotely without local interaction, the
+  full-screen alarm simply closes and does not unexpectedly launch OMS.
+- Swiping away the external notification still does not mute audio, and
+  failed acknowledgements never remove the mandatory in-app blocker.
+- The persistent background-monitoring notification continues to open OMS;
+  the alert sound, pairing and polling cadence are unchanged.
 
 ## Native Alarm bottom navigation (v0.11.12)
 

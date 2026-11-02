@@ -484,7 +484,7 @@ test("native Alarm settings use the same persistent bottom tabs and return to ex
   assert.match(portal, /isOmsTabRoute\(route\)/);
   assert.match(portal, /webView\.loadUrl\(BASE \+ route\)/);
   assert.match(portal, /routeAfterActivation/);
-  assert.match(gradle, /versionName "0\.11\.12"/);
+  assert.ok(Number(gradle.match(/versionCode (\d+)/)?.[1] ?? 0) >= 23);
 });
 
 test("In-app order alert blocks dismissal without reloading unfinished OMS work", () => {
@@ -504,6 +504,25 @@ test("In-app order alert blocks dismissal without reloading unfinished OMS work"
   assert.match(service, /setOngoing\(false\)/);
   assert.match(service, /new Intent\(this, LauncherActivity\.class\)/);
   assert.doesNotMatch(service, /FLAG_ACTIVITY_CLEAR_TOP \|\s*Intent\.FLAG_ACTIVITY_SINGLE_TOP/);
+});
+
+test("new-order notification opens OMS while full-screen alerts require acknowledgement first", () => {
+  const service = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmMonitorService.java", import.meta.url), "utf8");
+  const incoming = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/IncomingOrderActivity.java", import.meta.url), "utf8");
+  const launcher = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/LauncherActivity.java", import.meta.url), "utf8");
+  const version = readFileSync(new URL("../android-alarm/app/build.gradle", import.meta.url), "utf8");
+  const alert = service.slice(service.indexOf("private Notification newAlertNotification()"));
+  assert.match(alert, /PendingIntent oms = openApp\(\)/);
+  assert.match(alert, /\.setContentIntent\(oms\)/);
+  assert.match(alert, /"ดูออเดอร์", oms\)\.build\(\)/);
+  assert.match(alert, /builder\.setFullScreenIntent\(incoming, true\)/);
+  assert.match(alert, /\.setOngoing\(false\)/);
+  assert.match(incoming, /openOmsAfterAcknowledgement = true;[\s\S]*?AlarmMonitorService\.ACK/);
+  assert.match(incoming, /if \(total == 0\) \{\s*if \(openOmsAfterAcknowledgement && !isFinishing\(\)\)/);
+  assert.match(incoming, /new Intent\(this, LauncherActivity\.class\)/);
+  assert.match(incoming, /startActivity\(oms\)/);
+  assert.match(launcher, /FLAG_ACTIVITY_CLEAR_TOP \| Intent\.FLAG_ACTIVITY_SINGLE_TOP/);
+  assert.match(version, /versionName "0\.11\.13"/);
 });
 
 test("production audit: alarm feed excludes completed/cancelled orders without falsifying acknowledgements", () => {
