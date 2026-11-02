@@ -92,7 +92,7 @@ public final class MainActivity extends Activity {
         root.setPadding(dp(18), dp(30), dp(18), dp(24));
         scroll.addView(root);
 
-        root.addView(label("Lotus's B2B", 31, TEAL, true));
+        root.addView(label("Lotus’s B2B", 31, TEAL, true));
         root.addView(label("ORDER ALARM · STORE STATION", 12, SECONDARY, true));
 
         LinearLayout card = card();
