@@ -442,7 +442,7 @@ test("Android Alarm controls are the fourth matching bottom tab, not a top ribbo
   const home = readFileSync(new URL("../app/login/page.tsx", import.meta.url), "utf8");
   const workspace = readFileSync(new URL("../components/OmsWorkspace.tsx", import.meta.url), "utf8");
   assert.match(main, /Lotus’s B2B · Alarm/);
-  assert.match(main, /backToOms\.setOnClickListener\(v -> finish\(\)\)/);
+  assert.match(main, /backToOms\.setOnClickListener\(v -> returnToOms\("\/login"\)\)/);
   assert.match(main, /toolsPanel\.setVisibility\(View\.VISIBLE\)/);
   assert.match(main, /stopMonitoringButton\.setOnClickListener\(v -> new AlertDialog\.Builder/);
   assert.match(main, /acknowledgeButton\.setVisibility\(count > 0 \? View\.VISIBLE : View\.GONE\)/);
@@ -460,6 +460,31 @@ test("Android Alarm controls are the fourth matching bottom tab, not a top ribbo
   assert.match(workspace, /<OmsMobileNav pathname=\{pathname\} dedicatedTerminal=\{dedicatedTerminal\} \/>/);
   assert.match(workspace, /localStorage\.getItem\("lotus-dedicated-terminal"\)/);
   assert.match(main, /ทดสอบเสียง \(2 ครั้ง\)/);
+});
+
+test("native Alarm settings use the same persistent bottom tabs and return to existing OMS session", () => {
+  const main = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/MainActivity.java", import.meta.url), "utf8");
+  const portal = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/StaffPortalActivity.java", import.meta.url), "utf8");
+  const gradle = readFileSync(new URL("../android-alarm/app/build.gradle", import.meta.url), "utf8");
+  assert.match(main, /compactButton\("← กลับหน้าหลัก"/);
+  assert.match(main, /backToOms\.setOnClickListener\(v -> returnToOms\("\/login"\)\)/);
+  assert.match(main, /screen\.addView\(scroll,[\s\S]*?screen\.addView\(createBottomNav\(\)/);
+  for (const [label, icon, route] of [
+    ["งาน", "tasks", "tasks"],
+    ["หน้าหลัก", "home", "login"],
+    ["คำสั่งซื้อ", "orders", "orders"],
+  ]) {
+    assert.ok(main.includes(`addBottomTab(bar, "${label}", R.drawable.ic_oms_${icon}, false, "/${route}")`));
+    assert.match(readFileSync(new URL(`../android-alarm/app/src/main/res/drawable/ic_oms_${icon}.xml`, import.meta.url), "utf8"), /strokeWidth="1\.8"/);
+  }
+  assert.match(main, /addBottomTab\(bar, "Alarm", R\.drawable\.ic_oms_bell, true, null\)/);
+  assert.match(readFileSync(new URL("../android-alarm/app/src/main/res/drawable/ic_oms_bell.xml", import.meta.url), "utf8"), /strokeWidth="1\.8"/);
+  assert.match(main, /Intent\.FLAG_ACTIVITY_CLEAR_TOP \| Intent\.FLAG_ACTIVITY_SINGLE_TOP/);
+  assert.match(main, /StaffPortalActivity\.EXTRA_NAVIGATE_ROUTE/);
+  assert.match(portal, /isOmsTabRoute\(route\)/);
+  assert.match(portal, /webView\.loadUrl\(BASE \+ route\)/);
+  assert.match(portal, /routeAfterActivation/);
+  assert.match(gradle, /versionName "0\.11\.12"/);
 });
 
 test("In-app order alert blocks dismissal without reloading unfinished OMS work", () => {

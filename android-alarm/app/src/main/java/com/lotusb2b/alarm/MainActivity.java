@@ -21,7 +21,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.view.Gravity;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -99,10 +101,9 @@ public final class MainActivity extends Activity {
         root.addView(label("Lotus’s B2B · Alarm", 29, TEAL, true));
         root.addView(label("ตั้งค่าเสียงและการแจ้งเตือนออเดอร์", 12, SECONDARY, true));
 
-        Button backToOms = compactButton("← กลับหน้า OMS", Color.WHITE, INK);
+        Button backToOms = compactButton("← กลับหน้าหลัก", Color.WHITE, INK);
         addTop(root, backToOms, 12);
-        // The existing WebView remains in the background with its drafts intact.
-        backToOms.setOnClickListener(v -> finish());
+        backToOms.setOnClickListener(v -> returnToOms("/login"));
 
         LinearLayout card = card();
         addTop(root, card, 18);
@@ -230,7 +231,72 @@ public final class MainActivity extends Activity {
             "หากจับคู่กับ Dashboard แล้ว การกดรับทราบบนเครื่องใดก็ได้จะหยุดเสียงทุกเครื่องที่เชื่อมต่อ " +
             "ภายในการตรวจสอบถัดไป หากไม่จับคู่จะรับทราบเฉพาะเครื่องนี้ " +
             "ระบบรับทราบไม่เปลี่ยนสถานะคำสั่งซื้อใน OMS", 12, SECONDARY, false), 14);
-        setContentView(scroll);
+        // Keep the same four-item navigation visible at the bottom of the
+        // native Alarm screen, even while its long settings panel scrolls.
+        LinearLayout screen = new LinearLayout(this);
+        screen.setOrientation(LinearLayout.VERTICAL);
+        screen.setBackgroundColor(Color.rgb(242, 248, 246));
+        screen.addView(scroll, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        screen.addView(createBottomNav(), new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(72)));
+        setContentView(screen);
+    }
+
+    private void returnToOms(String route) {
+        Intent portal = new Intent(this, StaffPortalActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(StaffPortalActivity.EXTRA_NAVIGATE_ROUTE, route);
+        startActivity(portal);
+        finish();
+    }
+
+    private LinearLayout createBottomNav() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(7), dp(5), dp(7), dp(7));
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.WHITE);
+        background.setStroke(dp(1), Color.rgb(212, 232, 227));
+        bar.setBackground(background);
+        addBottomTab(bar, "งาน", R.drawable.ic_oms_tasks, false, "/tasks");
+        addBottomTab(bar, "หน้าหลัก", R.drawable.ic_oms_home, false, "/login");
+        addBottomTab(bar, "คำสั่งซื้อ", R.drawable.ic_oms_orders, false, "/orders");
+        addBottomTab(bar, "Alarm", R.drawable.ic_oms_bell, true, null);
+        return bar;
+    }
+
+    private void addBottomTab(LinearLayout bar, String name, int icon, boolean selected,
+                              String route) {
+        int activeColor = Color.rgb(0, 142, 136);
+        int idleColor = Color.rgb(117, 139, 133);
+        LinearLayout tab = new LinearLayout(this);
+        tab.setOrientation(LinearLayout.VERTICAL);
+        tab.setGravity(Gravity.CENTER);
+        tab.setPadding(dp(2), dp(5), dp(2), dp(5));
+        tab.setContentDescription(name);
+        GradientDrawable tabBackground = new GradientDrawable();
+        tabBackground.setCornerRadius(dp(11));
+        tabBackground.setColor(selected ? Color.rgb(231, 250, 248) : Color.TRANSPARENT);
+        tab.setBackground(tabBackground);
+
+        ImageView image = new ImageView(this);
+        image.setImageResource(icon);
+        image.setColorFilter(selected ? activeColor : idleColor);
+        tab.addView(image, new LinearLayout.LayoutParams(dp(24), dp(24)));
+        TextView text = label(name, 11, selected ? activeColor : idleColor, true);
+        text.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        textParams.topMargin = dp(3);
+        tab.addView(text, textParams);
+        if (route != null) {
+            tab.setOnClickListener(v -> returnToOms(route));
+            tab.setFocusable(true);
+        }
+        bar.addView(tab, new LinearLayout.LayoutParams(0,
+            LinearLayout.LayoutParams.MATCH_PARENT, 1f));
     }
 
     private void showPairingDialog() {

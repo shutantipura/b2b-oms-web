@@ -1,8 +1,19 @@
-# Lotus’s B2B Native Android OMS + Alarm (v0.11.11)
+# Lotus’s B2B Native Android OMS + Alarm (v0.11.12)
 
 The Android store terminal opens the existing OMS after one-time six-digit
 manager pairing. Staff credentials are obtained through the existing secure
 device session; there is no daily login prompt.
+
+## Native Alarm bottom navigation (v0.11.12)
+
+- The Alarm settings screen now has the same **four fixed bottom tabs** as
+  OMS: งาน, หน้าหลัก, คำสั่งซื้อ, Alarm. The native line-art icons and selected
+  teal state match the OMS bottom ribbon; the settings content scrolls above it.
+- The upper action now says **← กลับหน้าหลัก** and takes staff to the OMS
+  home page. Tasks and Orders tabs return to those OMS routes directly.
+- Navigation reuses the existing `StaffPortalActivity` and WebView whenever
+  available. The native order alarm service, pairing, and acknowledgement
+  logic are unchanged.
 
 ## Simplified tablet navigation (v0.11.11)
 

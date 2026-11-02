@@ -51,6 +51,7 @@ import org.json.JSONArray;
  * OMS RLS and task permissions are unchanged.
  */
 public final class StaffPortalActivity extends Activity {
+    static final String EXTRA_NAVIGATE_ROUTE = "com.lotusb2b.alarm.NAVIGATE_OMS_ROUTE";
     private static final String BASE = "https://b2b-oms-web.vercel.app";
     private static final String HOST = "b2b-oms-web.vercel.app";
     private static final int PICK_FILE = 801;
@@ -79,6 +80,7 @@ public final class StaffPortalActivity extends Activity {
     private boolean activationFailed;
     private int activationRequestId;
     private boolean activationPageReady=false;
+    private String routeAfterActivation;
     private String tokenAtOpen="";
 
     private interface ValueCallbackFileChooser {
@@ -96,8 +98,14 @@ public final class StaffPortalActivity extends Activity {
                 OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::handleBack);
         }
         configureWebView();
+        String requestedRoute = getIntent().getStringExtra(EXTRA_NAVIGATE_ROUTE);
+        if (isOmsTabRoute(requestedRoute)) routeAfterActivation = requestedRoute;
         if (state != null) {
             webView.restoreState(state);
+            if (routeAfterActivation != null) {
+                webView.loadUrl(BASE + routeAfterActivation);
+                routeAfterActivation = null;
+            }
         } else if (StationHealth.isDedicated(this)) {
             startStaffActivation();
         } else {
@@ -136,7 +144,25 @@ public final class StaffPortalActivity extends Activity {
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (activationFailed && StationHealth.isDedicated(this)) startStaffActivation();
+        setIntent(intent);
+        String route = intent.getStringExtra(EXTRA_NAVIGATE_ROUTE);
+        if (isOmsTabRoute(route)) {
+            if (activationFailed) {
+                routeAfterActivation = route;
+                startStaffActivation();
+            } else if (activationPageReady || pendingStaffTokenHash != null) {
+                routeAfterActivation = route;
+            } else {
+                // Reuse the original WebView, Supabase session and cookies.
+                webView.loadUrl(BASE + route);
+            }
+        } else if (activationFailed && StationHealth.isDedicated(this)) {
+            startStaffActivation();
+        }
+    }
+
+    private boolean isOmsTabRoute(String route) {
+        return "/login".equals(route) || "/tasks".equals(route) || "/orders".equals(route);
     }
 
     private int dp(int value) {
@@ -423,6 +449,11 @@ public final class StaffPortalActivity extends Activity {
             @Override public void onPageFinished(WebView view, String url) {
                 activationPageReady = url.startsWith(BASE + "/device-activate");
                 deliverStaffToken();
+                if (routeAfterActivation != null && url.startsWith(BASE + "/login")) {
+                    String destination = routeAfterActivation;
+                    routeAfterActivation = null;
+                    view.loadUrl(BASE + destination);
+                }
             }
         });
 
