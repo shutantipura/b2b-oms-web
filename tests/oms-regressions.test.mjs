@@ -361,7 +361,8 @@ test("Android voice alarm repeats with four-second spacing and stops promptly", 
   assert.match(sound, /boolean isActive\(\) \{\s*return repeating;/);
   assert.match(sound, /AlarmHours\.isQuiet\(\)/);
   assert.doesNotMatch(sound, /Three-beep alarm/);
-  assert.match(gradle, /versionCode 13/);
+  const versionCode = Number(gradle.match(/versionCode (\d+)/)?.[1] ?? 0);
+  assert.ok(versionCode >= 13);
   assert.match(gradle, /noCompress \+= \['webm'\]/);
   const hours = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmHours.java", import.meta.url), "utf8");
   assert.match(hours, /hour >= 22 \|\| hour < 7/);
@@ -738,4 +739,18 @@ test("optional second photo only appears after first and both photo previews are
   assert.match(manager, /displayFiles\.sort\(compareOrderFiles\)/);
   assert.match(manager, /slot === "bill" \|\| files\.some/);
   assert.match(manager, /slot === "payment_slip" \|\| files\.some/);
+});
+
+test("Android alarm uses the dedicated maximum-volume stream and retains its existing voice playback", () => {
+  const java = readFileSync(new URL("../android-alarm/app/src/main/java/com/lotusb2b/alarm/AlarmSound.java", import.meta.url), "utf8");
+  const manifest = readFileSync(new URL("../android-alarm/app/src/main/AndroidManifest.xml", import.meta.url), "utf8");
+  const gradle = readFileSync(new URL("../android-alarm/app/build.gradle", import.meta.url), "utf8");
+  assert.match(java, /AudioAttributes\.USAGE_ALARM/);
+  assert.match(java, /getStreamMaxVolume\(AudioManager\.STREAM_ALARM\)/);
+  assert.match(java, /setStreamVolume\(AudioManager\.STREAM_ALARM, maximum, 0\)/);
+  assert.match(java, /maximizeAlarmVolume\(context\)/);
+  assert.match(java, /SecurityException \| IllegalArgumentException/);
+  assert.match(manifest, /android\.permission\.MODIFY_AUDIO_SETTINGS/);
+  assert.match(gradle, /versionCode 14/);
+  assert.match(gradle, /versionName "0\.11\.3"/);
 });

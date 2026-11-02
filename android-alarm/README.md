@@ -1,4 +1,4 @@
-# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.11.2)
+# Lotus's B2B Native Android Alarm + Staff + Station Health (prototype 0.11.3)
 
 An Android app for the existing OMS that requires no LINE or staff login.
 
@@ -6,7 +6,7 @@ An Android app for the existing OMS that requires no LINE or staff login.
 
 - Foreground Android service runs independently of the browser, including when the screen is locked, subject to Android vendor power management.
 - Read-only OMS alert feed is checked every ~15 seconds.
-- Cleaned recorded **Lotus’s B2B voice alarm**, repeated with **four seconds of silence between calls** on the **alarm volume** stream.
+- Denoised, louder, higher-pitched recorded **Lotus’s B2B voice alarm**, repeated with **four seconds of silence between calls** on the **alarm volume** stream.
 - High-priority **heads-up notification** with one-tap **รับทราบ — หยุดเสียง** and **ดูออเดอร์** actions.
 - Incoming-order activity is independent of the settings/home screen, and can display over a locked screen if Android grants **full-screen alarm intent** permission.
 - The app includes a Settings shortcut for full-screen permission on Android 14+; without it, the alert is still available as a heads-up notification.
@@ -14,6 +14,14 @@ An Android app for the existing OMS that requires no LINE or staff login.
 - Device remembers acknowledged orders. Initial launch ignores existing historical alerts.
 - Best-effort restart at phone boot.
 - Android 13+ notification permission, Android 14+ special-use foreground service declaration and configurable full-screen alarm permission.
+
+## Louder and higher-pitched order alarm (v0.11.3)
+
+- The approved cleaned and boosted recording has an **additional +10 dB input gain** and a **+30 Hz pitch shift** layered on top of the approved preview (approximately +40 Hz versus the original voice).
+- A peak limiter prevents digital clipping, so the actual measured loudness increase is smaller than +10 dB. The finished clip is about **-9 LUFS** and remains approximately 3.5 seconds long.
+- The app requests the maximum **Alarm** stream volume whenever either a real order alert or the **ทดสอบเสียงปลุก** test is played. Some Samsung terminals hide the Alarm stream from the volume settings panel.
+- Device policies and fixed-volume devices may decline the request; the alarm still plays if Android does not allow the change.
+- Pairing, polling, acknowledgement, four-second pauses and 22:00–07:00 quiet hours are unchanged.
 
 ## Recorded voice alert (v0.11.1)
 
