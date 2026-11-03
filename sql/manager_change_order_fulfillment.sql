@@ -82,6 +82,20 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- A grouped bill is a single post-billing workflow. The status sync
+  -- trigger propagates changes from its primary order, so require every
+  -- active member to have reached the same stage before switching it.
+  IF v_order.group_root_order_id = v_order.id
+     AND v_order.status IN ('ready_for_delivery','awaiting_payment')
+     AND EXISTS (
+       SELECT 1 FROM public.orders o
+       WHERE o.group_root_order_id = v_order.id
+         AND o.status <> 'cancelled'
+         AND o.status <> v_order.status
+     ) THEN
+    RAISE EXCEPTION 'Grouped orders must be at the same post-billing stage';
+  END IF;
+
   -- Do not strand a rider or payment verifier already handling this order.
   IF EXISTS (
     SELECT 1
