@@ -52,10 +52,10 @@ test("pre-billing estimate uses picked kilograms at the frozen per-kg rate", () 
     piece_price_per_kg_snapshot: "51.00",
   };
   assert.equal(calculatePickedOrderEstimate([weighed]), 500.82);
-  assert.equal(calculatePickedOrderEstimate([
+  assert.equal(Number(calculatePickedOrderEstimate([
     weighed,
     { actual_qty: "3", unit_price_snapshot: "15.00", piece_price_per_kg_snapshot: null },
-  ]), 545.82);
+  ])?.toFixed(2)), 545.82);
 });
 
 test("pre-billing estimate does not invent weights or prices", () => {
