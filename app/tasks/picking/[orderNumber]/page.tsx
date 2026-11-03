@@ -19,6 +19,7 @@ import {
 import DeliverySchedule from "../../../../components/DeliverySchedule";
 import ShortageCallReminder from "../../../../components/ShortageCallReminder";
 import { pickingCallShortages } from "../../../../lib/shortageCallReminder";
+import { preserveOrderQuantityDrafts } from "../../../../lib/orderQuantityDrafts";
 import TaskFilePicker from "../../../../components/TaskFilePicker";
 import { prepareOrderPhoto } from "../../../../lib/orderPhotoUpload";
 
@@ -342,7 +343,7 @@ export default function PickingPage() {
   const searchRequestId =
     useRef(0);
 
-  async function loadOrder() {
+  async function loadOrder(preserveDrafts = false) {
     setLoading(true);
     setMessage("");
 
@@ -467,10 +468,16 @@ export default function PickingPage() {
         : String(item.actual_piece_qty);
     });
 
-    setActual(
-      initialActual
+    setActual((current) =>
+      preserveDrafts
+        ? preserveOrderQuantityDrafts(initialActual, current)
+        : initialActual
     );
-    setActualPieces(initialPieceCounts);
+    setActualPieces((current) =>
+      preserveDrafts
+        ? preserveOrderQuantityDrafts(initialPieceCounts, current)
+        : initialPieceCounts
+    );
 
     const { data: existingPhotos, error: photoError } = await supabase
       .from("order_files")
@@ -783,7 +790,8 @@ export default function PickingPage() {
 
     closeAddProduct();
 
-    await loadOrder();
+    await loadOrder(true);
+    setAddingProduct(false);
   }
 
   async function uploadCartPhoto(file: File, index: 0 | 1) {
