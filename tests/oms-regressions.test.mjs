@@ -73,6 +73,24 @@ test("task list prefers picked-line estimate before Billing starts", () => {
   assert.match(page, /order.final_amount !== null/);
 });
 
+test("manager order details can switch pickup and delivery only through manager RPC", () => {
+  const page = readFileSync(new URL("../app/orders/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../sql/manager_change_order_fulfillment.sql", import.meta.url), "utf8");
+  assert.match(page, /manager_change_order_fulfillment/);
+  assert.match(page, /p_fulfillment_method: editedFulfillmentMethod/);
+  assert.match(page, /p_delivery_address:/);
+  assert.match(page, /เปลี่ยนวิธีรับสินค้า/);
+  assert.match(sql, /s\.account_type = 'manager'/);
+  assert.match(sql, /auth\.uid\(\)/);
+  assert.match(sql, /group_root_order_id = v_order\.id/);
+  assert.match(sql, /tc\.claim_status = 'active'/);
+  assert.match(sql, /f\.file_type IN \('delivery_proof'/);
+  assert.match(sql, /WHEN v_member.status = 'ready_for_delivery'[\s\S]*?THEN 'awaiting_payment'/);
+  assert.match(sql, /'awaiting_payment'[\s\S]*'ready_for_delivery'/);
+  assert.match(sql, /manager_changed_fulfillment/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION/);
+});
+
 const day = "2026-10-26";
 const bangkokTime = (hour, minute = 0) =>
   new Date(Date.UTC(2026, 9, 26, hour - 7, minute));
