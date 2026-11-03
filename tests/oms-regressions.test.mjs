@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { groupOrdersForManagement, orderDisplayNumber } from "../lib/groupOrderDisplay.ts";
 import { combinePickedItems } from "../lib/groupedOrderItems.ts";
 import { preserveOrderQuantityDrafts } from "../lib/orderQuantityDrafts.ts";
+import { calculatePickedOrderEstimate } from "../lib/taskPickedEstimate.ts";
 import { compareOrderFiles } from "../lib/orderFileSort.ts";
 import { isFreshPaymentDraft, paymentDraftKey } from "../lib/pendingPaymentDraft.ts";
 import {
@@ -40,6 +41,36 @@ test("stock check and picking retain quantity drafts when staff add a product", 
   assert.match(pick, /await loadOrder\(true\);/);
   assert.match(stock, /await loadOrder\(true\);\s*setAddingProduct\(false\)/);
   assert.match(pick, /await loadOrder\(true\);\s*setAddingProduct\(false\)/);
+});
+
+test("pre-billing estimate uses picked kilograms at the frozen per-kg rate", () => {
+  // Piece orders store 0 per piece and charge from measured actual kilograms.
+  const weighed = {
+    actual_qty: "9.820",
+    unit_snapshot: "ชิ้น",
+    unit_price_snapshot: "0.00",
+    piece_price_per_kg_snapshot: "51.00",
+  };
+  assert.equal(calculatePickedOrderEstimate([weighed]), 500.82);
+  assert.equal(Number(calculatePickedOrderEstimate([
+    weighed,
+    { actual_qty: "3", unit_price_snapshot: "15.00", piece_price_per_kg_snapshot: null },
+  ])?.toFixed(2)), 545.82);
+});
+
+test("pre-billing estimate does not invent weights or prices", () => {
+  assert.equal(calculatePickedOrderEstimate([]), null);
+  assert.equal(calculatePickedOrderEstimate([{ actual_qty: null, unit_price_snapshot: 0, piece_price_per_kg_snapshot: 80 }]), null);
+  assert.equal(calculatePickedOrderEstimate([{ actual_qty: 3, unit_price_snapshot: null }]), null);
+  assert.equal(calculatePickedOrderEstimate([{ actual_qty: 0, unit_price_snapshot: 100 }]), 0);
+  assert.equal(calculatePickedOrderEstimate([{ actual_qty: -1, unit_price_snapshot: 100 }]), null);
+});
+
+test("task list prefers picked-line estimate before Billing starts", () => {
+  const page = readFileSync(new URL("../app/tasks/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /order.status === "awaiting_billing"/);
+  assert.match(page, /calculatePickedOrderEstimate\(orderItems\)/);
+  assert.match(page, /order.final_amount !== null/);
 });
 
 const day = "2026-10-26";
