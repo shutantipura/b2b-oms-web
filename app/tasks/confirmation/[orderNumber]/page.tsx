@@ -19,6 +19,7 @@ import {
 import DeliverySchedule from "../../../../components/DeliverySchedule";
 import ShortageCallReminder from "../../../../components/ShortageCallReminder";
 import { confirmationCallShortages } from "../../../../lib/shortageCallReminder";
+import { preserveOrderQuantityDrafts } from "../../../../lib/orderQuantityDrafts";
 
 type OrderDetails = {
   id: string;
@@ -261,7 +262,7 @@ export default function ConfirmationPage() {
   const searchRequestId =
     useRef(0);
 
-  async function loadOrder() {
+  async function loadOrder(preserveDrafts = false) {
     setLoading(true);
     setMessage("");
 
@@ -380,8 +381,10 @@ export default function ConfirmationPage() {
       }
     );
 
-    setConfirmed(
-      initialConfirmed
+    setConfirmed((current) =>
+      preserveDrafts
+        ? preserveOrderQuantityDrafts(initialConfirmed, current)
+        : initialConfirmed
     );
 
     setLoading(false);
@@ -624,7 +627,8 @@ export default function ConfirmationPage() {
 
     closeAddProduct();
 
-    await loadOrder();
+    await loadOrder(true);
+    setAddingProduct(false);
   }
 
   async function completeConfirmation(bypassCallReminder = false) {

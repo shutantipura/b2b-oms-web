@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { groupOrdersForManagement, orderDisplayNumber } from "../lib/groupOrderDisplay.ts";
 import { combinePickedItems } from "../lib/groupedOrderItems.ts";
+import { preserveOrderQuantityDrafts } from "../lib/orderQuantityDrafts.ts";
 import { compareOrderFiles } from "../lib/orderFileSort.ts";
 import { isFreshPaymentDraft, paymentDraftKey } from "../lib/pendingPaymentDraft.ts";
 import {
@@ -17,6 +18,29 @@ import {
   isLineIdTokenExpired,
   lineApiFetch,
 } from "../lib/lineSession.ts";
+
+test("adding a product preserves unsaved quantities but initializes new rows", () => {
+  const fresh = { existing: "4", cleared: "2", added: "3" };
+  const drafts = { existing: "9.5", cleared: "", removed: "18" };
+  assert.deepEqual(preserveOrderQuantityDrafts(fresh, drafts), {
+    existing: "9.5",
+    cleared: "",
+    added: "3",
+  });
+  assert.deepEqual(preserveOrderQuantityDrafts(fresh, {}), fresh);
+});
+
+test("stock check and picking retain quantity drafts when staff add a product", () => {
+  const stock = readFileSync(new URL("../app/tasks/confirmation/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const pick = readFileSync(new URL("../app/tasks/picking/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  assert.match(stock, /preserveOrderQuantityDrafts\(initialConfirmed, current\)/);
+  assert.match(stock, /await loadOrder\(true\);/);
+  assert.match(pick, /preserveOrderQuantityDrafts\(initialActual, current\)/);
+  assert.match(pick, /preserveOrderQuantityDrafts\(initialPieceCounts, current\)/);
+  assert.match(pick, /await loadOrder\(true\);/);
+  assert.match(stock, /await loadOrder\(true\);\s*setAddingProduct\(false\)/);
+  assert.match(pick, /await loadOrder\(true\);\s*setAddingProduct\(false\)/);
+});
 
 const day = "2026-10-26";
 const bangkokTime = (hour, minute = 0) =>
