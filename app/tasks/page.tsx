@@ -18,6 +18,7 @@ import Link from "next/link";
 
 import { supabase } from "../../lib/supabase";
 import { getOrderDeliveryUrgency, type DeliveryUrgency } from "../../lib/deliveryRules";
+import { calculatePickedOrderEstimate } from "../../lib/taskPickedEstimate";
 
 
 
@@ -403,6 +404,20 @@ async function withEstimatedAmounts(rawOrders: Order[]): Promise<Order[]> {
   return withoutEstimate.map((order) => {
     const orderItems = byOrder.get(order.id) ?? [];
     if (orderItems.length === 0) return order;
+
+    // Once Picking is completed, the measured KG/piece amounts are known.
+    // Prefer the provisional bill at saved order prices instead of the
+    // requested-quantity estimate. Billing still sets the authoritative total.
+    if (order.status === "awaiting_billing") {
+      const pickedEstimate = calculatePickedOrderEstimate(orderItems);
+      if (pickedEstimate !== null) {
+        return {
+          ...order,
+          estimated_amount: pickedEstimate,
+          estimate_uses_current_price: false,
+        };
+      }
+    }
 
     let total = 0;
     let usedCurrentPrice = false;
