@@ -188,6 +188,7 @@ function prettyText(value: string | null) {
     force_completed: "บังคับปิดคำสั่งซื้อ",
     manager_adjusted_final_amount: "ผู้จัดการปรับยอดบิล",
     manager_rescheduled_delivery: "ผู้จัดการเปลี่ยนเวลาจัดส่ง",
+    manager_changed_fulfillment: "ผู้จัดการเปลี่ยนวิธีรับสินค้า",
     cv_card_bill_resolved: "ผู้จัดการเพิ่มบิลพิมพ์ซ้ำและแก้ไขปัญหา CV Card",
     manager_bill_photo_added: "ผู้จัดการเพิ่มหรือเปลี่ยนรูปบิล",
     manager_payment_slip_added: "ผู้จัดการเพิ่มหรือเปลี่ยนรูปสลิป",
@@ -312,6 +313,10 @@ export default function OrderDetailsPage() {
   const [editedDeliverySlot, setEditedDeliverySlot] = useState("");
   const [savingDelivery, setSavingDelivery] = useState(false);
   const [deliveryMessage, setDeliveryMessage] = useState("");
+  const [editedFulfillmentMethod, setEditedFulfillmentMethod] = useState<"delivery" | "pickup">("delivery");
+  const [editedFulfillmentAddress, setEditedFulfillmentAddress] = useState("");
+  const [savingFulfillment, setSavingFulfillment] = useState(false);
+  const [fulfillmentMessage, setFulfillmentMessage] = useState("");
 
 
 
@@ -424,6 +429,9 @@ export default function OrderDetailsPage() {
       setGroupRootNumber(loadedOrder.group_root_order_id===loadedOrder.id ? loadedOrder.order_number : null);
     }
     setEditedFinalAmount(loadedOrder.final_amount === null ? "" : String(loadedOrder.final_amount));
+    setEditedFulfillmentMethod(loadedOrder.fulfillment_method);
+    setEditedFulfillmentAddress(loadedOrder.delivery_address === "รับสินค้าที่สาขา"
+      ? "" : (loadedOrder.delivery_address ?? ""));
     const options = getManagerDeliveryOptions(new Date());
     const selectedDate = options.find((item) => item.date === loadedOrder.delivery_date) ?? options[0];
     setEditedDeliveryDate(selectedDate?.date ?? "");
@@ -1123,6 +1131,48 @@ export default function OrderDetailsPage() {
       await loadOrder();
     }
     setSavingDelivery(false);
+  }
+
+  async function saveFulfillmentMethod() {
+    if (!isManager || !order || ["completed", "cancelled"].includes(order.status)) {
+      setFulfillmentMessage("เปลี่ยนวิธีรับสินค้าได้เฉพาะคำสั่งซื้อที่ยังเปิดอยู่");
+      return;
+    }
+    if (order.group_root_order_id && order.group_root_order_id !== order.id) {
+      setFulfillmentMessage("กรุณาเปลี่ยนวิธีรับสินค้าที่คำสั่งซื้อหลักของกลุ่ม");
+      return;
+    }
+    if (editedFulfillmentMethod === order.fulfillment_method) {
+      setFulfillmentMessage("วิธีรับสินค้ายังไม่เปลี่ยนแปลง");
+      return;
+    }
+    const address = editedFulfillmentAddress.trim();
+    if (editedFulfillmentMethod === "delivery" &&
+        (!address || address === "รับสินค้าที่สาขา")) {
+      setFulfillmentMessage("กรุณากรอกที่อยู่จัดส่งจริงก่อนเปลี่ยนเป็นจัดส่ง");
+      return;
+    }
+    const nextLabel = editedFulfillmentMethod === "pickup" ? "รับที่สาขา" : "จัดส่ง";
+    if (!window.confirm("ยืนยันเปลี่ยนวิธีรับสินค้าเป็น " + nextLabel +
+      "?\nหลังออกบิล ระบบอาจย้ายงานไปยังขั้นตอนจัดส่งหรือชำระเงินตามวิธีใหม่")) return;
+
+    setSavingFulfillment(true);
+    setFulfillmentMessage("");
+    try {
+      const { error } = await supabase.rpc("manager_change_order_fulfillment", {
+        p_order_number: orderNumber,
+        p_fulfillment_method: editedFulfillmentMethod,
+        p_delivery_address: editedFulfillmentMethod === "delivery" ? address : null,
+      });
+      if (error) {
+        setFulfillmentMessage("ไม่สามารถเปลี่ยนวิธีรับสินค้าได้: " + error.message);
+      } else {
+        await loadOrder();
+        setFulfillmentMessage("✓ บันทึกวิธีรับสินค้าใหม่แล้ว");
+      }
+    } finally {
+      setSavingFulfillment(false);
+    }
   }
 
   useEffect(() => {
@@ -2148,6 +2198,58 @@ export default function OrderDetailsPage() {
                     <button type="button" onClick={() => void saveFinalAmount()} disabled={savingAmount}
                       className="rounded-lg bg-[#009F9D] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
                       {savingAmount ? "กำลังบันทึก..." : "บันทึกยอดบิล"}
+                    </button>
+                  </div>
+                </details>
+              )}
+              {order.group_root_order_id && order.group_root_order_id !== order.id ? (
+                <div className="rounded-xl border border-[#DCEAE5] p-3 text-xs text-gray-600">
+                  เปลี่ยนวิธีรับสินค้าของออเดอร์ย่อยได้จาก
+                  {groupRootNumber !== null ? (
+                    <Link href={"/orders/" + groupRootNumber} className="ml-1 font-bold text-[#007F79] underline">
+                      ออเดอร์หลัก #{groupRootNumber}
+                    </Link>
+                  ) : "ออเดอร์หลัก"}
+                </div>
+              ) : (
+                <details className="rounded-xl border border-[#DCEAE5] bg-[#FAFDFB] p-3">
+                  <summary className="cursor-pointer text-sm font-bold text-[#007F79]">เปลี่ยนวิธีรับสินค้า</summary>
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-gray-500">
+                      ปัจจุบัน: {order.fulfillment_method === "pickup" ? "🏬 รับที่สาขา" : "🚚 จัดส่ง"}
+                    </p>
+                    <label className="block text-xs font-semibold" htmlFor="manager-fulfillment-method">
+                      วิธีรับสินค้าใหม่
+                    </label>
+                    <select id="manager-fulfillment-method" value={editedFulfillmentMethod}
+                      onChange={(event) => { setEditedFulfillmentMethod(event.target.value as "delivery" | "pickup"); setFulfillmentMessage(""); }}
+                      className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2 text-sm">
+                      <option value="delivery">🚚 จัดส่งถึงลูกค้า</option>
+                      <option value="pickup">🏬 ลูกค้ารับที่สาขา</option>
+                    </select>
+                    {editedFulfillmentMethod === "delivery" && (
+                      <>
+                        <label className="block text-xs font-semibold" htmlFor="manager-fulfillment-address">
+                          ที่อยู่หรือจุดจัดส่ง
+                        </label>
+                        <textarea id="manager-fulfillment-address" rows={2} maxLength={1000}
+                          value={editedFulfillmentAddress}
+                          onChange={(event) => setEditedFulfillmentAddress(event.target.value)}
+                          placeholder="ระบุที่อยู่จัดส่งหรือ Google Maps"
+                          className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2 text-sm" />
+                      </>
+                    )}
+                    <p className="text-[11px] leading-relaxed text-[#8A6000]">
+                      เปลี่ยนได้ก่อนเริ่มจัดส่งหรือส่งหลักฐานชำระเงิน
+                      หากเปลี่ยนเป็นจัดส่ง ต้องมีที่อยู่จริงและรอบจัดส่งที่เริ่มหลังจากนี้อย่างน้อย 2 ชั่วโมง
+                      (เปลี่ยนเวลาได้ในเมนูข้างล่าง)
+                    </p>
+                    {fulfillmentMessage && <p role="status" className="text-xs">{fulfillmentMessage}</p>}
+                    <button type="button" onClick={() => void saveFulfillmentMethod()}
+                      disabled={savingFulfillment || editedFulfillmentMethod === order.fulfillment_method ||
+                        !["awaiting_confirmation","awaiting_picking","picking","awaiting_billing","ready_for_delivery","awaiting_payment"].includes(order.status)}
+                      className="rounded-lg bg-[#009F9D] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
+                      {savingFulfillment ? "กำลังบันทึก..." : "บันทึกวิธีรับสินค้า"}
                     </button>
                   </div>
                 </details>
