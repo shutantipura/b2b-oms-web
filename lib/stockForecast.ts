@@ -133,7 +133,12 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
       day.totalQty = clampQty(day.knownQty + day.projectedQty);
     }
   }
-  return [...products.values()].sort((a, b) => a.sku.localeCompare(b.sku, "en") || a.unit.localeCompare(b.unit, "th"));
+  // Prioritise the SKUs with the highest forecast for tomorrow; use SKU/unit for stable ties.
+  return [...products.values()].sort((a, b) =>
+    (b.days[1]?.totalQty ?? 0) - (a.days[1]?.totalQty ?? 0) ||
+    a.sku.localeCompare(b.sku, "en") ||
+    a.unit.localeCompare(b.unit, "th")
+  );
 }
 
 function addDays(date: string, count: number) {
