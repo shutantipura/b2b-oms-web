@@ -5,6 +5,7 @@ import { groupOrdersForManagement, orderDisplayNumber } from "../lib/groupOrderD
 import { combinePickedItems } from "../lib/groupedOrderItems.ts";
 import { preserveOrderQuantityDrafts } from "../lib/orderQuantityDrafts.ts";
 import { calculatePickedOrderEstimate } from "../lib/taskPickedEstimate.ts";
+import { formatActiveTaskDuration } from "../lib/taskElapsed.ts";
 import { compareOrderFiles } from "../lib/orderFileSort.ts";
 import { isFreshPaymentDraft, paymentDraftKey } from "../lib/pendingPaymentDraft.ts";
 import {
@@ -19,6 +20,26 @@ import {
   isLineIdTokenExpired,
   lineApiFetch,
 } from "../lib/lineSession.ts";
+
+
+test("active task clocks show persisted time in hours and minutes for all task roles", () => {
+  const tasks = readFileSync(new URL("../app/tasks/page.tsx", import.meta.url), "utf8");
+  assert.match(tasks, /claimed_at/);
+  assert.match(tasks, /function ActiveWorkClock/);
+  assert.match(tasks, /formatActiveTaskDuration\(claimedAt, nowMs\)/);
+  assert.match(tasks, /setInterval\(refresh, 10_000\)/);
+  assert.match(tasks, /visibilitychange/);
+  assert.ok((tasks.match(/<ActiveWorkClock claimedAt=\{claim\.claimed_at\}/g) ?? []).length >= 3);
+
+  const start = "2026-11-04T08:00:30Z";
+  const now = (time) => Date.parse(time);
+  assert.equal(formatActiveTaskDuration(start, now("2026-11-04T08:00:59Z")), "00:00");
+  assert.equal(formatActiveTaskDuration(start, now("2026-11-04T08:01:30Z")), "00:01");
+  assert.equal(formatActiveTaskDuration(start, now("2026-11-04T09:05:30Z")), "01:05");
+  assert.equal(formatActiveTaskDuration(start, now("2026-11-05T09:05:30Z")), "25:05");
+  assert.equal(formatActiveTaskDuration(start, now("2026-11-04T07:59:30Z")), "00:00");
+  assert.equal(formatActiveTaskDuration("not-a-date", Date.now()), null);
+});
 
 test("adding a product preserves unsaved quantities but initializes new rows", () => {
   const fresh = { existing: "4", cleared: "2", added: "3" };
