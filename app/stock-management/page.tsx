@@ -198,7 +198,7 @@ export default function StockManagementPage() {
               <p className="text-xs font-extrabold tracking-wide text-[#008B8B]">ROLLING FORECAST · 3 DAYS</p>
               <h2 className="mt-1 text-2xl font-black text-[#17453F]">พยากรณ์ปริมาณขายล่วงหน้า 3 วัน</h2>
               <p className="mt-2 text-sm leading-6 text-[#648279]">
-                จากรอบการสั่งของลูกค้าและสินค้า · อัปเดตอัตโนมัติทุก 1 นาที
+                ใช้ปริมาณที่มีโอกาสเกิดขึ้นมากที่สุดของลูกค้าแต่ละราย ไม่เฉลี่ยด้วยความน่าจะเป็น · อัปเดตอัตโนมัติทุก 1 นาที
               </p>
               {forecast && (
                 <p className="mt-1 text-xs text-[#77918A]">
@@ -314,7 +314,7 @@ export default function StockManagementPage() {
                 {visibleForecast.length === 0 && <p className="rounded-xl border border-[#DDEAE6] p-6 text-center text-sm text-[#648279]">ยังไม่มีข้อมูลที่ตรงกับตัวกรอง หรือยังมีประวัติไม่พอสำหรับคาดการณ์</p>}
               </div>
               <p className="mt-3 text-xs leading-5 text-[#6E8982]">
-                ตัวเลขใหญ่ = ยอดรวมของ SKU นี้จากลูกค้าทั้งหมด (หน่วยตามที่แสดง) · รับแล้ว = คำสั่งซื้อที่มีอยู่ · คาดเพิ่ม = ความต้องการเพิ่มเติมที่แบบจำลองประเมิน
+                ตัวเลขใหญ่ = ยอดรวมของ SKU นี้จากลูกค้าทั้งหมด (หน่วยตามที่แสดง) · รับแล้ว = คำสั่งซื้อที่มีอยู่ · คาดเพิ่ม = ปริมาณเต็มตามรอบซื้อ เมื่อโอกาสสั่งมากกว่า 50% (มิฉะนั้นเป็น 0)
               </p>
               {forecast.unmeasuredPieceOrders > 0 && (
                 <p className="mt-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
@@ -333,7 +333,7 @@ export default function StockManagementPage() {
           )}
 
           <div className="mt-5 rounded-xl border border-[#F5E4B4] bg-[#FFF9E8] p-4 text-xs leading-6 text-[#806A30]">
-            ระบบใช้ประวัติสูงสุด 90 วัน โดยจำแนกรอบซื้อแต่ละ SKU และรอบสั่งของลูกค้า · เนื้อสดไม่เกิน 2 วันโดยปรับปริมาณตามอัตราใช้เฉลี่ย
+            ระบบใช้ประวัติสูงสุด 90 วัน โดยจำแนกรอบซื้อแต่ละ SKU และรอบสั่งของลูกค้า · ถ้าคาดว่าจะสั่งในวันหนึ่ง จะเริ่มนับรอบซื้อใหม่สำหรับวันถัดไป · เนื้อสดไม่เกิน 2 วันโดยปรับปริมาณตามอัตราใช้เฉลี่ย
             · ลูกค้าที่มีประวัติน้อยยังไม่ควรใช้คาดการณ์นี้สั่งสินค้าโดยตรง
           </div>
         </section>
