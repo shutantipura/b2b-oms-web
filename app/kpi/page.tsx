@@ -150,9 +150,9 @@ function formatPercent(count: number, total: number) {
   return total > 0 ? ((count / total) * 100).toFixed(1) + "%" : "—";
 }
 
-function deliveryDeadlineTimestamp(date: string, slot: string | null): number | null {
+function deliveryWindowStartTimestamp(date: string, slot: string | null): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !slot) return null;
-  const match = slot.match(/([01]\d|2[0-3]):([0-5]\d)\s*$/);
+  const match = slot.match(/([01]?\d|2[0-3]):([0-5]\d)/);
   if (!match) return null;
   const hour = match[1].padStart(2, "0");
   const timestamp = Date.parse(
@@ -469,8 +469,8 @@ export default function KPIPage() {
     return orders
       .filter((order) => order.status !== "cancelled")
       .map((order) => {
-        // Same cutoff as Delivery On Time: the END of the selected slot.
-        const deliveryDeadline = deliveryDeadlineTimestamp(selectedDate, order.delivery_slot);
+        // Picking and billing must finish by the START of the selected delivery window.
+        const preparationDeadline = deliveryWindowStartTimestamp(selectedDate, order.delivery_slot);
 
         const pickingStillOpen = [
           "awaiting_confirmation", "awaiting_picking", "picking",
@@ -484,13 +484,13 @@ export default function KPIPage() {
           ...order,
           pickOnTime: judgeDeadline(
             order.picking_completed_at ?? recorded?.pickingAt,
-            deliveryDeadline,
+            preparationDeadline,
             pickingStillOpen,
             nowMs
           ),
           billOnTime: judgeDeadline(
             order.billing_completed_at ?? recorded?.billingAt,
-            deliveryDeadline,
+            preparationDeadline,
             billingStillOpen,
             nowMs
           ),
@@ -520,13 +520,13 @@ export default function KPIPage() {
       {
         group: "on_times",
         name: "Pick On Time",
-        description: "จัดสินค้าเสร็จไม่เกินเวลาสิ้นสุดรอบจัดส่งที่ลูกค้าเลือก",
+        description: "จัดสินค้าเสร็จไม่เกินเวลาเริ่มรอบจัดส่งที่ลูกค้าเลือก",
         ...picking,
       },
       {
         group: "on_times",
         name: "Bill On Time",
-        description: "ออกบิลเสร็จไม่เกินเวลาสิ้นสุดรอบจัดส่งที่ลูกค้าเลือก",
+        description: "ออกบิลเสร็จไม่เกินเวลาเริ่มรอบจัดส่งที่ลูกค้าเลือก",
         ...billing,
       },
       {
