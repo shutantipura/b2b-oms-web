@@ -1042,6 +1042,28 @@ test("order files follow workflow stage even when manager photos arrive late", (
   ]);
 });
 
+test("switching to no-CV or CV Card Billing retires both preexisting payment QR slots", () => {
+  const sql = readFileSync(new URL("../sql/retire_billing_qr_photos_on_mode_change.sql", import.meta.url), "utf8");
+  const endpoints = [
+    "complete_my_billing_no_cv",
+    "complete_my_billing_no_cv_with_reason",
+    "complete_my_billing_suspended",
+    "complete_my_billing_suspended_with_reason",
+  ];
+  for (const [index, functionName] of endpoints.entries()) {
+    const start = sql.indexOf("CREATE OR REPLACE FUNCTION public." + functionName + "(");
+    assert.ok(start >= 0, "Missing Billing RPC " + functionName);
+    const end = sql.indexOf("CREATE OR REPLACE FUNCTION public.", start + 10);
+    const body = sql.slice(start, end < 0 ? undefined : end);
+    assert.match(body, /update public\.order_files\s+set is_current = false\s+where order_id = v_order\.id\s+and file_type IN \('payment_qr', 'payment_qr_2'\)\s+and is_current = true;/);
+    assert.doesNotMatch(body, /delete from public\.order_files/i);
+    if (index >= 2) {
+      assert.match(body, /v_order\.id, 'payment_qr', v_cv_path/);
+    }
+  }
+  assert.equal((sql.match(/and file_type IN \('payment_qr', 'payment_qr_2'\)/g) ?? []).length, 4);
+});
+
 test("optional second photo only appears after first and both photo previews are available", () => {
   const picker = readFileSync(new URL("../components/TaskFilePicker.tsx", import.meta.url), "utf8");
   const picking = readFileSync(new URL("../app/tasks/picking/[orderNumber]/page.tsx", import.meta.url), "utf8");
