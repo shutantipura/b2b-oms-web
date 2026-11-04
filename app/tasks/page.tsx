@@ -18,6 +18,7 @@ import Link from "next/link";
 
 import { supabase } from "../../lib/supabase";
 import { getOrderDeliveryUrgency, type DeliveryUrgency } from "../../lib/deliveryRules";
+import { formatActiveTaskDuration } from "../../lib/taskElapsed";
 import { calculatePickedOrderEstimate } from "../../lib/taskPickedEstimate";
 
 
@@ -62,6 +63,8 @@ type ActiveClaim = {
   staff_id: string;
 
   staff_name: string;
+
+  claimed_at: string;
 
 };
 
@@ -453,6 +456,44 @@ async function withEstimatedAmounts(rawOrders: Order[]): Promise<Order[]> {
       estimate_uses_current_price: usedCurrentPrice,
     };
   });
+}
+
+
+function ActiveWorkClock({ claimedAt }: { claimedAt: string }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const refresh = () => setNowMs(Date.now());
+    refresh();
+    // Use the persisted task claim timestamp; this display never resets on refresh.
+    const timer = window.setInterval(refresh, 10_000);
+    window.addEventListener("focus", refresh);
+    const onVisibilityChange = () => { if (!document.hidden) refresh(); };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [claimedAt]);
+
+  const elapsed = formatActiveTaskDuration(claimedAt, nowMs);
+  if (elapsed === null) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-lg border border-[#B8EAE5] bg-[#E7FAF8] px-2 py-1 text-[11px] font-bold text-[#007F79]"
+      title="เวลาทำงานที่ผ่านไป (ชั่วโมง:นาที)"
+      aria-label={`ทำงานมาแล้ว ${Number(elapsed.split(":")[0])} ชั่วโมง ${Number(elapsed.split(":")[1])} นาที`}
+      aria-live="off"
+    >
+      <svg aria-hidden="true" className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24"
+        fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </svg>
+      ทำงานแล้ว {elapsed}
+    </span>
+  );
 }
 
 export default function TasksPage() {
@@ -847,7 +888,9 @@ export default function TasksPage() {
 
           stage,
 
-          staff_id
+          staff_id,
+
+          claimed_at
 
         `)
 
@@ -1040,6 +1083,10 @@ export default function TasksPage() {
           staff_id:
 
             claim.staff_id,
+
+          claimed_at:
+
+            claim.claimed_at,
 
 
 
@@ -1679,6 +1726,7 @@ export default function TasksPage() {
                                     <span className="text-[11px] font-semibold text-[#647D75]">
                                       กำลังดำเนินการ: {claim.staff_name}
                                     </span>
+                                    <ActiveWorkClock claimedAt={claim.claimed_at} />
                                     <button
                                       type="button"
                                       onClick={() => void takeOverTask(order.order_number, group.stage, claim.staff_id, claim.staff_name)}
@@ -1693,6 +1741,7 @@ export default function TasksPage() {
                                     <div className="mt-1 break-words">
                                       {claim ? `ผู้รับงาน: ${claim.staff_name}` : "ยังไม่มีผู้รับงาน"}
                                     </div>
+                                    {claim && <ActiveWorkClock claimedAt={claim.claimed_at} />}
                                   </div>
                                 ) : isAwaitingPayment ? (
                                   <Link
@@ -1713,6 +1762,7 @@ export default function TasksPage() {
                                 ) : isMine ? (
                                   <div className="flex flex-col items-end gap-1">
                                     <span className="text-[11px] font-semibold text-[#52786F]">คุณรับงานแล้ว</span>
+                                    <ActiveWorkClock claimedAt={claim.claimed_at} />
                                     <Link
                                       href={taskLink(group.stage, order.order_number)}
                                       className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[#00BCB4] px-3 py-2 text-sm font-bold text-[#173F3C]"
@@ -1724,6 +1774,7 @@ export default function TasksPage() {
                                   <div className="max-w-24 text-right text-[11px] leading-snug text-[#647D75]">
                                     <div className="font-bold">กำลังดำเนินการ</div>
                                     <div className="mt-1 break-words">{claim.staff_name}</div>
+                                    <ActiveWorkClock claimedAt={claim.claimed_at} />
                                   </div>
                                 )}
                               </div>
