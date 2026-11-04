@@ -123,8 +123,6 @@ function formatBaht(value: number | null | undefined) {
 }
 
 const BANGKOK_OFFSET = "+07:00";
-const PICK_LEAD_MINUTES = 30;
-const BILL_LEAD_MINUTES = 30;
 
 function getBangkokToday() {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -152,9 +150,9 @@ function formatPercent(count: number, total: number) {
   return total > 0 ? ((count / total) * 100).toFixed(1) + "%" : "—";
 }
 
-function deliveryStartTimestamp(date: string, slot: string | null): number | null {
+function deliveryDeadlineTimestamp(date: string, slot: string | null): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !slot) return null;
-  const match = slot.match(/([01]?\d|2[0-3]):([0-5]\d)/);
+  const match = slot.match(/([01]\d|2[0-3]):([0-5]\d)\s*$/);
   if (!match) return null;
   const hour = match[1].padStart(2, "0");
   const timestamp = Date.parse(
@@ -471,13 +469,8 @@ export default function KPIPage() {
     return orders
       .filter((order) => order.status !== "cancelled")
       .map((order) => {
-        const deliveryStart = deliveryStartTimestamp(selectedDate, order.delivery_slot);
-        const pickDeadline = deliveryStart === null
-          ? null
-          : deliveryStart - PICK_LEAD_MINUTES * 60_000;
-        const billDeadline = deliveryStart === null
-          ? null
-          : deliveryStart - BILL_LEAD_MINUTES * 60_000;
+        // Same cutoff as Delivery On Time: the END of the selected slot.
+        const deliveryDeadline = deliveryDeadlineTimestamp(selectedDate, order.delivery_slot);
 
         const pickingStillOpen = [
           "awaiting_confirmation", "awaiting_picking", "picking",
@@ -491,13 +484,13 @@ export default function KPIPage() {
           ...order,
           pickOnTime: judgeDeadline(
             order.picking_completed_at ?? recorded?.pickingAt,
-            pickDeadline,
+            deliveryDeadline,
             pickingStillOpen,
             nowMs
           ),
           billOnTime: judgeDeadline(
             order.billing_completed_at ?? recorded?.billingAt,
-            billDeadline,
+            deliveryDeadline,
             billingStillOpen,
             nowMs
           ),
@@ -527,13 +520,13 @@ export default function KPIPage() {
       {
         group: "on_times",
         name: "Pick On Time",
-        description: "จัดสินค้าเสร็จก่อนเริ่มรอบจัดส่งอย่างน้อย 30 นาที",
+        description: "จัดสินค้าเสร็จไม่เกินเวลาสิ้นสุดรอบจัดส่งที่ลูกค้าเลือก",
         ...picking,
       },
       {
         group: "on_times",
         name: "Bill On Time",
-        description: "ออกบิลเสร็จก่อนเริ่มรอบจัดส่งอย่างน้อย 30 นาที",
+        description: "ออกบิลเสร็จไม่เกินเวลาสิ้นสุดรอบจัดส่งที่ลูกค้าเลือก",
         ...billing,
       },
       {
