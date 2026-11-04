@@ -38,6 +38,7 @@ type DbCustomer = {
   customer_code: string | null;
   customer_name: string | null;
   is_test_customer: boolean | null;
+  is_active: boolean | null;
 };
 
 function adminClient() {
@@ -143,10 +144,11 @@ async function customersById(admin: SupabaseClient, ids: string[]) {
   for (const chunk of batch(ids)) {
     const { data, error } = await admin
       .from("customers")
-      .select("id, customer_code, customer_name, is_test_customer")
+      .select("id, customer_code, customer_name, is_test_customer, is_active")
       .in("id", chunk);
     if (error) throw error;
     for (const customer of (data ?? []) as DbCustomer[]) {
+      if (customer.is_active === false) continue;
       result.push({
         id: customer.id,
         code: customer.customer_code ?? "",
