@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildStockForecast, isFreshMeat } from "../lib/stockForecast.ts";
+import { aggregateForecastByProduct, buildStockForecast, isFreshMeat } from "../lib/stockForecast.ts";
 
 const now = new Date("2026-11-04T07:00:00Z");
 const customer = { id: "c1", code: "0000000001", name: "Restaurant A", isTest: false };
@@ -85,4 +85,47 @@ test("unmeasured piece-priced-by-weight orders are flagged rather than counted a
   const result = buildStockForecast(orders, items, [customer], new Set(), now);
   assert.equal(result.unmeasuredPieceOrders, 1);
   assert.equal(result.rows.length, 0);
+});
+
+test("product forecast sums all customers into the same SKU for each of three days", () => {
+  const dates = ["2026-11-04", "2026-11-05", "2026-11-06"];
+  const makeForecastRow = (id, name, quantities) => ({
+    customerId: id, customerCode: id, customerName: name,
+    sku: "051262358", productName: "หมูสด", unit: "กก.", freshMeat: true,
+    confidence: "medium", days: quantities.map(([knownQty, projectedQty], index) => ({
+      date: dates[index], knownQty, projectedQty, totalQty: knownQty + projectedQty,
+    })),
+  });
+  const result = aggregateForecastByProduct([
+    makeForecastRow("c1", "ร้าน ก", [[10, 1.5], [0, 2], [4, 0]]),
+    makeForecastRow("c2", "ร้าน ข", [[3.25, 2.5], [2, 1.5], [0, 3]]),
+  ], dates);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].customerCount, 2);
+  assert.equal(result[0].freshMeat, true);
+  assert.deepEqual(result[0].days.map((day) => [day.knownQty, day.projectedQty, day.totalQty]), [
+    [13.25, 4, 17.25], [2, 3.5, 5.5], [4, 3, 7],
+  ]);
+  assert.equal(result[0].customers.length, 2);
+});
+
+test("SKU totals never combine incompatible units or mismatched dates", () => {
+  const dates = ["2026-11-04", "2026-11-05", "2026-11-06"];
+  const base = {
+    customerId: "c1", customerCode: "1", customerName: "Restaurant A",
+    sku: "123456789", productName: "ไก่", freshMeat: false, confidence: "low",
+  };
+  const result = aggregateForecastByProduct([
+    { ...base, unit: "กก.", days: [{ date: dates[0], knownQty: 0, projectedQty: 1.235, totalQty: 1.235 }] },
+    { ...base, unit: "ชิ้น", days: [{ date: dates[1], knownQty: 2, projectedQty: 0, totalQty: 2 }] },
+    { ...base, customerId: "c2", unit: "กก.", days: [{ date: dates[0], knownQty: 0, projectedQty: 0.125, totalQty: 0.125 }] },
+  ], dates);
+  assert.equal(result.length, 2);
+  const kilos = result.find((row) => row.unit === "กก.");
+  const pieces = result.find((row) => row.unit === "ชิ้น");
+  assert.equal(kilos.customerCount, 2);
+  assert.equal(kilos.days[0].totalQty, 1.36);
+  assert.equal(kilos.days[1].totalQty, 0);
+  assert.equal(pieces.days[0].totalQty, 0);
+  assert.equal(pieces.days[1].totalQty, 2);
 });
