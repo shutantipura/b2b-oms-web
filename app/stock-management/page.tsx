@@ -5,7 +5,7 @@ import Link from "next/link";
 import LotusLoading from "@/components/LotusLoading";
 import { supabase } from "@/lib/supabase";
 import { stockReportDates } from "@/lib/stockSalesReport";
-import type { StockForecast } from "@/lib/stockForecast";
+import { aggregateForecastByProduct, type StockForecast } from "@/lib/stockForecast";
 
 type Access = "loading" | "manager" | "denied" | "signed-out";
 
@@ -29,7 +29,7 @@ export default function StockManagementPage() {
   const [forecastLoading, setForecastLoading] = useState(false);
   const [forecastError, setForecastError] = useState("");
   const [forecastDownloading, setForecastDownloading] = useState(false);
-  const [customerSearch, setCustomerSearch] = useState("");
+  const [productSearch, setProductSearch] = useState("");
   const [meatOnly, setMeatOnly] = useState(false);
 
   useEffect(() => {
@@ -83,14 +83,17 @@ export default function StockManagementPage() {
     return () => { window.clearTimeout(initial); window.clearInterval(timer); };
   }, [access, refreshForecast]);
 
+  const productForecast = useMemo(() =>
+    forecast ? aggregateForecastByProduct(forecast.rows, forecast.dates) : [], [forecast]);
+
   const visibleForecast = useMemo(() => {
-    const filter = customerSearch.trim().toLocaleLowerCase();
-    return (forecast?.rows ?? []).filter((row) =>
+    const filter = productSearch.trim().toLocaleLowerCase();
+    return productForecast.filter((row) =>
       (!meatOnly || row.freshMeat) &&
-      (!filter || [row.customerName, row.customerCode, row.sku, row.productName]
+      (!filter || [row.sku, row.productName, row.unit]
         .some((part) => part.toLocaleLowerCase().includes(filter)))
     );
-  }, [forecast, customerSearch, meatOnly]);
+  }, [productForecast, productSearch, meatOnly]);
 
   async function downloadForecast() {
     if (access !== "manager" || forecastDownloading) return;
@@ -211,7 +214,7 @@ export default function StockManagementPage() {
           {forecast && (
             <div className="mt-5 grid grid-cols-3 gap-2">
               {forecast.dates.map((date, index) => {
-                const kilos = forecast.rows
+                const kilos = productForecast
                   .filter((row) => row.unit === "กก." && row.freshMeat)
                   .reduce((sum, row) => sum + row.days[index].totalQty, 0);
                 return (
@@ -227,13 +230,13 @@ export default function StockManagementPage() {
           )}
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <label htmlFor="stock-forecast-search" className="sr-only">ค้นหาลูกค้าหรือ SKU</label>
+            <label htmlFor="stock-forecast-search" className="sr-only">ค้นหาสินค้าหรือ SKU</label>
             <input
               id="stock-forecast-search"
               type="search"
-              value={customerSearch}
-              onChange={(event) => setCustomerSearch(event.target.value)}
-              placeholder="ค้นหาลูกค้า รหัสสินค้า หรือชื่อสินค้า"
+              value={productSearch}
+              onChange={(event) => setProductSearch(event.target.value)}
+              placeholder="ค้นหารหัสสินค้า หรือชื่อสินค้า"
               className="min-h-12 min-w-[220px] flex-1 rounded-xl border border-[#CDE5DE] bg-white px-4 text-sm text-[#17453F] outline-none focus:border-[#02B0AF]"
             />
             <label className="flex min-h-12 items-center gap-2 rounded-xl border border-[#CDE5DE] px-3 text-sm font-bold text-[#356C64]">
@@ -255,52 +258,63 @@ export default function StockManagementPage() {
 
           {forecast && (
             <>
-              <div className="mt-4 overflow-x-auto rounded-xl border border-[#DDEAE6]">
-                <table className="w-full min-w-[830px] border-collapse text-left text-sm">
-                  <thead className="bg-[#EAF8F5] text-[#205A51]">
-                    <tr>
-                      <th scope="col" className="px-3 py-3 font-bold">ลูกค้า / SKU</th>
-                      <th scope="col" className="px-3 py-3 font-bold">รอบ / ความมั่นใจ</th>
-                      {forecast.dates.map((date, index) => (
-                        <th scope="col" key={date} className="px-3 py-3 text-right font-bold">
-                          {["วันนี้", "พรุ่งนี้", "มะรืน"][index]}<br />
-                          <span className="text-[11px] font-medium">{date}</span>
-                        </th>
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-lg font-black text-[#17453F]">ยอดคาดการณ์รวมตามสินค้า (ทุกลูกค้า)</h3>
+                <span className="rounded-full bg-[#EAF8F5] px-3 py-1 text-xs font-extrabold text-[#008B8B]">
+                  {visibleForecast.length} SKU / หน่วย
+                </span>
+              </div>
+              <div className="mt-3 space-y-3">
+                {visibleForecast.map((product) => (
+                  <article key={`${product.sku}:${product.unit}`} className="overflow-hidden rounded-2xl border border-[#CEE7E0] bg-white shadow-[0_2px_8px_rgba(18,96,89,0.04)]">
+                    <div className="border-b border-[#E0EEEA] bg-[#F4FAF8] p-3 sm:p-4">
+                      <h4 className="text-base font-black text-[#17453F] sm:text-lg">{product.productName}</h4>
+                      <p className="mt-1 text-xs font-bold text-[#008B8B]">SKU {product.sku} · {product.unit} · {product.customerCount} ลูกค้า</p>
+                      {product.freshMeat && <p className="mt-1 text-[11px] font-semibold text-[#A46B00]">เนื้อสด: รอบคาดการณ์ไม่เกิน 2 วัน</p>}
+                    </div>
+                    <div className="grid grid-cols-3 divide-x divide-[#E0EEEA]" aria-label={`ปริมาณคาดการณ์ ${product.productName}`}>
+                      {product.days.map((day, index) => (
+                        <div key={day.date} className="min-w-0 px-1.5 py-3 text-center sm:px-4">
+                          <p className="text-[11px] font-extrabold text-[#436F66] sm:text-sm">{["วันนี้", "พรุ่งนี้", "มะรืน"][index]}</p>
+                          <p className="mt-0.5 text-[10px] text-[#77918A]">{day.date.slice(5)}</p>
+                          <p className="mt-2 break-words text-[clamp(1rem,4.2vw,1.5rem)] font-black tabular-nums text-[#008B8B]">{qty(day.totalQty)}</p>
+                          <div className="mt-2 space-y-0.5 text-[10px] leading-4 text-[#648279] sm:text-xs">
+                            <p>รับแล้ว {qty(day.knownQty)}</p>
+                            <p>คาดเพิ่ม {qty(day.projectedQty)}</p>
+                          </div>
+                        </div>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E4EFEC]">
-                    {visibleForecast.map((row) => (
-                      <tr key={`${row.customerId}:${row.sku}:${row.unit}`} className="align-top hover:bg-[#FAFDFC]">
-                        <td className="px-3 py-3">
-                          <p className="font-extrabold text-[#17453F]">{row.customerName}</p>
-                          <p className="mt-1 font-semibold text-[#008B8B]">{row.sku}</p>
-                          <p className="mt-1 text-xs text-[#648279]">{row.productName} · {row.unit}</p>
-                        </td>
-                        <td className="px-3 py-3">
-                          <p className="whitespace-nowrap text-xs font-semibold text-[#406E65]">
-                            {row.effectiveCadenceDays !== null ? `ทุก ${qty(row.effectiveCadenceDays)} วัน` : "ยังไม่มีรอบที่เชื่อถือได้"}
-                          </p>
-                          {row.freshMeat && <p className="mt-1 text-[11px] font-bold text-[#A46B00]">เนื้อสด ≤ 2 วัน</p>}
-                          <span className={`mt-2 inline-block rounded-full px-2 py-1 text-[11px] font-bold ${CONFIDENCE[row.confidence].className}`}>
-                            {CONFIDENCE[row.confidence].label}
-                          </span>
-                        </td>
-                        {row.days.map((day) => (
-                          <td key={day.date} className="px-3 py-3 text-right">
-                            <p className="text-base font-black text-[#087E7D]">{qty(day.totalQty)}</p>
-                            <p className="mt-1 whitespace-nowrap text-[11px] text-[#79928B]">รับแล้ว {qty(day.knownQty)}</p>
-                            <p className="whitespace-nowrap text-[11px] text-[#79928B]">คาดเพิ่ม {qty(day.projectedQty)}</p>
-                          </td>
+                    </div>
+                    <details className="group border-t border-[#E0EEEA]">
+                      <summary className="cursor-pointer px-4 py-3 text-sm font-extrabold text-[#008B8B] marker:text-[#008B8B]">
+                        ดูยอดแยกรายลูกค้า ({product.customerCount})
+                      </summary>
+                      <div className="space-y-2 border-t border-[#E0EEEA] bg-[#FCFEFD] p-3">
+                        {product.customers.map((customer) => (
+                          <div key={customer.customerId} className="rounded-xl border border-[#E1EEEA] bg-white p-3">
+                            <p className="text-sm font-bold text-[#17453F]">{customer.customerName}</p>
+                            <p className="mt-0.5 text-[11px] text-[#648279]">
+                              {customer.customerCode} · {customer.effectiveCadenceDays !== null ? `ทุก ${qty(customer.effectiveCadenceDays)} วัน` : "ยังไม่ทราบรอบ"}
+                              {" · "}<span className={CONFIDENCE[customer.confidence].className}>{CONFIDENCE[customer.confidence].label}</span>
+                            </p>
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                              {customer.days.map((day, index) => (
+                                <div key={day.date} className="rounded-lg bg-[#F1F9F7] p-2">
+                                  <p className="text-[10px] text-[#648279]">{["วันนี้", "พรุ่งนี้", "มะรืน"][index]}</p>
+                                  <p className="mt-0.5 break-words text-sm font-black tabular-nums text-[#087E7D]">{qty(day.totalQty)}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {visibleForecast.length === 0 && <p className="p-6 text-center text-sm text-[#648279]">ยังไม่มีข้อมูลที่ตรงกับตัวกรอง หรือยังมีประวัติไม่พอสำหรับคาดการณ์</p>}
+                      </div>
+                    </details>
+                  </article>
+                ))}
+                {visibleForecast.length === 0 && <p className="rounded-xl border border-[#DDEAE6] p-6 text-center text-sm text-[#648279]">ยังไม่มีข้อมูลที่ตรงกับตัวกรอง หรือยังมีประวัติไม่พอสำหรับคาดการณ์</p>}
               </div>
               <p className="mt-3 text-xs leading-5 text-[#6E8982]">
-                {visibleForecast.length} รายการ · รับแล้ว = คำสั่งซื้อที่มีอยู่ · คาดเพิ่ม = ความต้องการเพิ่มเติมที่แบบจำลองประเมิน
+                ตัวเลขใหญ่ = ยอดรวมของ SKU นี้จากลูกค้าทั้งหมด (หน่วยตามที่แสดง) · รับแล้ว = คำสั่งซื้อที่มีอยู่ · คาดเพิ่ม = ความต้องการเพิ่มเติมที่แบบจำลองประเมิน
               </p>
               {forecast.unmeasuredPieceOrders > 0 && (
                 <p className="mt-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">

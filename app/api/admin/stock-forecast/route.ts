@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import {
+  aggregateForecastByProduct,
   buildStockForecast,
   FORECAST_HISTORY_DAYS,
   type ForecastCustomerInput,
@@ -202,6 +203,34 @@ async function loadForecast(admin: SupabaseClient) {
 }
 
 function excelResponse(forecast: StockForecast) {
+  const products = aggregateForecastByProduct(forecast.rows, forecast.dates);
+  const summaryHeaders = [
+    "SKU", "ชื่อสินค้า", "หน่วย", "จำนวนลูกค้า", "เนื้อสด",
+    ...forecast.dates.flatMap((date) => [`${date} รับออเดอร์แล้ว`, `${date} คาดการณ์เพิ่ม`, `${date} รวม`]),
+    "รวม 3 วัน",
+  ];
+  const summaryRows: (number | string)[][] = [
+    ["Lotus’s B2B · ยอดคาดการณ์รวมตามสินค้า (ทุกลูกค้า)"],
+    [`อัปเดต ${forecast.asOf} · หน่วยแยก กก./ชิ้น ไม่ปะปน · ดูรายละเอียดลูกค้าในแผ่นงานถัดไป`],
+    [],
+    summaryHeaders,
+    ...products.map((product) => [
+      product.sku, product.productName, product.unit, product.customerCount, product.freshMeat ? "ใช่" : "ไม่ใช่",
+      ...product.days.flatMap((day) => [day.knownQty, day.projectedQty, day.totalQty]),
+      Math.round(product.days.reduce((sum, day) => sum + day.totalQty, 0) * 1000) / 1000,
+    ]),
+  ];
+  const summary = XLSX.utils.aoa_to_sheet(summaryRows);
+  summary["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: summaryHeaders.length - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: summaryHeaders.length - 1 } },
+  ];
+  summary["!cols"] = [
+    { wch: 17 }, { wch: 48 }, { wch: 13 }, { wch: 17 }, { wch: 12 },
+    ...forecast.dates.flatMap(() => [{ wch: 22 }, { wch: 22 }, { wch: 17 }]),
+    { wch: 17 },
+  ];
+
   const headers = [
     "รหัสลูกค้า", "ชื่อลูกค้า", "SKU", "ชื่อสินค้า", "หน่วย",
     "เนื้อสด", "รอบสั่งลูกค้า (วัน)", "รอบซื้อ SKU (วัน)", "รอบคาดการณ์ (วัน)", "ความเชื่อมั่น",
@@ -230,7 +259,8 @@ function excelResponse(forecast: StockForecast) {
     ...forecast.dates.flatMap(() => [{ wch: 20 }, { wch: 20 }, { wch: 17 }]),
   ];
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, "คาดการณ์ 3 วัน");
+  XLSX.utils.book_append_sheet(workbook, summary, "รวมตามสินค้า");
+  XLSX.utils.book_append_sheet(workbook, sheet, "รายละเอียดรายลูกค้า");
   const bytes = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" });
   return new NextResponse(new Uint8Array(bytes), {
     status: 200,

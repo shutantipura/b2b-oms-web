@@ -76,6 +76,55 @@ export type StockForecast = {
   rows: ForecastRow[];
 };
 
+export type ProductForecastRow = {
+  sku: string;
+  productName: string;
+  unit: string;
+  freshMeat: boolean;
+  customerCount: number;
+  customers: ForecastRow[];
+  days: ForecastDay[];
+};
+
+/** The stock order quantity is the sum across customers, keeping each unit separate. */
+export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[]): ProductForecastRow[] {
+  const products = new Map<string, ProductForecastRow>();
+  for (const row of rows) {
+    const key = JSON.stringify([row.sku, row.unit]);
+    let product = products.get(key);
+    if (!product) {
+      product = {
+        sku: row.sku,
+        productName: row.productName,
+        unit: row.unit,
+        freshMeat: row.freshMeat,
+        customerCount: 0,
+        customers: [],
+        days: dates.map((date) => ({ date, knownQty: 0, projectedQty: 0, totalQty: 0 })),
+      };
+      products.set(key, product);
+    }
+    product.customers.push(row);
+    product.freshMeat ||= row.freshMeat;
+    for (const day of row.days) {
+      const aggregateDay = product.days.find((candidate) => candidate.date === day.date);
+      if (!aggregateDay) continue;
+      aggregateDay.knownQty += day.knownQty;
+      aggregateDay.projectedQty += day.projectedQty;
+    }
+  }
+  for (const product of products.values()) {
+    product.customerCount = new Set(product.customers.map((row) => row.customerId)).size;
+    product.customers.sort((a, b) => a.customerName.localeCompare(b.customerName, "th") || a.customerCode.localeCompare(b.customerCode));
+    for (const day of product.days) {
+      day.knownQty = clampQty(day.knownQty);
+      day.projectedQty = clampQty(day.projectedQty);
+      day.totalQty = clampQty(day.knownQty + day.projectedQty);
+    }
+  }
+  return [...products.values()].sort((a, b) => a.sku.localeCompare(b.sku, "en") || a.unit.localeCompare(b.unit, "th"));
+}
+
 function addDays(date: string, count: number) {
   return new Date(Date.parse(`${date}T00:00:00Z`) + count * 86_400_000).toISOString().slice(0, 10);
 }
