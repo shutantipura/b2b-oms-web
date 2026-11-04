@@ -834,6 +834,40 @@ test("managers can retrospectively add up to two bill photos without changing or
   assert.doesNotMatch(sql, /SET status\s*=/i);
 });
 
+test("manager can retrospectively replace either payment QR image without changing order state", () => {
+  const detail = readFileSync(new URL("../app/orders/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const payment = readFileSync(new URL("../app/orders/[orderNumber]/payment/page.tsx", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../sql/manager_retrospective_payment_qr_photos.sql", import.meta.url), "utf8");
+  assert.match(detail, /manager_upload_order_payment_qr_photo/);
+  assert.match(detail, /uploadManagerQrPhoto\(chosen, slot\)/);
+  assert.match(detail, /\["payment_qr", "payment_qr_2"\] as const/);
+  assert.match(detail, /เพิ่มหรือเปลี่ยนรูป QR ชำระเงิน \(Manager\)/);
+  assert.match(detail, /slot === "payment_qr" \|\| files\.some/);
+  assert.match(detail, /prepareOrderPhoto\(file, slot\)/);
+  assert.match(detail, /\.remove\(\[storagePath\]\)/);
+  assert.match(detail, /manager_payment_qr_photo_added/);
+  assert.match(payment, /\.eq\("is_current", true\)/);
+  assert.match(payment, /"payment_qr_2"/);
+
+  assert.match(sql, /public\.manager_upload_order_payment_qr_photo/);
+  assert.match(sql, /account_type = 'manager'/);
+  assert.match(sql, /p_file_type NOT IN \('payment_qr','payment_qr_2'\)/);
+  assert.match(sql, /order_number = p_order_number FOR UPDATE/);
+  assert.match(sql, /v_order\.final_amount IS NULL/);
+  assert.match(sql, /group_root_order_id <> v_order\.id/);
+  assert.match(sql, /'manager_payment_qr_photo_added'/);
+  assert.match(sql, /previous_file_id/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.manager_upload_order_payment_qr_photo/);
+  assert.match(sql, /'\/payment_qr\/manager\/%'/);
+  assert.match(sql, /'\/payment_qr_2\/manager\/%'/);
+  assert.match(sql, /'\/bill\/manager\/%'/);
+  assert.match(sql, /'\/payment_slip\/manager\/%'/);
+  assert.match(sql, /f\.created_at > now\(\)-interval '14 days'/);
+  assert.doesNotMatch(sql, /UPDATE public\.orders/i);
+  assert.doesNotMatch(sql, /SET final_amount\s*=/i);
+  assert.doesNotMatch(sql, /SET status\s*=/i);
+});
+
 test("optional staff payment slip and retrospective manager slip keep payment state unchanged", () => {
   const staff = readFileSync(new URL("../app/orders/[orderNumber]/payment/page.tsx", import.meta.url), "utf8");
   const detail = readFileSync(new URL("../app/orders/[orderNumber]/page.tsx", import.meta.url), "utf8");

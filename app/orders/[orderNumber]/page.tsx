@@ -191,6 +191,7 @@ function prettyText(value: string | null) {
     manager_changed_fulfillment: "ผู้จัดการเปลี่ยนวิธีรับสินค้า",
     cv_card_bill_resolved: "ผู้จัดการเพิ่มบิลพิมพ์ซ้ำและแก้ไขปัญหา CV Card",
     manager_bill_photo_added: "ผู้จัดการเพิ่มหรือเปลี่ยนรูปบิล",
+    manager_payment_qr_photo_added: "ผู้จัดการเพิ่มหรือเปลี่ยนรูป QR ชำระเงิน",
     manager_payment_slip_added: "ผู้จัดการเพิ่มหรือเปลี่ยนรูปสลิป",
     staff_secondary_payment_slip_added: "พนักงานเพิ่มสลิปรูปที่ 2",
   };
@@ -303,6 +304,8 @@ export default function OrderDetailsPage() {
   const [isManager, setIsManager] = useState(false);
   const [uploadingManagerBill, setUploadingManagerBill] = useState<"bill" | "bill_2" | null>(null);
   const [managerBillMessage, setManagerBillMessage] = useState("");
+  const [uploadingManagerQr, setUploadingManagerQr] = useState<"payment_qr" | "payment_qr_2" | null>(null);
+  const [managerQrMessage, setManagerQrMessage] = useState("");
   const [uploadingManagerSlip, setUploadingManagerSlip] = useState<"payment_slip" | "payment_slip_2" | null>(null);
   const [managerSlipMessage, setManagerSlipMessage] = useState("");
   const [editedFinalAmount, setEditedFinalAmount] = useState("");
@@ -1016,6 +1019,66 @@ export default function OrderDetailsPage() {
       setManagerBillMessage(error instanceof Error ? error.message : "ไม่สามารถบันทึกรูปบิลได้");
     } finally {
       setUploadingManagerBill(null);
+    }
+  }
+
+
+  // Manager can add or replace the payment QR images after billing, including on completed orders.
+  // This does not change financials, workflow status, or existing task ownership.
+  async function uploadManagerQrPhoto(file: File, slot: "payment_qr" | "payment_qr_2") {
+    if (!isManager || !order || order.final_amount === null ||
+        (order.group_root_order_id && order.group_root_order_id !== order.id)) {
+      setManagerQrMessage("เฉพาะ Manager เท่านั้นที่เพิ่มหรือเปลี่ยนรูป QR หลังออกบิลได้");
+      return;
+    }
+    if (uploadingManagerQr) return;
+    if (!file.name.trim() || file.name.length > 255 || file.size < 1 || file.size > 15 * 1024 * 1024) {
+      setManagerQrMessage("กรุณาเลือกรูป QR ขนาดไม่เกิน 15 MB");
+      return;
+    }
+    const existing = files.find((photo) => photo.file_type === slot && photo.is_current);
+    if (existing && !window.confirm(`ยืนยันเปลี่ยน${slot === "payment_qr" ? "รูป QR ที่ 1" : "รูป QR ที่ 2"} สำหรับคำสั่งซื้อ #${order.order_number}?`)) return;
+
+    setUploadingManagerQr(slot);
+    setManagerQrMessage("");
+    let storagePath: string | null = null;
+    try {
+      const optimized = await prepareOrderPhoto(file, slot);
+      const mime = optimized.type.toLowerCase() === "image/jpg" ? "image/jpeg" : optimized.type.toLowerCase();
+      const extensions: Record<string, string> = {
+        "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+        "image/heic": "heic", "image/heif": "heif", "image/avif": "avif",
+      };
+      const ext = extensions[mime];
+      if (!ext || !optimized.size || optimized.size > 15 * 1024 * 1024) {
+        throw new Error("รองรับเฉพาะรูป QR JPG, PNG, WEBP หรือ HEIC ขนาดไม่เกิน 15 MB");
+      }
+      storagePath = `orders/${order.order_number}/${slot}/manager/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("order-files")
+        .upload(storagePath, optimized, { upsert: false, contentType: mime });
+      if (uploadError) throw new Error("อัปโหลดรูป QR ไม่สำเร็จ: " + uploadError.message);
+
+      const { error: registerError } = await supabase.rpc("manager_upload_order_payment_qr_photo", {
+        p_order_number: order.order_number,
+        p_file_type: slot,
+        p_storage_path: storagePath,
+        p_original_filename: file.name,
+        p_mime_type: mime,
+      });
+      if (registerError) throw new Error("บันทึกรูป QR ไม่สำเร็จ: " + registerError.message);
+
+      storagePath = null; // Registered files must not be cleaned up.
+      await loadOrder();
+      setManagerQrMessage("✓ บันทึกรูป QR เรียบร้อยแล้ว · ยอดบิลและสถานะคำสั่งซื้อไม่เปลี่ยน");
+    } catch (error) {
+      if (storagePath) {
+        const { error: cleanupError } = await supabase.storage.from("order-files").remove([storagePath]);
+        if (cleanupError) console.warn("Unable to clean up unregistered manager QR photo:", cleanupError.message);
+      }
+      setManagerQrMessage(error instanceof Error ? error.message : "ไม่สามารถบันทึกรูป QR ได้");
+    } finally {
+      setUploadingManagerQr(null);
     }
   }
 
@@ -1885,6 +1948,64 @@ export default function OrderDetailsPage() {
               </p>
             </div>
           )}
+
+          {isManager && order.final_amount !== null &&
+            (!order.group_root_order_id || order.group_root_order_id === order.id) &&
+            ["ready_for_delivery", "out_for_delivery", "awaiting_payment",
+              "payment_submitted", "completed", "cancelled"].includes(order.status) && (
+            <div className="mb-5 rounded-2xl border border-[#B7E1D4] bg-[#F3FBF8] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-bold text-[#17453F]">เพิ่มหรือเปลี่ยนรูป QR ชำระเงิน (Manager)</h3>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#008F8D]">เพิ่มย้อนหลังได้</span>
+              </div>
+              <p className="mt-1 text-xs leading-5 text-[#607D72]">
+                เปลี่ยนรูป QR ได้แม้ออกบิลหรือปิดคำสั่งซื้อแล้ว · รูปที่ 2 ไม่บังคับ
+                · รูปใหม่จะแสดงบนหน้าชำระเงินของลูกค้า · ไม่เปลี่ยนยอดเงินหรือสถานะ
+              </p>
+              {order.billing_account_suspended && (
+                <p className="mt-2 text-xs text-[#8A6000]">
+                  คำสั่งซื้อ CV Card: ช่องรูป QR อาจเก็บรูป CV Card ของลูกค้า โปรดตรวจสอบก่อนเปลี่ยน
+                </p>
+              )}
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {(["payment_qr", "payment_qr_2"] as const)
+                  .filter((slot) => slot === "payment_qr" || files.some((f) => f.file_type === "payment_qr" && f.is_current))
+                  .map((slot) => {
+                  const existing = files.find((photo) => photo.file_type === slot && photo.is_current);
+                  const first = slot === "payment_qr";
+                  return (
+                    <div key={slot} className="min-w-0 rounded-xl border border-[#D8EBE4] bg-white p-3">
+                      <p className="mb-2 text-sm font-bold text-[#17453F]">
+                        {first ? "รูป QR ที่ 1" : "รูป QR ที่ 2 (ไม่บังคับ)"}
+                      </p>
+                      <TaskFilePicker
+                        label={first ? "รูป QR ที่ 1" : "รูป QR ที่ 2"}
+                        chooseLabel={first ? "เพิ่มรูป QR ที่ 1" : "เพิ่มรูป QR ที่ 2"}
+                        replaceLabel={first ? "เปลี่ยนรูป QR ที่ 1" : "เปลี่ยนรูป QR ที่ 2"}
+                        accept="image/*"
+                        uploaded={Boolean(existing)}
+                        appearance={!first && !existing ? "add" : "default"}
+                        uploading={uploadingManagerQr === slot}
+                        disabled={uploadingManagerQr !== null}
+                        fileName={existing?.original_filename ?? null}
+                        onSelect={(chosen) => void uploadManagerQrPhoto(chosen, slot)}
+                      />
+                      {existing?.url && existing.mime_type?.startsWith("image/") && (
+                        <a href={existing.url} target="_blank" rel="noreferrer" className="mt-3 block">
+                          <img src={existing.url} alt={first ? "รูป QR ที่ 1" : "รูป QR ที่ 2"}
+                            className="h-32 w-full rounded-lg bg-[#FAFDFB] object-contain" />
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {managerQrMessage && <p role="status" className="mt-3 text-sm font-semibold text-[#17453F]">{managerQrMessage}</p>}
+              <p className="mt-2 text-[11px] leading-4 text-[#718C84]">
+                รูป QR ที่เพิ่มย้อนหลังจะเก็บอย่างน้อย 14 วันนับจากวันที่อัปโหลด
+              </p>
+            </div>
+          )}
           {isManager && ["payment_submitted", "completed"].includes(order.status) &&
             (!order.group_root_order_id || order.group_root_order_id === order.id) && (
             <div className="mb-5 rounded-2xl border border-[#B7E1D4] bg-[#F3FBF8] p-4">
@@ -1940,7 +2061,7 @@ export default function OrderDetailsPage() {
           {isManager && order.group_root_order_id && order.group_root_order_id !== order.id && order.final_amount !== null && (
             <p className="mb-4 rounded-xl border border-[#D8EBE4] bg-[#F3FBF8] p-3 text-sm text-[#426A57]">
               คำสั่งซื้อนี้ออกบิลรวมกับคำสั่งซื้อหลัก
-              {groupRootNumber ? <> · <Link href={`/orders/${groupRootNumber}`} className="font-bold underline">ไปที่ #{groupRootNumber} เพื่อเพิ่มรูปบิล</Link></> : ""}
+              {groupRootNumber ? <> · <Link href={`/orders/${groupRootNumber}`} className="font-bold underline">ไปที่ #{groupRootNumber} เพื่อเพิ่มรูปบิลหรือ QR</Link></> : ""}
             </p>
           )}
 
