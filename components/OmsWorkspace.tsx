@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import LotusBrand from "@/components/LotusBrand";
 
 type Role = "manager" | "staff" | null;
-type NavIconName = "home" | "tasks" | "orders" | "alarm" | "tower" | "kpi" | "customers" | "staff" | "line" | "catalog";
+type NavIconName = "home" | "tasks" | "orders" | "alarm" | "tower" | "kpi" | "customers" | "staff" | "line" | "catalog" | "stock";
 
 type NavItem = {
   href: string;
@@ -44,6 +44,7 @@ const WORKSPACE_ROOTS = [
   "/customer-line-access",
   "/line-access",
   "/kpi",
+  "/stock-management",
 ];
 
 const GENERAL_NAV: NavItem[] = [
@@ -58,6 +59,7 @@ const MANAGER_NAV: NavItem[] = [
   { href: "/staff", label: "พนักงาน", icon: "staff" },
   { href: "/line-access", label: "สิทธิ์ LINE", icon: "line" },
   { href: "/catalog", label: "สินค้าและราคา", icon: "catalog" },
+  { href: "/stock-management", label: "จัดการสต็อก", icon: "stock" },
 ];
 
 function NavIcon({ name }: { name: NavIconName }) {
@@ -72,6 +74,7 @@ function NavIcon({ name }: { name: NavIconName }) {
     staff: <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="M6 17a3 3 0 0 1 6 0m3-8h3m-3 4h3" /></>,
     line: <><path d="M10 13a5 5 0 0 0 7.07 0l2-2a5 5 0 0 0-7.07-7.07l-1.5 1.5" /><path d="M14 11a5 5 0 0 0-7.07 0l-2 2A5 5 0 0 0 12 20.07l1.5-1.5" /></>,
     catalog: <><path d="m12 2 9 5-9 5-9-5 9-5Zm-9 5v10l9 5 9-5V7M12 12v10" /></>,
+    stock: <><path d="M3 10h18v11H3zM2 10l4-7h12l4 7M9 21v-7h6v7M6 6h12" /></>,
   }[name];
 
   return (

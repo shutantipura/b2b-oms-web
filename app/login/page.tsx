@@ -32,6 +32,7 @@ const MANAGER_NAVIGATION: NavigationItem[] = [
   { name: "คำสั่งซื้อ", href: "/orders", description: "ดูและติดตามคำสั่งซื้อ" },
   { name: "ลูกค้า", href: "/customers", description: "จัดการบัญชีลูกค้า B2B" },
   { name: "สินค้าและราคา", href: "/catalog", description: "สินค้า รูปภาพ และราคาพิเศษ" },
+  { name: "จัดการสต็อก", href: "/stock-management", description: "ดาวน์โหลดรายงานปริมาณขายสินค้า 14 วัน" },
   { name: "พนักงาน", href: "/staff", description: "บัญชีและข้อมูลพนักงาน" },
   { name: "อุปกรณ์หน้าร้าน", href: "/terminals", description: "ลงทะเบียนอุปกรณ์ จัดการบัญชี และดูสถานะ" },
   { name: "สิทธิ์ LINE", href: "/line-access", description: "จัดการสิทธิ์ผู้ใช้ LINE" },
