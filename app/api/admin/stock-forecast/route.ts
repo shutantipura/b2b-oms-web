@@ -208,7 +208,6 @@ function excelResponse(forecast: StockForecast) {
     "SKU", "ชื่อสินค้า", "หน่วย", "จำนวนลูกค้า", "เนื้อสด",
     `${forecast.yesterdayDate} ยอดจริง`, `${forecast.dates[0]} ยอดจริงถึงตอนนี้`,
     `${forecast.dates[0]} คาดยอดปิด`, `${forecast.dates[1]} คาดการณ์`, `${forecast.dates[2]} คาดการณ์`,
-    "รวม 3 วัน",
   ];
   const summaryRows: (number | string)[][] = [
     ["Lotus’s B2B · ยอดคาดการณ์รวมตามสินค้า (ทุกลูกค้า)"],
@@ -218,7 +217,6 @@ function excelResponse(forecast: StockForecast) {
     ...products.map((product) => [
       product.sku, product.productName, product.unit, product.customerCount, product.freshMeat ? "ใช่" : "ไม่ใช่",
       product.yesterdayActualQty, product.todayActualQty, ...product.days.map((day) => day.totalQty),
-      Math.round(product.days.reduce((sum, day) => sum + day.totalQty, 0) * 1000) / 1000,
     ]),
   ];
   const summary = XLSX.utils.aoa_to_sheet(summaryRows);
@@ -229,7 +227,6 @@ function excelResponse(forecast: StockForecast) {
   summary["!cols"] = [
     { wch: 17 }, { wch: 48 }, { wch: 13 }, { wch: 17 }, { wch: 12 },
     ...Array.from({ length: 5 }, () => ({ wch: 23 })),
-    { wch: 17 },
   ];
   for (let r = 4; r < summaryRows.length; r++) {
     for (let c = 5; c < summaryHeaders.length; c++) {
