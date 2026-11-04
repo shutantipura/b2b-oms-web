@@ -211,7 +211,7 @@ function excelResponse(forecast: StockForecast) {
   ];
   const summaryRows: (number | string)[][] = [
     ["Lotus’s B2B · ยอดคาดการณ์รวมตามสินค้า (ทุกลูกค้า)"],
-    [`อัปเดต ${forecast.asOf} · หน่วยแยก กก./ชิ้น ไม่ปะปน · ดูรายละเอียดลูกค้าในแผ่นงานถัดไป`],
+    [`อัปเดต ${forecast.asOf} · คาดเพิ่มเลือกปริมาณเต็มเมื่อโอกาสสั่งมากกว่า 50% · หน่วย กก./ชิ้น แยกกัน`],
     [],
     summaryHeaders,
     ...products.map((product) => [
@@ -238,7 +238,7 @@ function excelResponse(forecast: StockForecast) {
   ];
   const sheetRows: (number | string)[][] = [
     ["Lotus’s B2B · พยากรณ์ปริมาณขาย 3 วัน (สำหรับวางแผนเท่านั้น)"],
-    [`อัปเดต ${forecast.asOf} · ปริมาณจริง/รับออเดอร์แล้ว + ความต้องการที่คาดการณ์ · เนื้อสดใช้รอบไม่เกิน 2 วัน`],
+    [`อัปเดต ${forecast.asOf} · รับแล้ว + ปริมาณสั่งที่มีโอกาสเกิดมากที่สุด (>50%) · เนื้อสดใช้รอบไม่เกิน 2 วัน`],
     [],
     headers,
     ...forecast.rows.map((row) => [

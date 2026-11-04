@@ -172,6 +172,11 @@ function conditionalOrderProbability(age: number, periodicity: number) {
   return Math.min(0.97, probability);
 }
 
+/** Modal demand: select the more likely of a full order and no order. */
+export function mostLikelyOrderQty(orderProbability: number, typicalOrderQty: number) {
+  return orderProbability > 0.5 ? clampQty(typicalOrderQty) : 0;
+}
+
 function dailyDemandForecast(
   dates: string[],
   lastPurchaseDate: string,
@@ -179,30 +184,24 @@ function dailyDemandForecast(
   typicalQty: number,
   known: Map<string, number>
 ): ForecastDay[] {
-  let ageProbabilities = new Map([[Math.max(0, daysBetween(lastPurchaseDate, dates[0])), 1]]);
+  let age = Math.max(0, daysBetween(lastPurchaseDate, dates[0]));
   const nextBookedDate = dates.find((date) => (known.get(date) ?? 0) > 0);
   return dates.map((date) => {
     const knownQty = known.get(date) ?? 0;
     if (knownQty > 0) {
-      ageProbabilities = new Map([[1, 1]]);
+      age = 1;
       return { date, knownQty: clampQty(knownQty), projectedQty: 0, totalQty: clampQty(knownQty) };
     }
     // A future order already placed by this customer replaces the speculative
     // order in the preceding days; do not predict a second order before it.
     if (nextBookedDate && date < nextBookedDate) {
-      ageProbabilities = new Map([...ageProbabilities].map(([age, mass]) => [age + 1, mass]));
+      age += 1;
       return { date, knownQty: 0, projectedQty: 0, totalQty: 0 };
     }
-    const future = new Map<number, number>();
-    let projected = 0;
-    for (const [age, mass] of ageProbabilities) {
-      const likelihood = conditionalOrderProbability(age, periodicity);
-      projected += mass * likelihood * typicalQty;
-      future.set(1, (future.get(1) ?? 0) + mass * likelihood);
-      future.set(age + 1, (future.get(age + 1) ?? 0) + mass * (1 - likelihood));
-    }
-    ageProbabilities = future;
-    return { date, knownQty: 0, projectedQty: clampQty(projected), totalQty: clampQty(projected) };
+    const projectedQty = mostLikelyOrderQty(conditionalOrderProbability(age, periodicity), typicalQty);
+    // A modal order becomes the new purchase date for subsequent forecast days.
+    age = projectedQty > 0 ? 1 : age + 1;
+    return { date, knownQty: 0, projectedQty, totalQty: projectedQty };
   });
 }
 

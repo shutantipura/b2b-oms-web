@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { aggregateForecastByProduct, buildStockForecast, isFreshMeat } from "../lib/stockForecast.ts";
+import { aggregateForecastByProduct, buildStockForecast, isFreshMeat, mostLikelyOrderQty } from "../lib/stockForecast.ts";
 
 const now = new Date("2026-11-04T07:00:00Z");
 const customer = { id: "c1", code: "0000000001", name: "Restaurant A", isTest: false };
@@ -29,6 +29,13 @@ test("fresh meat classification excludes eggs, fish, frozen products", () => {
   assert.equal(isFreshMeat("Fresh Meat", "เนื้อวัว กก."), true);
 });
 
+test("modal forecast chooses the full likely quantity instead of probability-weighting it", () => {
+  assert.equal(mostLikelyOrderQty(0.8, 1), 1);
+  assert.equal(mostLikelyOrderQty(0.2, 1), 0);
+  assert.equal(mostLikelyOrderQty(0.5, 1), 0);
+  assert.equal(mostLikelyOrderQty(0.75, 3.125), 3.125);
+});
+
 test("meat capped at two days without doubling historical consumption", () => {
   const orders = historicDays.map((day, i) => makeOrder(`o${i}`, day));
   const items = orders.flatMap((order) => [
@@ -44,8 +51,10 @@ test("meat capped at two days without doubling historical consumption", () => {
   assert.equal(meat.effectiveCadenceDays, 2);
   assert.equal(meat.confidence, "low");
   assert.equal(rice.effectiveCadenceDays, 4);
-  // Two-day expected cycle is 10kg; any single day's expected value must be <= 10kg.
-  assert.ok(meat.days.every((day) => day.projectedQty <= 10));
+  // Capping the meat cycle at two days preserves the historical daily consumption:
+  // a 20kg order every four days becomes a 10kg modal order every two days.
+  assert.deepEqual(meat.days.map((day) => day.projectedQty), [10, 0, 10]);
+  assert.deepEqual(rice.days.map((day) => day.projectedQty), [0, 0, 10]);
   assert.deepEqual(forecast.dates, ["2026-11-04", "2026-11-05", "2026-11-06"]);
 });
 
