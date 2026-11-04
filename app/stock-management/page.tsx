@@ -13,6 +13,10 @@ function qty(value: number) {
   return value.toLocaleString("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 }
 
+function forecastQty(value: number) {
+  return value.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
 const CONFIDENCE = {
   high: { label: "สูง", className: "bg-emerald-50 text-emerald-700" },
   medium: { label: "ปานกลาง", className: "bg-sky-50 text-sky-700" },
@@ -20,35 +24,27 @@ const CONFIDENCE = {
   insufficient: { label: "ข้อมูลน้อย", className: "bg-slate-100 text-slate-600" },
 };
 
-function FivePeriodGrid({ yesterdayDate, yesterdayActualQty, todayActualQty, days, compact = false, showBreakdown = false }: {
+function FivePeriodGrid({ yesterdayDate, yesterdayActualQty, todayActualQty, days, compact = false }: {
   yesterdayDate: string;
   yesterdayActualQty: number;
   todayActualQty: number;
   days: ForecastDay[];
   compact?: boolean;
-  showBreakdown?: boolean;
 }) {
   const periods = [
-    { label: "เมื่อวาน (จริง)", date: yesterdayDate, value: yesterdayActualQty, actual: true },
-    { label: "วันนี้ถึงตอนนี้", date: days[0].date, value: todayActualQty, actual: true },
-    { label: "คาดปิดวันนี้", date: days[0].date, value: days[0].totalQty, actual: false, day: days[0] },
-    { label: "คาดพรุ่งนี้", date: days[1].date, value: days[1].totalQty, actual: false, day: days[1] },
-    { label: "คาดมะรืน", date: days[2].date, value: days[2].totalQty, actual: false, day: days[2] },
+    { label: "เมื่อวาน", date: yesterdayDate, value: yesterdayActualQty, actual: true },
+    { label: "จริงวันนี้", date: days[0].date, value: todayActualQty, actual: true },
+    { label: "คาดปิดวันนี้", date: days[0].date, value: days[0].totalQty, actual: false },
+    { label: "คาดพรุ่งนี้", date: days[1].date, value: days[1].totalQty, actual: false },
+    { label: "คาดมะรืน", date: days[2].date, value: days[2].totalQty, actual: false },
   ];
   return (
-    <div className="grid grid-cols-6 gap-1.5 p-2 sm:grid-cols-5" aria-label="ยอดขายจริงและคาดการณ์ห้าช่วงเวลา">
-      {periods.map((period, index) => (
-        <div key={period.label} className={`${index < 2 ? "col-span-3" : "col-span-2"} min-w-0 rounded-xl px-1 py-3 text-center sm:col-span-1 sm:px-2 ${period.actual ? "bg-[#F1F5F4]" : "bg-[#EAF8F5]"}`}>
-          <p className="text-[10px] font-extrabold leading-4 text-[#355E57] sm:text-xs">{period.label}</p>
-          <p className="mt-0.5 text-[10px] text-[#77918A]">{period.date.slice(5)}</p>
-          <p className={`mt-2 break-words font-black tabular-nums ${compact ? "text-sm sm:text-base" : "text-lg sm:text-xl"} ${period.actual ? "text-[#315C54]" : "text-[#008B8B]"}`}>{qty(period.value)}</p>
-          {showBreakdown && period.day && (
-            <div className="mt-1 text-[10px] leading-4 text-[#648279]">
-              <p>รับแล้ว {qty(period.day.knownQty)}</p>
-              <p>คาดเพิ่ม {qty(period.day.projectedQty)}</p>
-            </div>
-          )}
-          {showBreakdown && period.actual && <p className="mt-1 text-[10px] text-[#648279]">ปิด Billing แล้ว</p>}
+    <div className="grid grid-cols-5 gap-1 p-1.5 sm:gap-2 sm:p-2" aria-label="ยอดขายจริงและคาดการณ์ห้าช่วงเวลา">
+      {periods.map((period) => (
+        <div key={period.label} className={`min-w-0 rounded-lg px-0.5 py-2 text-center sm:rounded-xl sm:px-2 sm:py-3 ${period.actual ? "bg-[#F1F5F4]" : "bg-[#EAF8F5]"}`}>
+          <p className="text-[9px] font-extrabold leading-3 text-[#355E57] sm:text-xs sm:leading-4">{period.label}</p>
+          <p className="mt-0.5 text-[9px] text-[#77918A] sm:text-[10px]">{period.date.slice(5)}</p>
+          <p className={`mt-1 break-words font-black tracking-tight tabular-nums sm:mt-2 ${compact ? "text-xs sm:text-base" : "text-[clamp(0.75rem,2.9vw,1.5rem)] sm:text-xl"} ${period.actual ? "text-[#315C54]" : "text-[#008B8B]"}`}>{forecastQty(period.value)}</p>
         </div>
       ))}
     </div>
@@ -309,7 +305,7 @@ export default function StockManagementPage() {
                       <p className="mt-1 text-xs font-bold text-[#008B8B]">SKU {product.sku} · {product.unit} · {product.customerCount} ลูกค้า</p>
                       {product.freshMeat && <p className="mt-1 text-[11px] font-semibold text-[#A46B00]">เนื้อสด: รอบคาดการณ์ไม่เกิน 2 วัน</p>}
                     </div>
-                    <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayActualQty={product.yesterdayActualQty} todayActualQty={product.todayActualQty} days={product.days} showBreakdown />
+                    <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayActualQty={product.yesterdayActualQty} todayActualQty={product.todayActualQty} days={product.days} />
                     <details className="group border-t border-[#E0EEEA]">
                       <summary className="cursor-pointer px-4 py-3 text-sm font-extrabold text-[#008B8B] marker:text-[#008B8B]">
                         ดูยอดแยกรายลูกค้า ({product.customerCount})
