@@ -5,6 +5,11 @@ import { groupOrdersForManagement, orderDisplayNumber } from "../lib/groupOrderD
 import { combinePickedItems } from "../lib/groupedOrderItems.ts";
 import { preserveOrderQuantityDrafts } from "../lib/orderQuantityDrafts.ts";
 import { calculatePickedOrderEstimate } from "../lib/taskPickedEstimate.ts";
+import {
+  billingVarianceCents,
+  calculateBillingStageReferenceTotal,
+  isBillingVarianceAboveOneBaht,
+} from "../lib/billingVariance.ts";
 import { formatActiveTaskDuration } from "../lib/taskElapsed.ts";
 import { compareOrderFiles } from "../lib/orderFileSort.ts";
 import { isFreshPaymentDraft, paymentDraftKey } from "../lib/pendingPaymentDraft.ts";
@@ -85,6 +90,50 @@ test("pre-billing estimate does not invent weights or prices", () => {
   assert.equal(calculatePickedOrderEstimate([{ actual_qty: 3, unit_price_snapshot: null }]), null);
   assert.equal(calculatePickedOrderEstimate([{ actual_qty: 0, unit_price_snapshot: 100 }]), 0);
   assert.equal(calculatePickedOrderEstimate([{ actual_qty: -1, unit_price_snapshot: 100 }]), null);
+});
+
+test("billing variance compares the final bill against picked quantities and grouped line totals", () => {
+  const ordinary = calculateBillingStageReferenceTotal([
+    { actual_qty: "9.820", unit_price_snapshot: "0.00", piece_price_per_kg_snapshot: "51.00" },
+    { actual_qty: "3", unit_price_snapshot: "15.00" },
+  ]);
+  assert.equal(ordinary, 545.82);
+  const grouped = calculateBillingStageReferenceTotal([
+    { actual_qty: 8, unit_price_snapshot: 15, line_total: 123.45 },
+    { actual_qty: 3, unit_price_snapshot: 20, line_total: 60.10 },
+  ]);
+  assert.equal(grouped, 183.55);
+  assert.equal(billingVarianceCents(ordinary + 1, ordinary), 100);
+  assert.equal(isBillingVarianceAboveOneBaht(ordinary + 1, ordinary), false);
+  assert.equal(isBillingVarianceAboveOneBaht(ordinary - 1, ordinary), false);
+  assert.equal(isBillingVarianceAboveOneBaht(ordinary + 1.01, ordinary), true);
+  assert.equal(isBillingVarianceAboveOneBaht(ordinary - 1.01, ordinary), true);
+  assert.equal(isBillingVarianceAboveOneBaht(Number.NaN, ordinary), false);
+});
+
+test("billing reason prompt and all three RPC modes are enforced on the client and server", () => {
+  const page = readFileSync(new URL("../app/tasks/billing/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../sql/billing_variance_reason_required.sql", import.meta.url), "utf8");
+  assert.match(page, /calculateBillingStageReferenceTotal\(items\)/);
+  assert.match(page, /isBillingVarianceAboveOneBaht\(amount, calculatedTotal\)/);
+  assert.match(page, /requiresDifferenceReason && \(/);
+  assert.match(page, /billingDifferenceReason\.trim\(\)/);
+  assert.match(page, /p_difference_reason: billingDifferenceReason\.trim\(\) \|\| null/);
+  assert.match(page, /line_total,sources,products\(sku\)/);
+  for (const mode of [
+    "complete_my_billing_with_reason",
+    "complete_my_billing_no_cv_with_reason",
+    "complete_my_billing_suspended_with_reason",
+  ]) {
+    assert.ok(page.includes(mode));
+    assert.ok(sql.includes(mode));
+  }
+  assert.match(sql, /round\(abs\(p_final_amount - p_expected_amount\), 2\) > 1\.00/);
+  assert.ok((sql.match(/PERFORM public\.billing_difference_reason/g) ?? []).length >= 3);
+  assert.ok((sql.match(/v_variance_reason := public\.billing_difference_reason/g) ?? []).length >= 3);
+  assert.ok((sql.match(/'difference_reason', v_variance_reason/g) ?? []).length >= 3);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.complete_billing_with_reason/);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.complete_my_billing_with_reason/);
 });
 
 test("task list prefers picked-line estimate before Billing starts", () => {

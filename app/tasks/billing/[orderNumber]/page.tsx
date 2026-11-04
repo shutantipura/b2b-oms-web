@@ -12,6 +12,7 @@ import { supabase } from "../../../../lib/supabase";
 import DeliverySchedule from "../../../../components/DeliverySchedule";
 import TaskFilePicker from "../../../../components/TaskFilePicker";
 import { prepareOrderPhoto } from "../../../../lib/orderPhotoUpload";
+import { billingVarianceCents, calculateBillingStageReferenceTotal, isBillingVarianceAboveOneBaht } from "../../../../lib/billingVariance";
 
 
 
@@ -69,6 +70,7 @@ type OrderItem = {
 
   unit_price_snapshot: number | string;
   piece_price_per_kg_snapshot?: number | string | null;
+  line_total?: number | string | null;
 
 
 
@@ -165,6 +167,7 @@ export default function BillingPage() {
   const [finalAmount, setFinalAmount] =
 
     useState("");
+  const [billingDifferenceReason, setBillingDifferenceReason] = useState("");
 
 
 
@@ -328,7 +331,7 @@ export default function BillingPage() {
       ? await supabase.from("group_billing_lines")
           .select(`
             id,product_name_snapshot,requested_qty,confirmed_qty,actual_qty,
-            unit_snapshot,unit_price_snapshot,sources,products(sku)
+            unit_snapshot,unit_price_snapshot,line_total,sources,products(sku)
           `)
           .eq("root_order_id",loadedOrder.id)
           .order("product_name_snapshot",{ascending:true})
@@ -760,6 +763,12 @@ export default function BillingPage() {
 
 
 
+    if (isBillingVarianceAboveOneBaht(amount, calculatedTotal) &&
+        !billingDifferenceReason.trim()) {
+      setMessage("ยอดบิลต่างจากยอดอ้างอิงที่หยิบจริงเกิน ฿1.00 กรุณาระบุเหตุผลของส่วนต่างก่อนปิดงาน");
+      return;
+    }
+
     // All modes except suspended-account need a bill. A no-CV customer
     // specifically needs a photographed POS parked bill (not a PDF).
     if (billingMode !== "suspended" && !billUploaded) {
@@ -786,15 +795,16 @@ export default function BillingPage() {
 
     const { error } = await supabase.rpc(
 
-      billingMode === "suspended" ? "complete_my_billing_suspended"
-        : billingMode === "no_cv" ? "complete_my_billing_no_cv"
-        : "complete_my_billing",
+      billingMode === "suspended" ? "complete_my_billing_suspended_with_reason"
+        : billingMode === "no_cv" ? "complete_my_billing_no_cv_with_reason"
+        : "complete_my_billing_with_reason",
 
       {
 
         p_order_number: orderNumber,
 
         p_final_amount: amount,
+        p_difference_reason: billingDifferenceReason.trim() || null,
 
       }
 
@@ -891,41 +901,11 @@ export default function BillingPage() {
   const hasPieceItems = items.some(item => item.unit_snapshot === "ชิ้น" &&
     item.piece_price_per_kg_snapshot != null);
 
-  const calculatedTotal =
-
-    items.reduce(
-
-      (sum, item) => {
-
-        const actual =
-
-          Number(item.actual_qty ?? 0);
-
-
-
-        const price =
-
-          Number(
-            item.piece_price_per_kg_snapshot ?? item.unit_price_snapshot ?? 0
-          );
-
-
-
-        return (
-
-          sum +
-
-          actual * price
-
-        );
-
-      },
-
-      0
-
-    );
-
-
+  const calculatedTotal = calculateBillingStageReferenceTotal(items);
+  const enteredBillAmount = finalAmount.trim() === "" ? null : Number(finalAmount);
+  const differenceCents = billingVarianceCents(enteredBillAmount ?? calculatedTotal, calculatedTotal);
+  const requiresDifferenceReason = enteredBillAmount !== null &&
+    isBillingVarianceAboveOneBaht(enteredBillAmount, calculatedTotal);
 
   if (loading) {
 
@@ -1312,7 +1292,7 @@ export default function BillingPage() {
 
                       <td className="p-4 text-right">
 
-                        ฿{(actual * price).toFixed(2)}
+                        ฿{(item.line_total != null ? Number(item.line_total) : actual * price).toFixed(2)}
 
                       </td>
 
@@ -1475,15 +1455,38 @@ export default function BillingPage() {
 
             </div>
 
-
+            {requiresDifferenceReason && (
+              <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                <p className="font-semibold text-amber-900">
+                  ยอดบิลต่างจากยอดตามสินค้าที่หยิบจริง {differenceCents > 0 ? "+" : "−"}
+                  ฿{(Math.abs(differenceCents) / 100).toFixed(2)}
+                </p>
+                <p className="mt-1 text-sm text-amber-800">
+                  ยอดอ้างอิงขั้นตอนออกบิล ฿{calculatedTotal.toFixed(2)} ·
+                  ต้องระบุเหตุผลเมื่อส่วนต่างเกิน ฿1.00
+                </p>
+                <label htmlFor="billing-difference-reason" className="mt-3 block text-sm font-bold text-amber-950">
+                  เหตุผลที่ยอดบิลไม่ตรง <span className="text-red-700">*</span>
+                </label>
+                <textarea
+                  id="billing-difference-reason"
+                  value={billingDifferenceReason}
+                  onChange={(event) => setBillingDifferenceReason(event.target.value)}
+                  maxLength={500}
+                  rows={3}
+                  required
+                  placeholder="เช่น เครื่อง POS ปัดเศษราคา หรือพบราคาขายต่างจากระบบ"
+                  className="mt-2 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-base"
+                />
+                <p className="mt-1 text-right text-xs text-amber-700">
+                  {billingDifferenceReason.length}/500 ตัวอักษร
+                </p>
+              </div>
+            )}
 
           </div>
 
-
-
         </section>
-
-
 
         <section className="mb-6 rounded-2xl border border-[#B8EAE5] bg-[#F4FBFA] p-4 sm:p-5">
           <h2 className="mb-3 text-sm font-bold text-[#173F3C]">ประเภทการออกบิล</h2>
