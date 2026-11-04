@@ -292,7 +292,10 @@ export default function StockManagementPage() {
           {forecast && (
             <>
               <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-lg font-black text-[#17453F]">ยอดคาดการณ์รวมตามสินค้า (ทุกลูกค้า)</h3>
+                <div>
+                  <h3 className="text-lg font-black text-[#17453F]">ยอดคาดการณ์รวมตามสินค้า (ทุกลูกค้า)</h3>
+                  <p className="mt-1 text-xs font-semibold text-[#648279]">เรียงตามยอดคาดการณ์พรุ่งนี้: มาก → น้อย</p>
+                </div>
                 <span className="rounded-full bg-[#EAF8F5] px-3 py-1 text-xs font-extrabold text-[#008B8B]">
                   {visibleForecast.length} SKU / หน่วย
                 </span>
