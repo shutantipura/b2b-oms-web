@@ -5,7 +5,7 @@ import Link from "next/link";
 import LotusLoading from "@/components/LotusLoading";
 import { supabase } from "@/lib/supabase";
 import { stockReportDates } from "@/lib/stockSalesReport";
-import { aggregateForecastByProduct, type StockForecast } from "@/lib/stockForecast";
+import { aggregateForecastByProduct, type ForecastDay, type StockForecast } from "@/lib/stockForecast";
 
 type Access = "loading" | "manager" | "denied" | "signed-out";
 
@@ -19,6 +19,41 @@ const CONFIDENCE = {
   low: { label: "ต่ำ", className: "bg-amber-50 text-amber-800" },
   insufficient: { label: "ข้อมูลน้อย", className: "bg-slate-100 text-slate-600" },
 };
+
+function FivePeriodGrid({ yesterdayDate, yesterdayActualQty, todayActualQty, days, compact = false, showBreakdown = false }: {
+  yesterdayDate: string;
+  yesterdayActualQty: number;
+  todayActualQty: number;
+  days: ForecastDay[];
+  compact?: boolean;
+  showBreakdown?: boolean;
+}) {
+  const periods = [
+    { label: "เมื่อวาน (จริง)", date: yesterdayDate, value: yesterdayActualQty, actual: true },
+    { label: "วันนี้ถึงตอนนี้", date: days[0].date, value: todayActualQty, actual: true },
+    { label: "คาดปิดวันนี้", date: days[0].date, value: days[0].totalQty, actual: false, day: days[0] },
+    { label: "คาดพรุ่งนี้", date: days[1].date, value: days[1].totalQty, actual: false, day: days[1] },
+    { label: "คาดมะรืน", date: days[2].date, value: days[2].totalQty, actual: false, day: days[2] },
+  ];
+  return (
+    <div className="grid grid-cols-6 gap-1.5 p-2 sm:grid-cols-5" aria-label="ยอดขายจริงและคาดการณ์ห้าช่วงเวลา">
+      {periods.map((period, index) => (
+        <div key={period.label} className={`${index < 2 ? "col-span-3" : "col-span-2"} min-w-0 rounded-xl px-1 py-3 text-center sm:col-span-1 sm:px-2 ${period.actual ? "bg-[#F1F5F4]" : "bg-[#EAF8F5]"}`}>
+          <p className="text-[10px] font-extrabold leading-4 text-[#355E57] sm:text-xs">{period.label}</p>
+          <p className="mt-0.5 text-[10px] text-[#77918A]">{period.date.slice(5)}</p>
+          <p className={`mt-2 break-words font-black tabular-nums ${compact ? "text-sm sm:text-base" : "text-lg sm:text-xl"} ${period.actual ? "text-[#315C54]" : "text-[#008B8B]"}`}>{qty(period.value)}</p>
+          {showBreakdown && period.day && (
+            <div className="mt-1 text-[10px] leading-4 text-[#648279]">
+              <p>รับแล้ว {qty(period.day.knownQty)}</p>
+              <p>คาดเพิ่ม {qty(period.day.projectedQty)}</p>
+            </div>
+          )}
+          {showBreakdown && period.actual && <p className="mt-1 text-[10px] text-[#648279]">ปิด Billing แล้ว</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function StockManagementPage() {
   const [access, setAccess] = useState<Access>("loading");
@@ -195,8 +230,8 @@ export default function StockManagementPage() {
         <section className="mt-5 rounded-[22px] border border-[#CDE9E3] bg-white p-5 shadow-[0_4px_16px_rgba(18,96,89,0.05)] sm:p-7">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-extrabold tracking-wide text-[#008B8B]">ROLLING FORECAST · 3 DAYS</p>
-              <h2 className="mt-1 text-2xl font-black text-[#17453F]">พยากรณ์ปริมาณขายล่วงหน้า 3 วัน</h2>
+              <p className="text-xs font-extrabold tracking-wide text-[#008B8B]">ACTUAL SALES + ROLLING FORECAST</p>
+              <h2 className="mt-1 text-2xl font-black text-[#17453F]">ยอดขายจริงและคาดการณ์ 3 วัน</h2>
               <p className="mt-2 text-sm leading-6 text-[#648279]">
                 ใช้ปริมาณที่มีโอกาสเกิดขึ้นมากที่สุดของลูกค้าแต่ละราย ไม่เฉลี่ยด้วยความน่าจะเป็น · อัปเดตอัตโนมัติทุก 1 นาที
               </p>
@@ -212,20 +247,22 @@ export default function StockManagementPage() {
           </div>
 
           {forecast && (
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              {forecast.dates.map((date, index) => {
-                const kilos = productForecast
-                  .filter((row) => row.unit === "กก." && row.freshMeat)
-                  .reduce((sum, row) => sum + row.days[index].totalQty, 0);
-                return (
-                  <div key={date} className="rounded-xl border border-[#DDEEEA] bg-[#F3FAF8] p-3 text-center">
-                    <p className="text-xs font-semibold text-[#648279]">{["วันนี้", "พรุ่งนี้", "มะรืน"][index]}</p>
-                    <p className="mt-1 text-xs text-[#77918A]">{date}</p>
-                    <p className="mt-2 text-xl font-black text-[#087E7D] sm:text-2xl">{qty(kilos)}</p>
-                    <p className="mt-1 text-[11px] text-[#77918A]">กก. เนื้อสด</p>
-                  </div>
-                );
-              })}
+            <div className="mt-5 rounded-xl border border-[#DDEEEA] p-2">
+              <p className="px-2 pt-1 text-xs font-extrabold text-[#436F66]">สรุปเนื้อสดทั้งหมด (กก.)</p>
+              <FivePeriodGrid
+                yesterdayDate={forecast.yesterdayDate}
+                yesterdayActualQty={productForecast.filter((row) => row.unit === "กก." && row.freshMeat).reduce((sum, row) => sum + row.yesterdayActualQty, 0)}
+                todayActualQty={productForecast.filter((row) => row.unit === "กก." && row.freshMeat).reduce((sum, row) => sum + row.todayActualQty, 0)}
+                days={forecast.dates.map((date, index) => {
+                  const meat = productForecast.filter((row) => row.unit === "กก." && row.freshMeat);
+                  return {
+                    date,
+                    knownQty: meat.reduce((sum, row) => sum + row.days[index].knownQty, 0),
+                    projectedQty: meat.reduce((sum, row) => sum + row.days[index].projectedQty, 0),
+                    totalQty: meat.reduce((sum, row) => sum + row.days[index].totalQty, 0),
+                  };
+                })}
+              />
             </div>
           )}
 
@@ -272,19 +309,7 @@ export default function StockManagementPage() {
                       <p className="mt-1 text-xs font-bold text-[#008B8B]">SKU {product.sku} · {product.unit} · {product.customerCount} ลูกค้า</p>
                       {product.freshMeat && <p className="mt-1 text-[11px] font-semibold text-[#A46B00]">เนื้อสด: รอบคาดการณ์ไม่เกิน 2 วัน</p>}
                     </div>
-                    <div className="grid grid-cols-3 divide-x divide-[#E0EEEA]" aria-label={`ปริมาณคาดการณ์ ${product.productName}`}>
-                      {product.days.map((day, index) => (
-                        <div key={day.date} className="min-w-0 px-1.5 py-3 text-center sm:px-4">
-                          <p className="text-[11px] font-extrabold text-[#436F66] sm:text-sm">{["วันนี้", "พรุ่งนี้", "มะรืน"][index]}</p>
-                          <p className="mt-0.5 text-[10px] text-[#77918A]">{day.date.slice(5)}</p>
-                          <p className="mt-2 break-words text-[clamp(1rem,4.2vw,1.5rem)] font-black tabular-nums text-[#008B8B]">{qty(day.totalQty)}</p>
-                          <div className="mt-2 space-y-0.5 text-[10px] leading-4 text-[#648279] sm:text-xs">
-                            <p>รับแล้ว {qty(day.knownQty)}</p>
-                            <p>คาดเพิ่ม {qty(day.projectedQty)}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayActualQty={product.yesterdayActualQty} todayActualQty={product.todayActualQty} days={product.days} showBreakdown />
                     <details className="group border-t border-[#E0EEEA]">
                       <summary className="cursor-pointer px-4 py-3 text-sm font-extrabold text-[#008B8B] marker:text-[#008B8B]">
                         ดูยอดแยกรายลูกค้า ({product.customerCount})
@@ -297,14 +322,7 @@ export default function StockManagementPage() {
                               {customer.customerCode} · {customer.effectiveCadenceDays !== null ? `ทุก ${qty(customer.effectiveCadenceDays)} วัน` : "ยังไม่ทราบรอบ"}
                               {" · "}<span className={CONFIDENCE[customer.confidence].className}>{CONFIDENCE[customer.confidence].label}</span>
                             </p>
-                            <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                              {customer.days.map((day, index) => (
-                                <div key={day.date} className="rounded-lg bg-[#F1F9F7] p-2">
-                                  <p className="text-[10px] text-[#648279]">{["วันนี้", "พรุ่งนี้", "มะรืน"][index]}</p>
-                                  <p className="mt-0.5 break-words text-sm font-black tabular-nums text-[#087E7D]">{qty(day.totalQty)}</p>
-                                </div>
-                              ))}
-                            </div>
+                            <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayActualQty={customer.yesterdayActualQty} todayActualQty={customer.todayActualQty} days={customer.days} compact />
                           </div>
                         ))}
                       </div>
@@ -314,7 +332,7 @@ export default function StockManagementPage() {
                 {visibleForecast.length === 0 && <p className="rounded-xl border border-[#DDEAE6] p-6 text-center text-sm text-[#648279]">ยังไม่มีข้อมูลที่ตรงกับตัวกรอง หรือยังมีประวัติไม่พอสำหรับคาดการณ์</p>}
               </div>
               <p className="mt-3 text-xs leading-5 text-[#6E8982]">
-                ตัวเลขใหญ่ = ยอดรวมของ SKU นี้จากลูกค้าทั้งหมด (หน่วยตามที่แสดง) · รับแล้ว = คำสั่งซื้อที่มีอยู่ · คาดเพิ่ม = ปริมาณเต็มตามรอบซื้อ เมื่อโอกาสสั่งมากกว่า 50% (มิฉะนั้นเป็น 0)
+                ยอดขายจริง = ปริมาณที่ปิด Billing แล้วตามวันส่ง/รับสินค้า · คาดปิดวันนี้รวมยอดจริงและคำสั่งซื้อวันนี้ไว้แล้ว จึงไม่นับซ้ำ · คาดเพิ่ม = ปริมาณเต็มเมื่อโอกาสสั่งมากกว่า 50%
               </p>
               {forecast.unmeasuredPieceOrders > 0 && (
                 <p className="mt-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">

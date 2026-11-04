@@ -206,17 +206,18 @@ function excelResponse(forecast: StockForecast) {
   const products = aggregateForecastByProduct(forecast.rows, forecast.dates);
   const summaryHeaders = [
     "SKU", "ชื่อสินค้า", "หน่วย", "จำนวนลูกค้า", "เนื้อสด",
-    ...forecast.dates.flatMap((date) => [`${date} รับออเดอร์แล้ว`, `${date} คาดการณ์เพิ่ม`, `${date} รวม`]),
+    `${forecast.yesterdayDate} ยอดจริง`, `${forecast.dates[0]} ยอดจริงถึงตอนนี้`,
+    `${forecast.dates[0]} คาดยอดปิด`, `${forecast.dates[1]} คาดการณ์`, `${forecast.dates[2]} คาดการณ์`,
     "รวม 3 วัน",
   ];
   const summaryRows: (number | string)[][] = [
     ["Lotus’s B2B · ยอดคาดการณ์รวมตามสินค้า (ทุกลูกค้า)"],
-    [`อัปเดต ${forecast.asOf} · คาดเพิ่มเลือกปริมาณเต็มเมื่อโอกาสสั่งมากกว่า 50% · หน่วย กก./ชิ้น แยกกัน`],
+    [`อัปเดต ${forecast.asOf} · ยอดจริงคือปริมาณที่ปิด Billing แล้วตามวันส่ง/รับสินค้า · ยอดคาดปิดวันนี้รวมยอดจริงแล้ว`],
     [],
     summaryHeaders,
     ...products.map((product) => [
       product.sku, product.productName, product.unit, product.customerCount, product.freshMeat ? "ใช่" : "ไม่ใช่",
-      ...product.days.flatMap((day) => [day.knownQty, day.projectedQty, day.totalQty]),
+      product.yesterdayActualQty, product.todayActualQty, ...product.days.map((day) => day.totalQty),
       Math.round(product.days.reduce((sum, day) => sum + day.totalQty, 0) * 1000) / 1000,
     ]),
   ];
@@ -227,14 +228,22 @@ function excelResponse(forecast: StockForecast) {
   ];
   summary["!cols"] = [
     { wch: 17 }, { wch: 48 }, { wch: 13 }, { wch: 17 }, { wch: 12 },
-    ...forecast.dates.flatMap(() => [{ wch: 22 }, { wch: 22 }, { wch: 17 }]),
+    ...Array.from({ length: 5 }, () => ({ wch: 23 })),
     { wch: 17 },
   ];
+  for (let r = 4; r < summaryRows.length; r++) {
+    for (let c = 5; c < summaryHeaders.length; c++) {
+      const cell = summary[XLSX.utils.encode_cell({ r, c })];
+      if (cell) cell.z = "#,##0.###";
+    }
+  }
 
   const headers = [
     "รหัสลูกค้า", "ชื่อลูกค้า", "SKU", "ชื่อสินค้า", "หน่วย",
+    `${forecast.yesterdayDate} ยอดจริง`, `${forecast.dates[0]} ยอดจริงถึงตอนนี้`,
+    `${forecast.dates[0]} คาดยอดปิด`, `${forecast.dates[1]} คาดการณ์`, `${forecast.dates[2]} คาดการณ์`,
     "เนื้อสด", "รอบสั่งลูกค้า (วัน)", "รอบซื้อ SKU (วัน)", "รอบคาดการณ์ (วัน)", "ความเชื่อมั่น",
-    ...forecast.dates.flatMap((date) => [`${date} รับออเดอร์แล้ว`, `${date} คาดการณ์เพิ่ม`, `${date} รวม`]),
+    ...forecast.dates.flatMap((date) => [`${date} รับออเดอร์แล้ว`, `${date} คาดการณ์เพิ่ม`]),
   ];
   const sheetRows: (number | string)[][] = [
     ["Lotus’s B2B · พยากรณ์ปริมาณขาย 3 วัน (สำหรับวางแผนเท่านั้น)"],
@@ -243,9 +252,10 @@ function excelResponse(forecast: StockForecast) {
     headers,
     ...forecast.rows.map((row) => [
       row.customerCode, row.customerName, row.sku, row.productName, row.unit,
+      row.yesterdayActualQty, row.todayActualQty, ...row.days.map((day) => day.totalQty),
       row.freshMeat ? "ใช่" : "ไม่ใช่", row.customerCadenceDays ?? "", row.skuCadenceDays ?? "",
       row.effectiveCadenceDays ?? "", row.confidence,
-      ...row.days.flatMap((day) => [day.knownQty, day.projectedQty, day.totalQty]),
+      ...row.days.flatMap((day) => [day.knownQty, day.projectedQty]),
     ]),
   ];
   const sheet = XLSX.utils.aoa_to_sheet(sheetRows);
@@ -255,9 +265,16 @@ function excelResponse(forecast: StockForecast) {
   ];
   sheet["!cols"] = [
     { wch: 17 }, { wch: 35 }, { wch: 17 }, { wch: 44 }, { wch: 12 },
+    ...Array.from({ length: 5 }, () => ({ wch: 23 })),
     { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 14 },
-    ...forecast.dates.flatMap(() => [{ wch: 20 }, { wch: 20 }, { wch: 17 }]),
+    ...forecast.dates.flatMap(() => [{ wch: 20 }, { wch: 20 }]),
   ];
+  for (let r = 4; r < sheetRows.length; r++) {
+    for (const c of [5, 6, 7, 8, 9, 15, 16, 17, 18, 19, 20]) {
+      const cell = sheet[XLSX.utils.encode_cell({ r, c })];
+      if (cell) cell.z = "#,##0.###";
+    }
+  }
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, summary, "รวมตามสินค้า");
   XLSX.utils.book_append_sheet(workbook, sheet, "รายละเอียดรายลูกค้า");

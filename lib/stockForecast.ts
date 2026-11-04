@@ -65,11 +65,14 @@ export type ForecastRow = {
   effectiveCadenceDays: number | null;
   purchaseDays: number;
   confidence: "high" | "medium" | "low" | "insufficient";
+  yesterdayActualQty: number;
+  todayActualQty: number;
   days: ForecastDay[];
 };
 
 export type StockForecast = {
   asOf: string;
+  yesterdayDate: string;
   dates: string[];
   historyDays: number;
   unmeasuredPieceOrders: number;
@@ -82,6 +85,8 @@ export type ProductForecastRow = {
   unit: string;
   freshMeat: boolean;
   customerCount: number;
+  yesterdayActualQty: number;
+  todayActualQty: number;
   customers: ForecastRow[];
   days: ForecastDay[];
 };
@@ -99,6 +104,8 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
         unit: row.unit,
         freshMeat: row.freshMeat,
         customerCount: 0,
+        yesterdayActualQty: 0,
+        todayActualQty: 0,
         customers: [],
         days: dates.map((date) => ({ date, knownQty: 0, projectedQty: 0, totalQty: 0 })),
       };
@@ -106,6 +113,8 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
     }
     product.customers.push(row);
     product.freshMeat ||= row.freshMeat;
+    product.yesterdayActualQty += row.yesterdayActualQty ?? 0;
+    product.todayActualQty += row.todayActualQty ?? 0;
     for (const day of row.days) {
       const aggregateDay = product.days.find((candidate) => candidate.date === day.date);
       if (!aggregateDay) continue;
@@ -115,6 +124,8 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
   }
   for (const product of products.values()) {
     product.customerCount = new Set(product.customers.map((row) => row.customerId)).size;
+    product.yesterdayActualQty = clampQty(product.yesterdayActualQty);
+    product.todayActualQty = clampQty(product.todayActualQty);
     product.customers.sort((a, b) => a.customerName.localeCompare(b.customerName, "th") || a.customerCode.localeCompare(b.customerCode));
     for (const day of product.days) {
       day.knownQty = clampQty(day.knownQty);
@@ -223,6 +234,7 @@ export function buildStockForecast(
   asOf = new Date()
 ): StockForecast {
   const today = bangkokDateKey(asOf);
+  const yesterdayDate = addDays(today, -1);
   const dates = Array.from({ length: FORECAST_DAYS }, (_, i) => addDays(today, i));
   const customerById = new Map(customers.filter((c) => !c.isTest).map((c) => [c.id, c]));
   const activeOrders = orders.filter((o) => o.status !== "cancelled" && customerById.has(o.customerId));
@@ -299,6 +311,8 @@ export function buildStockForecast(
   const rows: ForecastRow[] = [];
   for (const series of seriesByKey.values()) {
     const customer = customerById.get(series.customerId)!;
+    const yesterdayActualQty = clampQty(series.soldByDay.get(yesterdayDate) ?? 0);
+    const todayActualQty = clampQty(series.soldByDay.get(today) ?? 0);
     const purchases = [...series.soldByDay.entries()].sort(([a], [b]) => a.localeCompare(b));
     const customerPeriod = customerCadence.get(series.customerId) ?? null;
     const skuObservedPeriod = averageInterval(purchases.map(([date]) => date));
@@ -323,8 +337,8 @@ export function buildStockForecast(
           projectedQty: 0,
           totalQty: clampQty(series.knownByDay.get(date) ?? 0),
         }));
-    // Do not show inactive one-off SKUs with no committed orders or usable forecast.
-    if (forecastDays.every((day) => day.totalQty === 0)) continue;
+    // Keep yesterday's sales visible even if this SKU has no three-day forecast.
+    if (forecastDays.every((day) => day.totalQty === 0) && yesterdayActualQty === 0 && todayActualQty === 0) continue;
     rows.push({
       customerId: series.customerId,
       customerCode: customer.code,
@@ -338,10 +352,12 @@ export function buildStockForecast(
       effectiveCadenceDays: effectivePeriod === null ? null : Math.round(effectivePeriod * 10) / 10,
       purchaseDays: purchases.length,
       confidence,
+      yesterdayActualQty,
+      todayActualQty,
       days: forecastDays,
     });
   }
 
   rows.sort((a, b) => a.customerName.localeCompare(b.customerName, "th") || a.sku.localeCompare(b.sku, "en"));
-  return { asOf: asOf.toISOString(), dates, historyDays: FORECAST_HISTORY_DAYS, unmeasuredPieceOrders, rows };
+  return { asOf: asOf.toISOString(), yesterdayDate, dates, historyDays: FORECAST_HISTORY_DAYS, unmeasuredPieceOrders, rows };
 }

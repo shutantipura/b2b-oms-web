@@ -56,6 +56,41 @@ test("meat capped at two days without doubling historical consumption", () => {
   assert.deepEqual(meat.days.map((day) => day.projectedQty), [10, 0, 10]);
   assert.deepEqual(rice.days.map((day) => day.projectedQty), [0, 0, 10]);
   assert.deepEqual(forecast.dates, ["2026-11-04", "2026-11-05", "2026-11-06"]);
+  assert.equal(forecast.yesterdayDate, "2026-11-03");
+});
+
+test("actual yesterday and today use billed quantity, and today's closing forecast includes billed units once", () => {
+  const orders = [
+    ...historicDays.map((day, i) => makeOrder(`o${i}`, day)),
+    makeOrder("yesterday", "2026-11-03"),
+    makeOrder("today-billed", "2026-11-04"),
+    makeOrder("today-pending", "2026-11-04", "awaiting_billing"),
+  ];
+  const items = [
+    ...historicDays.map((_, i) => makeItem(`o${i}`, "meat", 20, "Fresh Meat", "หมูสด")),
+    makeItem("yesterday", "meat", 4, "Fresh Meat", "หมูสด"),
+    makeItem("today-billed", "meat", 3, "Fresh Meat", "หมูสด"),
+    makeItem("today-pending", "meat", 7, "Fresh Meat", "หมูสด"),
+  ];
+  const billed = new Set(["o0", "o1", "o2", "yesterday", "today-billed"]);
+  const forecast = buildStockForecast(orders, items, [customer], billed, now);
+  const meat = forecast.rows.find((row) => row.sku === "meat");
+  assert.equal(meat.yesterdayActualQty, 4);
+  assert.equal(meat.todayActualQty, 3);
+  // Pending-picked 7kg is booked but not actual; 3kg billed is already part of the 10kg total.
+  assert.equal(meat.days[0].knownQty, 10);
+  assert.equal(meat.days[0].projectedQty, 0);
+  assert.equal(meat.days[0].totalQty, 10);
+});
+
+test("yesterday's one-off sale remains visible even without a forward prediction", () => {
+  const orders = [makeOrder("one", "2026-11-03")];
+  const items = [makeItem("one", "meat", 5, "Fresh Meat", "หมูสด")];
+  const forecast = buildStockForecast(orders, items, [customer], new Set(["one"]), now);
+  assert.equal(forecast.rows.length, 1);
+  assert.equal(forecast.rows[0].yesterdayActualQty, 5);
+  assert.equal(forecast.rows[0].todayActualQty, 0);
+  assert.ok(forecast.rows[0].days.every((day) => day.totalQty === 0));
 });
 
 test("known future demand is included once and resets the cycle", () => {
@@ -101,6 +136,8 @@ test("product forecast sums all customers into the same SKU for each of three da
   const makeForecastRow = (id, name, quantities) => ({
     customerId: id, customerCode: id, customerName: name,
     sku: "051262358", productName: "หมูสด", unit: "กก.", freshMeat: true,
+    yesterdayActualQty: id === "c1" ? 5 : 3,
+    todayActualQty: id === "c1" ? 10 : 3.25,
     confidence: "medium", days: quantities.map(([knownQty, projectedQty], index) => ({
       date: dates[index], knownQty, projectedQty, totalQty: knownQty + projectedQty,
     })),
@@ -112,6 +149,8 @@ test("product forecast sums all customers into the same SKU for each of three da
   assert.equal(result.length, 1);
   assert.equal(result[0].customerCount, 2);
   assert.equal(result[0].freshMeat, true);
+  assert.equal(result[0].yesterdayActualQty, 8);
+  assert.equal(result[0].todayActualQty, 13.25);
   assert.deepEqual(result[0].days.map((day) => [day.knownQty, day.projectedQty, day.totalQty]), [
     [13.25, 4, 17.25], [2, 3.5, 5.5], [4, 3, 7],
   ]);
@@ -123,6 +162,7 @@ test("SKU totals never combine incompatible units or mismatched dates", () => {
   const base = {
     customerId: "c1", customerCode: "1", customerName: "Restaurant A",
     sku: "123456789", productName: "ไก่", freshMeat: false, confidence: "low",
+    yesterdayActualQty: 2, todayActualQty: 1,
   };
   const result = aggregateForecastByProduct([
     { ...base, unit: "กก.", days: [{ date: dates[0], knownQty: 0, projectedQty: 1.235, totalQty: 1.235 }] },
@@ -133,6 +173,8 @@ test("SKU totals never combine incompatible units or mismatched dates", () => {
   const kilos = result.find((row) => row.unit === "กก.");
   const pieces = result.find((row) => row.unit === "ชิ้น");
   assert.equal(kilos.customerCount, 2);
+  assert.equal(kilos.yesterdayActualQty, 4);
+  assert.equal(pieces.yesterdayActualQty, 2);
   assert.equal(kilos.days[0].totalQty, 1.36);
   assert.equal(kilos.days[1].totalQty, 0);
   assert.equal(pieces.days[0].totalQty, 0);
