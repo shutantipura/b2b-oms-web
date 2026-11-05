@@ -57,6 +57,15 @@ test("adding a product preserves unsaved quantities but initializes new rows", (
   assert.deepEqual(preserveOrderQuantityDrafts(fresh, {}), fresh);
 });
 
+test("favourites management requires an explicit customer selection", () => {
+  const page = readFileSync(new URL("../app/customers/favourites/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /const\s+\[\s*selectedCustomer,\s*setSelectedCustomer,\s*\]\s*=\s*useState\(""\)/s);
+  assert.match(page, /<option value="">— เลือกลูกค้า —<\/option>/);
+  assert.doesNotMatch(page, /setSelectedCustomer\(\s*firstActive\.id/);
+  assert.match(page, /loadFavourites\(selectedCustomer\)/);
+  assert.match(page, /กรุณาเลือกลูกค้าเพื่อดูและจัดการสินค้าซื้อประจำ/);
+});
+
 test("stock check and picking retain quantity drafts when staff add a product", () => {
   const stock = readFileSync(new URL("../app/tasks/confirmation/[orderNumber]/page.tsx", import.meta.url), "utf8");
   const pick = readFileSync(new URL("../app/tasks/picking/[orderNumber]/page.tsx", import.meta.url), "utf8");
