@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { groupOrdersForManagement, orderDisplayNumber } from "../lib/groupOrderDisplay.ts";
 import { combinePickedItems } from "../lib/groupedOrderItems.ts";
 import { preserveOrderQuantityDrafts } from "../lib/orderQuantityDrafts.ts";
-import { calculatePickedOrderEstimate } from "../lib/taskPickedEstimate.ts";
+import { calculatePickedOrderEstimate, calculateStockCheckedOrderEstimate } from "../lib/taskPickedEstimate.ts";
 import {
   billingVarianceCents,
   calculateBillingStageReferenceTotal,
@@ -67,6 +67,48 @@ test("stock check and picking retain quantity drafts when staff add a product", 
   assert.match(pick, /await loadOrder\(true\);/);
   assert.match(stock, /await loadOrder\(true\);\s*setAddingProduct\(false\)/);
   assert.match(pick, /await loadOrder\(true\);\s*setAddingProduct\(false\)/);
+});
+
+test("task card estimates switch from requested to confirmed to picked quantities", () => {
+  // Order #202: original basket 6kg thigh + 5kg chicken breast,
+  // stock check rejected the chicken breast.
+  const items = [
+    {
+      requested_qty: "6.000", confirmed_qty: "6.000", actual_qty: null,
+      unit_snapshot: "กก.", unit_price_snapshot: "127.00",
+    },
+    {
+      requested_qty: "5.000", confirmed_qty: "0.000", actual_qty: null,
+      unit_snapshot: "กก.", unit_price_snapshot: "84.00",
+    },
+  ];
+  assert.equal(calculateStockCheckedOrderEstimate(items), 762);
+  // Picking can subsequently record a different actual quantity.
+  const picked = items.map((item, i) => ({ ...item, actual_qty: i === 0 ? "6.000" : "5.000" }));
+  assert.equal(calculatePickedOrderEstimate(picked), 1182);
+
+  const tasks = readFileSync(new URL("../app/tasks/page.tsx", import.meta.url), "utf8");
+  assert.match(tasks, /order\.status === "awaiting_picking" \|\| order\.status === "picking"/);
+  assert.match(tasks, /estimated_amount: calculateStockCheckedOrderEstimate\(orderItems\)/);
+  assert.match(tasks, /estimated_amount: calculatePickedOrderEstimate\(orderItems\)/);
+});
+
+test("stock-checked estimates honor zero quantities and unknown measured weights", () => {
+  assert.equal(calculateStockCheckedOrderEstimate([]), null);
+  assert.equal(calculateStockCheckedOrderEstimate([
+    { confirmed_qty: "0.000", unit_price_snapshot: null, unit_snapshot: "กก." },
+  ]), 0);
+  assert.equal(calculateStockCheckedOrderEstimate([
+    { confirmed_qty: "1", unit_snapshot: "ชิ้น", unit_price_snapshot: "0",
+      piece_price_per_kg_snapshot: "75.00" },
+  ]), null);
+  assert.equal(calculateStockCheckedOrderEstimate([
+    { confirmed_qty: "0", unit_snapshot: "ชิ้น", unit_price_snapshot: "0",
+      piece_price_per_kg_snapshot: "75.00" },
+  ]), 0);
+  assert.equal(calculateStockCheckedOrderEstimate([
+    { confirmed_qty: null, unit_price_snapshot: "100" },
+  ]), null);
 });
 
 test("pre-billing estimate uses picked kilograms at the frozen per-kg rate", () => {
