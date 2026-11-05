@@ -19,7 +19,7 @@ import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 import { getOrderDeliveryUrgency, type DeliveryUrgency } from "../../lib/deliveryRules";
 import { formatActiveTaskDuration } from "../../lib/taskElapsed";
-import { calculatePickedOrderEstimate } from "../../lib/taskPickedEstimate";
+import { calculatePickedOrderEstimate, calculateStockCheckedOrderEstimate } from "../../lib/taskPickedEstimate";
 
 
 
@@ -408,18 +408,24 @@ async function withEstimatedAmounts(rawOrders: Order[]): Promise<Order[]> {
     const orderItems = byOrder.get(order.id) ?? [];
     if (orderItems.length === 0) return order;
 
-    // Once Picking is completed, the measured KG/piece amounts are known.
-    // Prefer the provisional bill at saved order prices instead of the
-    // requested-quantity estimate. Billing still sets the authoritative total.
+    // After stock check, show the value of what is actually available to
+    // pick. Do not reuse the original requested quantities or their subtotal.
+    if (order.status === "awaiting_picking" || order.status === "picking") {
+      return {
+        ...order,
+        estimated_amount: calculateStockCheckedOrderEstimate(orderItems),
+        estimate_uses_current_price: false,
+      };
+    }
+
+    // After Picking, the provisional bill must use actual picked amounts,
+    // including weighed kilograms. Never fall back to requested quantities.
     if (order.status === "awaiting_billing") {
-      const pickedEstimate = calculatePickedOrderEstimate(orderItems);
-      if (pickedEstimate !== null) {
-        return {
-          ...order,
-          estimated_amount: pickedEstimate,
-          estimate_uses_current_price: false,
-        };
-      }
+      return {
+        ...order,
+        estimated_amount: calculatePickedOrderEstimate(orderItems),
+        estimate_uses_current_price: false,
+      };
     }
 
     let total = 0;
