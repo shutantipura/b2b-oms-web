@@ -397,24 +397,9 @@ export default function CustomerFavouritesPage() {
       loadedCustomers
     );
 
-    if (
-      loadedCustomers.length >
-      0
-    ) {
-      const firstActive =
-        loadedCustomers.find(
-          (
-            customer
-          ) =>
-            customer.is_active
-        ) ??
-        loadedCustomers[0];
-
-      activeCustomerRef.current = firstActive.id;
-      setSelectedCustomer(
-        firstActive.id
-      );
-    }
+    // A manager must explicitly select the customer whose favourites to edit.
+    activeCustomerRef.current = "";
+    setSelectedCustomer("");
 
     setLoading(false);
   }
@@ -448,6 +433,7 @@ export default function CustomerFavouritesPage() {
       setProducts(
         []
       );
+      setLoadingFavourites(false);
 
       return;
     }
@@ -665,16 +651,9 @@ export default function CustomerFavouritesPage() {
   }
 
   useEffect(() => {
-    if (
-      selectedCustomer
-    ) {
-      loadFavourites(
-        selectedCustomer
-      );
-    }
-  }, [
-    selectedCustomer,
-  ]);
+    // Clear the previous customer's products when the selection is blank.
+    loadFavourites(selectedCustomer);
+  }, [selectedCustomer]);
 
   // =====================================================
   // SEARCH PRODUCTS TO ADD
@@ -1269,6 +1248,7 @@ export default function CustomerFavouritesPage() {
                 }}
                 className="w-full border rounded-lg px-4 py-3 bg-white"
               >
+                <option value="">— เลือกลูกค้า —</option>
 
                 {customerOptions.map(
                   (
@@ -1549,7 +1529,9 @@ export default function CustomerFavouritesPage() {
             0 ? (
 
             <div className="p-8 text-gray-500">
-              ลูกค้ารายนี้ยังไม่มีสินค้าซื้อประจำ — กด “+ เพิ่มสินค้า” เพื่อเริ่มเพิ่ม
+              {selectedCustomer
+                ? "ลูกค้ารายนี้ยังไม่มีสินค้าซื้อประจำ — กด “+ เพิ่มสินค้า” เพื่อเริ่มเพิ่ม"
+                : "กรุณาเลือกลูกค้าเพื่อดูและจัดการสินค้าซื้อประจำ"}
             </div>
 
           ) : (
