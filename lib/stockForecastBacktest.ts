@@ -9,7 +9,7 @@ import {
 } from "./stockForecast.ts";
 
 export const BACKTEST_DAYS = 14;
-export const BACKTEST_CUTOFF_HOUR = 16;
+export const BACKTEST_CUTOFF_HOUR = 12;
 const MIN_TRAINING_DAYS = 7;
 
 export type DemandBacktestDay = {
@@ -210,7 +210,7 @@ export function backtestStockForecast(
     days,
     limitations: [
       "จำลองจากข้อมูลย้อนหลังที่ยังคงอยู่ในระบบ โดยไม่มีประวัติสถานะและวันส่งทุกครั้งที่ถูกแก้ไข จึงไม่ใช่ข้อมูล snapshot ณ เวลานั้นอย่างสมบูรณ์",
-      "วัด Requested Qty ตามวันส่ง ไม่ใช่ยอดขายจริง และตัดสินที่เวลา 16:00 ของวันก่อนส่ง (เวลาไทย)",
+      "วัด Requested Qty ตามวันส่ง ไม่ใช่ยอดขายจริง และตัดสินที่เวลา 12:00 ของวันก่อนส่ง (เวลาไทย)",
       "WAPE คำนวณแยกตามหน่วยนับ (เช่น กก. และ ชิ้น) ไม่นำยอดคนละหน่วยมาบวกกัน",
       "ยังไม่ใช่การวัดที่ผ่านการยืนยันเชิงสถิติจากหลายเดือน และไม่มีการบันทึก snapshot ก่อนหน้า จึงใช้เพื่อเฝ้าระวังความแม่นยำเบื้องต้นเท่านั้น",
     ],
