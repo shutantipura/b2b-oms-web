@@ -3,7 +3,10 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import {
   aggregateForecastByProduct,
+  bangkokDateKey,
   buildStockForecast,
+  describeCustomerOrderTime,
+  FORECAST_DAYS,
   FORECAST_HISTORY_DAYS,
   type ForecastCustomerInput,
   type ForecastItemInput,
@@ -73,14 +76,15 @@ function numeric(value: number | string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-async function ordersSince(admin: SupabaseClient, start: string) {
+async function ordersForDeliveryDates(admin: SupabaseClient, startDate: string, endDate: string) {
   const result: DbOrder[] = [];
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await admin
       .from("orders")
       .select("id, customer_id, created_at, delivery_date, group_root_order_id, status")
-      .gte("created_at", start)
-      .order("created_at", { ascending: true })
+      .gte("delivery_date", startDate)
+      .lte("delivery_date", endDate)
+      .order("delivery_date", { ascending: true })
       .order("id", { ascending: true })
       .range(offset, offset + 499);
     if (error) throw error;
@@ -141,8 +145,11 @@ async function customersById(admin: SupabaseClient, ids: string[]) {
 
 async function loadForecast(admin: SupabaseClient) {
   const now = new Date();
-  const start = new Date(now.getTime() - FORECAST_HISTORY_DAYS * 86_400_000).toISOString();
-  const orders = await ordersSince(admin, start);
+  const today = bangkokDateKey(now);
+  const dateMillis = Date.parse(`${today}T00:00:00Z`);
+  const startDate = new Date(dateMillis - FORECAST_HISTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const endDate = new Date(dateMillis + (FORECAST_DAYS - 1) * 86_400_000).toISOString().slice(0, 10);
+  const orders = await ordersForDeliveryDates(admin, startDate, endDate);
   const liveOrders = orders.filter((order) => order.status !== "cancelled");
   const [items, customers] = await Promise.all([
     itemsForOrders(admin, liveOrders.map((order) => order.id)),
@@ -211,6 +218,7 @@ function excelResponse(forecast: StockForecast) {
     `${forecast.dates[0]} คาดยอดสั่งปิดวัน`, `${forecast.dates[1]} คาดความต้องการ`, `${forecast.dates[2]} คาดความต้องการ`,
     "เนื้อสด", "รอบสั่งลูกค้า (วัน)", "รอบซื้อ SKU (วัน)", "รอบคาดการณ์ (วัน)", "ความเชื่อมั่น",
     ...forecast.dates.flatMap((date) => [`${date} รับออเดอร์แล้ว`, `${date} คาดการณ์เพิ่ม`]),
+    "เวลาที่ลูกค้ามักสั่ง (เทียบวันส่ง)", "ตัวอย่างเวลาออเดอร์ (ครั้ง)",
   ];
   const sheetRows: (number | string)[][] = [
     ["Lotus’s B2B · พยากรณ์ความต้องการสินค้า 3 วัน (สำหรับวางแผนเท่านั้น)"],
@@ -223,6 +231,7 @@ function excelResponse(forecast: StockForecast) {
       row.freshMeat ? "ใช่" : "ไม่ใช่", row.customerCadenceDays ?? "", row.skuCadenceDays ?? "",
       row.effectiveCadenceDays ?? "", row.confidence,
       ...row.days.flatMap((day) => [day.knownQty, day.projectedQty]),
+      describeCustomerOrderTime(row.customerUsualOrderOffsetMinutes, row.customerOrderTimingSamples), row.customerOrderTimingSamples,
     ]),
   ];
   const sheet = XLSX.utils.aoa_to_sheet(sheetRows);
@@ -235,6 +244,7 @@ function excelResponse(forecast: StockForecast) {
     ...Array.from({ length: 5 }, () => ({ wch: 23 })),
     { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 14 },
     ...forecast.dates.flatMap(() => [{ wch: 20 }, { wch: 20 }]),
+    { wch: 30 }, { wch: 22 },
   ];
   for (let r = 4; r < sheetRows.length; r++) {
     for (const c of [5, 6, 7, 8, 9, 15, 16, 17, 18, 19, 20]) {
