@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { aggregateForecastByProduct, buildStockForecast, isFreshMeat, mostLikelyOrderQty } from "../lib/stockForecast.ts";
+import { aggregateForecastByProduct, buildStockForecast, describeCustomerOrderTime, isFreshMeat, mostLikelyOrderQty, remainingOrderWindowShare } from "../lib/stockForecast.ts";
 
-const now = new Date("2026-11-04T07:00:00Z");
+const now = new Date("2026-11-03T20:00:00Z"); // 03:00 on 4 Nov Bangkok time
 const customer = { id: "c1", code: "0000000001", name: "Restaurant A", isTest: false };
 const historicDays = ["2026-10-25", "2026-10-29", "2026-11-02"];
 
@@ -33,6 +33,72 @@ test("modal forecast chooses the full likely quantity instead of probability-wei
   assert.equal(mostLikelyOrderQty(0.2, 1), 0);
   assert.equal(mostLikelyOrderQty(0.5, 1), 0);
   assert.equal(mostLikelyOrderQty(0.75, 3.125), 3.125);
+});
+
+test("a customer whose usual deadline is 22:00 the previous day cannot generate speculative demand after it passes", () => {
+  const offsets = [-120, -120, -120, -120]; // 22:00 the day before delivery
+  assert.equal(describeCustomerOrderTime(-120, offsets.length), "วันก่อนส่ง 22:00");
+  assert.equal(remainingOrderWindowShare(new Date("2026-11-03T14:59:00Z"), "2026-11-04", offsets), 1);
+  assert.equal(remainingOrderWindowShare(new Date("2026-11-03T15:01:00Z"), "2026-11-04", offsets), 0);
+});
+
+test("same-day customer remains eligible until their usual order time, with mixed patterns weighted", () => {
+  const sameDay = [780, 780, 780]; // 13:00 on the delivery day
+  assert.equal(describeCustomerOrderTime(780, sameDay.length), "วันส่ง 13:00");
+  assert.equal(remainingOrderWindowShare(new Date("2026-11-04T05:00:00Z"), "2026-11-04", sameDay), 1);
+  assert.equal(remainingOrderWindowShare(new Date("2026-11-04T07:00:00Z"), "2026-11-04", sameDay), 0);
+  assert.equal(remainingOrderWindowShare(new Date("2026-11-04T05:00:00Z"), "2026-11-04", [-120, -120, 780]), 1 / 3);
+  assert.equal(remainingOrderWindowShare(new Date("2026-11-04T07:00:00Z"), "2026-11-04", [780]), 1);
+});
+
+test("delivery dates, not creation dates, determine customer and SKU ordering cadence", () => {
+  const orders = historicDays.map((deliveryDate, i) => ({
+    ...makeOrder(`o${i}`, deliveryDate),
+    createdAt: `${["2026-10-24", "2026-10-27", "2026-11-01"][i]}T22:00:00+07:00`,
+  }));
+  const result = buildStockForecast(orders, orders.map((order) => makeItem(order.id, "meat", 20, "Fresh Meat", "หมูสด")), [customer], now);
+  assert.equal(result.rows[0].customerCadenceDays, 4);
+  assert.equal(result.rows[0].skuCadenceDays, 4);
+});
+
+test("an order placed the previous evening contributes to today's delivery demand, not yesterday's", () => {
+  const order = {
+    ...makeOrder("overnight", "2026-11-03", "awaiting_picking", "2026-11-04"),
+    createdAt: "2026-11-03T22:00:00+07:00",
+  };
+  const result = buildStockForecast([order], [makeItem("overnight", "rice", 8, "Dry Goods", "ข้าว")], [customer], now);
+  assert.equal(result.rows[0].yesterdayRequestedQty, 0);
+  assert.equal(result.rows[0].todayRequestedQty, 8);
+  assert.equal(result.rows[0].days[0].knownQty, 8);
+});
+
+test("the customer's observed ordering deadline suppresses unbooked today demand but not tomorrow", () => {
+  const deliveries = ["2026-10-31", "2026-11-01", "2026-11-02"];
+  const orders = deliveries.map((deliveryDate, i) => ({
+    ...makeOrder(`h${i}`, deliveryDate),
+    createdAt: `${["2026-10-30", "2026-10-31", "2026-11-01"][i]}T22:00:00+07:00`,
+  }));
+  const items = orders.map((order) => makeItem(order.id, "rice", 10, "อาหารแห้ง", "ข้าว"));
+  const lateToday = new Date("2026-11-04T07:00:00Z"); // 14:00 Bangkok; yesterday's 22:00 deadline has passed
+  const result = buildStockForecast(orders, items, [customer], lateToday);
+  assert.equal(result.rows[0].days[0].projectedQty, 0);
+  assert.ok(result.rows[0].days[1].projectedQty > 0);
+  const booked = { ...makeOrder("booked", "2026-11-04"), createdAt: "2026-11-03T22:00:00+07:00" };
+  const withKnown = buildStockForecast([...orders, booked], [...items, makeItem("booked", "rice", 6, "อาหารแห้ง", "ข้าว")], [customer], lateToday);
+  assert.equal(withKnown.rows[0].days[0].knownQty, 6);
+  assert.equal(withKnown.rows[0].days[0].totalQty, 6);
+});
+
+test("orders without delivery dates and deliveries outside the 90-day window are excluded", () => {
+  const orders = [
+    { ...makeOrder("undated", "2026-11-03"), deliveryDate: null },
+    makeOrder("old", "2026-07-01"),
+    makeOrder("today", "2026-11-04"),
+  ];
+  const items = orders.map((o) => makeItem(o.id, "meat", 2, "Fresh Meat", "หมูสด"));
+  const result = buildStockForecast(orders, items, [customer], now);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].todayRequestedQty, 2);
 });
 
 test("meat capped at two days without doubling historical consumption", () => {
@@ -197,4 +263,14 @@ test("SKU totals never combine incompatible units or mismatched dates", () => {
   assert.equal(kilos.days[1].totalQty, 0);
   assert.equal(pieces.days[0].totalQty, 0);
   assert.equal(pieces.days[1].totalQty, 2);
+});
+
+test("product list is prioritised by tomorrow's forecast volume, highest first", () => {
+  const dates = ["2026-11-04", "2026-11-05", "2026-11-06"];
+  const row = (sku, tomorrow) => ({
+    customerId: "c1", customerCode: "1", customerName: "Restaurant A", sku,
+    productName: sku, unit: "กก.", freshMeat: false, yesterdayRequestedQty: 0, todayRequestedQty: 0,
+    days: dates.map((date, i) => ({ date, knownQty: 0, projectedQty: i === 1 ? tomorrow : 0, totalQty: i === 1 ? tomorrow : 0 })),
+  });
+  assert.deepEqual(aggregateForecastByProduct([row("001", 1), row("999", 9)], dates).map((p) => p.sku), ["999", "001"]);
 });
