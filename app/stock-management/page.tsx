@@ -24,22 +24,22 @@ const CONFIDENCE = {
   insufficient: { label: "ข้อมูลน้อย", className: "bg-slate-100 text-slate-600" },
 };
 
-function FivePeriodGrid({ yesterdayDate, yesterdayActualQty, todayActualQty, days, compact = false }: {
+function FivePeriodGrid({ yesterdayDate, yesterdayRequestedQty, todayRequestedQty, days, compact = false }: {
   yesterdayDate: string;
-  yesterdayActualQty: number;
-  todayActualQty: number;
+  yesterdayRequestedQty: number;
+  todayRequestedQty: number;
   days: ForecastDay[];
   compact?: boolean;
 }) {
   const periods = [
-    { label: "เมื่อวาน", date: yesterdayDate, value: yesterdayActualQty, actual: true },
-    { label: "จริงวันนี้", date: days[0].date, value: todayActualQty, actual: true },
+    { label: "สั่งเมื่อวาน", date: yesterdayDate, value: yesterdayRequestedQty, actual: true },
+    { label: "สั่งวันนี้", date: days[0].date, value: todayRequestedQty, actual: true },
     { label: "คาดปิดวันนี้", date: days[0].date, value: days[0].totalQty, actual: false },
     { label: "คาดพรุ่งนี้", date: days[1].date, value: days[1].totalQty, actual: false },
     { label: "คาดมะรืน", date: days[2].date, value: days[2].totalQty, actual: false },
   ];
   return (
-    <div className="grid grid-cols-5 gap-1 p-1.5 sm:gap-2 sm:p-2" aria-label="ยอดขายจริงและคาดการณ์ห้าช่วงเวลา">
+    <div className="grid grid-cols-5 gap-1 p-1.5 sm:gap-2 sm:p-2" aria-label="ความต้องการตามคำสั่งซื้อจริงและคาดการณ์ห้าช่วงเวลา">
       {periods.map((period) => (
         <div key={period.label} className={`min-w-0 rounded-lg px-0.5 py-2 text-center sm:rounded-xl sm:px-2 sm:py-3 ${period.actual ? "bg-[#F1F5F4]" : "bg-[#EAF8F5]"}`}>
           <p className="text-[9px] font-extrabold leading-3 text-[#355E57] sm:text-xs sm:leading-4">{period.label}</p>
@@ -144,7 +144,7 @@ export default function StockManagementPage() {
       const fileUrl = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = fileUrl;
-      link.download = `stock_forecast_${forecast?.dates[0] ?? "today"}.xlsx`;
+      link.download = `demand_forecast_${forecast?.dates[0] ?? "today"}.xlsx`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -215,7 +215,7 @@ export default function StockManagementPage() {
             <div>
               <p className="text-[11px] font-extrabold tracking-[0.13em] text-[#008B8B]">LOTUS’S B2B / OMS</p>
               <h1 className="mt-2 text-3xl font-black text-[#17453F]">จัดการสต็อก</h1>
-              <p className="mt-2 text-sm text-[#6B8880]">รายงานปริมาณขาย เพื่อเตรียมวางแผนการสั่งสินค้าและสต็อก</p>
+              <p className="mt-2 text-sm text-[#6B8880]">พยากรณ์ความต้องการจากยอดสั่งของลูกค้า พร้อมรายงานยอดขายจริงแยกต่างหาก</p>
             </div>
             <span className="rounded-full border border-[#F7DB83] bg-[#FFF7DC] px-4 py-2 text-sm font-extrabold text-[#815B00]">
               Manager
@@ -226,10 +226,10 @@ export default function StockManagementPage() {
         <section className="mt-5 rounded-[22px] border border-[#CDE9E3] bg-white p-5 shadow-[0_4px_16px_rgba(18,96,89,0.05)] sm:p-7">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-extrabold tracking-wide text-[#008B8B]">ACTUAL SALES + ROLLING FORECAST</p>
-              <h2 className="mt-1 text-2xl font-black text-[#17453F]">ยอดขายจริงและคาดการณ์ 3 วัน</h2>
+              <p className="text-xs font-extrabold tracking-wide text-[#008B8B]">REQUESTED DEMAND + ROLLING FORECAST</p>
+              <h2 className="mt-1 text-2xl font-black text-[#17453F]">พยากรณ์ความต้องการสินค้า 3 วัน</h2>
               <p className="mt-2 text-sm leading-6 text-[#648279]">
-                ใช้ปริมาณที่มีโอกาสเกิดขึ้นมากที่สุดของลูกค้าแต่ละราย ไม่เฉลี่ยด้วยความน่าจะเป็น · อัปเดตอัตโนมัติทุก 1 นาที
+                ใช้ปริมาณที่ลูกค้าขอสั่ง (Requested Qty) แม้เช็คสต็อกหรือหยิบได้ไม่ครบ · คาดจากปริมาณที่มีโอกาสเกิดขึ้นมากที่สุด ไม่เฉลี่ยด้วยความน่าจะเป็น · อัปเดตอัตโนมัติทุก 1 นาที
               </p>
               {forecast && (
                 <p className="mt-1 text-xs text-[#77918A]">
@@ -247,8 +247,8 @@ export default function StockManagementPage() {
               <p className="px-2 pt-1 text-xs font-extrabold text-[#436F66]">สรุปเนื้อสดทั้งหมด (กก.)</p>
               <FivePeriodGrid
                 yesterdayDate={forecast.yesterdayDate}
-                yesterdayActualQty={productForecast.filter((row) => row.unit === "กก." && row.freshMeat).reduce((sum, row) => sum + row.yesterdayActualQty, 0)}
-                todayActualQty={productForecast.filter((row) => row.unit === "กก." && row.freshMeat).reduce((sum, row) => sum + row.todayActualQty, 0)}
+                yesterdayRequestedQty={productForecast.filter((row) => row.unit === "กก." && row.freshMeat).reduce((sum, row) => sum + row.yesterdayRequestedQty, 0)}
+                todayRequestedQty={productForecast.filter((row) => row.unit === "กก." && row.freshMeat).reduce((sum, row) => sum + row.todayRequestedQty, 0)}
                 days={forecast.dates.map((date, index) => {
                   const meat = productForecast.filter((row) => row.unit === "กก." && row.freshMeat);
                   return {
@@ -292,10 +292,7 @@ export default function StockManagementPage() {
           {forecast && (
             <>
               <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-lg font-black text-[#17453F]">ยอดคาดการณ์รวมตามสินค้า (ทุกลูกค้า)</h3>
-                  <p className="mt-1 text-xs font-semibold text-[#648279]">เรียงตามยอดคาดการณ์พรุ่งนี้: มาก → น้อย</p>
-                </div>
+                   <h3 className="text-lg font-black text-[#17453F]">ความต้องการคาดการณ์รวมตามสินค้า (ทุกลูกค้า)</h3>
                 <span className="rounded-full bg-[#EAF8F5] px-3 py-1 text-xs font-extrabold text-[#008B8B]">
                   {visibleForecast.length} SKU / หน่วย
                 </span>
@@ -308,7 +305,7 @@ export default function StockManagementPage() {
                       <p className="mt-1 text-xs font-bold text-[#008B8B]">SKU {product.sku} · {product.unit} · {product.customerCount} ลูกค้า</p>
                       {product.freshMeat && <p className="mt-1 text-[11px] font-semibold text-[#A46B00]">เนื้อสด: รอบคาดการณ์ไม่เกิน 2 วัน</p>}
                     </div>
-                    <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayActualQty={product.yesterdayActualQty} todayActualQty={product.todayActualQty} days={product.days} />
+                     <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayRequestedQty={product.yesterdayRequestedQty} todayRequestedQty={product.todayRequestedQty} days={product.days} />
                     <details className="group border-t border-[#E0EEEA]">
                       <summary className="cursor-pointer px-4 py-3 text-sm font-extrabold text-[#008B8B] marker:text-[#008B8B]">
                         ดูยอดแยกรายลูกค้า ({product.customerCount})
@@ -321,7 +318,7 @@ export default function StockManagementPage() {
                               {customer.customerCode} · {customer.effectiveCadenceDays !== null ? `ทุก ${qty(customer.effectiveCadenceDays)} วัน` : "ยังไม่ทราบรอบ"}
                               {" · "}<span className={CONFIDENCE[customer.confidence].className}>{CONFIDENCE[customer.confidence].label}</span>
                             </p>
-                            <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayActualQty={customer.yesterdayActualQty} todayActualQty={customer.todayActualQty} days={customer.days} compact />
+                             <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayRequestedQty={customer.yesterdayRequestedQty} todayRequestedQty={customer.todayRequestedQty} days={customer.days} compact />
                           </div>
                         ))}
                       </div>
@@ -331,20 +328,16 @@ export default function StockManagementPage() {
                 {visibleForecast.length === 0 && <p className="rounded-xl border border-[#DDEAE6] p-6 text-center text-sm text-[#648279]">ยังไม่มีข้อมูลที่ตรงกับตัวกรอง หรือยังมีประวัติไม่พอสำหรับคาดการณ์</p>}
               </div>
               <p className="mt-3 text-xs leading-5 text-[#6E8982]">
-                ยอดขายจริง = ปริมาณที่ปิด Billing แล้วตามวันส่ง/รับสินค้า · คาดปิดวันนี้รวมยอดจริงและคำสั่งซื้อวันนี้ไว้แล้ว จึงไม่นับซ้ำ · คาดเพิ่ม = ปริมาณเต็มเมื่อโอกาสสั่งมากกว่า 50%
+                 ยอดสั่ง = ปริมาณที่ลูกค้าขอสั่งก่อนเช็คสต็อก/หยิบ/ออกบิล (ไม่นับออเดอร์ยกเลิก) ตามวันส่ง/รับสินค้า · คาดปิดวันนี้รวมยอดที่สั่งแล้ว จึงไม่นับซ้ำ · คาดเพิ่ม = ปริมาณเต็มเมื่อโอกาสสั่งมากกว่า 50%
               </p>
-              {forecast.unmeasuredPieceOrders > 0 && (
-                <p className="mt-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-                  มี {forecast.unmeasuredPieceOrders} รายการแบบขายชิ้นคิดราคาตามน้ำหนักที่ยังไม่มีข้อมูลเพียงพอแปลงเป็น กก. ระบบยังไม่รวมจำนวนเหล่านี้ไว้ในยอด กก.
-                </p>
-              )}
+              <p className="mt-1 text-xs leading-5 text-[#6E8982]">สินค้าที่สั่งเป็นชิ้นจะแสดงหน่วยเป็นชิ้น แม้ตอนออกบิลจะคิดราคาตามน้ำหนัก · ยอดขายจริงย้อนหลัง 14 วันด้านล่างยังนับจำนวนหยิบ/ออกบิลตามเดิม</p>
               <button
                 type="button"
                 disabled={forecastDownloading}
                 onClick={() => void downloadForecast()}
                 className="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl bg-[#02B0AF] px-5 py-3 font-extrabold text-white disabled:opacity-60 sm:w-auto"
               >
-                {forecastDownloading ? "กำลังเตรียม Excel..." : "↓ ดาวน์โหลด Excel คาดการณ์ 3 วัน"}
+                {forecastDownloading ? "กำลังเตรียม Excel..." : "↓ ดาวน์โหลด Excel ความต้องการ 3 วัน"}
               </button>
             </>
           )}
