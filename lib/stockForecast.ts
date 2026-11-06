@@ -1,5 +1,5 @@
 /** Standalone helpers keep the forecasting model runnable in Node unit tests. */
-function bangkokDateKey(value: Date | string) {
+export function bangkokDateKey(value: Date | string) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit",
   }).formatToParts(new Date(value));
@@ -14,6 +14,8 @@ function normalizeDemandUnit(unit: string) {
 
 export const FORECAST_HISTORY_DAYS = 90;
 export const FORECAST_DAYS = 3;
+const MIN_ORDER_TIMING_SAMPLES = 3;
+const MAX_ORDER_TIMING_SAMPLES = 12;
 
 export type ForecastOrderInput = {
   id: string;
@@ -60,6 +62,9 @@ export type ForecastRow = {
   effectiveCadenceDays: number | null;
   purchaseDays: number;
   confidence: "high" | "medium" | "low" | "insufficient";
+  /** Typical order creation time in minutes relative to midnight on the delivery date (Bangkok). */
+  customerUsualOrderOffsetMinutes: number | null;
+  customerOrderTimingSamples: number;
   yesterdayRequestedQty: number;
   todayRequestedQty: number;
   days: ForecastDay[];
@@ -127,7 +132,12 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
       day.totalQty = clampQty(day.knownQty + day.projectedQty);
     }
   }
-  return [...products.values()].sort((a, b) => a.sku.localeCompare(b.sku, "en") || a.unit.localeCompare(b.unit, "th"));
+  // Prioritise tomorrow's largest requested demand, rather than alphabetical SKU order.
+  return [...products.values()].sort((a, b) =>
+    (b.days[1]?.totalQty ?? 0) - (a.days[1]?.totalQty ?? 0) ||
+    a.sku.localeCompare(b.sku, "en") ||
+    a.unit.localeCompare(b.unit, "th")
+  );
 }
 
 function addDays(date: string, count: number) {
@@ -136,6 +146,50 @@ function addDays(date: string, count: number) {
 
 function daysBetween(early: string, later: string) {
   return Math.round((Date.parse(`${later}T00:00:00Z`) - Date.parse(`${early}T00:00:00Z`)) / 86_400_000);
+}
+
+/** Bangkok has UTC+07:00 year-round; this is midnight on the customer's delivery date. */
+function deliveryMidnightMillis(deliveryDate: string) {
+  return Date.parse(`${deliveryDate}T00:00:00+07:00`);
+}
+
+/**
+ * A typical submission time is measured relative to the *delivery day*, not
+ * the order day. For example, -120 means 22:00 on the previous evening;
+ * +780 means 13:00 on the delivery date.
+ */
+function orderOffsetMinutes(createdAt: string, deliveryDate: string) {
+  return Math.round((Date.parse(createdAt) - deliveryMidnightMillis(deliveryDate)) / 60_000);
+}
+
+function median(values: number[]) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+/** Label a typical order time relative to the delivery day, in Bangkok time. */
+export function describeCustomerOrderTime(offsetMinutes: number | null, sampleCount: number) {
+  if (offsetMinutes === null || sampleCount < MIN_ORDER_TIMING_SAMPLES) return "ข้อมูลยังไม่พอ";
+  const dayOffset = Math.floor(offsetMinutes / 1440);
+  const minutesOfDay = ((offsetMinutes % 1440) + 1440) % 1440;
+  const clock = `${String(Math.floor(minutesOfDay / 60)).padStart(2, "0")}:${String(minutesOfDay % 60).padStart(2, "0")}`;
+  if (dayOffset === 0) return `วันส่ง ${clock}`;
+  if (dayOffset === -1) return `วันก่อนส่ง ${clock}`;
+  if (dayOffset < 0) return `${-dayOffset} วันก่อนส่ง ${clock}`;
+  return `หลังวันส่ง ${dayOffset} วัน ${clock}`;
+}
+
+/**
+ * Fraction of this customer's past orders that could still be submitted for
+ * the specified delivery day. This updates continuously as the clock moves.
+ * Sparse histories do not impose a speculative cutoff.
+ */
+export function remainingOrderWindowShare(asOf: Date, deliveryDate: string, historicalOffsets: number[]) {
+  if (historicalOffsets.length < MIN_ORDER_TIMING_SAMPLES) return 1;
+  const elapsed = (asOf.getTime() - deliveryMidnightMillis(deliveryDate)) / 60_000;
+  return historicalOffsets.filter((offset) => offset >= elapsed).length / historicalOffsets.length;
 }
 
 /** Category alone is unsafe: "meat and seafood" also contains fish and eggs. */
@@ -187,7 +241,9 @@ function dailyDemandForecast(
   lastPurchaseDate: string,
   periodicity: number,
   typicalQty: number,
-  known: Map<string, number>
+  known: Map<string, number>,
+  historicalOrderOffsets: number[],
+  asOf: Date
 ): ForecastDay[] {
   let age = Math.max(0, daysBetween(lastPurchaseDate, dates[0]));
   const nextBookedDate = dates.find((date) => (known.get(date) ?? 0) > 0);
@@ -203,7 +259,8 @@ function dailyDemandForecast(
       age += 1;
       return { date, knownQty: 0, projectedQty: 0, totalQty: 0 };
     }
-    const projectedQty = mostLikelyOrderQty(conditionalOrderProbability(age, periodicity), typicalQty);
+    const stillPossible = remainingOrderWindowShare(asOf, date, historicalOrderOffsets);
+    const projectedQty = mostLikelyOrderQty(conditionalOrderProbability(age, periodicity) * stillPossible, typicalQty);
     // A modal order becomes the new purchase date for subsequent forecast days.
     age = projectedQty > 0 ? 1 : age + 1;
     return { date, knownQty: 0, projectedQty, totalQty: projectedQty };
@@ -229,18 +286,39 @@ export function buildStockForecast(
   const today = bangkokDateKey(asOf);
   const yesterdayDate = addDays(today, -1);
   const dates = Array.from({ length: FORECAST_DAYS }, (_, i) => addDays(today, i));
+  const historyStartDate = addDays(today, -FORECAST_HISTORY_DAYS);
   const customerById = new Map(customers.filter((c) => !c.isTest).map((c) => [c.id, c]));
-  const activeOrders = orders.filter((o) => o.status !== "cancelled" && customerById.has(o.customerId));
+  const activeOrders = orders.filter((o) =>
+    o.status !== "cancelled" &&
+    customerById.has(o.customerId) &&
+    o.deliveryDate !== null &&
+    o.deliveryDate >= historyStartDate &&
+    o.deliveryDate <= dates[dates.length - 1] &&
+    Number.isFinite(Date.parse(o.createdAt)) &&
+    Date.parse(o.createdAt) <= asOf.getTime()
+  );
   const orderById = new Map(activeOrders.map((o) => [o.id, o]));
   const orderDates = new Map<string, string[]>();
+  const customerOrderOffsets = new Map<string, { deliveryDate: string; offsetMinutes: number }[]>();
   for (const order of activeOrders) {
-    const orderDay = bangkokDateKey(order.createdAt);
+    // Frequency and lead-time history both use the requested delivery date.
+    const orderDay = order.deliveryDate!;
     if (orderDay > today) continue;
     const days = orderDates.get(order.customerId) ?? [];
     days.push(orderDay);
     orderDates.set(order.customerId, days);
+    const offsetMinutes = orderOffsetMinutes(order.createdAt, orderDay);
+    if (Number.isFinite(offsetMinutes) && offsetMinutes <= 24 * 60) {
+      const offsets = customerOrderOffsets.get(order.customerId) ?? [];
+      offsets.push({ deliveryDate: orderDay, offsetMinutes });
+      customerOrderOffsets.set(order.customerId, offsets);
+    }
   }
   const customerCadence = new Map([...orderDates].map(([customerId, days]) => [customerId, averageInterval(days)]));
+  const timingHistory = new Map([...customerOrderOffsets].map(([customerId, observations]) => [
+    customerId,
+    observations.sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate)).slice(-MAX_ORDER_TIMING_SAMPLES).map((o) => o.offsetMinutes),
+  ]));
 
   const seriesByKey = new Map<string, Series>();
   for (const item of items) {
@@ -267,7 +345,7 @@ export function buildStockForecast(
       };
       seriesByKey.set(key, series);
     }
-    const serviceDate = order.deliveryDate || bangkokDateKey(order.createdAt);
+    const serviceDate = order.deliveryDate!;
     if (serviceDate <= today) {
       series.requestedByDay.set(serviceDate, (series.requestedByDay.get(serviceDate) ?? 0) + quantity);
     }
@@ -278,6 +356,7 @@ export function buildStockForecast(
   const rows: ForecastRow[] = [];
   for (const series of seriesByKey.values()) {
     const customer = customerById.get(series.customerId)!;
+    const orderOffsets = timingHistory.get(series.customerId) ?? [];
     const yesterdayRequestedQty = clampQty(series.requestedByDay.get(yesterdayDate) ?? 0);
     const todayRequestedQty = clampQty(series.requestedByDay.get(today) ?? 0);
     const purchases = [...series.requestedByDay.entries()].sort(([a], [b]) => a.localeCompare(b));
@@ -297,7 +376,7 @@ export function buildStockForecast(
     const confidence = purchases.length >= 7 ? "high" : purchases.length >= 4 ? "medium" : purchases.length >= 2 ? "low" : "insufficient";
     const lastPurchaseDate = purchases.at(-1)?.[0];
     const forecastDays = lastPurchaseDate && effectivePeriod !== null
-      ? dailyDemandForecast(dates, lastPurchaseDate, effectivePeriod, typicalCycleQty, series.knownByDay)
+      ? dailyDemandForecast(dates, lastPurchaseDate, effectivePeriod, typicalCycleQty, series.knownByDay, orderOffsets, asOf)
       : dates.map((date) => ({
           date,
           knownQty: clampQty(series.knownByDay.get(date) ?? 0),
@@ -319,6 +398,8 @@ export function buildStockForecast(
       effectiveCadenceDays: effectivePeriod === null ? null : Math.round(effectivePeriod * 10) / 10,
       purchaseDays: purchases.length,
       confidence,
+      customerUsualOrderOffsetMinutes: median(orderOffsets),
+      customerOrderTimingSamples: orderOffsets.length,
       yesterdayRequestedQty,
       todayRequestedQty,
       days: forecastDays,
