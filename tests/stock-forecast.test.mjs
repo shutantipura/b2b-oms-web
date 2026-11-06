@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { aggregateForecastByProduct, buildStockForecast, describeCustomerOrderTime, isFreshMeat, mostLikelyOrderQty, remainingOrderWindowShare } from "../lib/stockForecast.ts";
+import { aggregateForecastByProduct, buildStockForecast, conditionalOrderProbability, describeCustomerOrderTime, isFreshMeat, mostLikelyOrderQty, remainingOrderWindowShare } from "../lib/stockForecast.ts";
 
 const now = new Date("2026-11-03T20:00:00Z"); // 03:00 on 4 Nov Bangkok time
 const customer = { id: "c1", code: "0000000001", name: "Restaurant A", isTest: false };
@@ -33,6 +33,91 @@ test("modal forecast chooses the full likely quantity instead of probability-wei
   assert.equal(mostLikelyOrderQty(0.2, 1), 0);
   assert.equal(mostLikelyOrderQty(0.5, 1), 0);
   assert.equal(mostLikelyOrderQty(0.75, 3.125), 3.125);
+});
+
+test("three-day ordering cadence changes probability as days pass without a new order", () => {
+  const afterOneDay = conditionalOrderProbability(1, 3);
+  const afterTwoDays = conditionalOrderProbability(2, 3);
+  const afterThreeDays = conditionalOrderProbability(3, 3);
+  assert.ok(afterOneDay < 0.15);
+  assert.ok(afterTwoDays > afterOneDay && afterTwoDays < 0.5);
+  assert.ok(afterThreeDays > 0.5);
+  assert.equal(mostLikelyOrderQty(afterOneDay, 12), 0);
+  assert.equal(mostLikelyOrderQty(afterThreeDays, 12), 12);
+});
+
+test("ordering another SKU yesterday resets the customer clock for all other SKUs", () => {
+  const dates = ["2026-10-25", "2026-10-28", "2026-10-31"];
+  const historical = dates.map((day, i) => makeOrder(`h${i}`, day));
+  const historicalItems = historical.map((order) => makeItem(order.id, "dry", 12, "Dry Goods", "ข้าวสาร"));
+  const overdue = buildStockForecast(historical, historicalItems, [customer], now);
+  assert.ok(overdue.rows.find((row) => row.sku === "dry").days[0].projectedQty > 0);
+
+  const yesterdayOther = makeOrder("yesterday-other", "2026-11-03");
+  const updated = buildStockForecast(
+    [...historical, yesterdayOther],
+    [...historicalItems, makeItem(yesterdayOther.id, "other", 5, "Dry Goods", "น้ำตาล")],
+    [customer], now
+  );
+  const originalSku = updated.rows.find((row) => row.sku === "dry");
+  assert.ok(originalSku);
+  assert.equal(originalSku.customerCadenceDays, 3);
+  assert.equal(originalSku.days[0].projectedQty, 0);
+  assert.equal(originalSku.days[1].projectedQty, 0);
+  assert.equal(originalSku.days[2].projectedQty, 12);
+});
+
+test("a known different-SKU basket today is counted but does not generate another speculative basket", () => {
+  const dates = ["2026-10-25", "2026-10-28", "2026-10-31"];
+  const historical = dates.map((day, i) => makeOrder(`h${i}`, day));
+  const known = makeOrder("known-other", "2026-11-04", "awaiting_picking");
+  const result = buildStockForecast(
+    [...historical, known],
+    [
+      ...historical.map((order) => makeItem(order.id, "dry", 12, "Dry Goods", "ข้าวสาร")),
+      makeItem(known.id, "other", 7, "Dry Goods", "น้ำตาล"),
+    ],
+    [customer], now
+  );
+  const dry = result.rows.find((row) => row.sku === "dry");
+  const other = result.rows.find((row) => row.sku === "other");
+  assert.equal(dry?.days[0].totalQty ?? 0, 0);
+  assert.equal(other.days[0].knownQty, 7);
+  assert.equal(other.days[0].projectedQty, 0);
+});
+
+test("a confirmed future basket suppresses speculative demand before its delivery day", () => {
+  const dates = ["2026-10-25", "2026-10-28", "2026-10-31"];
+  const historical = dates.map((day, i) => makeOrder(`h${i}`, day));
+  const future = { ...makeOrder("future-other", "2026-11-03", "awaiting_picking", "2026-11-05"), createdAt: "2026-11-03T22:00:00+07:00" };
+  const result = buildStockForecast(
+    [...historical, future],
+    [
+      ...historical.map((order) => makeItem(order.id, "dry", 12, "Dry Goods", "ข้าวสาร")),
+      makeItem(future.id, "other", 7, "Dry Goods", "น้ำตาล"),
+    ],
+    [customer], now
+  );
+  const dry = result.rows.find((row) => row.sku === "dry");
+  const other = result.rows.find((row) => row.sku === "other");
+  assert.equal(dry?.days[0].totalQty ?? 0, 0);
+  assert.equal(dry?.days[1].totalQty ?? 0, 0);
+  assert.equal(other.days[1].knownQty, 7);
+});
+
+test("a zero-request record does not reset the customer ordering cycle", () => {
+  const dates = ["2026-10-25", "2026-10-28", "2026-10-31"];
+  const historical = dates.map((day, i) => makeOrder(`h${i}`, day));
+  const zeroOrder = makeOrder("zero", "2026-11-03");
+  const result = buildStockForecast(
+    [...historical, zeroOrder],
+    [
+      ...historical.map((order) => makeItem(order.id, "dry", 12, "Dry Goods", "ข้าวสาร")),
+      makeItem(zeroOrder.id, "other", 0, "Dry Goods", "น้ำตาล"),
+    ],
+    [customer], now
+  );
+  assert.ok(result.rows.find((row) => row.sku === "dry").days[0].projectedQty > 0);
 });
 
 test("a customer whose usual deadline is 22:00 the previous day cannot generate speculative demand after it passes", () => {
