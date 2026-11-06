@@ -6,6 +6,7 @@ import LotusLoading from "@/components/LotusLoading";
 import { supabase } from "@/lib/supabase";
 import { stockReportDates } from "@/lib/stockSalesReport";
 import { aggregateForecastByProduct, describeCustomerOrderTime, type ForecastDay, type StockForecast } from "@/lib/stockForecast";
+import type { DemandBacktestReport } from "@/lib/stockForecastBacktest";
 
 type Access = "loading" | "manager" | "denied" | "signed-out";
 
@@ -15,6 +16,10 @@ function qty(value: number) {
 
 function forecastQty(value: number) {
   return value.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+function percent(value: number | null) {
+  return value === null ? "N/A" : `${value.toLocaleString("th-TH", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
 const CONFIDENCE = {
@@ -62,6 +67,9 @@ export default function StockManagementPage() {
   const [forecastDownloading, setForecastDownloading] = useState(false);
   const [productSearch, setProductSearch] = useState("");
   const [meatOnly, setMeatOnly] = useState(false);
+  const [backtest, setBacktest] = useState<DemandBacktestReport | null>(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestError, setBacktestError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -153,6 +161,30 @@ export default function StockManagementPage() {
       setForecastError(caught instanceof Error ? caught.message : "ดาวน์โหลดคาดการณ์ไม่สำเร็จ");
     } finally {
       setForecastDownloading(false);
+    }
+  }
+
+  async function runBacktest() {
+    if (access !== "manager" || backtestLoading) return;
+    setBacktestLoading(true);
+    setBacktestError("");
+    try {
+      const { data, error: authError } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (authError || !token) throw new Error("กรุณาเข้าสู่ระบบใหม่");
+      const response = await fetch("/api/admin/stock-forecast?format=backtest", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        const problem = await response.json().catch(() => ({}));
+        throw new Error(typeof problem.error === "string" ? problem.error : "ทดสอบย้อนหลังไม่สำเร็จ");
+      }
+      setBacktest((await response.json()) as DemandBacktestReport);
+    } catch (caught) {
+      setBacktestError(caught instanceof Error ? caught.message : "ทดสอบย้อนหลังไม่สำเร็จ");
+    } finally {
+      setBacktestLoading(false);
     }
   }
 
@@ -353,6 +385,108 @@ export default function StockManagementPage() {
             ระบบใช้ประวัติวันส่งย้อนหลังสูงสุด 90 วัน · เรียนรู้ความถี่การสั่งจากช่วงห่างจริงระหว่างวันส่ง และปรับเผื่อกรณีประวัติน้อย · การสั่ง SKU ใดก็ตามจะเริ่มนับรอบการสั่งรวมของลูกค้าใหม่ ส่วนรอบซื้อ SKU จะเริ่มใหม่เมื่อสั่งสินค้านั้น · เมื่อเลยช่วงเวลาที่มักกดสั่ง จะใช้ความน่าจะเป็นแบบมีเงื่อนไขว่าลูกค้ายังไม่สั่ง · ปริมาณต่อครั้งใช้ค่ากลางที่ทนต่อออเดอร์ใหญ่ผิดปกติ · เนื้อสดไม่ถูกสมมติให้ลูกค้าสั่งถี่ขึ้นเพียงเพราะสินค้าต้องสด
             · ลูกค้าที่มีประวัติน้อยยังไม่ควรใช้คาดการณ์นี้สั่งสินค้าโดยตรง
           </div>
+        </section>
+
+        <section className="mt-5 rounded-[22px] border border-[#CDE9E3] bg-white p-5 shadow-[0_4px_16px_rgba(18,96,89,0.05)] sm:p-7">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-extrabold tracking-wide text-[#008B8B]">WALK-FORWARD BACKTEST</p>
+              <h2 className="mt-1 text-xl font-black text-[#17453F]">ตรวจสอบความแม่นยำย้อนหลัง</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#648279]">
+                ย้อนเวลากลับไปคาดการณ์ ณ 16:00 น. ของวันก่อนส่ง แล้วเทียบกับปริมาณที่ลูกค้าขอสั่งจริงตามวันส่ง
+                และเทียบกับการใช้เฉพาะยอดออเดอร์ที่รับไว้แล้ว โดยไม่ให้โมเดลเห็นคำสั่งซื้อในอนาคต
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={backtestLoading}
+              onClick={() => void runBacktest()}
+              className="min-h-12 rounded-xl bg-[#02B0AF] px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60"
+            >
+              {backtestLoading ? "กำลังทดสอบ..." : backtest ? "↻ ทดสอบใหม่" : "▶ ทดสอบย้อนหลัง"}
+            </button>
+          </div>
+          {backtestError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{backtestError}</p>}
+          {backtest && (
+            <div className="mt-5 space-y-5">
+              <div className="rounded-xl border border-[#DDEEEA] bg-[#F4FAF8] p-3 text-sm text-[#315E54]">
+                ตรวจสอบ <strong>{backtest.evaluatedDays} วันส่ง</strong> / <strong>{backtest.evaluatedSkuDays} SKU-วัน</strong>
+                {" · "}เวลาอ้างอิง 16:00 น. วันก่อนส่ง (ประเทศไทย)
+              </div>
+              {backtest.byUnit.length ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {backtest.byUnit.map((unit) => {
+                    const improved = unit.modelWape !== null && unit.bookedOnlyWape !== null && unit.modelWape < unit.bookedOnlyWape;
+                    return (
+                      <div key={unit.unit} className="rounded-2xl border border-[#D7EAE5] p-4">
+                        <h3 className="font-black text-[#17453F]">หน่วย {unit.unit}</h3>
+                        <p className="mt-2 text-xs font-bold text-[#648279]">{unit.evaluatedSkuDays} SKU-วัน</p>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <div className="rounded-xl bg-[#EAF8F5] p-3">
+                            <p className="text-xs font-bold text-[#356C64]">โมเดล (WAPE)</p>
+                            <p className="mt-1 text-2xl font-black text-[#008B8B]">{percent(unit.modelWape)}</p>
+                          </div>
+                          <div className="rounded-xl bg-[#F2F5F4] p-3">
+                            <p className="text-xs font-bold text-[#536E67]">เฉพาะที่สั่งแล้ว</p>
+                            <p className="mt-1 text-2xl font-black text-[#315C54]">{percent(unit.bookedOnlyWape)}</p>
+                          </div>
+                        </div>
+                        <p className={`mt-3 text-xs font-bold ${improved ? "text-emerald-700" : "text-amber-800"}`}>
+                          {unit.modelWape === null || unit.bookedOnlyWape === null ? "ยอดสั่งจริงน้อยเกินกว่าจะสรุป WAPE"
+                            : improved ? "โมเดลแม่นกว่ายอดสั่งที่ทราบแล้ว" : "โมเดลยังไม่ชนะการใช้เฉพาะยอดที่สั่งแล้ว"}
+                        </p>
+                        <p className="mt-1 text-xs text-[#648279]">
+                          อคติคาดการณ์ (Bias): {percent(unit.modelBiasPct)} · จริง {qty(unit.actualQty)} {unit.unit} · คาด {qty(unit.forecastQty)} {unit.unit}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="rounded-xl bg-[#FFF7DC] p-4 text-sm text-[#815B00]">ยังมีข้อมูลประวัติไม่พอสำหรับทดสอบย้อนหลังอย่างน้อย 7 วันก่อนรอบที่ประเมิน</p>
+              )}
+              <p className="text-xs leading-6 text-[#6E8982]">
+                WAPE = ผลรวมความคลาดเคลื่อนสัมบูรณ์ราย SKU ÷ ยอดสั่งจริง (ยิ่งต่ำยิ่งดี) · คิดแยกตามหน่วย กก./ชิ้น ·
+                Bias บวกหมายถึงคาดสูงเกินจริง และ Bias ลบหมายถึงคาดต่ำเกินจริง
+              </p>
+              {backtest.days.length > 0 && (
+                <details className="rounded-xl border border-[#DDEEEA]">
+                  <summary className="cursor-pointer px-4 py-3 text-sm font-extrabold text-[#008B8B]">
+                    ดูผลรายวันและหน่วย ({backtest.days.length} แถว)
+                  </summary>
+                  <div className="overflow-x-auto border-t border-[#DDEEEA]">
+                    <table className="w-full min-w-[660px] text-left text-xs">
+                      <thead className="bg-[#F3FAF8] text-[#436F66]">
+                        <tr>
+                          <th className="px-3 py-3">วันส่ง</th>
+                          <th className="px-3 py-3">หน่วย</th>
+                          <th className="px-3 py-3 text-right">สั่งจริง</th>
+                          <th className="px-3 py-3 text-right">คาดการณ์</th>
+                          <th className="px-3 py-3 text-right">สั่งแล้ว ณ cutoff</th>
+                          <th className="px-3 py-3 text-right">WAPE โมเดล</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {backtest.days.map((day) => (
+                          <tr key={`${day.deliveryDate}:${day.unit}`} className="border-t border-[#E1EEEA] text-[#355E57]">
+                            <td className="px-3 py-2.5">{day.deliveryDate}</td>
+                            <td className="px-3 py-2.5">{day.unit}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">{qty(day.actualQty)}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">{qty(day.forecastQty)}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">{qty(day.bookedOnlyQty)}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">{percent(day.wape)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              )}
+              <div className="rounded-xl border border-[#F5E4B4] bg-[#FFF9E8] p-4 text-xs leading-6 text-[#806A30]">
+                {backtest.limitations.map((limitation) => <p key={limitation}>• {limitation}</p>)}
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="mt-5 rounded-[22px] border border-[#D8E9E5] bg-white p-5 shadow-[0_4px_16px_rgba(18,96,89,0.05)] sm:p-7">
