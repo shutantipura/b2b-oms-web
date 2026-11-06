@@ -13,6 +13,7 @@ import {
   type ForecastOrderInput,
   type StockForecast,
 } from "@/lib/stockForecast";
+import { BACKTEST_DAYS, backtestStockForecast } from "@/lib/stockForecastBacktest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -143,11 +144,11 @@ async function customersById(admin: SupabaseClient, ids: string[]) {
   return result;
 }
 
-async function loadForecast(admin: SupabaseClient) {
+async function loadForecast(admin: SupabaseClient, extraHistoryDays = 0) {
   const now = new Date();
   const today = bangkokDateKey(now);
   const dateMillis = Date.parse(`${today}T00:00:00Z`);
-  const startDate = new Date(dateMillis - FORECAST_HISTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const startDate = new Date(dateMillis - (FORECAST_HISTORY_DAYS + extraHistoryDays) * 86_400_000).toISOString().slice(0, 10);
   const endDate = new Date(dateMillis + (FORECAST_DAYS - 1) * 86_400_000).toISOString().slice(0, 10);
   const orders = await ordersForDeliveryDates(admin, startDate, endDate);
   const liveOrders = orders.filter((order) => order.status !== "cancelled");
@@ -176,7 +177,13 @@ async function loadForecast(admin: SupabaseClient) {
       requestedQty: numeric(item.requested_qty),
     };
   });
-  return buildStockForecast(inputOrders, inputItems, customers, now);
+  return {
+    forecast: buildStockForecast(inputOrders, inputItems, customers, now),
+    orders: inputOrders,
+    items: inputItems,
+    customers,
+    now,
+  };
 }
 
 function excelResponse(forecast: StockForecast) {
@@ -270,9 +277,16 @@ function excelResponse(forecast: StockForecast) {
 export async function GET(request: NextRequest) {
   try {
     const admin = await requireManager(request);
-    const forecast = await loadForecast(admin);
-    if (request.nextUrl.searchParams.get("format") === "xlsx") return excelResponse(forecast);
-    return NextResponse.json(forecast, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
+    const format = request.nextUrl.searchParams.get("format");
+    const inputs = await loadForecast(admin, format === "backtest" ? BACKTEST_DAYS + 1 : 0);
+    if (format === "backtest") {
+      return NextResponse.json(
+        backtestStockForecast(inputs.orders, inputs.items, inputs.customers, inputs.now),
+        { headers: { "Cache-Control": "private, no-store, max-age=0" } }
+      );
+    }
+    if (format === "xlsx") return excelResponse(inputs.forecast);
+    return NextResponse.json(inputs.forecast, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
