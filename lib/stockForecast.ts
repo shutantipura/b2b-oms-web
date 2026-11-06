@@ -7,6 +7,13 @@ export function bangkokDateKey(value: Date | string) {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
+
+/** Replays the 12:00 Bangkok procurement decision after the deadline passes. */
+export function procurementForecastAsOf(now: Date) {
+  const cutoff = new Date(`${bangkokDateKey(now)}T12:00:00+07:00`);
+  return new Date(Math.min(now.getTime(), cutoff.getTime()));
+}
+
 export function normalizeDemandUnit(unit: string) {
   if (/^(kg|kgs|kilogram|กก\.?|กิโลกรัม)$/i.test(unit.trim())) return "กก.";
   return unit.trim() || "ไม่ระบุ";
@@ -14,10 +21,14 @@ export function normalizeDemandUnit(unit: string) {
 
 export const FORECAST_HISTORY_DAYS = 90;
 export const FORECAST_DAYS = 3;
+/** Shortages matter more than carrying a little extra stock; configurable later. */
+export const STOCK_PLANNING_PERCENTILE = 0.8;
 const MIN_ORDER_TIMING_SAMPLES = 3;
 const MAX_ORDER_TIMING_SAMPLES = 12;
 const HAZARD_PRIOR_WEIGHT = 3;
 const MAX_AGGREGATE_STATES = 4096;
+const ORDER_TIME_PRIOR_WEIGHT = 4;
+const TOPUP_PRIOR_WEIGHT = 6;
 
 export type ForecastOrderInput = {
   id: string;
@@ -56,6 +67,8 @@ export type ForecastDay = {
   knownQty: number;
   projectedQty: number;
   totalQty: number;
+  /** Booked quantity + an upper demand estimate for shortage-sensitive planning. */
+  planningQty?: number;
   /** Probability of additional requested demand; known orders are always exact. */
   projectedProbability?: number;
   /** Quantity of one possible additional order, conditional on it occurring. */
@@ -90,6 +103,7 @@ export type StockForecast = {
   yesterdayDate: string;
   dates: string[];
   historyDays: number;
+  planningPercentile: number;
   rows: ForecastRow[];
   /** Original unit is preserved in OMS; only the demand estimate is normalised. */
   weightConversions: Record<string, PieceWeightConversion>;
@@ -173,6 +187,48 @@ export function mostLikelyAggregateQty(candidates: { probability: number; quanti
   return Math.round(bestTotal / 100) / 10;
 }
 
+/**
+ * Independent Bernoulli basket demand: its expectation is additive; its upper
+ * quantile is NOT the sum of individual upper quantiles. Keep full probability
+ * states when feasible. For unusually large SKU groups, use the conservative
+ * Cantelli bound (at least 80% coverage under the independent-basket model).
+ */
+export function aggregateDemandDistribution(
+  candidates: { probability: number; quantity: number }[], percentile = STOCK_PLANNING_PERCENTILE
+) {
+  const probabilities = candidates.map(({ probability, quantity }) => ({
+    probability: Math.min(1, Math.max(0, probability)),
+    units: Math.max(0, Math.round(quantity * 1000)),
+  })).filter(({ probability, units }) => probability > 0 && units > 0);
+  const expected = probabilities.reduce((sum, { probability, units }) => sum + probability * units, 0) / 1000;
+  const variance = probabilities.reduce((sum, { probability, units }) =>
+    sum + probability * (1 - probability) * (units / 1000) ** 2, 0);
+  let states = new Map<number, number>([[0, 1]]);
+  for (const candidate of probabilities) {
+    const next = new Map<number, number>();
+    for (const [amount, mass] of states) {
+      next.set(amount, (next.get(amount) ?? 0) + mass * (1 - candidate.probability));
+      next.set(amount + candidate.units, (next.get(amount + candidate.units) ?? 0) + mass * candidate.probability);
+    }
+    if (next.size > MAX_AGGREGATE_STATES) {
+      // For arbitrary distributions, Cantelli gives a distribution-free upper
+      // bound; preferable to silently throwing away unlikely high-demand tails.
+      const maximum = probabilities.reduce((sum, entry) => sum + entry.units, 0) / 1000;
+      const upper = Math.min(maximum, expected + Math.sqrt(variance * percentile / (1 - percentile)));
+      return { expected: clampQty(expected), upper: clampQty(upper), approximate: true };
+    }
+    states = next;
+  }
+  let cumulative = 0;
+  let upper = 0;
+  for (const [amount, mass] of [...states].sort((a, b) => a[0] - b[0])) {
+    cumulative += mass;
+    upper = amount / 1000;
+    if (cumulative + 1e-10 >= percentile) break;
+  }
+  return { expected: clampQty(expected), upper: clampQty(upper), approximate: false };
+}
+
 /** Demand totals sum original requested quantities across customers, keeping each unit separate. */
 export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[]): ProductForecastRow[] {
   const products = new Map<string, ProductForecastRow>();
@@ -196,7 +252,7 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
         yesterdayRequestedQty: 0,
         todayRequestedQty: 0,
         customers: [],
-        days: dates.map((date) => ({ date, knownQty: 0, projectedQty: 0, totalQty: 0 })),
+        days: dates.map((date) => ({ date, knownQty: 0, projectedQty: 0, totalQty: 0, planningQty: 0 })),
       };
       product.units.push(unitRow);
     }
@@ -232,16 +288,21 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
       for (const day of unit.days) {
         day.knownQty = clampQty(day.knownQty);
         const candidates = candidatesByUnitDate.get(JSON.stringify([product.sku, unit.unit]))?.get(day.date);
-        if (candidates) day.projectedQty = mostLikelyAggregateQty(candidates);
+        if (candidates) {
+          const distribution = aggregateDemandDistribution(candidates);
+          day.projectedQty = distribution.expected;
+          day.planningQty = clampQty(day.knownQty + distribution.upper);
+        }
         day.projectedQty = clampQty(day.projectedQty);
         day.totalQty = clampQty(day.knownQty + day.projectedQty);
+        if (!candidates) day.planningQty = day.totalQty;
       }
     }
   }
-  // Sort by the largest tomorrow demand in a *single* unit; kg and pieces are incomparable.
+  // Prioritise procurement risk, but never compare kg and pieces by adding them.
   return [...products.values()].sort((a, b) =>
-    Math.max(0, ...b.units.map((unit) => unit.days[1]?.totalQty ?? 0)) -
-    Math.max(0, ...a.units.map((unit) => unit.days[1]?.totalQty ?? 0)) ||
+    Math.max(0, ...b.units.map((unit) => unit.days[1]?.planningQty ?? 0)) -
+    Math.max(0, ...a.units.map((unit) => unit.days[1]?.planningQty ?? 0)) ||
     a.sku.localeCompare(b.sku, "en")
   );
 }
@@ -292,10 +353,21 @@ export function describeCustomerOrderTime(offsetMinutes: number | null, sampleCo
  * the specified delivery day. This updates continuously as the clock moves.
  * Sparse histories do not impose a speculative cutoff.
  */
-export function remainingOrderWindowShare(asOf: Date, deliveryDate: string, historicalOffsets: number[]) {
-  if (historicalOffsets.length < MIN_ORDER_TIMING_SAMPLES) return 1;
+export function remainingOrderWindowShare(
+  asOf: Date, deliveryDate: string, historicalOffsets: number[], pooledOffsets: number[] = []
+) {
+  if (historicalOffsets.length < MIN_ORDER_TIMING_SAMPLES && pooledOffsets.length < MIN_ORDER_TIMING_SAMPLES) return 1;
   const elapsed = (asOf.getTime() - deliveryMidnightMillis(deliveryDate)) / 60_000;
-  return historicalOffsets.filter((offset) => offset >= elapsed).length / historicalOffsets.length;
+  if (!pooledOffsets.length) {
+    return historicalOffsets.filter((offset) => offset >= elapsed).length / historicalOffsets.length;
+  }
+  const pooledRemaining = pooledOffsets.filter((offset) => offset >= elapsed).length;
+  // A small nonzero tail avoids an irreversible cutoff inferred from only a
+  // handful of orders; otherwise borrow the actual B2B population pattern.
+  const pooledShare = Math.max(0.01, pooledRemaining / pooledOffsets.length);
+  const personalRemaining = historicalOffsets.filter((offset) => offset >= elapsed).length;
+  return (personalRemaining + ORDER_TIME_PRIOR_WEIGHT * pooledShare) /
+    (historicalOffsets.length + ORDER_TIME_PRIOR_WEIGHT);
 }
 
 /** Category alone is unsafe: "meat and seafood" also contains fish and eggs. */
@@ -410,7 +482,8 @@ function dailyDemandForecast(
   asOf: Date,
   historicalIntervals: number[],
   customerOrderPlan?: ForecastDay[],
-  skuEvidenceWeight = 1
+  skuEvidenceWeight = 1,
+  pooledOrderOffsets: number[] = []
 ): ForecastDay[] {
   // Track all possible days-since-last-purchase states. Resetting only after
   // a modal (>50%) event makes two-day forecasts artificially deterministic.
@@ -420,16 +493,16 @@ function dailyDemandForecast(
     const knownQty = known.get(date) ?? 0;
     if (knownQty > 0) {
       ageStates = new Map([[1, 1]]);
-      return { date, knownQty: clampQty(knownQty), projectedQty: 0, totalQty: clampQty(knownQty), projectedProbability: 0, possibleQty: 0 };
+      return { date, knownQty: clampQty(knownQty), projectedQty: 0, totalQty: clampQty(knownQty), planningQty: clampQty(knownQty), projectedProbability: 0, possibleQty: 0 };
     }
     // A future order already placed by this customer replaces the speculative
     // order in the preceding days; do not predict a second order before it.
     if (nextBookedDate && date < nextBookedDate) {
       ageStates = new Map([...ageStates].map(([age, probability]) => [age + 1, probability]));
-      return { date, knownQty: 0, projectedQty: 0, totalQty: 0, projectedProbability: 0, possibleQty: 0 };
+      return { date, knownQty: 0, projectedQty: 0, totalQty: 0, planningQty: 0, projectedProbability: 0, possibleQty: 0 };
     }
     const parentProbability = customerOrderPlan?.find((day) => day.date === date)?.projectedProbability ?? 0;
-    const remainingShare = customerOrderPlan ? 1 : remainingOrderWindowShare(asOf, date, historicalOrderOffsets);
+    const remainingShare = customerOrderPlan ? 1 : remainingOrderWindowShare(asOf, date, historicalOrderOffsets, pooledOrderOffsets);
     const nextStates = new Map<number, number>();
     let projectedProbability = 0;
     for (const [age, stateMass] of ageStates) {
@@ -445,8 +518,11 @@ function dailyDemandForecast(
       nextStates.set(age + 1, (nextStates.get(age + 1) ?? 0) + stateMass * (1 - eventProbability));
     }
     ageStates = nextStates;
-    const projectedQty = mostLikelyOrderQty(projectedProbability, typicalQty);
-    return { date, knownQty: 0, projectedQty, totalQty: projectedQty, projectedProbability, possibleQty: clampQty(typicalQty) };
+    const distribution = aggregateDemandDistribution([{ probability: projectedProbability, quantity: typicalQty }]);
+    return {
+      date, knownQty: 0, projectedQty: distribution.expected, totalQty: distribution.expected,
+      planningQty: distribution.upper, projectedProbability, possibleQty: clampQty(typicalQty),
+    };
   });
 }
 
@@ -465,6 +541,91 @@ type UnitSeries = {
   requestedByDay: Map<string, number>;
   knownByDay: Map<string, number>;
 };
+
+type TopupPattern = {
+  deliveryDays: number;
+  topupDays: number;
+  /** First additional order time, relative to the delivery date. */
+  offsets: number[];
+  /** One entry per historical delivery day and SKU/unit, not one per order line. */
+  quantitiesBySkuUnit: Map<string, number[]>;
+};
+
+function customerDayKey(customerId: string, deliveryDate: string) {
+  return JSON.stringify([customerId, deliveryDate]);
+}
+
+function skuUnitKey(sku: string, unit: string) {
+  return JSON.stringify([sku, unit]);
+}
+
+/**
+ * A placed order does not rule out another order for the same delivery day.
+ * Learn the size and composition of genuine subsequent baskets separately;
+ * never mistake a second order line inside one basket for a top-up.
+ */
+function learnTopups(
+  orders: ForecastOrderInput[], items: ForecastItemInput[], today: string,
+  weightConversions: Record<string, PieceWeightConversion>
+) {
+  const ordersByDay = new Map<string, ForecastOrderInput[]>();
+  for (const order of orders) {
+    const key = customerDayKey(order.customerId, order.deliveryDate!);
+    const group = ordersByDay.get(key) ?? [];
+    group.push(order);
+    ordersByDay.set(key, group);
+  }
+  const itemsByOrder = new Map<string, ForecastItemInput[]>();
+  for (const item of items) {
+    const array = itemsByOrder.get(item.orderId) ?? [];
+    array.push(item);
+    itemsByOrder.set(item.orderId, array);
+  }
+  const patterns = new Map<string, TopupPattern>();
+  let totalHistoricalDays = 0;
+  let totalTopupDays = 0;
+  const pooledTopupOffsets: number[] = [];
+  for (const daily of ordersByDay.values()) {
+    const deliveryDate = daily[0].deliveryDate!;
+    if (deliveryDate >= today) continue; // completed delivery dates only
+    const customerId = daily[0].customerId;
+    const pattern = patterns.get(customerId) ?? {
+      deliveryDays: 0, topupDays: 0, offsets: [], quantitiesBySkuUnit: new Map<string, number[]>(),
+    };
+    pattern.deliveryDays++;
+    totalHistoricalDays++;
+    const sorted = [...daily].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+    // A genuine add-on must have a later order request timestamp.
+    const extra = sorted.slice(1).filter((order) =>
+      Date.parse(order.createdAt) > Date.parse(sorted[0].createdAt) + 60_000);
+    if (extra.length) {
+      pattern.topupDays++;
+      totalTopupDays++;
+      const offset = orderOffsetMinutes(extra[0].createdAt, deliveryDate);
+      pattern.offsets.push(offset);
+      pooledTopupOffsets.push(offset);
+      const bySkuUnit = new Map<string, number>();
+      for (const order of extra) {
+        for (const item of itemsByOrder.get(order.id) ?? []) {
+          if (item.requestedQty === null || !Number.isFinite(item.requestedQty) || item.requestedQty <= 0) continue;
+          const converted = normaliseForecastQuantity(item.sku, item.unit, item.requestedQty, weightConversions);
+          const key = skuUnitKey(item.sku, converted.unit);
+          bySkuUnit.set(key, (bySkuUnit.get(key) ?? 0) + converted.quantity);
+        }
+      }
+      for (const [key, quantity] of bySkuUnit) {
+        const quantities = pattern.quantitiesBySkuUnit.get(key) ?? [];
+        quantities.push(quantity);
+        pattern.quantitiesBySkuUnit.set(key, quantities);
+      }
+    }
+    patterns.set(customerId, pattern);
+  }
+  return {
+    patterns, ordersByDay, pooledTopupOffsets,
+    pooledTopupRate: totalHistoricalDays ? totalTopupDays / totalHistoricalDays : 0,
+  };
+}
 
 /**
  * Unit is a conditional choice AFTER an SKU-order event, not a second event.
@@ -595,6 +756,7 @@ export function buildStockForecast(
     customerId,
     observations.sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate)).slice(-MAX_ORDER_TIMING_SAMPLES).map((o) => o.offsetMinutes),
   ]));
+  const pooledOrderOffsets = [...timingHistory.values()].flat();
 
   // Forecast whether the customer will place *any* order on each delivery day.
   // This is a separate clock from the per-SKU cadence: ordering something
@@ -614,8 +776,8 @@ export function buildStockForecast(
     const known = customerKnownOrderDays.get(customerId) ?? new Map<string, number>();
     const orderOffsets = timingHistory.get(customerId) ?? [];
     const plan = lastDeliveryDate && cadence !== null
-      ? dailyDemandForecast(dates, lastDeliveryDate, cadence, 1, known, orderOffsets, asOf, customerIntervals.get(customerId) ?? [])
-      : dates.map((date) => ({ date, knownQty: known.get(date) ?? 0, projectedQty: 0, totalQty: known.get(date) ?? 0, projectedProbability: 0, possibleQty: 0 }));
+      ? dailyDemandForecast(dates, lastDeliveryDate, cadence, 1, known, orderOffsets, asOf, customerIntervals.get(customerId) ?? [], undefined, 1, pooledOrderOffsets)
+      : dates.map((date) => ({ date, knownQty: known.get(date) ?? 0, projectedQty: 0, totalQty: known.get(date) ?? 0, planningQty: known.get(date) ?? 0, projectedProbability: 0, possibleQty: 0 }));
     customerOrderPlans.set(customerId, plan);
   }
 
@@ -667,6 +829,8 @@ export function buildStockForecast(
     series.knownSkuDays.set(serviceDate, 1);
   }
 
+  const { patterns: topupPatterns, ordersByDay, pooledTopupRate, pooledTopupOffsets } =
+    learnTopups(activeOrders, items, today, weightConversions);
   const rows: ForecastRow[] = [];
   for (const series of seriesByKey.values()) {
     const customer = customerById.get(series.customerId)!;
@@ -704,6 +868,7 @@ export function buildStockForecast(
           possibleQty: 0,
         }));
     const unitShares = conditionalUnitShares(series);
+    const topupPattern = topupPatterns.get(series.customerId);
     for (const unitSeries of series.units.values()) {
       const yesterdayRequestedQty = clampQty(unitSeries.requestedByDay.get(yesterdayDate) ?? 0);
       const todayRequestedQty = clampQty(unitSeries.requestedByDay.get(today) ?? 0);
@@ -713,13 +878,31 @@ export function buildStockForecast(
       const unitShare = unitShares.get(unitSeries.unit) ?? 0;
       const forecastDays = skuEventDays.map((event) => {
         const knownQty = clampQty(unitSeries.knownByDay.get(event.date) ?? 0);
-        // A known order in ANY unit settles this customer's SKU event for the
-        // day. Otherwise, distribute one SKU probability across the units.
-        const projectedProbability = event.knownQty > 0 ? 0 : (event.projectedProbability ?? 0) * unitShare;
-        const projectedQty = mostLikelyOrderQty(projectedProbability, typicalRequestedQty);
+        // Initial baskets and subsequent top-ups are distinct events. An
+        // existing customer order settles the INITIAL event only; a later
+        // basket remains possible for customers who have actually done this.
+        const customerOrdersToday = ordersByDay.get(customerDayKey(series.customerId, event.date)) ?? [];
+        const topupSizes = topupPattern?.quantitiesBySkuUnit.get(skuUnitKey(series.sku, unitSeries.unit)) ?? [];
+        let projectedProbability = 0;
+        let possibleQty = typicalRequestedQty;
+        if (customerOrdersToday.length === 1 && topupPattern && topupPattern.deliveryDays >= 3 &&
+            topupPattern.topupDays > 0 && topupSizes.length > 0) {
+          const topupRate = (topupPattern.topupDays + TOPUP_PRIOR_WEIGHT * pooledTopupRate) /
+            (topupPattern.deliveryDays + TOPUP_PRIOR_WEIGHT);
+          const remainingShare = remainingOrderWindowShare(
+            asOf, event.date, topupPattern.offsets, pooledTopupOffsets);
+          const rateAfterNoTopup = probabilityAfterNoOrderYet(topupRate, remainingShare);
+          projectedProbability = rateAfterNoTopup * (topupSizes.length / topupPattern.topupDays);
+          possibleQty = recencyWeightedMedian(topupSizes) ?? 0;
+        } else if (customerOrdersToday.length === 0) {
+          projectedProbability = (event.projectedProbability ?? 0) * unitShare;
+        }
+        const distribution = aggregateDemandDistribution([{ probability: projectedProbability, quantity: possibleQty }]);
+        const projectedQty = distribution.expected;
         return {
           date: event.date, knownQty, projectedQty, totalQty: clampQty(knownQty + projectedQty),
-          projectedProbability, possibleQty: clampQty(typicalRequestedQty),
+          planningQty: clampQty(knownQty + distribution.upper),
+          projectedProbability, possibleQty: clampQty(possibleQty),
         };
       });
       // Keep unlikely candidates for product-level convolution, but don't
@@ -752,6 +935,7 @@ export function buildStockForecast(
   rows.sort((a, b) => a.customerName.localeCompare(b.customerName, "th") || a.sku.localeCompare(b.sku, "en"));
   return {
     asOf: asOf.toISOString(), yesterdayDate, dates, historyDays: FORECAST_HISTORY_DAYS, rows,
+    planningPercentile: STOCK_PLANNING_PERCENTILE,
     weightConversions, originalPieceDemand, missingWeightConversions,
   };
 }

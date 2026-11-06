@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { backtestStockForecast, BACKTEST_CUTOFF_HOUR } from "../lib/stockForecastBacktest.ts";
+import { backtestStockForecast, BACKTEST_CUTOFF_HOUR, BACKTEST_DAYS } from "../lib/stockForecastBacktest.ts";
 
 const customers = [
   { id: "restaurant", code: "001", name: "Restaurant", isTest: false },
@@ -47,10 +47,13 @@ test("backtest replays historical forecasts at noon previous day, excluding orde
   const after = withLate.days.find((day) => day.deliveryDate === "2026-11-05" && day.unit === "กก.");
   assert.ok(before && after);
   assert.equal(BACKTEST_CUTOFF_HOUR, 12);
+  assert.equal(BACKTEST_DAYS, 28);
   assert.equal(after.cutoffAt, "2026-11-04T05:00:00.000Z");
   assert.equal(after.bookedOnlyQty, 5);
   assert.equal(before.forecastQty, after.forecastQty);
   assert.equal(after.actualQty, before.actualQty + 2);
+  assert.ok(Number.isFinite(after.planningQty));
+  assert.ok(after.planningCoveragePct >= 0 && after.planningCoveragePct <= 100);
 });
 
 test("requested quantities are scored by delivery date, excluding tests and cancellations", () => {
@@ -69,6 +72,9 @@ test("requested quantities are scored by delivery date, excluding tests and canc
   assert.equal(report.byUnit.find((unit) => unit.unit === "ชิ้น")?.actualQty, 7);
   assert.ok(report.byUnit.some((unit) => unit.unit === "กก."));
   assert.ok(report.byUnit.every((unit) => unit.modelWape === null || unit.modelWape >= 0));
+  assert.ok(report.byUnit.every((unit) => unit.planningCoveragePct === null ||
+    (unit.planningCoveragePct >= 0 && unit.planningCoveragePct <= 100)));
+  assert.ok(report.byUnit.every((unit) => unit.underforecastQty >= 0));
 });
 
 test("days with insufficient prior history are skipped, and score types remain valid", () => {

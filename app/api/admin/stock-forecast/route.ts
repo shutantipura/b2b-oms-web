@@ -8,6 +8,7 @@ import {
   describeCustomerOrderTime,
   FORECAST_DAYS,
   FORECAST_HISTORY_DAYS,
+  procurementForecastAsOf,
   type ForecastCustomerInput,
   type ForecastItemInput,
   type ForecastOrderInput,
@@ -152,6 +153,9 @@ async function customersById(admin: SupabaseClient, ids: string[]) {
 async function loadForecast(admin: SupabaseClient, extraHistoryDays = 0) {
   const now = new Date();
   const today = bangkokDateKey(now);
+  // The purchasing decision is due by 12:00 Bangkok. Before noon the view is
+  // live; afterwards replay it as of noon, excluding later order submissions.
+  const procurementAsOf = procurementForecastAsOf(now);
   const dateMillis = Date.parse(`${today}T00:00:00Z`);
   const startDate = new Date(dateMillis - (FORECAST_HISTORY_DAYS + extraHistoryDays) * 86_400_000).toISOString().slice(0, 10);
   const endDate = new Date(dateMillis + (FORECAST_DAYS - 1) * 86_400_000).toISOString().slice(0, 10);
@@ -190,6 +194,7 @@ async function loadForecast(admin: SupabaseClient, extraHistoryDays = 0) {
   });
   return {
     forecast: buildStockForecast(inputOrders, inputItems, customers, now),
+    noonForecast: buildStockForecast(inputOrders, inputItems, customers, procurementAsOf),
     orders: inputOrders,
     items: inputItems,
     customers,
@@ -204,10 +209,11 @@ function excelResponse(forecast: StockForecast) {
     `${forecast.yesterdayDate} ยอดสั่ง`, `${forecast.dates[0]} สั่งแล้วถึงตอนนี้`,
     `${forecast.dates[0]} คาดยอดสั่งปิดวัน`, `${forecast.dates[1]} คาดความต้องการ`, `${forecast.dates[2]} คาดความต้องการ`,
     "เทียบ กก./ชิ้น", "แหล่งน้ำหนักต่อชิ้น", "จำนวนตัวอย่าง", "ยอดขอสั่งเดิมวันนี้ (ชิ้น)",
+    ...forecast.dates.map((date) => `${date} แผน P80`),
   ];
   const summaryRows: (number | string)[][] = [
     ["Lotus’s B2B · พยากรณ์ความต้องการรวมตามสินค้า (ทุกลูกค้า)"],
-    [`อัปเดต ${forecast.asOf} · ใช้ requested_qty · รายการที่สั่งเป็นชิ้นแต่ขายตามน้ำหนักจะแปลงเป็น กก.โดยประมาณจากหลักฐานชั่งน้ำหนักในอดีต · ไม่ใช้ปริมาณที่หยิบจริงแทนยอดขอสั่ง`],
+    [`อัปเดต ${forecast.asOf} · คาดเฉลี่ยจากยอดขอสั่ง + ความน่าจะเป็นสั่งเพิ่ม · แผน P80 เผื่อความเสี่ยงขาดสินค้า · ยอดที่สั่งเป็นชิ้นแต่ขายตามน้ำหนักเทียบเป็น กก.จากหลักฐานชั่งจริง`],
     [],
     summaryHeaders,
     ...products.flatMap((product) => product.units.map((unit) => [
@@ -217,6 +223,7 @@ function excelResponse(forecast: StockForecast) {
       forecast.weightConversions[product.sku]?.source === "measured" ? "ชั่งจริง" : forecast.weightConversions[product.sku] ? "อนุมานจากบิลเก่า" : "",
       forecast.weightConversions[product.sku]?.sampleCount ?? "",
       forecast.originalPieceDemand[product.sku]?.today ?? "",
+      ...unit.days.map((day) => day.planningQty ?? day.totalQty),
     ])),
   ];
   const summary = XLSX.utils.aoa_to_sheet(summaryRows);
@@ -228,6 +235,7 @@ function excelResponse(forecast: StockForecast) {
     { wch: 17 }, { wch: 48 }, { wch: 13 }, { wch: 17 }, { wch: 12 },
     ...Array.from({ length: 5 }, () => ({ wch: 23 })),
     { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 28 },
+    ...forecast.dates.map(() => ({ wch: 23 })),
   ];
   for (let r = 4; r < summaryRows.length; r++) {
     for (let c = 5; c < summaryHeaders.length; c++) {
@@ -244,6 +252,7 @@ function excelResponse(forecast: StockForecast) {
     ...forecast.dates.flatMap((date) => [`${date} รับออเดอร์แล้ว`, `${date} คาดการณ์เพิ่ม`, `${date} โอกาสสั่งเพิ่ม (%)`, `${date} ปริมาณหากสั่ง`]),
     "เวลาที่ลูกค้ามักสั่ง (เทียบวันส่ง)", "ตัวอย่างเวลาออเดอร์ (ครั้ง)",
     "เทียบ กก./ชิ้น", "แหล่งน้ำหนักต่อชิ้น", "จำนวนตัวอย่างน้ำหนัก",
+    ...forecast.dates.map((date) => `${date} แผน P80`),
   ];
   const sheetRows: (number | string)[][] = [
     ["Lotus’s B2B · พยากรณ์ความต้องการสินค้า 3 วัน (สำหรับวางแผนเท่านั้น)"],
@@ -260,6 +269,7 @@ function excelResponse(forecast: StockForecast) {
       forecast.weightConversions[row.sku]?.kgPerPiece ?? "",
       forecast.weightConversions[row.sku]?.source === "measured" ? "ชั่งจริง" : forecast.weightConversions[row.sku] ? "อนุมานจากบิลเก่า" : "",
       forecast.weightConversions[row.sku]?.sampleCount ?? "",
+      ...row.days.map((day) => day.planningQty ?? day.totalQty),
     ]),
   ];
   const sheet = XLSX.utils.aoa_to_sheet(sheetRows);
@@ -273,9 +283,10 @@ function excelResponse(forecast: StockForecast) {
     { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 14 }, { wch: 33 },
     ...forecast.dates.flatMap(() => [{ wch: 20 }, { wch: 20 }, { wch: 23 }, { wch: 20 }]),
     { wch: 30 }, { wch: 22 }, { wch: 18 }, { wch: 24 }, { wch: 20 },
+    ...forecast.dates.map(() => ({ wch: 23 })),
   ];
   for (let r = 4; r < sheetRows.length; r++) {
-    for (const c of [5, 6, 7, 8, 9, 15, 30, ...Array.from({ length: 12 }, (_, index) => 16 + index)]) {
+    for (const c of [5, 6, 7, 8, 9, 15, 30, 33, 34, 35, ...Array.from({ length: 12 }, (_, index) => 16 + index)]) {
       const cell = sheet[XLSX.utils.encode_cell({ r, c })];
        if (cell) cell.z = "#,##0.0";
     }
@@ -307,7 +318,11 @@ export async function GET(request: NextRequest) {
       );
     }
     if (format === "xlsx") return excelResponse(inputs.forecast);
-    return NextResponse.json(inputs.forecast, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
+    if (format === "noon-xlsx") return excelResponse(inputs.noonForecast);
+    return NextResponse.json(
+      { ...inputs.forecast, noonForecast: inputs.noonForecast },
+      { headers: { "Cache-Control": "private, no-store, max-age=0" } }
+    );
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: "กรุณาเข้าสู่ระบบ" }, { status: 401 });

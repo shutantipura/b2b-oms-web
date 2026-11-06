@@ -39,9 +39,9 @@ function FivePeriodGrid({ yesterdayDate, yesterdayRequestedQty, todayRequestedQt
   const periods = [
     { label: "ยอดวันส่งเมื่อวาน", date: yesterdayDate, value: yesterdayRequestedQty, actual: true },
     { label: "ยอดวันส่งวันนี้", date: days[0].date, value: todayRequestedQty, actual: true },
-    { label: "คาดปิดวันนี้", date: days[0].date, value: days[0].totalQty, actual: false, known: days[0].knownQty, extra: days[0].projectedQty },
-    { label: "คาดพรุ่งนี้", date: days[1].date, value: days[1].totalQty, actual: false, known: days[1].knownQty, extra: days[1].projectedQty },
-    { label: "คาดมะรืน", date: days[2].date, value: days[2].totalQty, actual: false, known: days[2].knownQty, extra: days[2].projectedQty },
+    { label: "คาดเฉลี่ยปิดวันนี้", date: days[0].date, value: days[0].totalQty, actual: false, known: days[0].knownQty, extra: days[0].projectedQty, planning: days[0].planningQty },
+    { label: "คาดเฉลี่ยพรุ่งนี้", date: days[1].date, value: days[1].totalQty, actual: false, known: days[1].knownQty, extra: days[1].projectedQty, planning: days[1].planningQty },
+    { label: "คาดเฉลี่ยมะรืน", date: days[2].date, value: days[2].totalQty, actual: false, known: days[2].knownQty, extra: days[2].projectedQty, planning: days[2].planningQty },
   ];
   return (
     <div className="grid grid-cols-5 gap-1 p-1.5 sm:gap-2 sm:p-2" aria-label="ความต้องการตามคำสั่งซื้อจริงและคาดการณ์ห้าช่วงเวลา">
@@ -55,6 +55,8 @@ function FivePeriodGrid({ yesterdayDate, yesterdayRequestedQty, todayRequestedQt
               รับแล้ว {forecastQty(period.known ?? 0)}
               <br />
               คาดเพิ่ม {forecastQty(period.extra ?? 0)}
+              <br />
+              <span className="font-black text-[#9C6A00]">แผน P80 {forecastQty(period.planning ?? period.value)}</span>
             </p>
           )}
         </div>
@@ -69,6 +71,8 @@ export default function StockManagementPage() {
   const [error, setError] = useState("");
   const [dates] = useState<string[]>(() => stockReportDates());
   const [forecast, setForecast] = useState<StockForecast | null>(null);
+  const [noonForecast, setNoonForecast] = useState<StockForecast | null>(null);
+  const [forecastView, setForecastView] = useState<"noon" | "live">("noon");
   const [forecastLoading, setForecastLoading] = useState(false);
   const [forecastError, setForecastError] = useState("");
   const [forecastDownloading, setForecastDownloading] = useState(false);
@@ -112,8 +116,9 @@ export default function StockManagementPage() {
         const problem = await response.json().catch(() => ({}));
         throw new Error(typeof problem.error === "string" ? problem.error : "คำนวณคาดการณ์ไม่สำเร็จ");
       }
-      const next = (await response.json()) as StockForecast;
+      const next = (await response.json()) as StockForecast & { noonForecast?: StockForecast };
       setForecast(next);
+      setNoonForecast(next.noonForecast ?? null);
       setForecastError("");
     } catch (caught) {
       setForecastError(caught instanceof Error ? caught.message : "คำนวณคาดการณ์ไม่สำเร็จ");
@@ -129,8 +134,9 @@ export default function StockManagementPage() {
     return () => { window.clearTimeout(initial); window.clearInterval(timer); };
   }, [access, refreshForecast]);
 
+  const displayedForecast = forecastView === "noon" ? noonForecast ?? forecast : forecast;
   const productForecast = useMemo(() =>
-    forecast ? aggregateForecastByProduct(forecast.rows, forecast.dates) : [], [forecast]);
+    displayedForecast ? aggregateForecastByProduct(displayedForecast.rows, displayedForecast.dates) : [], [displayedForecast]);
 
   const visibleForecast = useMemo(() => {
     const filter = productSearch.trim().toLocaleLowerCase();
@@ -149,7 +155,7 @@ export default function StockManagementPage() {
       const { data, error: authError } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (authError || !token) throw new Error("กรุณาเข้าสู่ระบบใหม่");
-      const response = await fetch("/api/admin/stock-forecast?format=xlsx", {
+      const response = await fetch(`/api/admin/stock-forecast?format=${forecastView === "noon" ? "noon-xlsx" : "xlsx"}`, {
         headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
       });
       if (!response.ok) {
@@ -268,11 +274,11 @@ export default function StockManagementPage() {
               <p className="text-xs font-extrabold tracking-wide text-[#008B8B]">REQUESTED DEMAND + ROLLING FORECAST</p>
               <h2 className="mt-1 text-2xl font-black text-[#17453F]">พยากรณ์ความต้องการสินค้า 3 วัน</h2>
               <p className="mt-2 text-sm leading-6 text-[#648279]">
-                ใช้ Requested Qty ตามวันส่ง/รับสินค้า · ประเมินทั้งรอบสั่งรวมของลูกค้าและรอบซื้อสินค้าแต่ละ SKU · หากลูกค้าเพิ่งสั่งเมื่อวาน โอกาสมีออเดอร์ใหม่วันนี้จะลดลง · พิจารณาช่วงเวลาสั่งประจำด้วย · อัปเดตทุก 1 นาที
+                ใช้ Requested Qty ตามวันส่ง/รับสินค้า · เรียนรู้รอบสั่งสินค้าและช่วงเวลาของลูกค้า · มีทั้งแผนก่อนเที่ยงสำหรับสั่งสต็อก และคาดการณ์สด · อัปเดตทุก 1 นาที
               </p>
-              {forecast && (
+              {displayedForecast && (
                 <p className="mt-1 text-xs text-[#77918A]">
-                  คำนวณล่าสุด {new Date(forecast.asOf).toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" })} น. (เวลาไทย)
+                  เวลาอ้างอิง {new Date(displayedForecast.asOf).toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" })} น. (เวลาไทย)
                 </p>
               )}
             </div>
@@ -281,23 +287,35 @@ export default function StockManagementPage() {
             </span>
           </div>
 
-          {forecast && (
+          <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="เลือกมุมมองการคาดการณ์">
+            <button type="button" aria-pressed={forecastView === "noon"} onClick={() => setForecastView("noon")}
+              className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-black ${forecastView === "noon" ? "border-[#CBA451] bg-[#FFF1C5] text-[#704D00]" : "border-[#CDE5DE] bg-white text-[#557A71]"}`}>
+              แผนสั่งสต็อกก่อน 12:00 น.
+            </button>
+            <button type="button" aria-pressed={forecastView === "live"} onClick={() => setForecastView("live")}
+              className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-black ${forecastView === "live" ? "border-[#02B0AF] bg-[#E5F8F5] text-[#008B8B]" : "border-[#CDE5DE] bg-white text-[#557A71]"}`}>
+              คาดการณ์สด
+            </button>
+          </div>
+          {displayedForecast && (
             <div className="mt-5 rounded-xl border border-[#DDEEEA] p-2">
               <p className="px-2 pt-1 text-xs font-extrabold text-[#436F66]">สรุปเนื้อสดทั้งหมด (กก. รวมชิ้นที่เทียบเป็นน้ำหนักได้)</p>
               <FivePeriodGrid
-                yesterdayDate={forecast.yesterdayDate}
+                yesterdayDate={displayedForecast.yesterdayDate}
                 yesterdayRequestedQty={productForecast.filter((row) => row.freshMeat).flatMap((row) => row.units.filter((unit) => unit.unit === "กก.")).reduce((sum, unit) => sum + unit.yesterdayRequestedQty, 0)}
                 todayRequestedQty={productForecast.filter((row) => row.freshMeat).flatMap((row) => row.units.filter((unit) => unit.unit === "กก.")).reduce((sum, unit) => sum + unit.todayRequestedQty, 0)}
-                days={forecast.dates.map((date, index) => {
+                days={displayedForecast.dates.map((date, index) => {
                   const meat = productForecast.filter((row) => row.freshMeat).flatMap((row) => row.units.filter((unit) => unit.unit === "กก."));
                   return {
                     date,
                     knownQty: meat.reduce((sum, row) => sum + row.days[index].knownQty, 0),
                     projectedQty: meat.reduce((sum, row) => sum + row.days[index].projectedQty, 0),
                     totalQty: meat.reduce((sum, row) => sum + row.days[index].totalQty, 0),
+                    planningQty: meat.reduce((sum, row) => sum + (row.days[index].planningQty ?? row.days[index].totalQty), 0),
                   };
                 })}
               />
+              <p className="px-2 pb-1 text-[10px] text-[#728E86]">P80 ของเนื้อสดรวม = ผลรวมแผนราย SKU สำหรับดูภาพรวม ไม่ใช่ค่าเปอร์เซ็นไทล์ของยอดทุกสินค้าเมื่อรวมกัน</p>
             </div>
           )}
 
@@ -328,8 +346,13 @@ export default function StockManagementPage() {
           {forecastError && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{forecastError}</p>}
           {forecastLoading && !forecast && <p role="status" className="py-9 text-center text-sm text-[#648279]">กำลังคำนวณจากข้อมูลคำสั่งซื้อ...</p>}
 
-          {forecast && (
+          {displayedForecast && (
             <>
+              <div className="mt-5 rounded-2xl border border-[#F5D88F] bg-[#FFF9E8] p-4 text-sm leading-6 text-[#775817]">
+                <p className="font-black">{forecastView === "noon" ? "แผน ณ จุดตัด 12:00 น. สำหรับสั่งสินค้าให้รองรับ B2B พรุ่งนี้" : "ความต้องการ B2B ที่อัปเดตตามออเดอร์สด"}</p>
+                <p className="mt-1">ตัวเลขหลักเป็น <strong>คาดการณ์เฉลี่ย</strong> จากยอดที่สั่งแล้วและความน่าจะเป็นที่จะสั่งเพิ่ม ส่วน <strong>แผน P80</strong> เป็นปริมาณสูงกว่าค่าเฉลี่ยที่ใช้เผื่อความเสี่ยงสินค้าขาด ตามนโยบายที่ให้ความสำคัญกับการไม่ขาดสินค้า</p>
+                <p className="mt-1 text-xs">{forecastView === "noon" ? "ก่อนเที่ยงจะแสดง ณ เวลาปัจจุบัน หลังเที่ยงจะจำลองจากออเดอร์ที่ส่งก่อน 12:00 น. (ยังไม่ใช่ snapshot เก็บถาวร) · " : ""}P80 เป็นแนวทางวางแผน ไม่ใช่คำสั่งซื้อจากซัพพลายเออร์ ระบบยังไม่ได้หักสต็อกที่มีอยู่หรือคิดเวลาที่สินค้าซัพพลายเออร์มาถึง</p>
+              </div>
               <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
                    <h3 className="text-lg font-black text-[#17453F]">ความต้องการคาดการณ์รวมตามสินค้า (ทุกลูกค้า)</h3>
                 <span className="rounded-full bg-[#EAF8F5] px-3 py-1 text-xs font-extrabold text-[#008B8B]">
@@ -342,17 +365,17 @@ export default function StockManagementPage() {
                     <div className="border-b border-[#E0EEEA] bg-[#F4FAF8] p-3 sm:p-4">
                       <h4 className="text-base font-black text-[#17453F] sm:text-lg">{product.productName}</h4>
                       <p className="mt-1 text-xs font-bold text-[#008B8B]">SKU {product.sku} · {product.customerCount} ลูกค้า · {product.units.length} หน่วยนับ</p>
-                      {forecast.weightConversions?.[product.sku] && (
+                      {displayedForecast.weightConversions?.[product.sku] && (
                         <p className="mt-2 rounded-lg bg-[#E5F5F0] px-3 py-2 text-xs font-semibold leading-5 text-[#27675E]">
-                          ชิ้น → กก. ≈ {forecast.weightConversions[product.sku].kgPerPiece.toFixed(2)} กก./ชิ้น
-                          {" · "}{forecast.weightConversions[product.sku].source === "measured" ? "อ้างอิงน้ำหนักชั่งจริง" : "ประมาณจากข้อมูลหยิบเก่าที่ไม่มีจำนวนชิ้นจริง"}
-                          {" "}({forecast.weightConversions[product.sku].sampleCount} รายการ)
-                          {forecast.weightConversions[product.sku].confidence === "low" && " · ความเชื่อมั่นต่ำ"}
-                          {(forecast.originalPieceDemand?.[product.sku]?.today ?? 0) > 0 &&
-                            ` · ยอดขอสั่งวันส่งวันนี้ ${qty(forecast.originalPieceDemand[product.sku].today)} ชิ้น`}
+                          ชิ้น → กก. ≈ {displayedForecast.weightConversions[product.sku].kgPerPiece.toFixed(2)} กก./ชิ้น
+                          {" · "}{displayedForecast.weightConversions[product.sku].source === "measured" ? "อ้างอิงน้ำหนักชั่งจริง" : "ประมาณจากข้อมูลหยิบเก่าที่ไม่มีจำนวนชิ้นจริง"}
+                          {" "}({displayedForecast.weightConversions[product.sku].sampleCount} รายการ)
+                          {displayedForecast.weightConversions[product.sku].confidence === "low" && " · ความเชื่อมั่นต่ำ"}
+                          {(displayedForecast.originalPieceDemand?.[product.sku]?.today ?? 0) > 0 &&
+                            ` · ยอดขอสั่งวันส่งวันนี้ ${qty(displayedForecast.originalPieceDemand[product.sku].today)} ชิ้น`}
                         </p>
                       )}
-                      {forecast.missingWeightConversions?.includes(product.sku) && (
+                      {displayedForecast.missingWeightConversions?.includes(product.sku) && (
                         <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800">
                           ยังไม่มีหลักฐานน้ำหนัก/ชิ้นเพียงพอ · ยอดชิ้นจะแสดงแยก ไม่สมมติว่ามีน้ำหนักเท่ากับ 1 กก.
                         </p>
@@ -362,7 +385,11 @@ export default function StockManagementPage() {
                     {product.units.map((unit) => (
                       <div key={unit.unit} className="border-b border-[#DCECE7] last:border-b-0">
                         <p className="bg-[#F8FCFB] px-3 py-2 text-sm font-black text-[#007F7F] sm:px-4">หน่วย: {unit.unit}</p>
-                        <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayRequestedQty={unit.yesterdayRequestedQty} todayRequestedQty={unit.todayRequestedQty} days={unit.days} />
+                        <div className="mx-2 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#F2DFA8] bg-[#FFF9E8] px-3 py-2 text-xs text-[#765613] sm:mx-3">
+                          <span className="font-bold">แผนรองรับความต้องการพรุ่งนี้ (P80)</span>
+                          <strong className="text-lg tabular-nums">{forecastQty(unit.days[1]?.planningQty ?? unit.days[1]?.totalQty ?? 0)} {unit.unit}</strong>
+                        </div>
+                        <FivePeriodGrid yesterdayDate={displayedForecast.yesterdayDate} yesterdayRequestedQty={unit.yesterdayRequestedQty} todayRequestedQty={unit.todayRequestedQty} days={unit.days} />
                         <details className="group border-t border-[#E0EEEA]">
                           <summary className="cursor-pointer px-4 py-3 text-sm font-extrabold text-[#008B8B] marker:text-[#008B8B]">
                             ดูยอดแยกรายลูกค้า ({unit.customers.length}) · {unit.unit}
@@ -385,7 +412,7 @@ export default function StockManagementPage() {
                                 <p className="mt-1 text-[11px] text-[#648279]">
                                   โอกาสสั่งเพิ่มเป็น {unit.unit}: {customer.days.map((day, index) => `${["วันนี้", "พรุ่งนี้", "มะรืน"][index]} ${Math.round((day.projectedProbability ?? 0) * 100)}%`).join(" · ")}
                                 </p>
-                                <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayRequestedQty={customer.yesterdayRequestedQty} todayRequestedQty={customer.todayRequestedQty} days={customer.days} compact />
+                                <FivePeriodGrid yesterdayDate={displayedForecast.yesterdayDate} yesterdayRequestedQty={customer.yesterdayRequestedQty} todayRequestedQty={customer.todayRequestedQty} days={customer.days} compact />
                               </div>
                             ))}
                           </div>
@@ -397,7 +424,7 @@ export default function StockManagementPage() {
                 {visibleForecast.length === 0 && <p className="rounded-xl border border-[#DDEAE6] p-6 text-center text-sm text-[#648279]">ยังไม่มีข้อมูลที่ตรงกับตัวกรอง หรือยังมีประวัติไม่พอสำหรับคาดการณ์</p>}
               </div>
               <p className="mt-3 text-xs leading-5 text-[#6E8982]">
-                 ยอดสั่ง = ปริมาณที่ลูกค้าขอสั่งก่อนเช็คสต็อก/หยิบ/ออกบิล (ไม่นับออเดอร์ยกเลิก) โดยจัดตามวันส่ง/รับสินค้า ไม่ใช่วันที่ลูกค้ากดสั่ง · คาดปิดวันนี้รวมยอดที่สั่งแล้ว จึงไม่นับซ้ำ · ค่ารายลูกค้าเลือกปริมาณเต็มเมื่อมีโอกาสเกิน 50% · ค่ารวมสินค้าเลือกปริมาณที่น่าจะเกิดขึ้นมากที่สุดจากการรวมความเป็นไปได้ของทุกลูกค้า จึงอาจไม่เท่าผลรวมค่ารายลูกค้า
+                 ยอดสั่ง = ปริมาณที่ลูกค้าขอสั่งก่อนเช็คสต็อก/หยิบ/ออกบิล (ไม่นับออเดอร์ยกเลิก) โดยจัดตามวันส่ง/รับสินค้า ไม่ใช่วันที่ลูกค้ากดสั่ง · คาดเฉลี่ย = รับออเดอร์แล้ว + ผลรวมโอกาสสั่งเพิ่ม × ปริมาณต่อครั้ง · แผน P80 คือขอบบนที่ปริมาณสั่งจริงมีโอกาสไม่เกินประมาณ 80% ตามแบบจำลอง · ไม่เอา P80 รายลูกค้ามาบวกเป็น P80 รวมสินค้า
               </p>
               <p className="mt-1 text-xs leading-5 text-[#6E8982]">สินค้าขายตามน้ำหนักที่ลูกค้าขอสั่งเป็นชิ้น จะเทียบเป็น กก. จากน้ำหนักชั่งจริงย้อนหลังของ SKU นั้นก่อนคำนวณรอบซื้อและปริมาณ · ค่าจากการแปลงเป็นน้ำหนักประมาณการ ไม่ใช่น้ำหนักรับประกัน · หากไม่มีข้อมูลแปลงที่เชื่อถือได้ จะคงยอดชิ้นแยกและแจ้งเตือน · ยอดขายจริงย้อนหลัง 14 วันด้านล่างยังนับจำนวนหยิบ/ออกบิลตามเดิม</p>
               <button
@@ -412,7 +439,7 @@ export default function StockManagementPage() {
           )}
 
           <div className="mt-5 rounded-xl border border-[#F5E4B4] bg-[#FFF9E8] p-4 text-xs leading-6 text-[#806A30]">
-            ระบบใช้ประวัติวันส่งย้อนหลังสูงสุด 90 วัน · เรียนรู้ความถี่การสั่งจากช่วงห่างจริงระหว่างวันส่ง และปรับเผื่อกรณีประวัติน้อย · การสั่ง SKU ใดก็ตามจะเริ่มนับรอบการสั่งรวมของลูกค้าใหม่ ส่วนรอบซื้อ SKU จะเริ่มใหม่เมื่อสั่งสินค้านั้น · เมื่อเลยช่วงเวลาที่มักกดสั่ง จะใช้ความน่าจะเป็นแบบมีเงื่อนไขว่าลูกค้ายังไม่สั่ง · ปริมาณต่อครั้งใช้ค่ากลางที่ทนต่อออเดอร์ใหญ่ผิดปกติ · น้ำหนัก/ชิ้นใช้ค่ากลางจากน้ำหนักชั่งจริงก่อนเวลาคาดการณ์ ไม่ใช้ข้อมูลอนาคตในการทดสอบย้อนหลัง · เนื้อสดไม่ถูกสมมติให้ลูกค้าสั่งถี่ขึ้นเพียงเพราะสินค้าต้องสด
+            ระบบใช้ประวัติวันส่งย้อนหลังสูงสุด 90 วัน · เรียนรู้ความถี่การสั่งจากช่วงห่างจริงระหว่างวันส่ง และปรับเผื่อกรณีประวัติน้อย · การสั่ง SKU ใดก็ตามจะเริ่มนับรอบการสั่งรวมของลูกค้าใหม่ ส่วนรอบซื้อ SKU จะเริ่มใหม่เมื่อสั่งสินค้านั้น · เมื่อเลยช่วงเวลาที่มักกดสั่ง จะใช้ความน่าจะเป็นแบบมีเงื่อนไขว่าลูกค้ายังไม่สั่ง และปรับด้วยข้อมูลเวลาสั่งของลูกค้า B2B รายอื่นเพื่อไม่ให้มั่นใจเกินไปจากออเดอร์เพียงไม่กี่ครั้ง · หากลูกค้ามีประวัติสั่งเพิ่มหลังออเดอร์แรก จะประมาณความต้องการส่วนเพิ่มด้วย · ปริมาณต่อครั้งใช้ค่ากลางที่ทนต่อออเดอร์ใหญ่ผิดปกติ · น้ำหนัก/ชิ้นใช้ค่ากลางจากน้ำหนักชั่งจริงก่อนเวลาคาดการณ์ ไม่ใช้ข้อมูลอนาคตในการทดสอบย้อนหลัง · เนื้อสดไม่ถูกสมมติให้ลูกค้าสั่งถี่ขึ้นเพียงเพราะสินค้าต้องสด
             · ลูกค้าที่มีประวัติน้อยยังไม่ควรใช้คาดการณ์นี้สั่งสินค้าโดยตรง
           </div>
         </section>
@@ -468,6 +495,11 @@ export default function StockManagementPage() {
                         <p className="mt-1 text-xs text-[#648279]">
                           อคติคาดการณ์ (Bias): {percent(unit.modelBiasPct)} · จริง {qty(unit.actualQty)} {unit.unit} · คาด {qty(unit.forecastQty)} {unit.unit}
                         </p>
+                        <div className="mt-3 rounded-xl border border-[#F3E0AA] bg-[#FFF9E8] p-3 text-xs leading-6 text-[#765613]">
+                          <p className="font-black">ทดสอบแผน P80: ครอบคลุม {percent(unit.planningCoveragePct)} ของ SKU-วัน</p>
+                          <p>เป้าหมายระยะยาว ≈ 80% · ปริมาณจริงที่เกินแผน {qty(unit.underforecastQty)} {unit.unit}</p>
+                          <p>ยอดแผนรวมที่ประเมิน {qty(unit.planningQty)} {unit.unit}</p>
+                        </div>
                       </div>
                     );
                   })}
@@ -477,7 +509,7 @@ export default function StockManagementPage() {
               )}
               <p className="text-xs leading-6 text-[#6E8982]">
                 WAPE = ผลรวมความคลาดเคลื่อนสัมบูรณ์ราย SKU ÷ ยอดสั่งจริง (ยิ่งต่ำยิ่งดี) · คิดแยกตามหน่วย กก./ชิ้น ·
-                Bias บวกหมายถึงคาดสูงเกินจริง และ Bias ลบหมายถึงคาดต่ำเกินจริง
+                Bias บวกหมายถึงคาดสูงเกินจริง และ Bias ลบหมายถึงคาดต่ำเกินจริง · P80 coverage = สัดส่วน SKU-วันที่ความต้องการจริงไม่เกินค่าคาด P80 โดยวัดจากเวลาคาดการณ์ก่อนส่ง 1 วัน
               </p>
               {backtest.days.length > 0 && (
                 <details className="rounded-xl border border-[#DDEEEA]">
@@ -492,6 +524,7 @@ export default function StockManagementPage() {
                           <th className="px-3 py-3">หน่วย</th>
                           <th className="px-3 py-3 text-right">สั่งจริง</th>
                           <th className="px-3 py-3 text-right">คาดการณ์</th>
+                          <th className="px-3 py-3 text-right">แผน P80</th>
                           <th className="px-3 py-3 text-right">สั่งแล้ว ณ cutoff</th>
                           <th className="px-3 py-3 text-right">WAPE โมเดล</th>
                         </tr>
@@ -503,6 +536,7 @@ export default function StockManagementPage() {
                             <td className="px-3 py-2.5">{day.unit}</td>
                             <td className="px-3 py-2.5 text-right tabular-nums">{qty(day.actualQty)}</td>
                             <td className="px-3 py-2.5 text-right tabular-nums">{qty(day.forecastQty)}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">{qty(day.planningQty)}</td>
                             <td className="px-3 py-2.5 text-right tabular-nums">{qty(day.bookedOnlyQty)}</td>
                             <td className="px-3 py-2.5 text-right tabular-nums">{percent(day.wape)}</td>
                           </tr>

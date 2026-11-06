@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  aggregateForecastByProduct, buildStockForecast, conditionalOrderProbability,
+  aggregateDemandDistribution, aggregateForecastByProduct, buildStockForecast, conditionalOrderProbability,
   describeCustomerOrderTime, estimatePieceWeights, isFreshMeat, mostLikelyAggregateQty, mostLikelyOrderQty,
   normaliseForecastQuantity,
+  procurementForecastAsOf,
   observedRepeatProbability, probabilityAfterNoOrderYet, recencyWeightedMedian,
   remainingOrderWindowShare,
 } from "../lib/stockForecast.ts";
@@ -34,6 +35,15 @@ test("fresh meat classification excludes eggs, fish, frozen products", () => {
   assert.equal(isFreshMeat("Fresh Meat", "เนื้อวัว กก."), true);
 });
 
+test("procurement replay uses live time before Bangkok noon and freezes its cutoff afterwards", () => {
+  const before = new Date("2026-11-06T04:59:59Z");
+  const after = new Date("2026-11-06T06:40:00Z");
+  assert.equal(procurementForecastAsOf(before).toISOString(), before.toISOString());
+  assert.equal(procurementForecastAsOf(after).toISOString(), "2026-11-06T05:00:00.000Z");
+  assert.equal(procurementForecastAsOf(new Date("2026-11-05T18:00:00Z")).toISOString(),
+    "2026-11-05T18:00:00.000Z", "Bangkok already entered 6 Nov after midnight, but before noon");
+});
+
 test("modal forecast chooses the full likely quantity instead of probability-weighting it", () => {
   assert.equal(mostLikelyOrderQty(0.8, 1), 1);
   assert.equal(mostLikelyOrderQty(0.2, 1), 0);
@@ -47,6 +57,16 @@ test("product-level modal demand combines small probabilities from many customer
   assert.equal(mostLikelyAggregateQty([{ probability: 0.5, quantity: 4 }]), 0);
   assert.equal(mostLikelyAggregateQty([{ probability: 1, quantity: 2.04 }, { probability: 1, quantity: 1.04 }]), 3.1);
   assert.equal(mostLikelyAggregateQty([{ probability: 1, quantity: 0.04 }, { probability: 1, quantity: 0.04 }]), 0.1);
+});
+
+test("shortage-sensitive planning reports expectation and the true aggregate 80th percentile", () => {
+  assert.deepEqual(aggregateDemandDistribution([{ probability: 0.4, quantity: 20 }]),
+    { expected: 8, upper: 20, approximate: false });
+  assert.deepEqual(aggregateDemandDistribution([
+    { probability: 0.6, quantity: 10 }, { probability: 0.6, quantity: 10 },
+  ]), { expected: 12, upper: 20, approximate: false });
+  assert.deepEqual(aggregateDemandDistribution([{ probability: 0.2, quantity: 10 }]),
+    { expected: 2, upper: 0, approximate: false });
 });
 
 test("observed delivery gaps inform hazard without trusting one or two intervals completely", () => {
@@ -68,7 +88,7 @@ test("typical requested quantity remains an observed size despite unusual large 
   assert.equal(recencyWeightedMedian([10, 10, 10, 10, 100]), 10);
 });
 
-test("product mode is not the sum of the zero-valued customer modes", () => {
+test("product expected demand adds independent uncertain customers, including when their individual modes are zero", () => {
   const day = "2026-11-04";
   const rows = Array.from({ length: 10 }, (_, i) => ({
     customerId: `c${i}`, customerCode: `${i}`, customerName: `Restaurant ${i}`,
@@ -79,6 +99,7 @@ test("product mode is not the sum of the zero-valued customer modes", () => {
   const [product] = aggregateForecastByProduct(rows, [day]);
   assert.equal(product.units[0].days[0].projectedQty, 4);
   assert.equal(product.units[0].days[0].totalQty, 4);
+  assert.equal(product.units[0].days[0].planningQty, 5);
   assert.ok(product.units[0].customers.every((c) => c.days[0].projectedQty === 0));
 });
 
@@ -109,9 +130,9 @@ test("ordering another SKU yesterday resets the customer clock for all other SKU
   const originalSku = updated.rows.find((row) => row.sku === "dry");
   assert.ok(originalSku);
   assert.equal(originalSku.customerCadenceDays, 3);
-  assert.equal(originalSku.days[0].projectedQty, 0);
-  assert.equal(originalSku.days[1].projectedQty, 0);
-  assert.equal(originalSku.days[2].projectedQty, 12);
+  assert.ok(originalSku.days[0].projectedQty < overdue.rows.find((row) => row.sku === "dry").days[0].projectedQty);
+  assert.ok(originalSku.days[1].projectedQty < originalSku.days[2].projectedQty);
+  assert.ok(originalSku.days[2].projectedQty < 12, "expected demand must reflect the order probability");
 });
 
 test("a known different-SKU basket today is counted but does not generate another speculative basket", () => {
@@ -131,6 +152,41 @@ test("a known different-SKU basket today is counted but does not generate anothe
   assert.equal(dry?.days[0].totalQty ?? 0, 0);
   assert.equal(other.days[0].knownQty, 7);
   assert.equal(other.days[0].projectedQty, 0);
+});
+
+test("historically observed top-ups remain possible after the customer books an initial order", () => {
+  const days = ["2026-10-20", "2026-10-24", "2026-10-28", "2026-11-01"];
+  const first = days.map((day, i) => makeOrder(`first${i}`, day));
+  const topups = ["2026-10-24", "2026-11-01"].map((day, i) => ({
+    ...makeOrder(`topup${i}`, day), createdAt: `${day}T10:00:00+07:00`,
+  }));
+  const current = makeOrder("current", "2026-11-04", "awaiting_picking");
+  const firstItems = first.map((row) => makeItem(row.id, "pork", 20, "Fresh Meat", "หมูสด"));
+  const currentItem = makeItem(current.id, "pork", 20, "Fresh Meat", "หมูสด");
+  const priorWithoutTopup = buildStockForecast([...first, current], [...firstItems, currentItem], [customer], now);
+  const withTopups = buildStockForecast(
+    [...first, ...topups, current],
+    [...firstItems, ...topups.map((row) => makeItem(row.id, "pork", 5, "Fresh Meat", "หมูสด")), currentItem],
+    [customer], now
+  );
+  const original = priorWithoutTopup.rows[0].days[0];
+  const learned = withTopups.rows[0].days[0];
+  assert.equal(original.knownQty, 20);
+  assert.equal(original.projectedQty, 0);
+  assert.equal(learned.knownQty, 20);
+  assert.ok(learned.projectedQty > 0 && learned.projectedQty < 5);
+  assert.ok(learned.planningQty >= 25);
+
+  const currentTopup = { ...makeOrder("current-topup", "2026-11-04", "awaiting_picking"), createdAt: "2026-11-04T11:00:00+07:00" };
+  const withSecondOrder = buildStockForecast(
+    [...first, ...topups, current, currentTopup],
+    [...firstItems, ...topups.map((row) => makeItem(row.id, "pork", 5, "Fresh Meat", "หมูสด")),
+      currentItem, makeItem(currentTopup.id, "pork", 5, "Fresh Meat", "หมูสด")],
+    [customer], new Date("2026-11-04T05:00:00Z")
+  );
+  assert.equal(withSecondOrder.rows[0].days[0].knownQty, 25);
+  assert.equal(withSecondOrder.rows[0].days[0].projectedQty, 0,
+    "a second order already received must not be counted again as a speculative first top-up");
 });
 
 test("a confirmed future basket suppresses speculative demand before its delivery day", () => {
@@ -182,7 +238,7 @@ test("one-off SKUs in repeat customers retain a small uncertain probability inst
   assert.ok(occasional);
   assert.equal(occasional.confidence, "insufficient");
   assert.ok(occasional.days.some((day) => day.projectedProbability > 0));
-  assert.ok(occasional.days.every((day) => day.projectedQty === 0));
+  assert.ok(occasional.days.every((day) => day.projectedQty >= 0 && day.projectedQty < 4));
 });
 
 test("two split orders for one delivery day count as one lead-time sample", () => {
@@ -244,7 +300,8 @@ test("the customer's observed ordering deadline suppresses unbooked today demand
   const items = orders.map((order) => makeItem(order.id, "rice", 10, "อาหารแห้ง", "ข้าว"));
   const lateToday = new Date("2026-11-04T07:00:00Z"); // 14:00 Bangkok; yesterday's 22:00 deadline has passed
   const result = buildStockForecast(orders, items, [customer], lateToday);
-  assert.equal(result.rows[0].days[0].projectedQty, 0);
+  assert.ok(result.rows[0].days[0].projectedQty < result.rows[0].days[1].projectedQty,
+    "a passed usual deadline should reduce, but not necessarily eliminate, the remaining demand");
   assert.ok(result.rows[0].days[1].projectedQty > 0);
   const booked = { ...makeOrder("booked", "2026-11-04"), createdAt: "2026-11-03T22:00:00+07:00" };
   const withKnown = buildStockForecast([...orders, booked], [...items, makeItem("booked", "rice", 6, "อาหารแห้ง", "ข้าว")], [customer], lateToday);
@@ -282,7 +339,7 @@ test("fresh meat demand follows actual customer ordering cadence, not an artific
   // The customer historically requested 20kg every 4 days, not 10kg every 2.
   assert.deepEqual(meat.days.map((day) => day.possibleQty), [20, 20, 20]);
   assert.deepEqual(rice.days.map((day) => day.possibleQty), [10, 10, 10]);
-  assert.deepEqual(meat.days.map((day) => day.projectedQty), rice.days.map((day) => day.projectedQty * 2));
+  assert.ok(meat.days.every((day, i) => Math.abs(day.projectedQty - rice.days[i].projectedQty * 2) < 0.01));
   assert.deepEqual(forecast.dates, ["2026-11-04", "2026-11-05", "2026-11-06"]);
   assert.equal(forecast.yesterdayDate, "2026-11-03");
 });
@@ -452,7 +509,8 @@ test("unit switching preserves one periodic customer-SKU event and conditions th
   assert.ok(pieces.conditionalUnitShare > kg.conditionalUnitShare);
   for (let i = 0; i < forecast.dates.length; i++) {
     assert.ok((kg.days[i].projectedProbability ?? 0) + (pieces.days[i].projectedProbability ?? 0) <= 1 + 1e-12);
-    assert.ok(!(kg.days[i].projectedQty > 0 && pieces.days[i].projectedQty > 0), "one customer cannot have two speculative unit modes");
+    assert.ok(kg.days[i].projectedQty >= 0 && pieces.days[i].projectedQty >= 0,
+      "expected demand allocates one SKU event across alternative units");
   }
   assert.ok(pieces.days[1].projectedProbability > kg.days[1].projectedProbability, "recent pieces should be more probable");
   assert.equal(aggregateForecastByProduct(rows, forecast.dates).length, 1);

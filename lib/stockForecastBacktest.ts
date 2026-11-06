@@ -9,7 +9,7 @@ import {
   type ForecastOrderInput,
 } from "./stockForecast.ts";
 
-export const BACKTEST_DAYS = 14;
+export const BACKTEST_DAYS = 28;
 export const BACKTEST_CUTOFF_HOUR = 12;
 const MIN_TRAINING_DAYS = 7;
 
@@ -19,11 +19,14 @@ export type DemandBacktestDay = {
   unit: string;
   actualQty: number;
   forecastQty: number;
+  planningQty: number;
   bookedOnlyQty: number;
   absoluteError: number;
   bookedAbsoluteError: number;
   wape: number | null;
   bookedWape: number | null;
+  planningCoveragePct: number | null;
+  underforecastQty: number;
   skuCount: number;
 };
 
@@ -32,10 +35,13 @@ export type DemandBacktestUnit = {
   evaluatedSkuDays: number;
   actualQty: number;
   forecastQty: number;
+  planningQty: number;
   bookedOnlyQty: number;
   modelWape: number | null;
   bookedOnlyWape: number | null;
   modelBiasPct: number | null;
+  planningCoveragePct: number | null;
+  underforecastQty: number;
 };
 
 export type DemandBacktestReport = {
@@ -115,7 +121,8 @@ export function backtestStockForecast(
 
   const days: DemandBacktestDay[] = [];
   const unitTotals = new Map<string, {
-    skuDays: number; actual: number; forecast: number; booked: number; error: number; bookedError: number;
+    skuDays: number; actual: number; forecast: number; planning: number; booked: number;
+    error: number; bookedError: number; planningCovered: number; underforecast: number;
   }>();
   let evaluatedDays = 0;
   let totalSkuDays = 0;
@@ -132,7 +139,11 @@ export function backtestStockForecast(
     const predictions = aggregateForecastByProduct(forecast.rows, forecast.dates);
     const forecastByProduct = new Map(predictions.flatMap((product) => product.units.map((unit) => [
       productKey(product.sku, unit.unit),
-      { total: unit.days[1]?.totalQty ?? 0, booked: unit.days[1]?.knownQty ?? 0 },
+      {
+        total: unit.days[1]?.totalQty ?? 0,
+        planning: unit.days[1]?.planningQty ?? unit.days[1]?.totalQty ?? 0,
+        booked: unit.days[1]?.knownQty ?? 0,
+      },
     ] as const)));
     // Use the *cutoff-time* kg/pc calibration on the held-out requested pieces.
     // Using weights learned after the cutoff would leak future information.
@@ -144,20 +155,28 @@ export function backtestStockForecast(
     }
     const keys = new Set([...actual.keys(), ...forecastByProduct.keys()]);
     const dailyByUnit = new Map<string, {
-      actual: number; forecast: number; booked: number; error: number; bookedError: number; skuCount: number;
+      actual: number; forecast: number; planning: number; booked: number;
+      error: number; bookedError: number; planningCovered: number; underforecast: number; skuCount: number;
     }>();
     for (const key of keys) {
       const [, unit] = JSON.parse(key) as [string, string];
       const observed = actual.get(key) ?? 0;
       const estimated = forecastByProduct.get(key);
       const predicted = estimated?.total ?? 0;
+      const planning = estimated?.planning ?? 0;
       const booked = estimated?.booked ?? 0;
-      const daily = dailyByUnit.get(unit) ?? { actual: 0, forecast: 0, booked: 0, error: 0, bookedError: 0, skuCount: 0 };
+      const daily = dailyByUnit.get(unit) ?? {
+        actual: 0, forecast: 0, planning: 0, booked: 0, error: 0, bookedError: 0,
+        planningCovered: 0, underforecast: 0, skuCount: 0,
+      };
       daily.actual += observed;
       daily.forecast += predicted;
+      daily.planning += planning;
       daily.booked += booked;
       daily.error += Math.abs(predicted - observed);
       daily.bookedError += Math.abs(booked - observed);
+      daily.planningCovered += observed <= planning + 0.001 ? 1 : 0;
+      daily.underforecast += Math.max(0, observed - planning);
       daily.skuCount++;
       dailyByUnit.set(unit, daily);
     }
@@ -186,19 +205,28 @@ export function backtestStockForecast(
     for (const [unit, daily] of dailyByUnit) {
       days.push({
         deliveryDate, cutoffAt: cutoff.toISOString(), unit,
-        actualQty: daily.actual, forecastQty: daily.forecast, bookedOnlyQty: daily.booked,
+        actualQty: daily.actual, forecastQty: daily.forecast, planningQty: daily.planning,
+        bookedOnlyQty: daily.booked,
         absoluteError: daily.error, bookedAbsoluteError: daily.bookedError,
         wape: percentError(daily.error, daily.actual),
         bookedWape: percentError(daily.bookedError, daily.actual),
+        planningCoveragePct: daily.skuCount ? daily.planningCovered * 100 / daily.skuCount : null,
+        underforecastQty: daily.underforecast,
         skuCount: daily.skuCount,
       });
-      const totals = unitTotals.get(unit) ?? { skuDays: 0, actual: 0, forecast: 0, booked: 0, error: 0, bookedError: 0 };
+      const totals = unitTotals.get(unit) ?? {
+        skuDays: 0, actual: 0, forecast: 0, planning: 0, booked: 0,
+        error: 0, bookedError: 0, planningCovered: 0, underforecast: 0,
+      };
       totals.skuDays += daily.skuCount;
       totals.actual += daily.actual;
       totals.forecast += daily.forecast;
+      totals.planning += daily.planning;
       totals.booked += daily.booked;
       totals.error += daily.error;
       totals.bookedError += daily.bookedError;
+      totals.planningCovered += daily.planningCovered;
+      totals.underforecast += daily.underforecast;
       unitTotals.set(unit, totals);
     }
     totalSkuDays += keys.size;
@@ -209,10 +237,13 @@ export function backtestStockForecast(
     evaluatedSkuDays: totals.skuDays,
     actualQty: totals.actual,
     forecastQty: totals.forecast,
+    planningQty: totals.planning,
     bookedOnlyQty: totals.booked,
     modelWape: percentError(totals.error, totals.actual),
     bookedOnlyWape: percentError(totals.bookedError, totals.actual),
     modelBiasPct: percentError(totals.forecast - totals.actual, totals.actual),
+    planningCoveragePct: totals.skuDays ? totals.planningCovered * 100 / totals.skuDays : null,
+    underforecastQty: totals.underforecast,
   })).sort((a, b) => b.actualQty - a.actualQty);
 
   return {
@@ -228,7 +259,8 @@ export function backtestStockForecast(
       "จำลองจากข้อมูลย้อนหลังที่ยังคงอยู่ในระบบ โดยไม่มีประวัติสถานะและวันส่งทุกครั้งที่ถูกแก้ไข จึงไม่ใช่ข้อมูล snapshot ณ เวลานั้นอย่างสมบูรณ์",
       "วัด Requested Qty ตามวันส่ง ไม่ใช่ยอดขายจริง และตัดสินที่เวลา 12:00 ของวันก่อนส่ง (เวลาไทย)",
       "WAPE คำนวณแยกตามหน่วยนับ (เช่น กก. และ ชิ้น) ไม่นำยอดคนละหน่วยมาบวกกัน",
-      "ยังไม่ใช่การวัดที่ผ่านการยืนยันเชิงสถิติจากหลายเดือน และไม่มีการบันทึก snapshot ก่อนหน้า จึงใช้เพื่อเฝ้าระวังความแม่นยำเบื้องต้นเท่านั้น",
+      "P80 coverage วัดว่ายอดขอสั่งจริงไม่เกินแผน P80 ต่อ SKU/วันกี่เปอร์เซ็นต์ หากต่ำกว่า 80% ต่อเนื่องควรปรับเทียบใหม่",
+      "แม้ทดสอบย้อนหลัง 28 วัน ยังไม่มี snapshot ออเดอร์ ณ เวลานั้นแบบครบถ้วน จึงควรใช้ผลเป็นสัญญาณเบื้องต้นเท่านั้น",
     ],
   };
 }
