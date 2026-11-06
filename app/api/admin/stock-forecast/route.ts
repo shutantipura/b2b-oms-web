@@ -27,11 +27,7 @@ type DbItem = {
   product_id: string;
   product_name_snapshot: string;
   unit_snapshot: string;
-  actual_qty: number | string | null;
-  confirmed_qty: number | string | null;
   requested_qty: number | string | null;
-  actual_piece_qty: number | string | null;
-  piece_price_per_kg_snapshot: number | string | null;
 };
 type DbProduct = { id: string; sku: string | null; product_name: string | null; category: string | null };
 type DbCustomer = {
@@ -94,31 +90,13 @@ async function ordersSince(admin: SupabaseClient, start: string) {
   return result;
 }
 
-async function billedRootsSince(admin: SupabaseClient, start: string) {
-  const ids = new Set<string>();
-  for (let offset = 0; ; offset += 500) {
-    const { data, error } = await admin
-      .from("order_history")
-      .select("order_id, created_at")
-      .eq("action", "billing_completed")
-      .gte("created_at", start)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true })
-      .range(offset, offset + 499);
-    if (error) throw error;
-    for (const row of data ?? []) ids.add(row.order_id);
-    if (!data || data.length < 500) break;
-  }
-  return ids;
-}
-
 async function itemsForOrders(admin: SupabaseClient, ids: string[]) {
   const result: DbItem[] = [];
   for (const chunk of batch(ids)) {
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await admin
         .from("order_items")
-        .select("order_id, product_id, product_name_snapshot, unit_snapshot, actual_qty, confirmed_qty, requested_qty, actual_piece_qty, piece_price_per_kg_snapshot")
+        .select("order_id, product_id, product_name_snapshot, unit_snapshot, requested_qty")
         .in("order_id", chunk)
         .order("id", { ascending: true })
         .range(offset, offset + 499);
@@ -164,10 +142,7 @@ async function customersById(admin: SupabaseClient, ids: string[]) {
 async function loadForecast(admin: SupabaseClient) {
   const now = new Date();
   const start = new Date(now.getTime() - FORECAST_HISTORY_DAYS * 86_400_000).toISOString();
-  const [orders, billedIds] = await Promise.all([
-    ordersSince(admin, start),
-    billedRootsSince(admin, start),
-  ]);
+  const orders = await ordersSince(admin, start);
   const liveOrders = orders.filter((order) => order.status !== "cancelled");
   const [items, customers] = await Promise.all([
     itemsForOrders(admin, liveOrders.map((order) => order.id)),
@@ -187,36 +162,31 @@ async function loadForecast(admin: SupabaseClient) {
     const rawSku = (product?.sku ?? "").trim();
     return {
       orderId: item.order_id,
-      productId: item.product_id,
       sku: /^\d{1,9}$/.test(rawSku) ? rawSku.padStart(9, "0") : rawSku || item.product_id,
       productName: item.product_name_snapshot || product?.product_name || "ไม่ระบุสินค้า",
       unit: item.unit_snapshot ?? "",
       category: product?.category ?? null,
-      actualQty: numeric(item.actual_qty),
-      confirmedQty: numeric(item.confirmed_qty),
       requestedQty: numeric(item.requested_qty),
-      actualPieceQty: numeric(item.actual_piece_qty),
-      piecePricePerKg: numeric(item.piece_price_per_kg_snapshot),
     };
   });
-  return buildStockForecast(inputOrders, inputItems, customers, billedIds, now);
+  return buildStockForecast(inputOrders, inputItems, customers, now);
 }
 
 function excelResponse(forecast: StockForecast) {
   const products = aggregateForecastByProduct(forecast.rows, forecast.dates);
   const summaryHeaders = [
     "SKU", "ชื่อสินค้า", "หน่วย", "จำนวนลูกค้า", "เนื้อสด",
-    `${forecast.yesterdayDate} ยอดจริง`, `${forecast.dates[0]} ยอดจริงถึงตอนนี้`,
-    `${forecast.dates[0]} คาดยอดปิด`, `${forecast.dates[1]} คาดการณ์`, `${forecast.dates[2]} คาดการณ์`,
+    `${forecast.yesterdayDate} ยอดสั่ง`, `${forecast.dates[0]} สั่งแล้วถึงตอนนี้`,
+    `${forecast.dates[0]} คาดยอดสั่งปิดวัน`, `${forecast.dates[1]} คาดความต้องการ`, `${forecast.dates[2]} คาดความต้องการ`,
   ];
   const summaryRows: (number | string)[][] = [
-    ["Lotus’s B2B · ยอดคาดการณ์รวมตามสินค้า (ทุกลูกค้า)"],
-    [`อัปเดต ${forecast.asOf} · ยอดจริงคือปริมาณที่ปิด Billing แล้วตามวันส่ง/รับสินค้า · ยอดคาดปิดวันนี้รวมยอดจริงแล้ว`],
+    ["Lotus’s B2B · พยากรณ์ความต้องการรวมตามสินค้า (ทุกลูกค้า)"],
+    [`อัปเดต ${forecast.asOf} · ปริมาณตามที่ลูกค้าสั่ง (requested_qty) ไม่หักปริมาณที่ขาดสต็อกหรือหยิบไม่ได้ · แยกตามวันส่ง/รับสินค้า`],
     [],
     summaryHeaders,
     ...products.map((product) => [
       product.sku, product.productName, product.unit, product.customerCount, product.freshMeat ? "ใช่" : "ไม่ใช่",
-      product.yesterdayActualQty, product.todayActualQty, ...product.days.map((day) => day.totalQty),
+       product.yesterdayRequestedQty, product.todayRequestedQty, ...product.days.map((day) => day.totalQty),
     ]),
   ];
   const summary = XLSX.utils.aoa_to_sheet(summaryRows);
@@ -231,25 +201,25 @@ function excelResponse(forecast: StockForecast) {
   for (let r = 4; r < summaryRows.length; r++) {
     for (let c = 5; c < summaryHeaders.length; c++) {
       const cell = summary[XLSX.utils.encode_cell({ r, c })];
-      if (cell) cell.z = "#,##0.###";
+       if (cell) cell.z = "#,##0.0";
     }
   }
 
   const headers = [
     "รหัสลูกค้า", "ชื่อลูกค้า", "SKU", "ชื่อสินค้า", "หน่วย",
-    `${forecast.yesterdayDate} ยอดจริง`, `${forecast.dates[0]} ยอดจริงถึงตอนนี้`,
-    `${forecast.dates[0]} คาดยอดปิด`, `${forecast.dates[1]} คาดการณ์`, `${forecast.dates[2]} คาดการณ์`,
+    `${forecast.yesterdayDate} ยอดสั่ง`, `${forecast.dates[0]} สั่งแล้วถึงตอนนี้`,
+    `${forecast.dates[0]} คาดยอดสั่งปิดวัน`, `${forecast.dates[1]} คาดความต้องการ`, `${forecast.dates[2]} คาดความต้องการ`,
     "เนื้อสด", "รอบสั่งลูกค้า (วัน)", "รอบซื้อ SKU (วัน)", "รอบคาดการณ์ (วัน)", "ความเชื่อมั่น",
     ...forecast.dates.flatMap((date) => [`${date} รับออเดอร์แล้ว`, `${date} คาดการณ์เพิ่ม`]),
   ];
   const sheetRows: (number | string)[][] = [
-    ["Lotus’s B2B · พยากรณ์ปริมาณขาย 3 วัน (สำหรับวางแผนเท่านั้น)"],
-    [`อัปเดต ${forecast.asOf} · รับแล้ว + ปริมาณสั่งที่มีโอกาสเกิดมากที่สุด (>50%) · เนื้อสดใช้รอบไม่เกิน 2 วัน`],
+    ["Lotus’s B2B · พยากรณ์ความต้องการสินค้า 3 วัน (สำหรับวางแผนเท่านั้น)"],
+    [`อัปเดต ${forecast.asOf} · ใช้ปริมาณที่ลูกค้าขอสั่งก่อนเช็คสต็อก/หยิบ/ออกบิล · รับแล้ว + ปริมาณที่มีโอกาสเกิดมากที่สุด (>50%) · เนื้อสดใช้รอบไม่เกิน 2 วัน`],
     [],
     headers,
     ...forecast.rows.map((row) => [
       row.customerCode, row.customerName, row.sku, row.productName, row.unit,
-      row.yesterdayActualQty, row.todayActualQty, ...row.days.map((day) => day.totalQty),
+       row.yesterdayRequestedQty, row.todayRequestedQty, ...row.days.map((day) => day.totalQty),
       row.freshMeat ? "ใช่" : "ไม่ใช่", row.customerCadenceDays ?? "", row.skuCadenceDays ?? "",
       row.effectiveCadenceDays ?? "", row.confidence,
       ...row.days.flatMap((day) => [day.knownQty, day.projectedQty]),
@@ -269,7 +239,7 @@ function excelResponse(forecast: StockForecast) {
   for (let r = 4; r < sheetRows.length; r++) {
     for (const c of [5, 6, 7, 8, 9, 15, 16, 17, 18, 19, 20]) {
       const cell = sheet[XLSX.utils.encode_cell({ r, c })];
-      if (cell) cell.z = "#,##0.###";
+       if (cell) cell.z = "#,##0.0";
     }
   }
   const workbook = XLSX.utils.book_new();
@@ -280,7 +250,7 @@ function excelResponse(forecast: StockForecast) {
     status: 200,
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="stock_forecast_${forecast.dates[0]}_${forecast.dates[2]}.xlsx"`,
+      "Content-Disposition": `attachment; filename="demand_forecast_${forecast.dates[0]}_${forecast.dates[2]}.xlsx"`,
       "Cache-Control": "private, no-store, max-age=0",
       "X-Content-Type-Options": "nosniff",
     },
