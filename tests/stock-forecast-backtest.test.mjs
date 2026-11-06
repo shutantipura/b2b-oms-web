@@ -29,21 +29,26 @@ const priorOrders = [
 ];
 const priorItems = priorOrders.map(({ id }) => item(id, "pork", 5));
 
-test("backtest replays historical forecasts at 16:00 previous day, without looking at late orders", () => {
-  const early = order("early", "2026-11-05", "2026-11-04T15:00:00+07:00");
-  const late = order("late", "2026-11-05", "2026-11-05T08:00:00+07:00");
+test("backtest replays historical forecasts at noon previous day, excluding orders submitted after the deadline", () => {
+  const early = order("early", "2026-11-05", "2026-11-04T11:59:59+07:00");
+  const exactNoon = order("exact-noon", "2026-11-05", "2026-11-04T12:00:00+07:00");
+  const late = order("late", "2026-11-05", "2026-11-04T12:00:01+07:00");
   const earlyOnly = backtestStockForecast(
-    [...priorOrders, early], [...priorItems, item("early", "pork", 4)], customers, asOf
+    [...priorOrders, early, exactNoon],
+    [...priorItems, item("early", "pork", 4), item("exact-noon", "pork", 1)],
+    customers, asOf
   );
   const withLate = backtestStockForecast(
-    [...priorOrders, early, late], [...priorItems, item("early", "pork", 4), item("late", "pork", 2)], customers, asOf
+    [...priorOrders, early, exactNoon, late],
+    [...priorItems, item("early", "pork", 4), item("exact-noon", "pork", 1), item("late", "pork", 2)],
+    customers, asOf
   );
   const before = earlyOnly.days.find((day) => day.deliveryDate === "2026-11-05" && day.unit === "กก.");
   const after = withLate.days.find((day) => day.deliveryDate === "2026-11-05" && day.unit === "กก.");
   assert.ok(before && after);
-  assert.equal(BACKTEST_CUTOFF_HOUR, 16);
-  assert.equal(after.cutoffAt, "2026-11-04T09:00:00.000Z");
-  assert.equal(after.bookedOnlyQty, 4);
+  assert.equal(BACKTEST_CUTOFF_HOUR, 12);
+  assert.equal(after.cutoffAt, "2026-11-04T05:00:00.000Z");
+  assert.equal(after.bookedOnlyQty, 5);
   assert.equal(before.forecastQty, after.forecastQty);
   assert.equal(after.actualQty, before.actualQty + 2);
 });
