@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { aggregateForecastByProduct, buildStockForecast, conditionalOrderProbability, describeCustomerOrderTime, isFreshMeat, mostLikelyOrderQty, remainingOrderWindowShare } from "../lib/stockForecast.ts";
+import {
+  aggregateForecastByProduct, buildStockForecast, conditionalOrderProbability,
+  describeCustomerOrderTime, isFreshMeat, mostLikelyAggregateQty, mostLikelyOrderQty,
+  observedRepeatProbability, probabilityAfterNoOrderYet, recencyWeightedMedian,
+  remainingOrderWindowShare,
+} from "../lib/stockForecast.ts";
 
 const now = new Date("2026-11-03T20:00:00Z"); // 03:00 on 4 Nov Bangkok time
 const customer = { id: "c1", code: "0000000001", name: "Restaurant A", isTest: false };
@@ -33,6 +38,47 @@ test("modal forecast chooses the full likely quantity instead of probability-wei
   assert.equal(mostLikelyOrderQty(0.2, 1), 0);
   assert.equal(mostLikelyOrderQty(0.5, 1), 0);
   assert.equal(mostLikelyOrderQty(0.75, 3.125), 3.125);
+});
+
+test("product-level modal demand combines small probabilities from many customers", () => {
+  assert.equal(mostLikelyAggregateQty(Array.from({ length: 10 }, () => ({ probability: 0.4, quantity: 1 }))), 4);
+  assert.equal(mostLikelyAggregateQty(Array.from({ length: 2 }, () => ({ probability: 0.4, quantity: 1 }))), 1);
+  assert.equal(mostLikelyAggregateQty([{ probability: 0.5, quantity: 4 }]), 0);
+  assert.equal(mostLikelyAggregateQty([{ probability: 1, quantity: 2.04 }, { probability: 1, quantity: 1.04 }]), 3.1);
+  assert.equal(mostLikelyAggregateQty([{ probability: 1, quantity: 0.04 }, { probability: 1, quantity: 0.04 }]), 0.1);
+});
+
+test("observed delivery gaps inform hazard without trusting one or two intervals completely", () => {
+  const priorDayOne = conditionalOrderProbability(1, 3);
+  assert.ok(observedRepeatProbability(1, 3, [3, 3, 3]) < priorDayOne);
+  assert.ok(observedRepeatProbability(3, 3, [3, 3, 3]) > conditionalOrderProbability(3, 3));
+  assert.equal(observedRepeatProbability(2, 3, []), conditionalOrderProbability(2, 3));
+});
+
+test("no order yet updates the remaining-day probability using Bayes rule", () => {
+  assert.ok(Math.abs(probabilityAfterNoOrderYet(0.8, 0.2) - 4 / 9) < 1e-10);
+  assert.equal(probabilityAfterNoOrderYet(0.8, 1), 0.8);
+  assert.equal(probabilityAfterNoOrderYet(0.8, 0), 0);
+  assert.equal(probabilityAfterNoOrderYet(1, 0), 0);
+});
+
+test("typical requested quantity remains an observed size despite unusual large orders", () => {
+  assert.equal(recencyWeightedMedian([10, 10, 10, 100]), 10);
+  assert.equal(recencyWeightedMedian([10, 10, 10, 10, 100]), 10);
+});
+
+test("product mode is not the sum of the zero-valued customer modes", () => {
+  const day = "2026-11-04";
+  const rows = Array.from({ length: 10 }, (_, i) => ({
+    customerId: `c${i}`, customerCode: `${i}`, customerName: `Restaurant ${i}`,
+    sku: "rice", productName: "ข้าวสาร", unit: "กก.", freshMeat: false,
+    yesterdayRequestedQty: 0, todayRequestedQty: 0,
+    days: [{ date: day, knownQty: 0, projectedQty: 0, totalQty: 0, projectedProbability: 0.4, possibleQty: 1 }],
+  }));
+  const [product] = aggregateForecastByProduct(rows, [day]);
+  assert.equal(product.days[0].projectedQty, 4);
+  assert.equal(product.days[0].totalQty, 4);
+  assert.ok(product.customers.every((c) => c.days[0].projectedQty === 0));
 });
 
 test("three-day ordering cadence changes probability as days pass without a new order", () => {
@@ -120,6 +166,37 @@ test("a zero-request record does not reset the customer ordering cycle", () => {
   assert.ok(result.rows.find((row) => row.sku === "dry").days[0].projectedQty > 0);
 });
 
+test("one-off SKUs in repeat customers retain a small uncertain probability instead of disappearing", () => {
+  const days = ["2026-10-20", "2026-10-24", "2026-10-28", "2026-11-01"];
+  const orders = days.map((day, i) => makeOrder(`h${i}`, day));
+  const result = buildStockForecast(
+    orders,
+    [
+      ...orders.map((order) => makeItem(order.id, "staple", 10, "Dry Goods", "ข้าวสาร")),
+      makeItem(orders[0].id, "occasional", 4, "Dry Goods", "น้ำตาล"),
+    ],
+    [customer], now
+  );
+  const occasional = result.rows.find((row) => row.sku === "occasional");
+  assert.ok(occasional);
+  assert.equal(occasional.confidence, "insufficient");
+  assert.ok(occasional.days.some((day) => day.projectedProbability > 0));
+  assert.ok(occasional.days.every((day) => day.projectedQty === 0));
+});
+
+test("two split orders for one delivery day count as one lead-time sample", () => {
+  const days = ["2026-10-25", "2026-10-29", "2026-11-02"];
+  const orders = days.map((day, i) => makeOrder(`o${i}`, day));
+  const split = { ...makeOrder("split", "2026-11-02"), createdAt: "2026-11-02T06:00:00+07:00" };
+  const forecast = buildStockForecast(
+    [...orders, split],
+    [...orders.map((order) => makeItem(order.id, "rice", 10, "Dry Goods", "ข้าว")), makeItem("split", "rice", 4, "Dry Goods", "ข้าว")],
+    [customer], now
+  );
+  assert.equal(forecast.rows[0].customerOrderTimingSamples, 3);
+  assert.equal(forecast.rows[0].skuCadenceDays, 4);
+});
+
 test("a customer whose usual deadline is 22:00 the previous day cannot generate speculative demand after it passes", () => {
   const offsets = [-120, -120, -120, -120]; // 22:00 the day before delivery
   assert.equal(describeCustomerOrderTime(-120, offsets.length), "วันก่อนส่ง 22:00");
@@ -186,7 +263,7 @@ test("orders without delivery dates and deliveries outside the 90-day window are
   assert.equal(result.rows[0].todayRequestedQty, 2);
 });
 
-test("meat capped at two days without doubling historical consumption", () => {
+test("fresh meat demand follows actual customer ordering cadence, not an artificial two-day replenishment rule", () => {
   const orders = historicDays.map((day, i) => makeOrder(`o${i}`, day));
   const items = orders.flatMap((order) => [
     makeItem(order.id, "meat", 20, "Fresh Meat", "หมูสด"),
@@ -198,13 +275,13 @@ test("meat capped at two days without doubling historical consumption", () => {
   assert.ok(meat);
   assert.ok(rice);
   assert.equal(meat.skuCadenceDays, 4);
-  assert.equal(meat.effectiveCadenceDays, 2);
+  assert.equal(meat.effectiveCadenceDays, 4);
   assert.equal(meat.confidence, "low");
   assert.equal(rice.effectiveCadenceDays, 4);
-  // Capping the meat cycle at two days preserves the historical daily consumption:
-  // a 20kg order every four days becomes a 10kg modal order every two days.
-  assert.deepEqual(meat.days.map((day) => day.projectedQty), [10, 0, 10]);
-  assert.deepEqual(rice.days.map((day) => day.projectedQty), [0, 0, 10]);
+  // The customer historically requested 20kg every 4 days, not 10kg every 2.
+  assert.deepEqual(meat.days.map((day) => day.possibleQty), [20, 20, 20]);
+  assert.deepEqual(rice.days.map((day) => day.possibleQty), [10, 10, 10]);
+  assert.deepEqual(meat.days.map((day) => day.projectedQty), rice.days.map((day) => day.projectedQty * 2));
   assert.deepEqual(forecast.dates, ["2026-11-04", "2026-11-05", "2026-11-06"]);
   assert.equal(forecast.yesterdayDate, "2026-11-03");
 });
@@ -290,7 +367,8 @@ test("historical modal quantity and order cadence use unfulfilled requests, not 
   }));
   const result = buildStockForecast(orders, items, [customer], now);
   assert.equal(result.rows[0].skuCadenceDays, 4);
-  assert.deepEqual(result.rows[0].days.map((day) => day.projectedQty), [10, 0, 10]);
+  assert.deepEqual(result.rows[0].days.map((day) => day.possibleQty), [20, 20, 20]);
+  assert.ok(result.rows[0].days.every((day) => day.projectedProbability >= 0));
 });
 
 test("cancelled requests never contribute to demand", () => {
