@@ -7,7 +7,7 @@ export function bangkokDateKey(value: Date | string) {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
-function normalizeDemandUnit(unit: string) {
+export function normalizeDemandUnit(unit: string) {
   if (/^(kg|kgs|kilogram|กก\.?|กิโลกรัม)$/i.test(unit.trim())) return "กก.";
   return unit.trim() || "ไม่ระบุ";
 }
