@@ -16,8 +16,7 @@ function makeOrder(id, day, status = "completed", deliveryDate = day) {
 function makeItem(orderId, productId, quantity, category, productName) {
   return {
     orderId, productId, sku: productId, productName, unit: "กก.", category,
-    actualQty: quantity, confirmedQty: null, requestedQty: quantity,
-    piecePricePerKg: null, actualPieceQty: null,
+    requestedQty: quantity,
   };
 }
 
@@ -42,7 +41,7 @@ test("meat capped at two days without doubling historical consumption", () => {
     makeItem(order.id, "meat", 20, "Fresh Meat", "หมูสด"),
     makeItem(order.id, "rice", 10, "อาหารและวัตถุดิบพื้นฐาน", "ข้าว"),
   ]);
-  const forecast = buildStockForecast(orders, items, [customer], new Set(orders.map((o) => o.id)), now);
+  const forecast = buildStockForecast(orders, items, [customer], now);
   const meat = forecast.rows.find((row) => row.sku === "meat");
   const rice = forecast.rows.find((row) => row.sku === "rice");
   assert.ok(meat);
@@ -59,7 +58,7 @@ test("meat capped at two days without doubling historical consumption", () => {
   assert.equal(forecast.yesterdayDate, "2026-11-03");
 });
 
-test("actual yesterday and today use billed quantity, and today's closing forecast includes billed units once", () => {
+test("yesterday and today count requested quantities even when stock check or billing reduced the amount", () => {
   const orders = [
     ...historicDays.map((day, i) => makeOrder(`o${i}`, day)),
     makeOrder("yesterday", "2026-11-03"),
@@ -68,28 +67,27 @@ test("actual yesterday and today use billed quantity, and today's closing foreca
   ];
   const items = [
     ...historicDays.map((_, i) => makeItem(`o${i}`, "meat", 20, "Fresh Meat", "หมูสด")),
-    makeItem("yesterday", "meat", 4, "Fresh Meat", "หมูสด"),
-    makeItem("today-billed", "meat", 3, "Fresh Meat", "หมูสด"),
-    makeItem("today-pending", "meat", 7, "Fresh Meat", "หมูสด"),
+    { ...makeItem("yesterday", "meat", 4, "Fresh Meat", "หมูสด"), confirmedQty: 0, actualQty: 0 },
+    { ...makeItem("today-billed", "meat", 3, "Fresh Meat", "หมูสด"), confirmedQty: 1, actualQty: 1 },
+    { ...makeItem("today-pending", "meat", 7, "Fresh Meat", "หมูสด"), confirmedQty: 0, actualQty: 0 },
   ];
-  const billed = new Set(["o0", "o1", "o2", "yesterday", "today-billed"]);
-  const forecast = buildStockForecast(orders, items, [customer], billed, now);
+  const forecast = buildStockForecast(orders, items, [customer], now);
   const meat = forecast.rows.find((row) => row.sku === "meat");
-  assert.equal(meat.yesterdayActualQty, 4);
-  assert.equal(meat.todayActualQty, 3);
-  // Pending-picked 7kg is booked but not actual; 3kg billed is already part of the 10kg total.
+  assert.equal(meat.yesterdayRequestedQty, 4);
+  assert.equal(meat.todayRequestedQty, 10);
+  // Requested 3kg and 7kg are counted even though both were short-picked.
   assert.equal(meat.days[0].knownQty, 10);
   assert.equal(meat.days[0].projectedQty, 0);
   assert.equal(meat.days[0].totalQty, 10);
 });
 
-test("yesterday's one-off sale remains visible even without a forward prediction", () => {
+test("yesterday's one-off request remains visible even without a forward prediction", () => {
   const orders = [makeOrder("one", "2026-11-03")];
   const items = [makeItem("one", "meat", 5, "Fresh Meat", "หมูสด")];
-  const forecast = buildStockForecast(orders, items, [customer], new Set(["one"]), now);
+  const forecast = buildStockForecast(orders, items, [customer], now);
   assert.equal(forecast.rows.length, 1);
-  assert.equal(forecast.rows[0].yesterdayActualQty, 5);
-  assert.equal(forecast.rows[0].todayActualQty, 0);
+  assert.equal(forecast.rows[0].yesterdayRequestedQty, 5);
+  assert.equal(forecast.rows[0].todayRequestedQty, 0);
   assert.ok(forecast.rows[0].days.every((day) => day.totalQty === 0));
 });
 
@@ -100,9 +98,9 @@ test("known future demand is included once and resets the cycle", () => {
   ];
   const items = [
     ...historicDays.map((_, i) => makeItem(`o${i}`, "meat", 20, "Fresh Meat", "หมูสด")),
-    { ...makeItem("future", "meat", null, "Fresh Meat", "หมูสด"), confirmedQty: 6, requestedQty: 6 },
+    { ...makeItem("future", "meat", 6, "Fresh Meat", "หมูสด"), confirmedQty: 0, actualQty: 0 },
   ];
-  const forecast = buildStockForecast(orders, items, [customer], new Set(["o0", "o1", "o2"]), now);
+  const forecast = buildStockForecast(orders, items, [customer], now);
   const meat = forecast.rows[0];
   assert.equal(meat.days[0].projectedQty, 0);
   assert.equal(meat.days[1].knownQty, 6);
@@ -114,21 +112,41 @@ test("known future demand is included once and resets the cycle", () => {
 test("one-off SKUs do not create speculative forecasts; test customers excluded", () => {
   const orders = [makeOrder("one", "2026-11-02")];
   const items = [makeItem("one", "meat", 10, "Fresh Meat", "หมูสด")];
-  const result = buildStockForecast(orders, items, [customer], new Set(["one"]), now);
+  const result = buildStockForecast(orders, items, [customer], now);
   assert.equal(result.rows.length, 0);
-  const hidden = buildStockForecast(orders, items, [{ ...customer, isTest: true }], new Set(["one"]), now);
+  const hidden = buildStockForecast(orders, items, [{ ...customer, isTest: true }], now);
   assert.equal(hidden.rows.length, 0);
 });
 
-test("unmeasured piece-priced-by-weight orders are flagged rather than counted as kg", () => {
+test("a piece-priced-by-weight order stays in pieces without depending on billed kg", () => {
   const orders = [makeOrder("pending", "2026-11-04", "awaiting_picking")];
   const items = [{
-    ...makeItem("pending", "meat", null, "Fresh Meat", "คากิ"),
-    unit: "ชิ้น", requestedQty: 5, confirmedQty: 5, piecePricePerKg: 51,
+    ...makeItem("pending", "meat", 5, "Fresh Meat", "คากิ"),
+    unit: "ชิ้น", confirmedQty: 0, actualQty: 0, piecePricePerKg: 51,
   }];
-  const result = buildStockForecast(orders, items, [customer], new Set(), now);
-  assert.equal(result.unmeasuredPieceOrders, 1);
-  assert.equal(result.rows.length, 0);
+  const result = buildStockForecast(orders, items, [customer], now);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].unit, "ชิ้น");
+  assert.equal(result.rows[0].todayRequestedQty, 5);
+  assert.equal(result.rows[0].days[0].knownQty, 5);
+});
+
+test("historical modal quantity and order cadence use unfulfilled requests, not completed sales", () => {
+  const orders = historicDays.map((day, i) => makeOrder(`o${i}`, day));
+  const items = orders.map((order) => ({
+    ...makeItem(order.id, "meat", 20, "Fresh Meat", "หมูสด"),
+    actualQty: 0, confirmedQty: 0,
+  }));
+  const result = buildStockForecast(orders, items, [customer], now);
+  assert.equal(result.rows[0].skuCadenceDays, 4);
+  assert.deepEqual(result.rows[0].days.map((day) => day.projectedQty), [10, 0, 10]);
+});
+
+test("cancelled requests never contribute to demand", () => {
+  const orders = [makeOrder("valid", "2026-11-04", "awaiting_picking"), makeOrder("void", "2026-11-04", "cancelled")];
+  const items = [makeItem("valid", "meat", 3, "Fresh Meat", "หมูสด"), makeItem("void", "meat", 99, "Fresh Meat", "หมูสด")];
+  const result = buildStockForecast(orders, items, [customer], now);
+  assert.equal(result.rows[0].todayRequestedQty, 3);
 });
 
 test("product forecast sums all customers into the same SKU for each of three days", () => {
@@ -136,8 +154,8 @@ test("product forecast sums all customers into the same SKU for each of three da
   const makeForecastRow = (id, name, quantities) => ({
     customerId: id, customerCode: id, customerName: name,
     sku: "051262358", productName: "หมูสด", unit: "กก.", freshMeat: true,
-    yesterdayActualQty: id === "c1" ? 5 : 3,
-    todayActualQty: id === "c1" ? 10 : 3.25,
+    yesterdayRequestedQty: id === "c1" ? 5 : 3,
+    todayRequestedQty: id === "c1" ? 10 : 3.25,
     confidence: "medium", days: quantities.map(([knownQty, projectedQty], index) => ({
       date: dates[index], knownQty, projectedQty, totalQty: knownQty + projectedQty,
     })),
@@ -149,8 +167,8 @@ test("product forecast sums all customers into the same SKU for each of three da
   assert.equal(result.length, 1);
   assert.equal(result[0].customerCount, 2);
   assert.equal(result[0].freshMeat, true);
-  assert.equal(result[0].yesterdayActualQty, 8);
-  assert.equal(result[0].todayActualQty, 13.25);
+  assert.equal(result[0].yesterdayRequestedQty, 8);
+  assert.equal(result[0].todayRequestedQty, 13.25);
   assert.deepEqual(result[0].days.map((day) => [day.knownQty, day.projectedQty, day.totalQty]), [
     [13.25, 4, 17.25], [2, 3.5, 5.5], [4, 3, 7],
   ]);
@@ -162,7 +180,7 @@ test("SKU totals never combine incompatible units or mismatched dates", () => {
   const base = {
     customerId: "c1", customerCode: "1", customerName: "Restaurant A",
     sku: "123456789", productName: "ไก่", freshMeat: false, confidence: "low",
-    yesterdayActualQty: 2, todayActualQty: 1,
+    yesterdayRequestedQty: 2, todayRequestedQty: 1,
   };
   const result = aggregateForecastByProduct([
     { ...base, unit: "กก.", days: [{ date: dates[0], knownQty: 0, projectedQty: 1.235, totalQty: 1.235 }] },
@@ -173,8 +191,8 @@ test("SKU totals never combine incompatible units or mismatched dates", () => {
   const kilos = result.find((row) => row.unit === "กก.");
   const pieces = result.find((row) => row.unit === "ชิ้น");
   assert.equal(kilos.customerCount, 2);
-  assert.equal(kilos.yesterdayActualQty, 4);
-  assert.equal(pieces.yesterdayActualQty, 2);
+  assert.equal(kilos.yesterdayRequestedQty, 4);
+  assert.equal(pieces.yesterdayRequestedQty, 2);
   assert.equal(kilos.days[0].totalQty, 1.36);
   assert.equal(kilos.days[1].totalQty, 0);
   assert.equal(pieces.days[0].totalQty, 0);
