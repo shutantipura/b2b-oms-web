@@ -5,7 +5,7 @@ import Link from "next/link";
 import LotusLoading from "@/components/LotusLoading";
 import { supabase } from "@/lib/supabase";
 import { stockReportDates } from "@/lib/stockSalesReport";
-import { aggregateForecastByProduct, type ForecastDay, type StockForecast } from "@/lib/stockForecast";
+import { aggregateForecastByProduct, describeCustomerOrderTime, type ForecastDay, type StockForecast } from "@/lib/stockForecast";
 
 type Access = "loading" | "manager" | "denied" | "signed-out";
 
@@ -229,7 +229,7 @@ export default function StockManagementPage() {
               <p className="text-xs font-extrabold tracking-wide text-[#008B8B]">REQUESTED DEMAND + ROLLING FORECAST</p>
               <h2 className="mt-1 text-2xl font-black text-[#17453F]">พยากรณ์ความต้องการสินค้า 3 วัน</h2>
               <p className="mt-2 text-sm leading-6 text-[#648279]">
-                ใช้ปริมาณที่ลูกค้าขอสั่ง (Requested Qty) แม้เช็คสต็อกหรือหยิบได้ไม่ครบ · คาดจากปริมาณที่มีโอกาสเกิดขึ้นมากที่สุด ไม่เฉลี่ยด้วยความน่าจะเป็น · อัปเดตอัตโนมัติทุก 1 นาที
+                ใช้ Requested Qty ตามวันส่ง/รับสินค้า · เรียนรู้รอบส่งและช่วงเวลาที่แต่ละลูกค้ามักสั่งก่อนวันส่ง · เมื่อเลยช่วงสั่งปกติโดยยังไม่มีออเดอร์ ความต้องการคาดการณ์จะลดลง · อัปเดตทุก 1 นาที
               </p>
               {forecast && (
                 <p className="mt-1 text-xs text-[#77918A]">
@@ -318,6 +318,10 @@ export default function StockManagementPage() {
                               {customer.customerCode} · {customer.effectiveCadenceDays !== null ? `ทุก ${qty(customer.effectiveCadenceDays)} วัน` : "ยังไม่ทราบรอบ"}
                               {" · "}<span className={CONFIDENCE[customer.confidence].className}>{CONFIDENCE[customer.confidence].label}</span>
                             </p>
+                            <p className="mt-1 text-[11px] text-[#648279]">
+                              เวลาที่มักสั่ง: {describeCustomerOrderTime(customer.customerUsualOrderOffsetMinutes, customer.customerOrderTimingSamples)}
+                              {customer.customerOrderTimingSamples >= 3 && ` (จาก ${customer.customerOrderTimingSamples} ออเดอร์)`}
+                            </p>
                              <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayRequestedQty={customer.yesterdayRequestedQty} todayRequestedQty={customer.todayRequestedQty} days={customer.days} compact />
                           </div>
                         ))}
@@ -343,7 +347,7 @@ export default function StockManagementPage() {
           )}
 
           <div className="mt-5 rounded-xl border border-[#F5E4B4] bg-[#FFF9E8] p-4 text-xs leading-6 text-[#806A30]">
-            ระบบใช้ประวัติสูงสุด 90 วัน โดยจำแนกรอบซื้อแต่ละ SKU และรอบสั่งของลูกค้า · ถ้าคาดว่าจะสั่งในวันหนึ่ง จะเริ่มนับรอบซื้อใหม่สำหรับวันถัดไป · เนื้อสดไม่เกิน 2 วันโดยปรับปริมาณตามอัตราใช้เฉลี่ย
+            ระบบใช้ประวัติวันส่งย้อนหลังสูงสุด 90 วัน · ประเมินเวลาที่ลูกค้ามักกดสั่งเทียบกับวันส่ง เพื่อปรับโอกาสเกิดออเดอร์ที่ยังไม่ได้รับตามเวลาปัจจุบัน · ถ้าคาดว่าจะสั่งในวันหนึ่ง จะเริ่มนับรอบซื้อใหม่สำหรับวันถัดไป · เนื้อสดไม่เกิน 2 วันโดยปรับปริมาณตามอัตราใช้เฉลี่ย
             · ลูกค้าที่มีประวัติน้อยยังไม่ควรใช้คาดการณ์นี้สั่งสินค้าโดยตรง
           </div>
         </section>
