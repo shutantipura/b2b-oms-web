@@ -21,14 +21,15 @@ export function normalizeDemandUnit(unit: string) {
 
 export const FORECAST_HISTORY_DAYS = 90;
 export const FORECAST_DAYS = 3;
-/** Shortages matter more than carrying a little extra stock; configurable later. */
-export const STOCK_PLANNING_PERCENTILE = 0.8;
+/** Procurement is shortage-sensitive; watch actual coverage before further tuning. */
+export const STOCK_PLANNING_PERCENTILE = 0.9;
 const MIN_ORDER_TIMING_SAMPLES = 3;
 const MAX_ORDER_TIMING_SAMPLES = 12;
 const HAZARD_PRIOR_WEIGHT = 3;
 const MAX_AGGREGATE_STATES = 4096;
 const ORDER_TIME_PRIOR_WEIGHT = 4;
 const TOPUP_PRIOR_WEIGHT = 6;
+const SIZE_PRIOR_WEIGHT = 6;
 
 export type ForecastOrderInput = {
   id: string;
@@ -73,7 +74,11 @@ export type ForecastDay = {
   projectedProbability?: number;
   /** Quantity of one possible additional order, conditional on it occurring. */
   possibleQty?: number;
+  /** Smoothed conditional distribution of additional order size, if observed often enough. */
+  possibleSizes?: DemandSizeOption[];
 };
+
+export type DemandSizeOption = { quantity: number; weight: number };
 
 export type ForecastRow = {
   customerId: string;
@@ -188,33 +193,53 @@ export function mostLikelyAggregateQty(candidates: { probability: number; quanti
 }
 
 /**
- * Independent Bernoulli basket demand: its expectation is additive; its upper
- * quantile is NOT the sum of individual upper quantiles. Keep full probability
- * states when feasible. For unusually large SKU groups, use the conservative
- * Cantelli bound (at least 80% coverage under the independent-basket model).
+ * Independent uncertain baskets. Each event can have an empirical conditional
+ * order-size distribution; absent sufficient history, its size is fixed. The
+ * product-level upper quantile is NOT the sum of individual upper quantiles.
+ * Keep full probability states when feasible; fall back to the conservative
+ * Cantelli bound for unusually large state spaces.
  */
 export function aggregateDemandDistribution(
-  candidates: { probability: number; quantity: number }[], percentile = STOCK_PLANNING_PERCENTILE
+  candidates: { probability: number; quantity: number; sizeOptions?: DemandSizeOption[] }[], percentile = STOCK_PLANNING_PERCENTILE
 ) {
-  const probabilities = candidates.map(({ probability, quantity }) => ({
-    probability: Math.min(1, Math.max(0, probability)),
-    units: Math.max(0, Math.round(quantity * 1000)),
-  })).filter(({ probability, units }) => probability > 0 && units > 0);
-  const expected = probabilities.reduce((sum, { probability, units }) => sum + probability * units, 0) / 1000;
-  const variance = probabilities.reduce((sum, { probability, units }) =>
-    sum + probability * (1 - probability) * (units / 1000) ** 2, 0);
+  const probabilities = candidates.map(({ probability, quantity, sizeOptions }) => {
+    const p = Math.min(1, Math.max(0, probability));
+    const rawOptions = sizeOptions?.length ? sizeOptions : [{ quantity, weight: 1 }];
+    const merged = new Map<number, number>();
+    for (const option of rawOptions) {
+      const units = Math.max(0, Math.round(option.quantity * 1000));
+      if (units > 0 && Number.isFinite(option.weight) && option.weight > 0) {
+        merged.set(units, (merged.get(units) ?? 0) + option.weight);
+      }
+    }
+    const totalWeight = [...merged.values()].reduce((sum, weight) => sum + weight, 0);
+    return {
+      probability: p,
+      options: [...merged].map(([units, weight]) => ({ units, share: weight / totalWeight })),
+    };
+  }).filter(({ probability, options }) => probability > 0 && options.length > 0);
+  const expected = probabilities.reduce((sum, { probability, options }) => sum + probability *
+    options.reduce((sizeSum, { units, share }) => sizeSum + share * units, 0), 0) / 1000;
+  const variance = probabilities.reduce((sum, { probability, options }) => {
+    const mean = options.reduce((v, { units, share }) => v + share * units / 1000, 0);
+    const second = options.reduce((v, { units, share }) => v + share * (units / 1000) ** 2, 0);
+    return sum + probability * second - (probability * mean) ** 2;
+  }, 0);
   let states = new Map<number, number>([[0, 1]]);
   for (const candidate of probabilities) {
     const next = new Map<number, number>();
     for (const [amount, mass] of states) {
       next.set(amount, (next.get(amount) ?? 0) + mass * (1 - candidate.probability));
-      next.set(amount + candidate.units, (next.get(amount + candidate.units) ?? 0) + mass * candidate.probability);
+      for (const option of candidate.options) {
+        const total = amount + option.units;
+        next.set(total, (next.get(total) ?? 0) + mass * candidate.probability * option.share);
+      }
     }
     if (next.size > MAX_AGGREGATE_STATES) {
       // For arbitrary distributions, Cantelli gives a distribution-free upper
       // bound; preferable to silently throwing away unlikely high-demand tails.
-      const maximum = probabilities.reduce((sum, entry) => sum + entry.units, 0) / 1000;
-      const upper = Math.min(maximum, expected + Math.sqrt(variance * percentile / (1 - percentile)));
+      const maximum = probabilities.reduce((sum, entry) => sum + Math.max(...entry.options.map((option) => option.units)), 0) / 1000;
+      const upper = Math.min(maximum, expected + Math.sqrt(Math.max(0, variance) * percentile / (1 - percentile)));
       return { expected: clampQty(expected), upper: clampQty(upper), approximate: true };
     }
     states = next;
@@ -232,7 +257,7 @@ export function aggregateDemandDistribution(
 /** Demand totals sum original requested quantities across customers, keeping each unit separate. */
 export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[]): ProductForecastRow[] {
   const products = new Map<string, ProductForecastRow>();
-  const candidatesByUnitDate = new Map<string, Map<string, { probability: number; quantity: number }[]>>();
+  const candidatesByUnitDate = new Map<string, Map<string, { probability: number; quantity: number; sizeOptions?: DemandSizeOption[] }[]>>();
   for (const row of rows) {
     let product = products.get(row.sku);
     if (!product) {
@@ -273,7 +298,7 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
           candidatesByUnitDate.set(key, days);
         }
         const candidates = days.get(day.date) ?? [];
-        candidates.push({ probability: day.projectedProbability, quantity: day.possibleQty });
+        candidates.push({ probability: day.projectedProbability, quantity: day.possibleQty, sizeOptions: day.possibleSizes });
         days.set(day.date, candidates);
       }
     }
@@ -399,6 +424,28 @@ export function recencyWeightedMedian(numbers: number[]) {
     if (accumulated >= midpoint) return entry.value;
   }
   return ranked.at(-1)!.value;
+}
+
+/**
+ * Demand sizes vary even when the ordering day is predicted correctly.
+ * Resample the most recent eight positive delivery-day amounts, favouring
+ * recent ones, and add six median-sized pseudo-observations. This shrinkage
+ * avoids treating one exceptionally large order as a certain new normal.
+ * Fewer than four observations retain the simpler constant-size estimate.
+ */
+export function smoothedOrderSizeOptions(numbers: number[]): DemandSizeOption[] {
+  const recent = numbers.filter((quantity) => Number.isFinite(quantity) && quantity > 0).slice(-8);
+  const typical = recencyWeightedMedian(recent);
+  if (typical === null) return [];
+  if (recent.length < 4) return [{ quantity: clampQty(typical), weight: 1 }];
+  const sizes = new Map<number, number>();
+  for (let i = 0; i < recent.length; i++) {
+    const size = clampQty(recent[i]);
+    sizes.set(size, (sizes.get(size) ?? 0) + i + 1);
+  }
+  const medianSize = clampQty(typical);
+  sizes.set(medianSize, (sizes.get(medianSize) ?? 0) + SIZE_PRIOR_WEIGHT);
+  return [...sizes].map(([quantity, weight]) => ({ quantity, weight }));
 }
 
 /**
@@ -872,9 +919,10 @@ export function buildStockForecast(
     for (const unitSeries of series.units.values()) {
       const yesterdayRequestedQty = clampQty(unitSeries.requestedByDay.get(yesterdayDate) ?? 0);
       const todayRequestedQty = clampQty(unitSeries.requestedByDay.get(today) ?? 0);
-      const typicalRequestedQty = recencyWeightedMedian(
-        [...unitSeries.requestedByDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, qty]) => qty)
-      ) ?? 0;
+      const observedAmounts = [...unitSeries.requestedByDay.entries()]
+        .sort(([a], [b]) => a.localeCompare(b)).map(([, qty]) => qty);
+      const typicalRequestedQty = recencyWeightedMedian(observedAmounts) ?? 0;
+      const sizeOptions = smoothedOrderSizeOptions(observedAmounts);
       const unitShare = unitShares.get(unitSeries.unit) ?? 0;
       const forecastDays = skuEventDays.map((event) => {
         const knownQty = clampQty(unitSeries.knownByDay.get(event.date) ?? 0);
@@ -885,6 +933,7 @@ export function buildStockForecast(
         const topupSizes = topupPattern?.quantitiesBySkuUnit.get(skuUnitKey(series.sku, unitSeries.unit)) ?? [];
         let projectedProbability = 0;
         let possibleQty = typicalRequestedQty;
+        let possibleSizes = sizeOptions;
         if (customerOrdersToday.length === 1 && topupPattern && topupPattern.deliveryDays >= 3 &&
             topupPattern.topupDays > 0 && topupSizes.length > 0) {
           const topupRate = (topupPattern.topupDays + TOPUP_PRIOR_WEIGHT * pooledTopupRate) /
@@ -894,15 +943,16 @@ export function buildStockForecast(
           const rateAfterNoTopup = probabilityAfterNoOrderYet(topupRate, remainingShare);
           projectedProbability = rateAfterNoTopup * (topupSizes.length / topupPattern.topupDays);
           possibleQty = recencyWeightedMedian(topupSizes) ?? 0;
+          possibleSizes = smoothedOrderSizeOptions(topupSizes);
         } else if (customerOrdersToday.length === 0) {
           projectedProbability = (event.projectedProbability ?? 0) * unitShare;
         }
-        const distribution = aggregateDemandDistribution([{ probability: projectedProbability, quantity: possibleQty }]);
+        const distribution = aggregateDemandDistribution([{ probability: projectedProbability, quantity: possibleQty, sizeOptions: possibleSizes }]);
         const projectedQty = distribution.expected;
         return {
           date: event.date, knownQty, projectedQty, totalQty: clampQty(knownQty + projectedQty),
           planningQty: clampQty(knownQty + distribution.upper),
-          projectedProbability, possibleQty: clampQty(possibleQty),
+          projectedProbability, possibleQty: clampQty(possibleQty), possibleSizes,
         };
       });
       // Keep unlikely candidates for product-level convolution, but don't

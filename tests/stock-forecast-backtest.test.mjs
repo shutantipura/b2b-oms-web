@@ -54,6 +54,9 @@ test("backtest replays historical forecasts at noon previous day, excluding orde
   assert.equal(after.actualQty, before.actualQty + 2);
   assert.ok(Number.isFinite(after.planningQty));
   assert.ok(after.planningCoveragePct >= 0 && after.planningCoveragePct <= 100);
+  assert.ok(after.positiveDemandSkuDays > 0);
+  assert.ok(after.positiveDemandCoveragePct >= 0 && after.positiveDemandCoveragePct <= 100);
+  assert.ok(after.quantityCoveragePct >= 0 && after.quantityCoveragePct <= 100);
 });
 
 test("requested quantities are scored by delivery date, excluding tests and cancellations", () => {
@@ -75,6 +78,26 @@ test("requested quantities are scored by delivery date, excluding tests and canc
   assert.ok(report.byUnit.every((unit) => unit.planningCoveragePct === null ||
     (unit.planningCoveragePct >= 0 && unit.planningCoveragePct <= 100)));
   assert.ok(report.byUnit.every((unit) => unit.underforecastQty >= 0));
+  assert.ok(report.byUnit.every((unit) => unit.positiveDemandSkuDays <= unit.evaluatedSkuDays));
+  assert.ok(report.byUnit.every((unit) => unit.positiveDemandCoveragePct === null ||
+    unit.positiveDemandCoveragePct <= unit.planningCoveragePct));
+  assert.ok(report.byUnit.every((unit) => unit.quantityCoveragePct === null ||
+    (unit.quantityCoveragePct >= 0 && unit.quantityCoveragePct <= 100)));
+  assert.ok(report.byUnit.every((unit) => unit.unmodelledQty >= 0 && unit.unmodelledSkuDays >= 0));
+});
+
+test("backtest separates previously unseen SKU demand from an existing product's forecast error", () => {
+  const late = order("unseen", "2026-11-05", "2026-11-04T14:00:00+07:00");
+  const report = backtestStockForecast(
+    [...priorOrders, late],
+    [...priorItems, item("unseen", "new-sku", 7, "ชิ้น")],
+    customers, asOf
+  );
+  const pieces = report.byUnit.find((unit) => unit.unit === "ชิ้น");
+  assert.ok(pieces);
+  assert.equal(pieces.unmodelledSkuDays, 1);
+  assert.equal(pieces.unmodelledQty, 7);
+  assert.equal(pieces.underforecastQty, 7);
 });
 
 test("days with insufficient prior history are skipped, and score types remain valid", () => {

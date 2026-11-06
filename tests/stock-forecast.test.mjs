@@ -6,7 +6,7 @@ import {
   normaliseForecastQuantity,
   procurementForecastAsOf,
   observedRepeatProbability, probabilityAfterNoOrderYet, recencyWeightedMedian,
-  remainingOrderWindowShare,
+  remainingOrderWindowShare, smoothedOrderSizeOptions, STOCK_PLANNING_PERCENTILE,
 } from "../lib/stockForecast.ts";
 
 const now = new Date("2026-11-03T20:00:00Z"); // 03:00 on 4 Nov Bangkok time
@@ -59,14 +59,29 @@ test("product-level modal demand combines small probabilities from many customer
   assert.equal(mostLikelyAggregateQty([{ probability: 1, quantity: 0.04 }, { probability: 1, quantity: 0.04 }]), 0.1);
 });
 
-test("shortage-sensitive planning reports expectation and the true aggregate 80th percentile", () => {
+test("shortage-sensitive planning reports expectation and the true aggregate 90th percentile", () => {
+  assert.equal(STOCK_PLANNING_PERCENTILE, 0.9);
   assert.deepEqual(aggregateDemandDistribution([{ probability: 0.4, quantity: 20 }]),
     { expected: 8, upper: 20, approximate: false });
   assert.deepEqual(aggregateDemandDistribution([
     { probability: 0.6, quantity: 10 }, { probability: 0.6, quantity: 10 },
   ]), { expected: 12, upper: 20, approximate: false });
   assert.deepEqual(aggregateDemandDistribution([{ probability: 0.2, quantity: 10 }]),
-    { expected: 2, upper: 0, approximate: false });
+    { expected: 2, upper: 10, approximate: false });
+  assert.deepEqual(aggregateDemandDistribution([{ probability: 0.1, quantity: 10 }]),
+    { expected: 1, upper: 0, approximate: false });
+});
+
+test("planning explicitly models size variation instead of assuming every next order has the median quantity", () => {
+  assert.deepEqual(smoothedOrderSizeOptions([10, 100, 10]), [{ quantity: 10, weight: 1 }],
+    "with fewer than four observations, shrink fully to the observed median");
+  const sizes = smoothedOrderSizeOptions([10, 10, 10, 100]);
+  const candidate = aggregateDemandDistribution([{ probability: 0.8, quantity: 10, sizeOptions: sizes }]);
+  assert.ok(candidate.expected > 8 && candidate.expected < 30);
+  assert.equal(candidate.upper, 100, "a real high-quantity tail must be represented at P90");
+  const stable = aggregateDemandDistribution([{ probability: 0.8, quantity: 10, sizeOptions: smoothedOrderSizeOptions([10, 10, 10, 10, 10]) }]);
+  assert.equal(stable.upper, 10, "stable customers receive no arbitrary size uplift");
+  assert.equal(stable.expected, 8);
 });
 
 test("observed delivery gaps inform hazard without trusting one or two intervals completely", () => {
@@ -99,8 +114,23 @@ test("product expected demand adds independent uncertain customers, including wh
   const [product] = aggregateForecastByProduct(rows, [day]);
   assert.equal(product.units[0].days[0].projectedQty, 4);
   assert.equal(product.units[0].days[0].totalQty, 4);
-  assert.equal(product.units[0].days[0].planningQty, 5);
+  assert.equal(product.units[0].days[0].planningQty, 6);
   assert.ok(product.units[0].customers.every((c) => c.days[0].projectedQty === 0));
+});
+
+test("product aggregation uses the customer's uncertain order size for the protective plan", () => {
+  const date = "2026-11-04";
+  const [product] = aggregateForecastByProduct([{
+    customerId: "c1", customerCode: "001", customerName: "Restaurant A",
+    sku: "pork", productName: "ขาหลัง", unit: "กก.", freshMeat: true,
+    yesterdayRequestedQty: 0, todayRequestedQty: 0,
+    days: [{ date, knownQty: 10, projectedQty: 26, totalQty: 36,
+      projectedProbability: 0.8, possibleQty: 10,
+      possibleSizes: smoothedOrderSizeOptions([10, 10, 10, 100]) }],
+  }], [date]);
+  assert.equal(product.units[0].days[0].knownQty, 10);
+  assert.equal(product.units[0].days[0].projectedQty, 26);
+  assert.equal(product.units[0].days[0].planningQty, 110);
 });
 
 test("three-day ordering cadence changes probability as days pass without a new order", () => {

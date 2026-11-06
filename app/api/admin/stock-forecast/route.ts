@@ -209,11 +209,11 @@ function excelResponse(forecast: StockForecast) {
     `${forecast.yesterdayDate} ยอดสั่ง`, `${forecast.dates[0]} สั่งแล้วถึงตอนนี้`,
     `${forecast.dates[0]} คาดยอดสั่งปิดวัน`, `${forecast.dates[1]} คาดความต้องการ`, `${forecast.dates[2]} คาดความต้องการ`,
     "เทียบ กก./ชิ้น", "แหล่งน้ำหนักต่อชิ้น", "จำนวนตัวอย่าง", "ยอดขอสั่งเดิมวันนี้ (ชิ้น)",
-    ...forecast.dates.map((date) => `${date} แผน P80`),
+    ...forecast.dates.map((date) => `${date} แผน P${Math.round(forecast.planningPercentile * 100)}`),
   ];
   const summaryRows: (number | string)[][] = [
     ["Lotus’s B2B · พยากรณ์ความต้องการรวมตามสินค้า (ทุกลูกค้า)"],
-    [`อัปเดต ${forecast.asOf} · คาดเฉลี่ยจากยอดขอสั่ง + ความน่าจะเป็นสั่งเพิ่ม · แผน P80 เผื่อความเสี่ยงขาดสินค้า · ยอดที่สั่งเป็นชิ้นแต่ขายตามน้ำหนักเทียบเป็น กก.จากหลักฐานชั่งจริง`],
+    [`อัปเดต ${forecast.asOf} · คาดเฉลี่ยจากยอดขอสั่ง + โอกาสและขนาดออเดอร์ที่อาจสั่งเพิ่ม · แผน P${Math.round(forecast.planningPercentile * 100)} เผื่อความเสี่ยงขาดสินค้า · ยอดที่สั่งเป็นชิ้นแต่ขายตามน้ำหนักเทียบเป็น กก.จากหลักฐานชั่งจริง`],
     [],
     summaryHeaders,
     ...products.flatMap((product) => product.units.map((unit) => [
@@ -249,10 +249,10 @@ function excelResponse(forecast: StockForecast) {
     `${forecast.yesterdayDate} ยอดสั่ง`, `${forecast.dates[0]} สั่งแล้วถึงตอนนี้`,
     `${forecast.dates[0]} คาดยอดสั่งปิดวัน`, `${forecast.dates[1]} คาดความต้องการ`, `${forecast.dates[2]} คาดความต้องการ`,
     "เนื้อสด", "รอบสั่งลูกค้า (วัน)", "รอบซื้อ SKU (วัน)", "รอบคาดการณ์ (วัน)", "ความเชื่อมั่น", "โอกาสเลือกหน่วยนี้เมื่อสั่ง SKU (%)",
-    ...forecast.dates.flatMap((date) => [`${date} รับออเดอร์แล้ว`, `${date} คาดการณ์เพิ่ม`, `${date} โอกาสสั่งเพิ่ม (%)`, `${date} ปริมาณหากสั่ง`]),
+    ...forecast.dates.flatMap((date) => [`${date} รับออเดอร์แล้ว`, `${date} คาดการณ์เพิ่ม`, `${date} โอกาสสั่งเพิ่ม (%)`, `${date} ค่ากลางปริมาณหากสั่ง`]),
     "เวลาที่ลูกค้ามักสั่ง (เทียบวันส่ง)", "ตัวอย่างเวลาออเดอร์ (ครั้ง)",
     "เทียบ กก./ชิ้น", "แหล่งน้ำหนักต่อชิ้น", "จำนวนตัวอย่างน้ำหนัก",
-    ...forecast.dates.map((date) => `${date} แผน P80`),
+    ...forecast.dates.map((date) => `${date} แผน P${Math.round(forecast.planningPercentile * 100)}`),
   ];
   const sheetRows: (number | string)[][] = [
     ["Lotus’s B2B · พยากรณ์ความต้องการสินค้า 3 วัน (สำหรับวางแผนเท่านั้น)"],

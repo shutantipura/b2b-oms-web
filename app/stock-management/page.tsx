@@ -5,10 +5,12 @@ import Link from "next/link";
 import LotusLoading from "@/components/LotusLoading";
 import { supabase } from "@/lib/supabase";
 import { stockReportDates } from "@/lib/stockSalesReport";
-import { aggregateForecastByProduct, describeCustomerOrderTime, type ForecastDay, type StockForecast } from "@/lib/stockForecast";
+import { aggregateForecastByProduct, describeCustomerOrderTime, STOCK_PLANNING_PERCENTILE, type ForecastDay, type StockForecast } from "@/lib/stockForecast";
 import type { DemandBacktestReport } from "@/lib/stockForecastBacktest";
 
 type Access = "loading" | "manager" | "denied" | "signed-out";
+const PLANNING_LABEL = `P${Math.round(STOCK_PLANNING_PERCENTILE * 100)}`;
+const PLANNING_TARGET = Math.round(STOCK_PLANNING_PERCENTILE * 100);
 
 function qty(value: number) {
   return value.toLocaleString("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
@@ -56,7 +58,7 @@ function FivePeriodGrid({ yesterdayDate, yesterdayRequestedQty, todayRequestedQt
               <br />
               คาดเพิ่ม {forecastQty(period.extra ?? 0)}
               <br />
-              <span className="font-black text-[#9C6A00]">แผน P80 {forecastQty(period.planning ?? period.value)}</span>
+              <span className="font-black text-[#9C6A00]">แผน {PLANNING_LABEL} {forecastQty(period.planning ?? period.value)}</span>
             </p>
           )}
         </div>
@@ -315,7 +317,7 @@ export default function StockManagementPage() {
                   };
                 })}
               />
-              <p className="px-2 pb-1 text-[10px] text-[#728E86]">P80 ของเนื้อสดรวม = ผลรวมแผนราย SKU สำหรับดูภาพรวม ไม่ใช่ค่าเปอร์เซ็นไทล์ของยอดทุกสินค้าเมื่อรวมกัน</p>
+              <p className="px-2 pb-1 text-[10px] text-[#728E86]">{PLANNING_LABEL} ของเนื้อสดรวม = ผลรวมแผนราย SKU สำหรับดูภาพรวม ไม่ใช่ค่าเปอร์เซ็นไทล์ของยอดทุกสินค้าเมื่อรวมกัน</p>
             </div>
           )}
 
@@ -350,8 +352,8 @@ export default function StockManagementPage() {
             <>
               <div className="mt-5 rounded-2xl border border-[#F5D88F] bg-[#FFF9E8] p-4 text-sm leading-6 text-[#775817]">
                 <p className="font-black">{forecastView === "noon" ? "แผน ณ จุดตัด 12:00 น. สำหรับสั่งสินค้าให้รองรับ B2B พรุ่งนี้" : "ความต้องการ B2B ที่อัปเดตตามออเดอร์สด"}</p>
-                <p className="mt-1">ตัวเลขหลักเป็น <strong>คาดการณ์เฉลี่ย</strong> จากยอดที่สั่งแล้วและความน่าจะเป็นที่จะสั่งเพิ่ม ส่วน <strong>แผน P80</strong> เป็นปริมาณสูงกว่าค่าเฉลี่ยที่ใช้เผื่อความเสี่ยงสินค้าขาด ตามนโยบายที่ให้ความสำคัญกับการไม่ขาดสินค้า</p>
-                <p className="mt-1 text-xs">{forecastView === "noon" ? "ก่อนเที่ยงจะแสดง ณ เวลาปัจจุบัน หลังเที่ยงจะจำลองจากออเดอร์ที่ส่งก่อน 12:00 น. (ยังไม่ใช่ snapshot เก็บถาวร) · " : ""}P80 เป็นแนวทางวางแผน ไม่ใช่คำสั่งซื้อจากซัพพลายเออร์ ระบบยังไม่ได้หักสต็อกที่มีอยู่หรือคิดเวลาที่สินค้าซัพพลายเออร์มาถึง</p>
+                <p className="mt-1">ตัวเลขหลักเป็น <strong>คาดการณ์เฉลี่ย</strong> จากยอดที่สั่งแล้วและความน่าจะเป็นที่จะสั่งเพิ่ม ส่วน <strong>แผน {PLANNING_LABEL}</strong> เผื่อทั้งโอกาสสั่งและความผันผวนของปริมาณต่อครั้ง โดยลดน้ำหนักข้อมูลสุดโต่งเมื่อมีตัวอย่างน้อย</p>
+                <p className="mt-1 text-xs">{forecastView === "noon" ? "ก่อนเที่ยงจะแสดง ณ เวลาปัจจุบัน หลังเที่ยงจะจำลองจากออเดอร์ที่ส่งก่อน 12:00 น. (ยังไม่ใช่ snapshot เก็บถาวร) · " : ""}{PLANNING_LABEL} เป็นแนวทางวางแผน ไม่ใช่คำสั่งซื้อจากซัพพลายเออร์ ระบบยังไม่ได้หักสต็อกที่มีอยู่หรือคิดเวลาที่สินค้าซัพพลายเออร์มาถึง</p>
               </div>
               <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
                    <h3 className="text-lg font-black text-[#17453F]">ความต้องการคาดการณ์รวมตามสินค้า (ทุกลูกค้า)</h3>
@@ -386,7 +388,7 @@ export default function StockManagementPage() {
                       <div key={unit.unit} className="border-b border-[#DCECE7] last:border-b-0">
                         <p className="bg-[#F8FCFB] px-3 py-2 text-sm font-black text-[#007F7F] sm:px-4">หน่วย: {unit.unit}</p>
                         <div className="mx-2 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#F2DFA8] bg-[#FFF9E8] px-3 py-2 text-xs text-[#765613] sm:mx-3">
-                          <span className="font-bold">แผนรองรับความต้องการพรุ่งนี้ (P80)</span>
+                          <span className="font-bold">แผนรองรับความต้องการพรุ่งนี้ ({PLANNING_LABEL})</span>
                           <strong className="text-lg tabular-nums">{forecastQty(unit.days[1]?.planningQty ?? unit.days[1]?.totalQty ?? 0)} {unit.unit}</strong>
                         </div>
                         <FivePeriodGrid yesterdayDate={displayedForecast.yesterdayDate} yesterdayRequestedQty={unit.yesterdayRequestedQty} todayRequestedQty={unit.todayRequestedQty} days={unit.days} />
@@ -424,7 +426,7 @@ export default function StockManagementPage() {
                 {visibleForecast.length === 0 && <p className="rounded-xl border border-[#DDEAE6] p-6 text-center text-sm text-[#648279]">ยังไม่มีข้อมูลที่ตรงกับตัวกรอง หรือยังมีประวัติไม่พอสำหรับคาดการณ์</p>}
               </div>
               <p className="mt-3 text-xs leading-5 text-[#6E8982]">
-                 ยอดสั่ง = ปริมาณที่ลูกค้าขอสั่งก่อนเช็คสต็อก/หยิบ/ออกบิล (ไม่นับออเดอร์ยกเลิก) โดยจัดตามวันส่ง/รับสินค้า ไม่ใช่วันที่ลูกค้ากดสั่ง · คาดเฉลี่ย = รับออเดอร์แล้ว + ผลรวมโอกาสสั่งเพิ่ม × ปริมาณต่อครั้ง · แผน P80 คือขอบบนที่ปริมาณสั่งจริงมีโอกาสไม่เกินประมาณ 80% ตามแบบจำลอง · ไม่เอา P80 รายลูกค้ามาบวกเป็น P80 รวมสินค้า
+                 ยอดสั่ง = ปริมาณที่ลูกค้าขอสั่งก่อนเช็คสต็อก/หยิบ/ออกบิล (ไม่นับออเดอร์ยกเลิก) โดยจัดตามวันส่ง/รับสินค้า ไม่ใช่วันที่ลูกค้ากดสั่ง · คาดเฉลี่ย = รับออเดอร์แล้ว + ผลรวมโอกาสสั่งเพิ่ม × ปริมาณเฉลี่ยที่คาดว่าจะสั่ง · แผน {PLANNING_LABEL} คือเปอร์เซ็นไทล์ประมาณ {PLANNING_TARGET}% ตามแบบจำลอง ไม่ได้รับประกันว่าจะครอบคลุมตามนั้นจริง · ไม่เอาแผนรายลูกค้ามาบวกแทนการคำนวณระดับสินค้า
               </p>
               <p className="mt-1 text-xs leading-5 text-[#6E8982]">สินค้าขายตามน้ำหนักที่ลูกค้าขอสั่งเป็นชิ้น จะเทียบเป็น กก. จากน้ำหนักชั่งจริงย้อนหลังของ SKU นั้นก่อนคำนวณรอบซื้อและปริมาณ · ค่าจากการแปลงเป็นน้ำหนักประมาณการ ไม่ใช่น้ำหนักรับประกัน · หากไม่มีข้อมูลแปลงที่เชื่อถือได้ จะคงยอดชิ้นแยกและแจ้งเตือน · ยอดขายจริงย้อนหลัง 14 วันด้านล่างยังนับจำนวนหยิบ/ออกบิลตามเดิม</p>
               <button
@@ -496,8 +498,10 @@ export default function StockManagementPage() {
                           อคติคาดการณ์ (Bias): {percent(unit.modelBiasPct)} · จริง {qty(unit.actualQty)} {unit.unit} · คาด {qty(unit.forecastQty)} {unit.unit}
                         </p>
                         <div className="mt-3 rounded-xl border border-[#F3E0AA] bg-[#FFF9E8] p-3 text-xs leading-6 text-[#765613]">
-                          <p className="font-black">ทดสอบแผน P80: ครอบคลุม {percent(unit.planningCoveragePct)} ของ SKU-วัน</p>
-                          <p>เป้าหมายระยะยาว ≈ 80% · ปริมาณจริงที่เกินแผน {qty(unit.underforecastQty)} {unit.unit}</p>
+                          <p className="font-black">ทดสอบแผน {PLANNING_LABEL}: ครอบคลุม {percent(unit.positiveDemandCoveragePct)} ของ SKU-วันที่ลูกค้าสั่งจริง ({unit.positiveDemandSkuDays} วัน)</p>
+                          <p>ครอบคลุมทุก SKU-วัน {percent(unit.planningCoveragePct)} · เป้าหมาย {PLANNING_TARGET}%</p>
+                          <p>ครอบคลุมปริมาณจริง {percent(unit.quantityCoveragePct)} · ยอดขอสั่งที่เกินแผน {qty(unit.underforecastQty)} {unit.unit}</p>
+                          <p>สินค้า/หน่วยที่ไม่มีในแผน ณ cutoff: {unit.unmodelledSkuDays} SKU-วัน ({qty(unit.unmodelledQty)} {unit.unit})</p>
                           <p>ยอดแผนรวมที่ประเมิน {qty(unit.planningQty)} {unit.unit}</p>
                         </div>
                       </div>
@@ -509,7 +513,7 @@ export default function StockManagementPage() {
               )}
               <p className="text-xs leading-6 text-[#6E8982]">
                 WAPE = ผลรวมความคลาดเคลื่อนสัมบูรณ์ราย SKU ÷ ยอดสั่งจริง (ยิ่งต่ำยิ่งดี) · คิดแยกตามหน่วย กก./ชิ้น ·
-                Bias บวกหมายถึงคาดสูงเกินจริง และ Bias ลบหมายถึงคาดต่ำเกินจริง · P80 coverage = สัดส่วน SKU-วันที่ความต้องการจริงไม่เกินค่าคาด P80 โดยวัดจากเวลาคาดการณ์ก่อนส่ง 1 วัน
+                Bias บวกหมายถึงคาดสูงเกินจริง และ Bias ลบหมายถึงคาดต่ำเกินจริง · Coverage วันที่สั่งจริงไม่นับวันที่ไม่มีความต้องการ จึงสะท้อนความเสี่ยงขาดสินค้าชัดกว่า · ผลย้อนหลังอาจมีจำนวนวันน้อย และยังไม่มี snapshot ณ เวลา 12:00 น. แบบถาวร
               </p>
               {backtest.days.length > 0 && (
                 <details className="rounded-xl border border-[#DDEEEA]">
@@ -524,7 +528,7 @@ export default function StockManagementPage() {
                           <th className="px-3 py-3">หน่วย</th>
                           <th className="px-3 py-3 text-right">สั่งจริง</th>
                           <th className="px-3 py-3 text-right">คาดการณ์</th>
-                          <th className="px-3 py-3 text-right">แผน P80</th>
+                          <th className="px-3 py-3 text-right">แผน {PLANNING_LABEL}</th>
                           <th className="px-3 py-3 text-right">สั่งแล้ว ณ cutoff</th>
                           <th className="px-3 py-3 text-right">WAPE โมเดล</th>
                         </tr>

@@ -26,7 +26,12 @@ export type DemandBacktestDay = {
   wape: number | null;
   bookedWape: number | null;
   planningCoveragePct: number | null;
+  positiveDemandSkuDays: number;
+  positiveDemandCoveragePct: number | null;
+  quantityCoveragePct: number | null;
   underforecastQty: number;
+  unmodelledSkuDays: number;
+  unmodelledQty: number;
   skuCount: number;
 };
 
@@ -41,7 +46,12 @@ export type DemandBacktestUnit = {
   bookedOnlyWape: number | null;
   modelBiasPct: number | null;
   planningCoveragePct: number | null;
+  positiveDemandSkuDays: number;
+  positiveDemandCoveragePct: number | null;
+  quantityCoveragePct: number | null;
   underforecastQty: number;
+  unmodelledSkuDays: number;
+  unmodelledQty: number;
 };
 
 export type DemandBacktestReport = {
@@ -123,6 +133,7 @@ export function backtestStockForecast(
   const unitTotals = new Map<string, {
     skuDays: number; actual: number; forecast: number; planning: number; booked: number;
     error: number; bookedError: number; planningCovered: number; underforecast: number;
+    positiveSkuDays: number; positiveCovered: number; unmodelledSkuDays: number; unmodelledQty: number;
   }>();
   let evaluatedDays = 0;
   let totalSkuDays = 0;
@@ -157,6 +168,7 @@ export function backtestStockForecast(
     const dailyByUnit = new Map<string, {
       actual: number; forecast: number; planning: number; booked: number;
       error: number; bookedError: number; planningCovered: number; underforecast: number; skuCount: number;
+      positiveSkuDays: number; positiveCovered: number; unmodelledSkuDays: number; unmodelledQty: number;
     }>();
     for (const key of keys) {
       const [, unit] = JSON.parse(key) as [string, string];
@@ -167,7 +179,8 @@ export function backtestStockForecast(
       const booked = estimated?.booked ?? 0;
       const daily = dailyByUnit.get(unit) ?? {
         actual: 0, forecast: 0, planning: 0, booked: 0, error: 0, bookedError: 0,
-        planningCovered: 0, underforecast: 0, skuCount: 0,
+        planningCovered: 0, underforecast: 0, skuCount: 0, positiveSkuDays: 0, positiveCovered: 0,
+        unmodelledSkuDays: 0, unmodelledQty: 0,
       };
       daily.actual += observed;
       daily.forecast += predicted;
@@ -176,6 +189,14 @@ export function backtestStockForecast(
       daily.error += Math.abs(predicted - observed);
       daily.bookedError += Math.abs(booked - observed);
       daily.planningCovered += observed <= planning + 0.001 ? 1 : 0;
+      if (observed > 0.001) {
+        daily.positiveSkuDays++;
+        daily.positiveCovered += observed <= planning + 0.001 ? 1 : 0;
+        if (!estimated) {
+          daily.unmodelledSkuDays++;
+          daily.unmodelledQty += observed;
+        }
+      }
       daily.underforecast += Math.max(0, observed - planning);
       daily.skuCount++;
       dailyByUnit.set(unit, daily);
@@ -211,12 +232,19 @@ export function backtestStockForecast(
         wape: percentError(daily.error, daily.actual),
         bookedWape: percentError(daily.bookedError, daily.actual),
         planningCoveragePct: daily.skuCount ? daily.planningCovered * 100 / daily.skuCount : null,
+        positiveDemandSkuDays: daily.positiveSkuDays,
+        positiveDemandCoveragePct: daily.positiveSkuDays ? daily.positiveCovered * 100 / daily.positiveSkuDays : null,
+        quantityCoveragePct: daily.actual ? 100 * (1 - daily.underforecast / daily.actual) : null,
         underforecastQty: daily.underforecast,
+        unmodelledSkuDays: daily.unmodelledSkuDays,
+        unmodelledQty: daily.unmodelledQty,
         skuCount: daily.skuCount,
       });
       const totals = unitTotals.get(unit) ?? {
         skuDays: 0, actual: 0, forecast: 0, planning: 0, booked: 0,
         error: 0, bookedError: 0, planningCovered: 0, underforecast: 0,
+        positiveSkuDays: 0, positiveCovered: 0,
+        unmodelledSkuDays: 0, unmodelledQty: 0,
       };
       totals.skuDays += daily.skuCount;
       totals.actual += daily.actual;
@@ -226,6 +254,10 @@ export function backtestStockForecast(
       totals.error += daily.error;
       totals.bookedError += daily.bookedError;
       totals.planningCovered += daily.planningCovered;
+      totals.positiveSkuDays += daily.positiveSkuDays;
+      totals.positiveCovered += daily.positiveCovered;
+      totals.unmodelledSkuDays += daily.unmodelledSkuDays;
+      totals.unmodelledQty += daily.unmodelledQty;
       totals.underforecast += daily.underforecast;
       unitTotals.set(unit, totals);
     }
@@ -243,7 +275,12 @@ export function backtestStockForecast(
     bookedOnlyWape: percentError(totals.bookedError, totals.actual),
     modelBiasPct: percentError(totals.forecast - totals.actual, totals.actual),
     planningCoveragePct: totals.skuDays ? totals.planningCovered * 100 / totals.skuDays : null,
+    positiveDemandSkuDays: totals.positiveSkuDays,
+    positiveDemandCoveragePct: totals.positiveSkuDays ? totals.positiveCovered * 100 / totals.positiveSkuDays : null,
+    quantityCoveragePct: totals.actual ? 100 * (1 - totals.underforecast / totals.actual) : null,
     underforecastQty: totals.underforecast,
+    unmodelledSkuDays: totals.unmodelledSkuDays,
+    unmodelledQty: totals.unmodelledQty,
   })).sort((a, b) => b.actualQty - a.actualQty);
 
   return {
@@ -259,7 +296,9 @@ export function backtestStockForecast(
       "จำลองจากข้อมูลย้อนหลังที่ยังคงอยู่ในระบบ โดยไม่มีประวัติสถานะและวันส่งทุกครั้งที่ถูกแก้ไข จึงไม่ใช่ข้อมูล snapshot ณ เวลานั้นอย่างสมบูรณ์",
       "วัด Requested Qty ตามวันส่ง ไม่ใช่ยอดขายจริง และตัดสินที่เวลา 12:00 ของวันก่อนส่ง (เวลาไทย)",
       "WAPE คำนวณแยกตามหน่วยนับ (เช่น กก. และ ชิ้น) ไม่นำยอดคนละหน่วยมาบวกกัน",
-      "P80 coverage วัดว่ายอดขอสั่งจริงไม่เกินแผน P80 ต่อ SKU/วันกี่เปอร์เซ็นต์ หากต่ำกว่า 80% ต่อเนื่องควรปรับเทียบใหม่",
+      "P90 coverage วัดสัดส่วน SKU-วันที่ยอดขอสั่งจริงไม่เกินแผน P90 โดยรายงานแยกวันที่มีความต้องการจริง เพื่อไม่ให้วันที่ยอดเป็นศูนย์ทำให้ผลดูดีเกินจริง",
+      "Coverage ตามปริมาณ = 1 − ยอดที่เกินแผน ÷ ยอดสั่งจริง เป็นตัวชี้วัดความเสี่ยงขาดสินค้า ไม่ใช่หลักฐานว่าจัดซื้อจริงเพียงพอ",
+      "ยอดสินค้าไม่เคยอยู่ในแบบจำลอง ณ cutoff คือออเดอร์ SKU/หน่วยที่ไม่มีข้อมูลพอให้แสดงแผนเลย แยกออกจากความผิดพลาดของรายการที่โมเดลคาดไว้",
       "แม้ทดสอบย้อนหลัง 28 วัน ยังไม่มี snapshot ออเดอร์ ณ เวลานั้นแบบครบถ้วน จึงควรใช้ผลเป็นสัญญาณเบื้องต้นเท่านั้น",
     ],
   };
