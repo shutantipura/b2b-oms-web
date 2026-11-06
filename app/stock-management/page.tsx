@@ -37,8 +37,8 @@ function FivePeriodGrid({ yesterdayDate, yesterdayRequestedQty, todayRequestedQt
   compact?: boolean;
 }) {
   const periods = [
-    { label: "สั่งเมื่อวาน", date: yesterdayDate, value: yesterdayRequestedQty, actual: true },
-    { label: "สั่งวันนี้", date: days[0].date, value: todayRequestedQty, actual: true },
+    { label: "ยอดวันส่งเมื่อวาน", date: yesterdayDate, value: yesterdayRequestedQty, actual: true },
+    { label: "ยอดวันส่งวันนี้", date: days[0].date, value: todayRequestedQty, actual: true },
     { label: "คาดปิดวันนี้", date: days[0].date, value: days[0].totalQty, actual: false, known: days[0].knownQty, extra: days[0].projectedQty },
     { label: "คาดพรุ่งนี้", date: days[1].date, value: days[1].totalQty, actual: false, known: days[1].knownQty, extra: days[1].projectedQty },
     { label: "คาดมะรืน", date: days[2].date, value: days[2].totalQty, actual: false, known: days[2].knownQty, extra: days[2].projectedQty },
@@ -136,7 +136,7 @@ export default function StockManagementPage() {
     const filter = productSearch.trim().toLocaleLowerCase();
     return productForecast.filter((row) =>
       (!meatOnly || row.freshMeat) &&
-      (!filter || [row.sku, row.productName, row.unit]
+      (!filter || [row.sku, row.productName, ...row.units.map((unit) => unit.unit)]
         .some((part) => part.toLocaleLowerCase().includes(filter)))
     );
   }, [productForecast, productSearch, meatOnly]);
@@ -286,10 +286,10 @@ export default function StockManagementPage() {
               <p className="px-2 pt-1 text-xs font-extrabold text-[#436F66]">สรุปเนื้อสดทั้งหมด (กก.)</p>
               <FivePeriodGrid
                 yesterdayDate={forecast.yesterdayDate}
-                yesterdayRequestedQty={productForecast.filter((row) => row.unit === "กก." && row.freshMeat).reduce((sum, row) => sum + row.yesterdayRequestedQty, 0)}
-                todayRequestedQty={productForecast.filter((row) => row.unit === "กก." && row.freshMeat).reduce((sum, row) => sum + row.todayRequestedQty, 0)}
+                yesterdayRequestedQty={productForecast.filter((row) => row.freshMeat).flatMap((row) => row.units.filter((unit) => unit.unit === "กก.")).reduce((sum, unit) => sum + unit.yesterdayRequestedQty, 0)}
+                todayRequestedQty={productForecast.filter((row) => row.freshMeat).flatMap((row) => row.units.filter((unit) => unit.unit === "กก.")).reduce((sum, unit) => sum + unit.todayRequestedQty, 0)}
                 days={forecast.dates.map((date, index) => {
-                  const meat = productForecast.filter((row) => row.unit === "กก." && row.freshMeat);
+                  const meat = productForecast.filter((row) => row.freshMeat).flatMap((row) => row.units.filter((unit) => unit.unit === "กก."));
                   return {
                     date,
                     knownQty: meat.reduce((sum, row) => sum + row.days[index].knownQty, 0),
@@ -333,50 +333,58 @@ export default function StockManagementPage() {
               <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
                    <h3 className="text-lg font-black text-[#17453F]">ความต้องการคาดการณ์รวมตามสินค้า (ทุกลูกค้า)</h3>
                 <span className="rounded-full bg-[#EAF8F5] px-3 py-1 text-xs font-extrabold text-[#008B8B]">
-                  {visibleForecast.length} SKU / หน่วย
+                  {visibleForecast.length} SKU
                 </span>
               </div>
               <div className="mt-3 space-y-3">
                 {visibleForecast.map((product) => (
-                  <article key={`${product.sku}:${product.unit}`} className="overflow-hidden rounded-2xl border border-[#CEE7E0] bg-white shadow-[0_2px_8px_rgba(18,96,89,0.04)]">
+                  <article key={product.sku} className="overflow-hidden rounded-2xl border border-[#CEE7E0] bg-white shadow-[0_2px_8px_rgba(18,96,89,0.04)]">
                     <div className="border-b border-[#E0EEEA] bg-[#F4FAF8] p-3 sm:p-4">
                       <h4 className="text-base font-black text-[#17453F] sm:text-lg">{product.productName}</h4>
-                      <p className="mt-1 text-xs font-bold text-[#008B8B]">SKU {product.sku} · {product.unit} · {product.customerCount} ลูกค้า</p>
+                      <p className="mt-1 text-xs font-bold text-[#008B8B]">SKU {product.sku} · {product.customerCount} ลูกค้า · {product.units.length} หน่วยนับ</p>
                       {product.freshMeat && <p className="mt-1 text-[11px] font-semibold text-[#A46B00]">เนื้อสด: คาดตามรอบสั่งจริง · อายุสินค้าใช้ในขั้นวางแผนสต็อก</p>}
                     </div>
-                     <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayRequestedQty={product.yesterdayRequestedQty} todayRequestedQty={product.todayRequestedQty} days={product.days} />
-                    <details className="group border-t border-[#E0EEEA]">
-                      <summary className="cursor-pointer px-4 py-3 text-sm font-extrabold text-[#008B8B] marker:text-[#008B8B]">
-                        ดูยอดแยกรายลูกค้า ({product.customerCount})
-                      </summary>
-                      <div className="space-y-2 border-t border-[#E0EEEA] bg-[#FCFEFD] p-3">
-                        {product.customers.map((customer) => (
-                          <div key={customer.customerId} className="rounded-xl border border-[#E1EEEA] bg-white p-3">
-                            <p className="text-sm font-bold text-[#17453F]">{customer.customerName}</p>
-                            <p className="mt-0.5 text-[11px] text-[#648279]">
-                              {customer.customerCode} · {customer.effectiveCadenceDays !== null ? `ทุก ${qty(customer.effectiveCadenceDays)} วัน` : "ยังไม่ทราบรอบ"}
-                              {" · "}<span className={CONFIDENCE[customer.confidence].className}>{CONFIDENCE[customer.confidence].label}</span>
-                            </p>
-                            <p className="mt-1 text-[11px] text-[#648279]">
-                              เวลาที่มักสั่ง: {describeCustomerOrderTime(customer.customerUsualOrderOffsetMinutes, customer.customerOrderTimingSamples)}
-                              {customer.customerOrderTimingSamples >= 3 && ` (จาก ${customer.customerOrderTimingSamples} ออเดอร์)`}
-                            </p>
-                            <p className="mt-1 text-[11px] text-[#648279]">
-                              โอกาสสั่งเพิ่ม: {customer.days.map((day, index) => `${["วันนี้", "พรุ่งนี้", "มะรืน"][index]} ${Math.round((day.projectedProbability ?? 0) * 100)}%`).join(" · ")}
-                            </p>
-                             <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayRequestedQty={customer.yesterdayRequestedQty} todayRequestedQty={customer.todayRequestedQty} days={customer.days} compact />
+                    {product.units.map((unit) => (
+                      <div key={unit.unit} className="border-b border-[#DCECE7] last:border-b-0">
+                        <p className="bg-[#F8FCFB] px-3 py-2 text-sm font-black text-[#007F7F] sm:px-4">หน่วย: {unit.unit}</p>
+                        <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayRequestedQty={unit.yesterdayRequestedQty} todayRequestedQty={unit.todayRequestedQty} days={unit.days} />
+                        <details className="group border-t border-[#E0EEEA]">
+                          <summary className="cursor-pointer px-4 py-3 text-sm font-extrabold text-[#008B8B] marker:text-[#008B8B]">
+                            ดูยอดแยกรายลูกค้า ({unit.customers.length}) · {unit.unit}
+                          </summary>
+                          <div className="space-y-2 border-t border-[#E0EEEA] bg-[#FCFEFD] p-3">
+                            {unit.customers.map((customer) => (
+                              <div key={customer.customerId} className="rounded-xl border border-[#E1EEEA] bg-white p-3">
+                                <p className="text-sm font-bold text-[#17453F]">{customer.customerName}</p>
+                                <p className="mt-0.5 text-[11px] text-[#648279]">
+                                  {customer.customerCode} · รอบสั่ง SKU (ทุกหน่วย) {customer.effectiveCadenceDays !== null ? `ทุก ${qty(customer.effectiveCadenceDays)} วัน` : "ยังไม่ทราบรอบ"}
+                                  {" · "}<span className={CONFIDENCE[customer.confidence].className}>{CONFIDENCE[customer.confidence].label}</span>
+                                </p>
+                                <p className="mt-1 text-[11px] text-[#648279]">
+                                  เวลาที่มักสั่ง: {describeCustomerOrderTime(customer.customerUsualOrderOffsetMinutes, customer.customerOrderTimingSamples)}
+                                  {customer.customerOrderTimingSamples >= 3 && ` (จาก ${customer.customerOrderTimingSamples} ออเดอร์)`}
+                                </p>
+                                <p className="mt-1 text-[11px] text-[#648279]">
+                                  หากสั่ง SKU นี้ โอกาสเลือกหน่วย {unit.unit}: {Math.round(customer.conditionalUnitShare * 100)}%
+                                </p>
+                                <p className="mt-1 text-[11px] text-[#648279]">
+                                  โอกาสสั่งเพิ่มเป็น {unit.unit}: {customer.days.map((day, index) => `${["วันนี้", "พรุ่งนี้", "มะรืน"][index]} ${Math.round((day.projectedProbability ?? 0) * 100)}%`).join(" · ")}
+                                </p>
+                                <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayRequestedQty={customer.yesterdayRequestedQty} todayRequestedQty={customer.todayRequestedQty} days={customer.days} compact />
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        </details>
                       </div>
-                    </details>
+                    ))}
                   </article>
                 ))}
                 {visibleForecast.length === 0 && <p className="rounded-xl border border-[#DDEAE6] p-6 text-center text-sm text-[#648279]">ยังไม่มีข้อมูลที่ตรงกับตัวกรอง หรือยังมีประวัติไม่พอสำหรับคาดการณ์</p>}
               </div>
               <p className="mt-3 text-xs leading-5 text-[#6E8982]">
-                 ยอดสั่ง = ปริมาณที่ลูกค้าขอสั่งก่อนเช็คสต็อก/หยิบ/ออกบิล (ไม่นับออเดอร์ยกเลิก) ตามวันส่ง/รับสินค้า · คาดปิดวันนี้รวมยอดที่สั่งแล้ว จึงไม่นับซ้ำ · ค่ารายลูกค้าเลือกปริมาณเต็มเมื่อมีโอกาสเกิน 50% · ค่ารวมสินค้าเลือกปริมาณที่น่าจะเกิดขึ้นมากที่สุดจากการรวมความเป็นไปได้ของทุกลูกค้า จึงอาจไม่เท่าผลรวมค่ารายลูกค้า
+                 ยอดสั่ง = ปริมาณที่ลูกค้าขอสั่งก่อนเช็คสต็อก/หยิบ/ออกบิล (ไม่นับออเดอร์ยกเลิก) โดยจัดตามวันส่ง/รับสินค้า ไม่ใช่วันที่ลูกค้ากดสั่ง · คาดปิดวันนี้รวมยอดที่สั่งแล้ว จึงไม่นับซ้ำ · ค่ารายลูกค้าเลือกปริมาณเต็มเมื่อมีโอกาสเกิน 50% · ค่ารวมสินค้าเลือกปริมาณที่น่าจะเกิดขึ้นมากที่สุดจากการรวมความเป็นไปได้ของทุกลูกค้า จึงอาจไม่เท่าผลรวมค่ารายลูกค้า
               </p>
-              <p className="mt-1 text-xs leading-5 text-[#6E8982]">สินค้าที่สั่งเป็นชิ้นจะแสดงหน่วยเป็นชิ้น แม้ตอนออกบิลจะคิดราคาตามน้ำหนัก · ยอดขายจริงย้อนหลัง 14 วันด้านล่างยังนับจำนวนหยิบ/ออกบิลตามเดิม</p>
+              <p className="mt-1 text-xs leading-5 text-[#6E8982]">1 SKU แสดงเพียง 1 การ์ด แยกยอด กก./ชิ้น ภายใน โดยไม่แปลงหรือบวกหน่วยต่างกัน · รอบซื้อ SKU นับรวมทุกหน่วย แต่โอกาสสั่งเพิ่มจะกระจายไปตามหน่วยที่ลูกค้าใช้ล่าสุด · ยอดขายจริงย้อนหลัง 14 วันด้านล่างยังนับจำนวนหยิบ/ออกบิลตามเดิม</p>
               <button
                 type="button"
                 disabled={forecastDownloading}

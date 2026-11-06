@@ -198,10 +198,10 @@ function excelResponse(forecast: StockForecast) {
     [`อัปเดต ${forecast.asOf} · ปริมาณตามที่ลูกค้าสั่ง (requested_qty) ไม่หักปริมาณที่ขาดสต็อกหรือหยิบไม่ได้ · ยอดคาดการณ์รวมคือค่าที่เป็นไปได้สูงสุดของผลรวมลูกค้าทั้งหมด`],
     [],
     summaryHeaders,
-    ...products.map((product) => [
-      product.sku, product.productName, product.unit, product.customerCount, product.freshMeat ? "ใช่" : "ไม่ใช่",
-       product.yesterdayRequestedQty, product.todayRequestedQty, ...product.days.map((day) => day.totalQty),
-    ]),
+    ...products.flatMap((product) => product.units.map((unit) => [
+      product.sku, product.productName, unit.unit, product.customerCount, product.freshMeat ? "ใช่" : "ไม่ใช่",
+      unit.yesterdayRequestedQty, unit.todayRequestedQty, ...unit.days.map((day) => day.totalQty),
+    ])),
   ];
   const summary = XLSX.utils.aoa_to_sheet(summaryRows);
   summary["!merges"] = [
@@ -223,7 +223,7 @@ function excelResponse(forecast: StockForecast) {
     "รหัสลูกค้า", "ชื่อลูกค้า", "SKU", "ชื่อสินค้า", "หน่วย",
     `${forecast.yesterdayDate} ยอดสั่ง`, `${forecast.dates[0]} สั่งแล้วถึงตอนนี้`,
     `${forecast.dates[0]} คาดยอดสั่งปิดวัน`, `${forecast.dates[1]} คาดความต้องการ`, `${forecast.dates[2]} คาดความต้องการ`,
-    "เนื้อสด", "รอบสั่งลูกค้า (วัน)", "รอบซื้อ SKU (วัน)", "รอบคาดการณ์ (วัน)", "ความเชื่อมั่น",
+    "เนื้อสด", "รอบสั่งลูกค้า (วัน)", "รอบซื้อ SKU (วัน)", "รอบคาดการณ์ (วัน)", "ความเชื่อมั่น", "โอกาสเลือกหน่วยนี้เมื่อสั่ง SKU (%)",
     ...forecast.dates.flatMap((date) => [`${date} รับออเดอร์แล้ว`, `${date} คาดการณ์เพิ่ม`, `${date} โอกาสสั่งเพิ่ม (%)`, `${date} ปริมาณหากสั่ง`]),
     "เวลาที่ลูกค้ามักสั่ง (เทียบวันส่ง)", "ตัวอย่างเวลาออเดอร์ (ครั้ง)",
   ];
@@ -236,7 +236,7 @@ function excelResponse(forecast: StockForecast) {
       row.customerCode, row.customerName, row.sku, row.productName, row.unit,
        row.yesterdayRequestedQty, row.todayRequestedQty, ...row.days.map((day) => day.totalQty),
       row.freshMeat ? "ใช่" : "ไม่ใช่", row.customerCadenceDays ?? "", row.skuCadenceDays ?? "",
-      row.effectiveCadenceDays ?? "", row.confidence,
+      row.effectiveCadenceDays ?? "", row.confidence, Math.round(row.conditionalUnitShare * 1000) / 10,
       ...row.days.flatMap((day) => [day.knownQty, day.projectedQty, Math.round((day.projectedProbability ?? 0) * 1000) / 10, day.possibleQty ?? 0]),
       describeCustomerOrderTime(row.customerUsualOrderOffsetMinutes, row.customerOrderTimingSamples), row.customerOrderTimingSamples,
     ]),
@@ -249,12 +249,12 @@ function excelResponse(forecast: StockForecast) {
   sheet["!cols"] = [
     { wch: 17 }, { wch: 35 }, { wch: 17 }, { wch: 44 }, { wch: 12 },
     ...Array.from({ length: 5 }, () => ({ wch: 23 })),
-    { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 14 },
+    { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 14 }, { wch: 33 },
     ...forecast.dates.flatMap(() => [{ wch: 20 }, { wch: 20 }, { wch: 23 }, { wch: 20 }]),
     { wch: 30 }, { wch: 22 },
   ];
   for (let r = 4; r < sheetRows.length; r++) {
-    for (const c of [5, 6, 7, 8, 9, ...Array.from({ length: 12 }, (_, index) => 15 + index)]) {
+    for (const c of [5, 6, 7, 8, 9, 15, ...Array.from({ length: 12 }, (_, index) => 16 + index)]) {
       const cell = sheet[XLSX.utils.encode_cell({ r, c })];
        if (cell) cell.z = "#,##0.0";
     }

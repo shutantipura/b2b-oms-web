@@ -82,3 +82,15 @@ test("days with insufficient prior history are skipped, and score types remain v
   assert.equal(report.skuOccurrenceBrier, null);
   assert.ok(report.limitations.length >= 2);
 });
+
+test("backtest counts each customer-SKU event once even when the customer switches kg to pieces", () => {
+  const baseline = backtestStockForecast(priorOrders, priorItems, customers, asOf);
+  const switching = backtestStockForecast(
+    priorOrders,
+    priorItems.map((row, index) => ({ ...row, unit: index < 3 ? "กก." : "ชิ้น" })),
+    customers,
+    asOf
+  );
+  assert.ok(baseline.scoredSkuOccurrences > 0);
+  assert.equal(switching.scoredSkuOccurrences, baseline.scoredSkuOccurrences);
+});

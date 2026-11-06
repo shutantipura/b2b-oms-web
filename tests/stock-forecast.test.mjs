@@ -76,9 +76,9 @@ test("product mode is not the sum of the zero-valued customer modes", () => {
     days: [{ date: day, knownQty: 0, projectedQty: 0, totalQty: 0, projectedProbability: 0.4, possibleQty: 1 }],
   }));
   const [product] = aggregateForecastByProduct(rows, [day]);
-  assert.equal(product.days[0].projectedQty, 4);
-  assert.equal(product.days[0].totalQty, 4);
-  assert.ok(product.customers.every((c) => c.days[0].projectedQty === 0));
+  assert.equal(product.units[0].days[0].projectedQty, 4);
+  assert.equal(product.units[0].days[0].totalQty, 4);
+  assert.ok(product.units[0].customers.every((c) => c.days[0].projectedQty === 0));
 });
 
 test("three-day ordering cadence changes probability as days pass without a new order", () => {
@@ -396,12 +396,14 @@ test("product forecast sums all customers into the same SKU for each of three da
   assert.equal(result.length, 1);
   assert.equal(result[0].customerCount, 2);
   assert.equal(result[0].freshMeat, true);
-  assert.equal(result[0].yesterdayRequestedQty, 8);
-  assert.equal(result[0].todayRequestedQty, 13.25);
-  assert.deepEqual(result[0].days.map((day) => [day.knownQty, day.projectedQty, day.totalQty]), [
+  assert.equal(result[0].units.length, 1);
+  const kilos = result[0].units[0];
+  assert.equal(kilos.yesterdayRequestedQty, 8);
+  assert.equal(kilos.todayRequestedQty, 13.25);
+  assert.deepEqual(kilos.days.map((day) => [day.knownQty, day.projectedQty, day.totalQty]), [
     [13.25, 4, 17.25], [2, 3.5, 5.5], [4, 3, 7],
   ]);
-  assert.equal(result[0].customers.length, 2);
+  assert.equal(kilos.customers.length, 2);
 });
 
 test("SKU totals never combine incompatible units or mismatched dates", () => {
@@ -416,16 +418,64 @@ test("SKU totals never combine incompatible units or mismatched dates", () => {
     { ...base, unit: "ชิ้น", days: [{ date: dates[1], knownQty: 2, projectedQty: 0, totalQty: 2 }] },
     { ...base, customerId: "c2", unit: "กก.", days: [{ date: dates[0], knownQty: 0, projectedQty: 0.125, totalQty: 0.125 }] },
   ], dates);
-  assert.equal(result.length, 2);
-  const kilos = result.find((row) => row.unit === "กก.");
-  const pieces = result.find((row) => row.unit === "ชิ้น");
-  assert.equal(kilos.customerCount, 2);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].units.length, 2);
+  assert.equal(result[0].customerCount, 2);
+  const kilos = result[0].units.find((row) => row.unit === "กก.");
+  const pieces = result[0].units.find((row) => row.unit === "ชิ้น");
+  assert.equal(kilos.customers.length, 2);
   assert.equal(kilos.yesterdayRequestedQty, 4);
   assert.equal(pieces.yesterdayRequestedQty, 2);
   assert.equal(kilos.days[0].totalQty, 1.36);
   assert.equal(kilos.days[1].totalQty, 0);
   assert.equal(pieces.days[0].totalQty, 0);
   assert.equal(pieces.days[1].totalQty, 2);
+});
+
+test("unit switching preserves one periodic customer-SKU event and conditions the unit choice", () => {
+  const days = ["2026-10-18", "2026-10-21", "2026-10-24", "2026-10-27", "2026-10-30", "2026-11-02"];
+  const orders = days.map((day, i) => makeOrder(`shift${i}`, day));
+  const items = days.map((_, i) => ({
+    ...makeItem(`shift${i}`, "051262358", i < 3 ? 20 : 8, "Fresh Meat", "ซีพี คากิ"),
+    unit: i < 3 ? "กก." : "ชิ้น",
+  }));
+  const forecast = buildStockForecast(orders, items, [customer], now);
+  const rows = forecast.rows.filter((row) => row.sku === "051262358");
+  assert.equal(rows.length, 2);
+  assert.deepEqual(new Set(rows.map((row) => row.unit)), new Set(["กก.", "ชิ้น"]));
+  assert.ok(rows.every((row) => row.skuCadenceDays === 3));
+  assert.ok(rows.every((row) => row.purchaseDays === 6));
+  const kg = rows.find((row) => row.unit === "กก.");
+  const pieces = rows.find((row) => row.unit === "ชิ้น");
+  assert.ok(Math.abs(kg.conditionalUnitShare + pieces.conditionalUnitShare - 1) < 1e-12);
+  assert.ok(pieces.conditionalUnitShare > kg.conditionalUnitShare);
+  for (let i = 0; i < forecast.dates.length; i++) {
+    assert.ok((kg.days[i].projectedProbability ?? 0) + (pieces.days[i].projectedProbability ?? 0) <= 1 + 1e-12);
+    assert.ok(!(kg.days[i].projectedQty > 0 && pieces.days[i].projectedQty > 0), "one customer cannot have two speculative unit modes");
+  }
+  assert.ok(pieces.days[1].projectedProbability > kg.days[1].projectedProbability, "recent pieces should be more probable");
+  assert.equal(aggregateForecastByProduct(rows, forecast.dates).length, 1);
+});
+
+test("a booked SKU in another unit suppresses alternative speculative demand but keeps exact requested quantities", () => {
+  const days = ["2026-10-18", "2026-10-21", "2026-10-24", "2026-10-27", "2026-10-30", "2026-11-02"];
+  const priorOrders = days.map((day, i) => makeOrder(`shift${i}`, day));
+  const orders = [
+    ...priorOrders,
+    { ...makeOrder("today-pieces", "2026-11-04", "awaiting_picking"), createdAt: "2026-11-03T19:00:00+07:00" },
+    { ...makeOrder("today-kg", "2026-11-04", "awaiting_picking"), createdAt: "2026-11-03T20:00:00+07:00" },
+  ];
+  const items = [
+    ...priorOrders.map((order, i) => ({ ...makeItem(order.id, "051262358", 20, "Fresh Meat", "คากิ"), unit: i < 3 ? "กก." : "ชิ้น" })),
+    { ...makeItem("today-pieces", "051262358", 12, "Fresh Meat", "คากิ"), unit: "ชิ้น", confirmedQty: 0, actualQty: 0 },
+    { ...makeItem("today-kg", "051262358", 4, "Fresh Meat", "คากิ"), unit: "กก.", confirmedQty: 0, actualQty: 0 },
+  ];
+  const forecast = buildStockForecast(orders, items, [customer], now);
+  const product = aggregateForecastByProduct(forecast.rows, forecast.dates)[0];
+  assert.equal(product.units.find((unit) => unit.unit === "ชิ้น").days[0].knownQty, 12);
+  assert.equal(product.units.find((unit) => unit.unit === "กก.").days[0].knownQty, 4);
+  assert.ok(product.units.every((unit) => unit.days[0].projectedQty === 0));
+  assert.ok(product.units.every((unit) => unit.days[0].projectedProbability === undefined || unit.days[0].projectedProbability === 0));
 });
 
 test("product list is prioritised by tomorrow's forecast volume, highest first", () => {

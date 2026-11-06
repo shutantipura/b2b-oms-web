@@ -57,8 +57,8 @@ function productKey(sku: string, unit: string) {
   return JSON.stringify([sku, normalizeDemandUnit(unit)]);
 }
 
-function skuCustomerKey(customerId: string, sku: string, unit: string) {
-  return JSON.stringify([customerId, sku, normalizeDemandUnit(unit)]);
+function skuCustomerKey(customerId: string, sku: string) {
+  return JSON.stringify([customerId, sku]);
 }
 
 function percentError(error: number, actual: number) {
@@ -107,7 +107,7 @@ export function backtestStockForecast(
     daily.set(key, (daily.get(key) ?? 0) + item.requestedQty);
     requestedByDate.set(date, daily);
 
-    const customerKey = skuCustomerKey(order.customerId, item.sku, item.unit);
+    const customerKey = skuCustomerKey(order.customerId, item.sku);
     const customerDaily = requestedByDateCustomer.get(date) ?? new Map<string, number>();
     customerDaily.set(customerKey, (customerDaily.get(customerKey) ?? 0) + item.requestedQty);
     requestedByDateCustomer.set(date, customerDaily);
@@ -130,10 +130,10 @@ export function backtestStockForecast(
     if (cutoff > asOf) continue;
     const forecast = buildStockForecast(orders, items, customers, cutoff);
     const predictions = aggregateForecastByProduct(forecast.rows, forecast.dates);
-    const forecastByProduct = new Map(predictions.map((row) => [
-      productKey(row.sku, row.unit),
-      { total: row.days[1]?.totalQty ?? 0, booked: row.days[1]?.knownQty ?? 0 },
-    ]));
+    const forecastByProduct = new Map(predictions.flatMap((product) => product.units.map((unit) => [
+      productKey(product.sku, unit.unit),
+      { total: unit.days[1]?.totalQty ?? 0, booked: unit.days[1]?.knownQty ?? 0 },
+    ] as const)));
     const actual = requestedByDate.get(deliveryDate) ?? new Map<string, number>();
     const keys = new Set([...actual.keys(), ...forecastByProduct.keys()]);
     const dailyByUnit = new Map<string, {
@@ -155,14 +155,23 @@ export function backtestStockForecast(
       dailyByUnit.set(unit, daily);
     }
 
-    // Brier scores evaluate predicted customer-SKU *additional* order events.
-    // The sample is restricted to SKUs the model had enough context to score.
+    // Score each customer's SKU event once, regardless of unit; unit switches
+    // do not create an additional repeat-order opportunity.
     const customerActual = requestedByDateCustomer.get(deliveryDate) ?? new Map<string, number>();
+    const alreadyBooked = new Set(forecast.rows
+      .filter((row) => (row.days[1]?.knownQty ?? 0) > 0)
+      .map((row) => skuCustomerKey(row.customerId, row.sku)));
+    const customerSkuProbability = new Map<string, number>();
     for (const row of forecast.rows) {
       const day = row.days[1];
-      if (!day || day.knownQty > 0 || day.projectedProbability === undefined || day.possibleQty === 0) continue;
-      const observed = (customerActual.get(skuCustomerKey(row.customerId, row.sku, row.unit)) ?? 0) > 0 ? 1 : 0;
-      brierTotal += (day.projectedProbability - observed) ** 2;
+      if (!day || day.projectedProbability === undefined || day.possibleQty === 0) continue;
+      const key = skuCustomerKey(row.customerId, row.sku);
+      if (alreadyBooked.has(key)) continue;
+      customerSkuProbability.set(key, (customerSkuProbability.get(key) ?? 0) + day.projectedProbability);
+    }
+    for (const [key, probability] of customerSkuProbability) {
+      const observed = (customerActual.get(key) ?? 0) > 0 ? 1 : 0;
+      brierTotal += (Math.min(1, probability) - observed) ** 2;
       brierCount++;
     }
 
