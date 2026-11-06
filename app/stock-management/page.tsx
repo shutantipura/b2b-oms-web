@@ -283,7 +283,7 @@ export default function StockManagementPage() {
 
           {forecast && (
             <div className="mt-5 rounded-xl border border-[#DDEEEA] p-2">
-              <p className="px-2 pt-1 text-xs font-extrabold text-[#436F66]">สรุปเนื้อสดทั้งหมด (กก.)</p>
+              <p className="px-2 pt-1 text-xs font-extrabold text-[#436F66]">สรุปเนื้อสดทั้งหมด (กก. รวมชิ้นที่เทียบเป็นน้ำหนักได้)</p>
               <FivePeriodGrid
                 yesterdayDate={forecast.yesterdayDate}
                 yesterdayRequestedQty={productForecast.filter((row) => row.freshMeat).flatMap((row) => row.units.filter((unit) => unit.unit === "กก.")).reduce((sum, unit) => sum + unit.yesterdayRequestedQty, 0)}
@@ -342,6 +342,21 @@ export default function StockManagementPage() {
                     <div className="border-b border-[#E0EEEA] bg-[#F4FAF8] p-3 sm:p-4">
                       <h4 className="text-base font-black text-[#17453F] sm:text-lg">{product.productName}</h4>
                       <p className="mt-1 text-xs font-bold text-[#008B8B]">SKU {product.sku} · {product.customerCount} ลูกค้า · {product.units.length} หน่วยนับ</p>
+                      {forecast.weightConversions?.[product.sku] && (
+                        <p className="mt-2 rounded-lg bg-[#E5F5F0] px-3 py-2 text-xs font-semibold leading-5 text-[#27675E]">
+                          ชิ้น → กก. ≈ {forecast.weightConversions[product.sku].kgPerPiece.toFixed(2)} กก./ชิ้น
+                          {" · "}{forecast.weightConversions[product.sku].source === "measured" ? "อ้างอิงน้ำหนักชั่งจริง" : "ประมาณจากข้อมูลหยิบเก่าที่ไม่มีจำนวนชิ้นจริง"}
+                          {" "}({forecast.weightConversions[product.sku].sampleCount} รายการ)
+                          {forecast.weightConversions[product.sku].confidence === "low" && " · ความเชื่อมั่นต่ำ"}
+                          {(forecast.originalPieceDemand?.[product.sku]?.today ?? 0) > 0 &&
+                            ` · ยอดขอสั่งวันส่งวันนี้ ${qty(forecast.originalPieceDemand[product.sku].today)} ชิ้น`}
+                        </p>
+                      )}
+                      {forecast.missingWeightConversions?.includes(product.sku) && (
+                        <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800">
+                          ยังไม่มีหลักฐานน้ำหนัก/ชิ้นเพียงพอ · ยอดชิ้นจะแสดงแยก ไม่สมมติว่ามีน้ำหนักเท่ากับ 1 กก.
+                        </p>
+                      )}
                       {product.freshMeat && <p className="mt-1 text-[11px] font-semibold text-[#A46B00]">เนื้อสด: คาดตามรอบสั่งจริง · อายุสินค้าใช้ในขั้นวางแผนสต็อก</p>}
                     </div>
                     {product.units.map((unit) => (
@@ -384,7 +399,7 @@ export default function StockManagementPage() {
               <p className="mt-3 text-xs leading-5 text-[#6E8982]">
                  ยอดสั่ง = ปริมาณที่ลูกค้าขอสั่งก่อนเช็คสต็อก/หยิบ/ออกบิล (ไม่นับออเดอร์ยกเลิก) โดยจัดตามวันส่ง/รับสินค้า ไม่ใช่วันที่ลูกค้ากดสั่ง · คาดปิดวันนี้รวมยอดที่สั่งแล้ว จึงไม่นับซ้ำ · ค่ารายลูกค้าเลือกปริมาณเต็มเมื่อมีโอกาสเกิน 50% · ค่ารวมสินค้าเลือกปริมาณที่น่าจะเกิดขึ้นมากที่สุดจากการรวมความเป็นไปได้ของทุกลูกค้า จึงอาจไม่เท่าผลรวมค่ารายลูกค้า
               </p>
-              <p className="mt-1 text-xs leading-5 text-[#6E8982]">1 SKU แสดงเพียง 1 การ์ด แยกยอด กก./ชิ้น ภายใน โดยไม่แปลงหรือบวกหน่วยต่างกัน · รอบซื้อ SKU นับรวมทุกหน่วย แต่โอกาสสั่งเพิ่มจะกระจายไปตามหน่วยที่ลูกค้าใช้ล่าสุด · ยอดขายจริงย้อนหลัง 14 วันด้านล่างยังนับจำนวนหยิบ/ออกบิลตามเดิม</p>
+              <p className="mt-1 text-xs leading-5 text-[#6E8982]">สินค้าขายตามน้ำหนักที่ลูกค้าขอสั่งเป็นชิ้น จะเทียบเป็น กก. จากน้ำหนักชั่งจริงย้อนหลังของ SKU นั้นก่อนคำนวณรอบซื้อและปริมาณ · ค่าจากการแปลงเป็นน้ำหนักประมาณการ ไม่ใช่น้ำหนักรับประกัน · หากไม่มีข้อมูลแปลงที่เชื่อถือได้ จะคงยอดชิ้นแยกและแจ้งเตือน · ยอดขายจริงย้อนหลัง 14 วันด้านล่างยังนับจำนวนหยิบ/ออกบิลตามเดิม</p>
               <button
                 type="button"
                 disabled={forecastDownloading}
@@ -397,7 +412,7 @@ export default function StockManagementPage() {
           )}
 
           <div className="mt-5 rounded-xl border border-[#F5E4B4] bg-[#FFF9E8] p-4 text-xs leading-6 text-[#806A30]">
-            ระบบใช้ประวัติวันส่งย้อนหลังสูงสุด 90 วัน · เรียนรู้ความถี่การสั่งจากช่วงห่างจริงระหว่างวันส่ง และปรับเผื่อกรณีประวัติน้อย · การสั่ง SKU ใดก็ตามจะเริ่มนับรอบการสั่งรวมของลูกค้าใหม่ ส่วนรอบซื้อ SKU จะเริ่มใหม่เมื่อสั่งสินค้านั้น · เมื่อเลยช่วงเวลาที่มักกดสั่ง จะใช้ความน่าจะเป็นแบบมีเงื่อนไขว่าลูกค้ายังไม่สั่ง · ปริมาณต่อครั้งใช้ค่ากลางที่ทนต่อออเดอร์ใหญ่ผิดปกติ · เนื้อสดไม่ถูกสมมติให้ลูกค้าสั่งถี่ขึ้นเพียงเพราะสินค้าต้องสด
+            ระบบใช้ประวัติวันส่งย้อนหลังสูงสุด 90 วัน · เรียนรู้ความถี่การสั่งจากช่วงห่างจริงระหว่างวันส่ง และปรับเผื่อกรณีประวัติน้อย · การสั่ง SKU ใดก็ตามจะเริ่มนับรอบการสั่งรวมของลูกค้าใหม่ ส่วนรอบซื้อ SKU จะเริ่มใหม่เมื่อสั่งสินค้านั้น · เมื่อเลยช่วงเวลาที่มักกดสั่ง จะใช้ความน่าจะเป็นแบบมีเงื่อนไขว่าลูกค้ายังไม่สั่ง · ปริมาณต่อครั้งใช้ค่ากลางที่ทนต่อออเดอร์ใหญ่ผิดปกติ · น้ำหนัก/ชิ้นใช้ค่ากลางจากน้ำหนักชั่งจริงก่อนเวลาคาดการณ์ ไม่ใช้ข้อมูลอนาคตในการทดสอบย้อนหลัง · เนื้อสดไม่ถูกสมมติให้ลูกค้าสั่งถี่ขึ้นเพียงเพราะสินค้าต้องสด
             · ลูกค้าที่มีประวัติน้อยยังไม่ควรใช้คาดการณ์นี้สั่งสินค้าโดยตรง
           </div>
         </section>

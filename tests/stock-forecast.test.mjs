@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   aggregateForecastByProduct, buildStockForecast, conditionalOrderProbability,
-  describeCustomerOrderTime, isFreshMeat, mostLikelyAggregateQty, mostLikelyOrderQty,
+  describeCustomerOrderTime, estimatePieceWeights, isFreshMeat, mostLikelyAggregateQty, mostLikelyOrderQty,
+  normaliseForecastQuantity,
   observedRepeatProbability, probabilityAfterNoOrderYet, recencyWeightedMedian,
   remainingOrderWindowShare,
 } from "../lib/stockForecast.ts";
@@ -476,6 +477,74 @@ test("a booked SKU in another unit suppresses alternative speculative demand but
   assert.equal(product.units.find((unit) => unit.unit === "กก.").days[0].knownQty, 4);
   assert.ok(product.units.every((unit) => unit.days[0].projectedQty === 0));
   assert.ok(product.units.every((unit) => unit.days[0].projectedProbability === undefined || unit.days[0].projectedProbability === 0));
+});
+
+test("weighed-by-piece requests join kg demand using historical kg per picked piece, never today's short pick", () => {
+  const orders = [
+    makeOrder("kg-old", "2026-10-25"),
+    makeOrder("piece-old", "2026-10-29"),
+    { ...makeOrder("piece-today", "2026-11-04", "awaiting_payment"), createdAt: "2026-11-03T18:00:00+07:00" },
+  ];
+  const items = [
+    { ...makeItem("kg-old", "051262358", 8, "Fresh Meat", "คากิ"), masterUnit: "กก." },
+    { ...makeItem("piece-old", "051262358", 10, "Fresh Meat", "คากิ"), unit: "ชิ้น", masterUnit: "กก.",
+      confirmedQty: 10, actualPieceQty: 8, actualQty: 16, piecePricePerKg: 51, updatedAt: "2026-10-29T09:00:00+07:00" },
+    { ...makeItem("piece-today", "051262358", 12, "Fresh Meat", "คากิ"), unit: "ชิ้น", masterUnit: "กก.",
+      confirmedQty: 12, actualPieceQty: 10, actualQty: 19, piecePricePerKg: 51, updatedAt: "2026-11-04T12:00:00+07:00" },
+  ];
+  const result = buildStockForecast(orders, items, [customer], now);
+  const product = aggregateForecastByProduct(result.rows, result.dates)[0];
+  assert.deepEqual(product.units.map((unit) => unit.unit), ["กก."]);
+  assert.equal(product.units[0].todayRequestedQty, 24);
+  assert.equal(product.units[0].days[0].knownQty, 24);
+  assert.equal(result.originalPieceDemand["051262358"].today, 12);
+  assert.equal(result.weightConversions["051262358"].kgPerPiece, 2);
+  assert.equal(result.weightConversions["051262358"].source, "measured");
+  assert.equal(result.weightConversions["051262358"].confidence, "low");
+  assert.deepEqual(normaliseForecastQuantity("051262358", "ชิ้น", 12, result.weightConversions), { unit: "กก.", quantity: 24 });
+});
+
+test("historical weight estimator prefers measured piece counts and resists a one-off heavy leg", () => {
+  const ratios = [2.06, 2.188, 2.037, 2.005, 2.148, 2.084, 2.213, 2.530, 2.536, 2.857];
+  const orders = ratios.map((_, index) => makeOrder(`w${index}`, "2026-10-29"));
+  const items = ratios.map((ratio, index) => ({
+    ...makeItem(`w${index}`, "051262358", 1, "Fresh Meat", "คากิ"), unit: "ชิ้น", masterUnit: "กก.",
+    actualQty: ratio, actualPieceQty: 1, confirmedQty: 1, piecePricePerKg: 51,
+    updatedAt: `2026-10-${String(21 + index).padStart(2, "0")}T12:00:00+07:00`,
+  }));
+  const { conversions } = estimatePieceWeights(orders, items, [customer], now);
+  assert.equal(conversions["051262358"].kgPerPiece, 2.213);
+  assert.equal(conversions["051262358"].source, "measured");
+  assert.equal(conversions["051262358"].sampleCount, 10);
+});
+
+test("legacy missing piece-count weighing can provide a visibly low-confidence estimate", () => {
+  const orders = [makeOrder("legacy", "2026-10-28")];
+  const items = [{
+    ...makeItem("legacy", "051262821", 2, "Fresh Meat", "สะโพกแต่งตัดชิ้น"),
+    unit: "ชิ้น", masterUnit: "กก.", confirmedQty: 2, actualPieceQty: null,
+    actualQty: 1.104, piecePricePerKg: 119, updatedAt: "2026-10-28T09:00:00+07:00",
+  }];
+  const result = buildStockForecast(orders, items, [customer], now);
+  assert.equal(result.weightConversions["051262821"].kgPerPiece, 0.552);
+  assert.equal(result.weightConversions["051262821"].source, "legacy_estimate");
+  assert.equal(result.weightConversions["051262821"].confidence, "low");
+  assert.deepEqual(normaliseForecastQuantity("051262821", "ชิ้น", 2, result.weightConversions),
+    { unit: "กก.", quantity: 1.104 });
+});
+
+test("a weight recorded after the as-of time must not leak into earlier demand forecasts", () => {
+  const orders = [makeOrder("future-weight", "2026-10-29")];
+  const items = [{
+    ...makeItem("future-weight", "051262358", 8, "Fresh Meat", "คากิ"),
+    unit: "ชิ้น", masterUnit: "กก.", confirmedQty: 8, actualQty: 16,
+    actualPieceQty: 8, piecePricePerKg: 51, updatedAt: "2026-11-05T10:00:00+07:00",
+  }];
+  const result = buildStockForecast(orders, items, [customer], now);
+  assert.equal(result.weightConversions["051262358"], undefined);
+  assert.deepEqual(result.missingWeightConversions, ["051262358"]);
+  assert.deepEqual(normaliseForecastQuantity("051262358", "ชิ้น", 8, result.weightConversions),
+    { unit: "ชิ้น", quantity: 8 });
 });
 
 test("product list is prioritised by tomorrow's forecast volume, highest first", () => {

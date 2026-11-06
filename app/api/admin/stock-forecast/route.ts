@@ -32,8 +32,13 @@ type DbItem = {
   product_name_snapshot: string;
   unit_snapshot: string;
   requested_qty: number | string | null;
+  confirmed_qty: number | string | null;
+  actual_qty: number | string | null;
+  actual_piece_qty: number | string | null;
+  piece_price_per_kg_snapshot: number | string | null;
+  updated_at: string | null;
 };
-type DbProduct = { id: string; sku: string | null; product_name: string | null; category: string | null };
+type DbProduct = { id: string; sku: string | null; product_name: string | null; category: string | null; unit: string | null };
 type DbCustomer = {
   id: string;
   customer_code: string | null;
@@ -101,7 +106,7 @@ async function itemsForOrders(admin: SupabaseClient, ids: string[]) {
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await admin
         .from("order_items")
-        .select("order_id, product_id, product_name_snapshot, unit_snapshot, requested_qty")
+        .select("order_id, product_id, product_name_snapshot, unit_snapshot, requested_qty, confirmed_qty, actual_qty, actual_piece_qty, piece_price_per_kg_snapshot, updated_at")
         .in("order_id", chunk)
         .order("id", { ascending: true })
         .range(offset, offset + 499);
@@ -116,7 +121,7 @@ async function itemsForOrders(admin: SupabaseClient, ids: string[]) {
 async function productsById(admin: SupabaseClient, ids: string[]) {
   const result = new Map<string, DbProduct>();
   for (const chunk of batch(ids)) {
-    const { data, error } = await admin.from("products").select("id, sku, product_name, category").in("id", chunk);
+    const { data, error } = await admin.from("products").select("id, sku, product_name, category, unit").in("id", chunk);
     if (error) throw error;
     for (const row of (data ?? []) as DbProduct[]) result.set(row.id, row);
   }
@@ -173,8 +178,14 @@ async function loadForecast(admin: SupabaseClient, extraHistoryDays = 0) {
       sku: /^\d{1,9}$/.test(rawSku) ? rawSku.padStart(9, "0") : rawSku || item.product_id,
       productName: item.product_name_snapshot || product?.product_name || "ไม่ระบุสินค้า",
       unit: item.unit_snapshot ?? "",
+      masterUnit: product?.unit ?? null,
       category: product?.category ?? null,
       requestedQty: numeric(item.requested_qty),
+      confirmedQty: numeric(item.confirmed_qty),
+      actualQty: numeric(item.actual_qty),
+      actualPieceQty: numeric(item.actual_piece_qty),
+      piecePricePerKg: numeric(item.piece_price_per_kg_snapshot),
+      updatedAt: item.updated_at,
     };
   });
   return {
@@ -192,15 +203,20 @@ function excelResponse(forecast: StockForecast) {
     "SKU", "ชื่อสินค้า", "หน่วย", "จำนวนลูกค้า", "เนื้อสด",
     `${forecast.yesterdayDate} ยอดสั่ง`, `${forecast.dates[0]} สั่งแล้วถึงตอนนี้`,
     `${forecast.dates[0]} คาดยอดสั่งปิดวัน`, `${forecast.dates[1]} คาดความต้องการ`, `${forecast.dates[2]} คาดความต้องการ`,
+    "เทียบ กก./ชิ้น", "แหล่งน้ำหนักต่อชิ้น", "จำนวนตัวอย่าง", "ยอดขอสั่งเดิมวันนี้ (ชิ้น)",
   ];
   const summaryRows: (number | string)[][] = [
     ["Lotus’s B2B · พยากรณ์ความต้องการรวมตามสินค้า (ทุกลูกค้า)"],
-    [`อัปเดต ${forecast.asOf} · ปริมาณตามที่ลูกค้าสั่ง (requested_qty) ไม่หักปริมาณที่ขาดสต็อกหรือหยิบไม่ได้ · ยอดคาดการณ์รวมคือค่าที่เป็นไปได้สูงสุดของผลรวมลูกค้าทั้งหมด`],
+    [`อัปเดต ${forecast.asOf} · ใช้ requested_qty · รายการที่สั่งเป็นชิ้นแต่ขายตามน้ำหนักจะแปลงเป็น กก.โดยประมาณจากหลักฐานชั่งน้ำหนักในอดีต · ไม่ใช้ปริมาณที่หยิบจริงแทนยอดขอสั่ง`],
     [],
     summaryHeaders,
     ...products.flatMap((product) => product.units.map((unit) => [
       product.sku, product.productName, unit.unit, product.customerCount, product.freshMeat ? "ใช่" : "ไม่ใช่",
       unit.yesterdayRequestedQty, unit.todayRequestedQty, ...unit.days.map((day) => day.totalQty),
+      forecast.weightConversions[product.sku]?.kgPerPiece ?? "",
+      forecast.weightConversions[product.sku]?.source === "measured" ? "ชั่งจริง" : forecast.weightConversions[product.sku] ? "อนุมานจากบิลเก่า" : "",
+      forecast.weightConversions[product.sku]?.sampleCount ?? "",
+      forecast.originalPieceDemand[product.sku]?.today ?? "",
     ])),
   ];
   const summary = XLSX.utils.aoa_to_sheet(summaryRows);
@@ -211,6 +227,7 @@ function excelResponse(forecast: StockForecast) {
   summary["!cols"] = [
     { wch: 17 }, { wch: 48 }, { wch: 13 }, { wch: 17 }, { wch: 12 },
     ...Array.from({ length: 5 }, () => ({ wch: 23 })),
+    { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 28 },
   ];
   for (let r = 4; r < summaryRows.length; r++) {
     for (let c = 5; c < summaryHeaders.length; c++) {
@@ -226,10 +243,11 @@ function excelResponse(forecast: StockForecast) {
     "เนื้อสด", "รอบสั่งลูกค้า (วัน)", "รอบซื้อ SKU (วัน)", "รอบคาดการณ์ (วัน)", "ความเชื่อมั่น", "โอกาสเลือกหน่วยนี้เมื่อสั่ง SKU (%)",
     ...forecast.dates.flatMap((date) => [`${date} รับออเดอร์แล้ว`, `${date} คาดการณ์เพิ่ม`, `${date} โอกาสสั่งเพิ่ม (%)`, `${date} ปริมาณหากสั่ง`]),
     "เวลาที่ลูกค้ามักสั่ง (เทียบวันส่ง)", "ตัวอย่างเวลาออเดอร์ (ครั้ง)",
+    "เทียบ กก./ชิ้น", "แหล่งน้ำหนักต่อชิ้น", "จำนวนตัวอย่างน้ำหนัก",
   ];
   const sheetRows: (number | string)[][] = [
     ["Lotus’s B2B · พยากรณ์ความต้องการสินค้า 3 วัน (สำหรับวางแผนเท่านั้น)"],
-    [`อัปเดต ${forecast.asOf} · ใช้ปริมาณที่ลูกค้าขอสั่งก่อนเช็คสต็อก/หยิบ/ออกบิล · โอกาสต่อ SKU ขึ้นกับรอบสั่งลูกค้า + รอบซื้อ SKU + เวลาออเดอร์ · เนื้อสดคาดตามความถี่การสั่งจริง`],
+    [`อัปเดต ${forecast.asOf} · ยอดขอสั่งตามวันส่ง · SKU ชั่งน้ำหนักที่ขอเป็นชิ้นเทียบ กก. จากน้ำหนักชั่งจริงในประวัติก่อนเวลาคาดการณ์ · ใช้รอบสั่งลูกค้า + รอบ SKU + เวลาออเดอร์`],
     [],
     headers,
     ...forecast.rows.map((row) => [
@@ -239,6 +257,9 @@ function excelResponse(forecast: StockForecast) {
       row.effectiveCadenceDays ?? "", row.confidence, Math.round(row.conditionalUnitShare * 1000) / 10,
       ...row.days.flatMap((day) => [day.knownQty, day.projectedQty, Math.round((day.projectedProbability ?? 0) * 1000) / 10, day.possibleQty ?? 0]),
       describeCustomerOrderTime(row.customerUsualOrderOffsetMinutes, row.customerOrderTimingSamples), row.customerOrderTimingSamples,
+      forecast.weightConversions[row.sku]?.kgPerPiece ?? "",
+      forecast.weightConversions[row.sku]?.source === "measured" ? "ชั่งจริง" : forecast.weightConversions[row.sku] ? "อนุมานจากบิลเก่า" : "",
+      forecast.weightConversions[row.sku]?.sampleCount ?? "",
     ]),
   ];
   const sheet = XLSX.utils.aoa_to_sheet(sheetRows);
@@ -251,10 +272,10 @@ function excelResponse(forecast: StockForecast) {
     ...Array.from({ length: 5 }, () => ({ wch: 23 })),
     { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 14 }, { wch: 33 },
     ...forecast.dates.flatMap(() => [{ wch: 20 }, { wch: 20 }, { wch: 23 }, { wch: 20 }]),
-    { wch: 30 }, { wch: 22 },
+    { wch: 30 }, { wch: 22 }, { wch: 18 }, { wch: 24 }, { wch: 20 },
   ];
   for (let r = 4; r < sheetRows.length; r++) {
-    for (const c of [5, 6, 7, 8, 9, 15, ...Array.from({ length: 12 }, (_, index) => 16 + index)]) {
+    for (const c of [5, 6, 7, 8, 9, 15, 30, ...Array.from({ length: 12 }, (_, index) => 16 + index)]) {
       const cell = sheet[XLSX.utils.encode_cell({ r, c })];
        if (cell) cell.z = "#,##0.0";
     }

@@ -2,6 +2,7 @@ import {
   aggregateForecastByProduct,
   bangkokDateKey,
   buildStockForecast,
+  normaliseForecastQuantity,
   normalizeDemandUnit,
   type ForecastCustomerInput,
   type ForecastItemInput,
@@ -96,16 +97,15 @@ export function backtestStockForecast(
     Date.parse(order.createdAt) <= asOf.getTime()
   ).map((order) => [order.id, order]));
 
-  const requestedByDate = new Map<string, Map<string, number>>();
+  const requestedItemsByDate = new Map<string, ForecastItemInput[]>();
   const requestedByDateCustomer = new Map<string, Map<string, number>>();
   for (const item of items) {
     const order = validOrders.get(item.orderId);
     if (!order?.deliveryDate || item.requestedQty === null || !Number.isFinite(item.requestedQty) || item.requestedQty <= 0) continue;
     const date = order.deliveryDate;
-    const key = productKey(item.sku, item.unit);
-    const daily = requestedByDate.get(date) ?? new Map<string, number>();
-    daily.set(key, (daily.get(key) ?? 0) + item.requestedQty);
-    requestedByDate.set(date, daily);
+    const dailyItems = requestedItemsByDate.get(date) ?? [];
+    dailyItems.push(item);
+    requestedItemsByDate.set(date, dailyItems);
 
     const customerKey = skuCustomerKey(order.customerId, item.sku);
     const customerDaily = requestedByDateCustomer.get(date) ?? new Map<string, number>();
@@ -134,7 +134,14 @@ export function backtestStockForecast(
       productKey(product.sku, unit.unit),
       { total: unit.days[1]?.totalQty ?? 0, booked: unit.days[1]?.knownQty ?? 0 },
     ] as const)));
-    const actual = requestedByDate.get(deliveryDate) ?? new Map<string, number>();
+    // Use the *cutoff-time* kg/pc calibration on the held-out requested pieces.
+    // Using weights learned after the cutoff would leak future information.
+    const actual = new Map<string, number>();
+    for (const item of requestedItemsByDate.get(deliveryDate) ?? []) {
+      const normalized = normaliseForecastQuantity(item.sku, item.unit, item.requestedQty!, forecast.weightConversions);
+      const key = productKey(item.sku, normalized.unit);
+      actual.set(key, (actual.get(key) ?? 0) + normalized.quantity);
+    }
     const keys = new Set([...actual.keys(), ...forecastByProduct.keys()]);
     const dailyByUnit = new Map<string, {
       actual: number; forecast: number; booked: number; error: number; bookedError: number; skuCount: number;

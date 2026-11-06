@@ -33,8 +33,15 @@ export type ForecastItemInput = {
   sku: string;
   productName: string;
   unit: string;
+  /** Product-master selling unit, distinct from the customer's order unit. */
+  masterUnit?: string | null;
   category: string | null;
   requestedQty: number | null;
+  confirmedQty?: number | null;
+  actualQty?: number | null;
+  actualPieceQty?: number | null;
+  piecePricePerKg?: number | null;
+  updatedAt?: string | null;
 };
 
 export type ForecastCustomerInput = {
@@ -84,7 +91,29 @@ export type StockForecast = {
   dates: string[];
   historyDays: number;
   rows: ForecastRow[];
+  /** Original unit is preserved in OMS; only the demand estimate is normalised. */
+  weightConversions: Record<string, PieceWeightConversion>;
+  originalPieceDemand: Record<string, { yesterday: number; today: number }>;
+  missingWeightConversions: string[];
 };
+
+export type PieceWeightConversion = {
+  kgPerPiece: number;
+  sampleCount: number;
+  source: "measured" | "legacy_estimate";
+  confidence: "medium" | "low";
+};
+
+/** Converts to kg only where the SKU has a defensible, as-of-time weight estimate. */
+export function normaliseForecastQuantity(
+  sku: string, unit: string, requestedQty: number, conversions: Record<string, PieceWeightConversion>
+) {
+  const originalUnit = normalizeDemandUnit(unit);
+  const conversion = conversions[sku];
+  return conversion && originalUnit === "ชิ้น"
+    ? { unit: "กก.", quantity: clampQty(requestedQty * conversion.kgPerPiece) }
+    : { unit: originalUnit, quantity: requestedQty };
+}
 
 export type ProductForecastRow = {
   sku: string;
@@ -300,6 +329,19 @@ export function recencyWeightedMedian(numbers: number[]) {
   return ranked.at(-1)!.value;
 }
 
+/**
+ * Weight per piece is a physical conversion factor, not an ordering preference.
+ * A conventional median of the last seven measured lines keeps it responsive to
+ * genuine size changes without giving a few unusually heavy recent carcasses
+ * the disproportionate influence of the order-quantity recency weighting.
+ */
+function typicalKgPerPiece(ratiosChronological: number[]) {
+  const recent = ratiosChronological.slice(-7).sort((a, b) => a - b);
+  if (!recent.length) return null;
+  const middle = Math.floor(recent.length / 2);
+  return recent.length % 2 ? recent[middle] : (recent[middle - 1] + recent[middle]) / 2;
+}
+
 function purchaseIntervals(dateKeys: string[]) {
   const days = [...new Set(dateKeys)].sort();
   return days.slice(1).map((date, index) => Math.max(1, daysBetween(days[index], date)));
@@ -443,6 +485,64 @@ function conditionalUnitShares(series: Series) {
   return new Map([...weights].map(([unit, weight]) => [unit, total ? weight / total : 0]));
 }
 
+/**
+ * Estimate kg/pc from actual weighing of previously picked pieces. Prefer
+ * recorded piece counts; older records with no count can only provide a weak
+ * estimate when the full confirmed piece count was requested. Never use a
+ * picking measurement written after the forecast's as-of timestamp (backtest
+ * leakage), or assume that a stockout's picked kg equals requested kg.
+ */
+export function estimatePieceWeights(
+  orders: ForecastOrderInput[], items: ForecastItemInput[], customers: ForecastCustomerInput[], asOf: Date
+) {
+  const validCustomers = new Set(customers.filter((customer) => !customer.isTest).map((customer) => customer.id));
+  const validOrders = new Map(orders.filter((order) =>
+    order.status !== "cancelled" && validCustomers.has(order.customerId) &&
+    Number.isFinite(Date.parse(order.createdAt)) && Date.parse(order.createdAt) <= asOf.getTime()
+  ).map((order) => [order.id, order]));
+  const weightSkus = new Set(items.filter((item) => normalizeDemandUnit(item.masterUnit ?? item.unit) === "กก." ||
+    normalizeDemandUnit(item.unit) === "กก.").map((item) => item.sku));
+  const candidates = new Map<string, { ratio: number; at: number; measured: boolean }[]>();
+  const needsWeight = new Set<string>();
+  for (const item of items) {
+    const order = validOrders.get(item.orderId);
+    if (!order || normalizeDemandUnit(item.unit) !== "ชิ้น" || !weightSkus.has(item.sku)) continue;
+    needsWeight.add(item.sku);
+    const measuredAt = Date.parse(item.updatedAt ?? "");
+    if (!Number.isFinite(measuredAt) || measuredAt > asOf.getTime() ||
+        item.actualQty === null || item.actualQty === undefined || item.actualQty <= 0 ||
+        item.piecePricePerKg === null || item.piecePricePerKg === undefined || item.piecePricePerKg <= 0) continue;
+    const measured = item.actualPieceQty != null && item.actualPieceQty > 0;
+    const legacy = item.actualPieceQty == null && item.confirmedQty != null && item.confirmedQty > 0 &&
+      item.requestedQty === item.confirmedQty &&
+      ["completed", "awaiting_payment", "awaiting_delivery", "awaiting_payment_verification"].includes(order.status);
+    if (!measured && !legacy) continue;
+    const count = measured ? item.actualPieceQty! : item.confirmedQty!;
+    const ratio = item.actualQty / count;
+    // Guard against unit-entry errors; no assumed generic kg/pc defaults.
+    if (!Number.isFinite(ratio) || ratio < 0.03 || ratio > 30) continue;
+    const history = candidates.get(item.sku) ?? [];
+    history.push({ ratio, at: measuredAt, measured });
+    candidates.set(item.sku, history);
+  }
+  const conversions: Record<string, PieceWeightConversion> = {};
+  for (const sku of needsWeight) {
+    const history = candidates.get(sku) ?? [];
+    const measured = history.filter((sample) => sample.measured);
+    const used = (measured.length ? measured : history).sort((a, b) => a.at - b.at);
+    if (!used.length) continue;
+    const kgPerPiece = typicalKgPerPiece(used.map((sample) => sample.ratio));
+    if (kgPerPiece === null) continue;
+    conversions[sku] = {
+      kgPerPiece: Math.round(kgPerPiece * 1000) / 1000,
+      sampleCount: used.length,
+      source: measured.length ? "measured" : "legacy_estimate",
+      confidence: measured.length >= 3 ? "medium" : "low",
+    };
+  }
+  return { conversions, missing: [...needsWeight].filter((sku) => !conversions[sku]).sort() };
+}
+
 export function buildStockForecast(
   orders: ForecastOrderInput[],
   items: ForecastItemInput[],
@@ -466,6 +566,9 @@ export function buildStockForecast(
     Date.parse(o.createdAt) <= asOf.getTime()
   );
   const orderById = new Map(activeOrders.map((o) => [o.id, o]));
+  const { conversions: weightConversions, missing: missingWeightConversions } =
+    estimatePieceWeights(activeOrders, items, customers, asOf);
+  const originalPieceDemand: Record<string, { yesterday: number; today: number }> = {};
   const orderDates = new Map<string, string[]>();
   const customerOrderOffsets = new Map<string, { deliveryDate: string; offsetMinutes: number }[]>();
   for (const order of activeOrders) {
@@ -524,9 +627,17 @@ export function buildStockForecast(
     // picking, billing and stockouts must not reduce it.
     const quantity = item.requestedQty;
     if (quantity === null || !Number.isFinite(quantity) || quantity <= 0) continue;
-    // Items requested in pieces must remain pieces, even when the eventual
-    // bill is calculated by weight. Never fabricate a kg conversion.
-    const unit = normalizeDemandUnit(item.unit);
+    // Stock planning is in kg for weight-priced SKUs, even when customers
+    // request pieces. The original requested pieces are retained for audit.
+    const normalized = normaliseForecastQuantity(item.sku, item.unit, quantity, weightConversions);
+    const unit = normalized.unit;
+    const demandQty = normalized.quantity;
+    if (unit === "กก." && normalizeDemandUnit(item.unit) === "ชิ้น") {
+      const raw = originalPieceDemand[item.sku] ?? { yesterday: 0, today: 0 };
+      if (order.deliveryDate === yesterdayDate) raw.yesterday += quantity;
+      if (order.deliveryDate === today) raw.today += quantity;
+      originalPieceDemand[item.sku] = raw;
+    }
     const key = JSON.stringify([order.customerId, item.sku]);
     let series = seriesByKey.get(key);
     if (!series) {
@@ -548,10 +659,10 @@ export function buildStockForecast(
     }
     const serviceDate = order.deliveryDate!;
     if (serviceDate <= today) {
-      unitSeries.requestedByDay.set(serviceDate, (unitSeries.requestedByDay.get(serviceDate) ?? 0) + quantity);
+      unitSeries.requestedByDay.set(serviceDate, (unitSeries.requestedByDay.get(serviceDate) ?? 0) + demandQty);
     }
     if (serviceDate < today || serviceDate > dates[dates.length - 1]) continue;
-    unitSeries.knownByDay.set(serviceDate, (unitSeries.knownByDay.get(serviceDate) ?? 0) + quantity);
+    unitSeries.knownByDay.set(serviceDate, (unitSeries.knownByDay.get(serviceDate) ?? 0) + demandQty);
     // Marker only: quantities cannot be summed across kg and pieces.
     series.knownSkuDays.set(serviceDate, 1);
   }
@@ -639,5 +750,8 @@ export function buildStockForecast(
   }
 
   rows.sort((a, b) => a.customerName.localeCompare(b.customerName, "th") || a.sku.localeCompare(b.sku, "en"));
-  return { asOf: asOf.toISOString(), yesterdayDate, dates, historyDays: FORECAST_HISTORY_DAYS, rows };
+  return {
+    asOf: asOf.toISOString(), yesterdayDate, dates, historyDays: FORECAST_HISTORY_DAYS, rows,
+    weightConversions, originalPieceDemand, missingWeightConversions,
+  };
 }

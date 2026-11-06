@@ -94,3 +94,26 @@ test("backtest counts each customer-SKU event once even when the customer switch
   assert.ok(baseline.scoredSkuOccurrences > 0);
   assert.equal(switching.scoredSkuOccurrences, baseline.scoredSkuOccurrences);
 });
+
+test("backtest scores piece requests as kg using only historical weight calibration", () => {
+  const calibratedPrior = priorItems.map((row, index) => index === 2 || index === 3
+    ? {
+      ...row, unit: "ชิ้น", masterUnit: "กก.", requestedQty: 2,
+      confirmedQty: 2, actualQty: 4, actualPieceQty: 2, piecePricePerKg: 75,
+      updatedAt: `${priorOrders[index].deliveryDate}T12:00:00+07:00`,
+    }
+    : { ...row, masterUnit: "กก." });
+  const late = order("late-pieces", "2026-11-05", "2026-11-04T15:00:00+07:00");
+  const report = backtestStockForecast(
+    [...priorOrders, late],
+    [...calibratedPrior, { ...item("late-pieces", "pork", 3, "ชิ้น"), masterUnit: "กก.",
+      // This later measurement must not revise the historical conversion.
+      actualQty: 9, actualPieceQty: 3, piecePricePerKg: 75, updatedAt: "2026-11-05T15:00:00+07:00" }],
+    customers, asOf
+  );
+  const day = report.days.find((row) => row.deliveryDate === "2026-11-05" && row.unit === "กก.");
+  assert.ok(day);
+  assert.equal(day.actualQty, 6, "three requested pieces x historical 2 kg/pc");
+  assert.equal(day.bookedOnlyQty, 0, "order placed after previous-day noon cutoff");
+  assert.ok(!report.days.some((row) => row.deliveryDate === "2026-11-05" && row.unit === "ชิ้น"));
+});
