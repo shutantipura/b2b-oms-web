@@ -39,9 +39,9 @@ function FivePeriodGrid({ yesterdayDate, yesterdayRequestedQty, todayRequestedQt
   const periods = [
     { label: "สั่งเมื่อวาน", date: yesterdayDate, value: yesterdayRequestedQty, actual: true },
     { label: "สั่งวันนี้", date: days[0].date, value: todayRequestedQty, actual: true },
-    { label: "คาดปิดวันนี้", date: days[0].date, value: days[0].totalQty, actual: false },
-    { label: "คาดพรุ่งนี้", date: days[1].date, value: days[1].totalQty, actual: false },
-    { label: "คาดมะรืน", date: days[2].date, value: days[2].totalQty, actual: false },
+    { label: "คาดปิดวันนี้", date: days[0].date, value: days[0].totalQty, actual: false, known: days[0].knownQty, extra: days[0].projectedQty },
+    { label: "คาดพรุ่งนี้", date: days[1].date, value: days[1].totalQty, actual: false, known: days[1].knownQty, extra: days[1].projectedQty },
+    { label: "คาดมะรืน", date: days[2].date, value: days[2].totalQty, actual: false, known: days[2].knownQty, extra: days[2].projectedQty },
   ];
   return (
     <div className="grid grid-cols-5 gap-1 p-1.5 sm:gap-2 sm:p-2" aria-label="ความต้องการตามคำสั่งซื้อจริงและคาดการณ์ห้าช่วงเวลา">
@@ -50,6 +50,13 @@ function FivePeriodGrid({ yesterdayDate, yesterdayRequestedQty, todayRequestedQt
           <p className="text-[9px] font-extrabold leading-3 text-[#355E57] sm:text-xs sm:leading-4">{period.label}</p>
           <p className="mt-0.5 text-[9px] text-[#77918A] sm:text-[10px]">{period.date.slice(5)}</p>
           <p className={`mt-1 break-words font-black tracking-tight tabular-nums sm:mt-2 ${compact ? "text-xs sm:text-base" : "text-[clamp(0.75rem,2.9vw,1.5rem)] sm:text-xl"} ${period.actual ? "text-[#315C54]" : "text-[#008B8B]"}`}>{forecastQty(period.value)}</p>
+          {!period.actual && (
+            <p className="mt-1 text-[8px] leading-3 text-[#567B72] sm:text-[10px] sm:leading-4">
+              รับแล้ว {forecastQty(period.known ?? 0)}
+              <br />
+              คาดเพิ่ม {forecastQty(period.extra ?? 0)}
+            </p>
+          )}
         </div>
       ))}
     </div>
@@ -393,7 +400,7 @@ export default function StockManagementPage() {
               <p className="text-xs font-extrabold tracking-wide text-[#008B8B]">WALK-FORWARD BACKTEST</p>
               <h2 className="mt-1 text-xl font-black text-[#17453F]">ตรวจสอบความแม่นยำย้อนหลัง</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-[#648279]">
-                ย้อนเวลากลับไปคาดการณ์ ณ 16:00 น. ของวันก่อนส่ง แล้วเทียบกับปริมาณที่ลูกค้าขอสั่งจริงตามวันส่ง
+                ย้อนเวลากลับไปคาดการณ์ ณ 12:00 น. ของวันก่อนส่ง (เวลาปิดรับคำสั่งซื้อสต็อกของพนักงาน) แล้วเทียบกับปริมาณที่ลูกค้าขอสั่งจริงตามวันส่ง
                 และเทียบกับการใช้เฉพาะยอดออเดอร์ที่รับไว้แล้ว โดยไม่ให้โมเดลเห็นคำสั่งซื้อในอนาคต
               </p>
             </div>
@@ -411,7 +418,7 @@ export default function StockManagementPage() {
             <div className="mt-5 space-y-5">
               <div className="rounded-xl border border-[#DDEEEA] bg-[#F4FAF8] p-3 text-sm text-[#315E54]">
                 ตรวจสอบ <strong>{backtest.evaluatedDays} วันส่ง</strong> / <strong>{backtest.evaluatedSkuDays} SKU-วัน</strong>
-                {" · "}เวลาอ้างอิง 16:00 น. วันก่อนส่ง (ประเทศไทย)
+                {" · "}เวลาอ้างอิง 12:00 น. วันก่อนส่ง (ประเทศไทย)
               </div>
               {backtest.byUnit.length ? (
                 <div className="grid gap-3 sm:grid-cols-2">
