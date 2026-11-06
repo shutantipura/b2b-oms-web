@@ -219,7 +219,8 @@ function clampQty(qty: number) {
   return Math.round(Math.max(0, qty) * 1000) / 1000;
 }
 
-function conditionalOrderProbability(age: number, periodicity: number) {
+/** Probability of another delivery-day order, conditional on days since the last one. */
+export function conditionalOrderProbability(age: number, periodicity: number) {
   if (age < 1) return 0;
   const spread = Math.max(0.45, Math.min(1.8, periodicity * 0.22));
   const centered = periodicity - 0.4;
@@ -243,7 +244,8 @@ function dailyDemandForecast(
   typicalQty: number,
   known: Map<string, number>,
   historicalOrderOffsets: number[],
-  asOf: Date
+  asOf: Date,
+  customerOrderPlan?: ForecastDay[]
 ): ForecastDay[] {
   let age = Math.max(0, daysBetween(lastPurchaseDate, dates[0]));
   const nextBookedDate = dates.find((date) => (known.get(date) ?? 0) > 0);
@@ -259,7 +261,16 @@ function dailyDemandForecast(
       age += 1;
       return { date, knownQty: 0, projectedQty: 0, totalQty: 0 };
     }
-    const stillPossible = remainingOrderWindowShare(asOf, date, historicalOrderOffsets);
+    // An SKU cannot be ordered speculatively if the customer is unlikely to
+    // place any basket that day. If the customer has already submitted a
+    // basket for the day, only its explicitly requested SKUs are counted.
+    if (customerOrderPlan && (customerOrderPlan.find((day) => day.date === date)?.projectedQty ?? 0) <= 0) {
+      age += 1;
+      return { date, knownQty: 0, projectedQty: 0, totalQty: 0 };
+    }
+    // The customer plan already applies the order-time cutoff. Do not apply
+    // that same probability a second time at the SKU level.
+    const stillPossible = customerOrderPlan ? 1 : remainingOrderWindowShare(asOf, date, historicalOrderOffsets);
     const projectedQty = mostLikelyOrderQty(conditionalOrderProbability(age, periodicity) * stillPossible, typicalQty);
     // A modal order becomes the new purchase date for subsequent forecast days.
     age = projectedQty > 0 ? 1 : age + 1;
@@ -288,9 +299,11 @@ export function buildStockForecast(
   const dates = Array.from({ length: FORECAST_DAYS }, (_, i) => addDays(today, i));
   const historyStartDate = addDays(today, -FORECAST_HISTORY_DAYS);
   const customerById = new Map(customers.filter((c) => !c.isTest).map((c) => [c.id, c]));
+  const ordersWithDemand = new Set(items.filter((item) => item.requestedQty !== null && item.requestedQty > 0).map((item) => item.orderId));
   const activeOrders = orders.filter((o) =>
     o.status !== "cancelled" &&
     customerById.has(o.customerId) &&
+    ordersWithDemand.has(o.id) &&
     o.deliveryDate !== null &&
     o.deliveryDate >= historyStartDate &&
     o.deliveryDate <= dates[dates.length - 1] &&
@@ -319,6 +332,34 @@ export function buildStockForecast(
     customerId,
     observations.sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate)).slice(-MAX_ORDER_TIMING_SAMPLES).map((o) => o.offsetMinutes),
   ]));
+
+  // Forecast whether the customer will place *any* order on each delivery day.
+  // This is a separate clock from the per-SKU cadence: ordering something
+  // yesterday resets the customer's clock, even if it was a different SKU.
+  const customerKnownOrderDays = new Map<string, Map<string, number>>();
+  for (const order of activeOrders) {
+    const deliveryDate = order.deliveryDate!;
+    if (deliveryDate < today) continue;
+    const known = customerKnownOrderDays.get(order.customerId) ?? new Map<string, number>();
+    known.set(deliveryDate, 1);
+    customerKnownOrderDays.set(order.customerId, known);
+  }
+  const customerOrderPlans = new Map<string, { regular: ForecastDay[]; freshMeat: ForecastDay[] }>();
+  for (const customerId of customerById.keys()) {
+    const lastDeliveryDate = [...new Set(orderDates.get(customerId) ?? [])].sort().at(-1);
+    const cadence = customerCadence.get(customerId) ?? null;
+    const known = customerKnownOrderDays.get(customerId) ?? new Map<string, number>();
+    const orderOffsets = timingHistory.get(customerId) ?? [];
+    const buildPlan = (period: number | null): ForecastDay[] =>
+      lastDeliveryDate && period !== null
+        ? dailyDemandForecast(dates, lastDeliveryDate, period, 1, known, orderOffsets, asOf)
+        : dates.map((date) => ({ date, knownQty: known.get(date) ?? 0, projectedQty: 0, totalQty: known.get(date) ?? 0 }));
+    customerOrderPlans.set(customerId, {
+      regular: buildPlan(cadence),
+      // Preserve the existing two-day cap for fresh meat at both levels.
+      freshMeat: buildPlan(cadence === null ? null : Math.min(2, cadence)),
+    });
+  }
 
   const seriesByKey = new Map<string, Series>();
   for (const item of items) {
@@ -375,8 +416,11 @@ export function buildStockForecast(
       : 0;
     const confidence = purchases.length >= 7 ? "high" : purchases.length >= 4 ? "medium" : purchases.length >= 2 ? "low" : "insufficient";
     const lastPurchaseDate = purchases.at(-1)?.[0];
+    const customerPlan = series.freshMeat
+      ? customerOrderPlans.get(series.customerId)?.freshMeat
+      : customerOrderPlans.get(series.customerId)?.regular;
     const forecastDays = lastPurchaseDate && effectivePeriod !== null
-      ? dailyDemandForecast(dates, lastPurchaseDate, effectivePeriod, typicalCycleQty, series.knownByDay, orderOffsets, asOf)
+      ? dailyDemandForecast(dates, lastPurchaseDate, effectivePeriod, typicalCycleQty, series.knownByDay, orderOffsets, asOf, customerPlan)
       : dates.map((date) => ({
           date,
           knownQty: clampQty(series.knownByDay.get(date) ?? 0),
