@@ -303,7 +303,7 @@ export default function StockManagementPage() {
                     <div className="border-b border-[#E0EEEA] bg-[#F4FAF8] p-3 sm:p-4">
                       <h4 className="text-base font-black text-[#17453F] sm:text-lg">{product.productName}</h4>
                       <p className="mt-1 text-xs font-bold text-[#008B8B]">SKU {product.sku} · {product.unit} · {product.customerCount} ลูกค้า</p>
-                      {product.freshMeat && <p className="mt-1 text-[11px] font-semibold text-[#A46B00]">เนื้อสด: รอบคาดการณ์ไม่เกิน 2 วัน</p>}
+                      {product.freshMeat && <p className="mt-1 text-[11px] font-semibold text-[#A46B00]">เนื้อสด: คาดตามรอบสั่งจริง · อายุสินค้าใช้ในขั้นวางแผนสต็อก</p>}
                     </div>
                      <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayRequestedQty={product.yesterdayRequestedQty} todayRequestedQty={product.todayRequestedQty} days={product.days} />
                     <details className="group border-t border-[#E0EEEA]">
@@ -322,6 +322,9 @@ export default function StockManagementPage() {
                               เวลาที่มักสั่ง: {describeCustomerOrderTime(customer.customerUsualOrderOffsetMinutes, customer.customerOrderTimingSamples)}
                               {customer.customerOrderTimingSamples >= 3 && ` (จาก ${customer.customerOrderTimingSamples} ออเดอร์)`}
                             </p>
+                            <p className="mt-1 text-[11px] text-[#648279]">
+                              โอกาสสั่งเพิ่ม: {customer.days.map((day, index) => `${["วันนี้", "พรุ่งนี้", "มะรืน"][index]} ${Math.round((day.projectedProbability ?? 0) * 100)}%`).join(" · ")}
+                            </p>
                              <FivePeriodGrid yesterdayDate={forecast.yesterdayDate} yesterdayRequestedQty={customer.yesterdayRequestedQty} todayRequestedQty={customer.todayRequestedQty} days={customer.days} compact />
                           </div>
                         ))}
@@ -332,7 +335,7 @@ export default function StockManagementPage() {
                 {visibleForecast.length === 0 && <p className="rounded-xl border border-[#DDEAE6] p-6 text-center text-sm text-[#648279]">ยังไม่มีข้อมูลที่ตรงกับตัวกรอง หรือยังมีประวัติไม่พอสำหรับคาดการณ์</p>}
               </div>
               <p className="mt-3 text-xs leading-5 text-[#6E8982]">
-                 ยอดสั่ง = ปริมาณที่ลูกค้าขอสั่งก่อนเช็คสต็อก/หยิบ/ออกบิล (ไม่นับออเดอร์ยกเลิก) ตามวันส่ง/รับสินค้า · คาดปิดวันนี้รวมยอดที่สั่งแล้ว จึงไม่นับซ้ำ · คาดเพิ่ม = ปริมาณเต็มเมื่อโอกาสสั่งมากกว่า 50%
+                 ยอดสั่ง = ปริมาณที่ลูกค้าขอสั่งก่อนเช็คสต็อก/หยิบ/ออกบิล (ไม่นับออเดอร์ยกเลิก) ตามวันส่ง/รับสินค้า · คาดปิดวันนี้รวมยอดที่สั่งแล้ว จึงไม่นับซ้ำ · ค่ารายลูกค้าเลือกปริมาณเต็มเมื่อมีโอกาสเกิน 50% · ค่ารวมสินค้าเลือกปริมาณที่น่าจะเกิดขึ้นมากที่สุดจากการรวมความเป็นไปได้ของทุกลูกค้า จึงอาจไม่เท่าผลรวมค่ารายลูกค้า
               </p>
               <p className="mt-1 text-xs leading-5 text-[#6E8982]">สินค้าที่สั่งเป็นชิ้นจะแสดงหน่วยเป็นชิ้น แม้ตอนออกบิลจะคิดราคาตามน้ำหนัก · ยอดขายจริงย้อนหลัง 14 วันด้านล่างยังนับจำนวนหยิบ/ออกบิลตามเดิม</p>
               <button
@@ -347,7 +350,7 @@ export default function StockManagementPage() {
           )}
 
           <div className="mt-5 rounded-xl border border-[#F5E4B4] bg-[#FFF9E8] p-4 text-xs leading-6 text-[#806A30]">
-            ระบบใช้ประวัติวันส่งย้อนหลังสูงสุด 90 วัน · การสั่ง SKU ใดก็ตามจะเริ่มนับรอบการสั่งรวมของลูกค้าใหม่ ส่วนรอบซื้อสินค้าแต่ละ SKU จะเริ่มใหม่เฉพาะเมื่อสั่งสินค้านั้น · พิจารณาช่วงเวลาที่มักกดสั่งก่อนวันส่ง และไม่คาดการณ์เพิ่มทับออเดอร์ที่รับแล้ว · เนื้อสดมีรอบคาดการณ์ไม่เกิน 2 วันโดยปรับปริมาณตามอัตราใช้เฉลี่ย
+            ระบบใช้ประวัติวันส่งย้อนหลังสูงสุด 90 วัน · เรียนรู้ความถี่การสั่งจากช่วงห่างจริงระหว่างวันส่ง และปรับเผื่อกรณีประวัติน้อย · การสั่ง SKU ใดก็ตามจะเริ่มนับรอบการสั่งรวมของลูกค้าใหม่ ส่วนรอบซื้อ SKU จะเริ่มใหม่เมื่อสั่งสินค้านั้น · เมื่อเลยช่วงเวลาที่มักกดสั่ง จะใช้ความน่าจะเป็นแบบมีเงื่อนไขว่าลูกค้ายังไม่สั่ง · ปริมาณต่อครั้งใช้ค่ากลางที่ทนต่อออเดอร์ใหญ่ผิดปกติ · เนื้อสดไม่ถูกสมมติให้ลูกค้าสั่งถี่ขึ้นเพียงเพราะสินค้าต้องสด
             · ลูกค้าที่มีประวัติน้อยยังไม่ควรใช้คาดการณ์นี้สั่งสินค้าโดยตรง
           </div>
         </section>
