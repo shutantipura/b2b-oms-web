@@ -7,8 +7,8 @@ function bangkokDateKey(value: Date | string) {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
-function normalizeSalesUnit(unit: string, soldByKilogram: boolean) {
-  if (soldByKilogram || /^(kg|kgs|kilogram|กก\.?|กิโลกรัม)$/i.test(unit.trim())) return "กก.";
+function normalizeDemandUnit(unit: string) {
+  if (/^(kg|kgs|kilogram|กก\.?|กิโลกรัม)$/i.test(unit.trim())) return "กก.";
   return unit.trim() || "ไม่ระบุ";
 }
 
@@ -26,16 +26,11 @@ export type ForecastOrderInput = {
 
 export type ForecastItemInput = {
   orderId: string;
-  productId: string;
   sku: string;
   productName: string;
   unit: string;
   category: string | null;
-  actualQty: number | null;
-  confirmedQty: number | null;
   requestedQty: number | null;
-  actualPieceQty: number | null;
-  piecePricePerKg: number | null;
 };
 
 export type ForecastCustomerInput = {
@@ -65,8 +60,8 @@ export type ForecastRow = {
   effectiveCadenceDays: number | null;
   purchaseDays: number;
   confidence: "high" | "medium" | "low" | "insufficient";
-  yesterdayActualQty: number;
-  todayActualQty: number;
+  yesterdayRequestedQty: number;
+  todayRequestedQty: number;
   days: ForecastDay[];
 };
 
@@ -75,7 +70,6 @@ export type StockForecast = {
   yesterdayDate: string;
   dates: string[];
   historyDays: number;
-  unmeasuredPieceOrders: number;
   rows: ForecastRow[];
 };
 
@@ -85,13 +79,13 @@ export type ProductForecastRow = {
   unit: string;
   freshMeat: boolean;
   customerCount: number;
-  yesterdayActualQty: number;
-  todayActualQty: number;
+  yesterdayRequestedQty: number;
+  todayRequestedQty: number;
   customers: ForecastRow[];
   days: ForecastDay[];
 };
 
-/** The stock order quantity is the sum across customers, keeping each unit separate. */
+/** Demand totals sum original requested quantities across customers, keeping each unit separate. */
 export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[]): ProductForecastRow[] {
   const products = new Map<string, ProductForecastRow>();
   for (const row of rows) {
@@ -104,8 +98,8 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
         unit: row.unit,
         freshMeat: row.freshMeat,
         customerCount: 0,
-        yesterdayActualQty: 0,
-        todayActualQty: 0,
+        yesterdayRequestedQty: 0,
+        todayRequestedQty: 0,
         customers: [],
         days: dates.map((date) => ({ date, knownQty: 0, projectedQty: 0, totalQty: 0 })),
       };
@@ -113,8 +107,8 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
     }
     product.customers.push(row);
     product.freshMeat ||= row.freshMeat;
-    product.yesterdayActualQty += row.yesterdayActualQty ?? 0;
-    product.todayActualQty += row.todayActualQty ?? 0;
+    product.yesterdayRequestedQty += row.yesterdayRequestedQty ?? 0;
+    product.todayRequestedQty += row.todayRequestedQty ?? 0;
     for (const day of row.days) {
       const aggregateDay = product.days.find((candidate) => candidate.date === day.date);
       if (!aggregateDay) continue;
@@ -124,8 +118,8 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
   }
   for (const product of products.values()) {
     product.customerCount = new Set(product.customers.map((row) => row.customerId)).size;
-    product.yesterdayActualQty = clampQty(product.yesterdayActualQty);
-    product.todayActualQty = clampQty(product.todayActualQty);
+    product.yesterdayRequestedQty = clampQty(product.yesterdayRequestedQty);
+    product.todayRequestedQty = clampQty(product.todayRequestedQty);
     product.customers.sort((a, b) => a.customerName.localeCompare(b.customerName, "th") || a.customerCode.localeCompare(b.customerCode));
     for (const day of product.days) {
       day.knownQty = clampQty(day.knownQty);
@@ -133,12 +127,7 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
       day.totalQty = clampQty(day.knownQty + day.projectedQty);
     }
   }
-  // Prioritise the SKUs with the highest forecast for tomorrow; use SKU/unit for stable ties.
-  return [...products.values()].sort((a, b) =>
-    (b.days[1]?.totalQty ?? 0) - (a.days[1]?.totalQty ?? 0) ||
-    a.sku.localeCompare(b.sku, "en") ||
-    a.unit.localeCompare(b.unit, "th")
-  );
+  return [...products.values()].sort((a, b) => a.sku.localeCompare(b.sku, "en") || a.unit.localeCompare(b.unit, "th"));
 }
 
 function addDays(date: string, count: number) {
@@ -227,7 +216,7 @@ type Series = {
   productName: string;
   unit: string;
   freshMeat: boolean;
-  soldByDay: Map<string, number>;
+  requestedByDay: Map<string, number>;
   knownByDay: Map<string, number>;
 };
 
@@ -235,7 +224,6 @@ export function buildStockForecast(
   orders: ForecastOrderInput[],
   items: ForecastItemInput[],
   customers: ForecastCustomerInput[],
-  billedRootIds: Set<string>,
   asOf = new Date()
 ): StockForecast {
   const today = bangkokDateKey(asOf);
@@ -254,26 +242,17 @@ export function buildStockForecast(
   }
   const customerCadence = new Map([...orderDates].map(([customerId, days]) => [customerId, averageInterval(days)]));
 
-  // Pending piece-priced-by-weight lines are pieces, not kg. Estimate conversion
-  // only when actual kg-per-piece history exists; otherwise do not invent weight.
-  const kgPerPiece = new Map<string, { kg: number; pieces: number }>();
-  for (const item of items) {
-    const order = orderById.get(item.orderId);
-    if (!order || !billedRootIds.has(order.groupRootOrderId || order.id)) continue;
-    if (item.piecePricePerKg === null || !(item.actualQty! > 0) || !(item.actualPieceQty! > 0)) continue;
-    const previous = kgPerPiece.get(item.productId) ?? { kg: 0, pieces: 0 };
-    previous.kg += item.actualQty!;
-    previous.pieces += item.actualPieceQty!;
-    kgPerPiece.set(item.productId, previous);
-  }
-
   const seriesByKey = new Map<string, Series>();
-  let unmeasuredPieceOrders = 0;
   for (const item of items) {
     const order = orderById.get(item.orderId);
     if (!order) continue;
-    const isWeighted = item.piecePricePerKg !== null;
-    const unit = normalizeSalesUnit(item.unit, isWeighted);
+    // Demand is the quantity originally requested at checkout. Stock checks,
+    // picking, billing and stockouts must not reduce it.
+    const quantity = item.requestedQty;
+    if (quantity === null || !Number.isFinite(quantity) || quantity <= 0) continue;
+    // Items requested in pieces must remain pieces, even when the eventual
+    // bill is calculated by weight. Never fabricate a kg conversion.
+    const unit = normalizeDemandUnit(item.unit);
     const key = JSON.stringify([order.customerId, item.sku, unit]);
     let series = seriesByKey.get(key);
     if (!series) {
@@ -283,42 +262,25 @@ export function buildStockForecast(
         productName: item.productName,
         unit,
         freshMeat: isFreshMeat(item.category, item.productName),
-        soldByDay: new Map(),
+        requestedByDay: new Map(),
         knownByDay: new Map(),
       };
       seriesByKey.set(key, series);
     }
     const serviceDate = order.deliveryDate || bangkokDateKey(order.createdAt);
-    const root = order.groupRootOrderId || order.id;
-    const sold = billedRootIds.has(root) && item.actualQty !== null && item.actualQty > 0;
-    if (sold && serviceDate <= today) {
-      series.soldByDay.set(serviceDate, (series.soldByDay.get(serviceDate) ?? 0) + item.actualQty!);
+    if (serviceDate <= today) {
+      series.requestedByDay.set(serviceDate, (series.requestedByDay.get(serviceDate) ?? 0) + quantity);
     }
     if (serviceDate < today || serviceDate > dates[dates.length - 1]) continue;
-    let quantity = item.actualQty;
-    if (quantity === null) {
-      const requested = item.confirmedQty ?? item.requestedQty;
-      if (requested === null || requested <= 0) continue;
-      if (isWeighted) {
-        const ratio = kgPerPiece.get(item.productId);
-        if (!ratio || ratio.pieces <= 0) {
-          unmeasuredPieceOrders++;
-          continue;
-        }
-        quantity = requested * ratio.kg / ratio.pieces;
-      } else {
-        quantity = requested;
-      }
-    }
-    if (quantity > 0) series.knownByDay.set(serviceDate, (series.knownByDay.get(serviceDate) ?? 0) + quantity);
+    series.knownByDay.set(serviceDate, (series.knownByDay.get(serviceDate) ?? 0) + quantity);
   }
 
   const rows: ForecastRow[] = [];
   for (const series of seriesByKey.values()) {
     const customer = customerById.get(series.customerId)!;
-    const yesterdayActualQty = clampQty(series.soldByDay.get(yesterdayDate) ?? 0);
-    const todayActualQty = clampQty(series.soldByDay.get(today) ?? 0);
-    const purchases = [...series.soldByDay.entries()].sort(([a], [b]) => a.localeCompare(b));
+    const yesterdayRequestedQty = clampQty(series.requestedByDay.get(yesterdayDate) ?? 0);
+    const todayRequestedQty = clampQty(series.requestedByDay.get(today) ?? 0);
+    const purchases = [...series.requestedByDay.entries()].sort(([a], [b]) => a.localeCompare(b));
     const customerPeriod = customerCadence.get(series.customerId) ?? null;
     const skuObservedPeriod = averageInterval(purchases.map(([date]) => date));
     const purchaseFrequency = purchases.length / Math.max(1, new Set(orderDates.get(series.customerId) ?? []).size);
@@ -328,9 +290,9 @@ export function buildStockForecast(
         ? 0.75 * skuObservedPeriod + 0.25 * baseline
         : skuObservedPeriod;
     const effectivePeriod = skuPeriod === null ? null : Math.max(1, series.freshMeat ? Math.min(2, skuPeriod) : skuPeriod);
-    const typicalPurchasedQty = weightedAverage(purchases.map(([, qty]) => qty)) ?? 0;
+    const typicalRequestedQty = weightedAverage(purchases.map(([, qty]) => qty)) ?? 0;
     const typicalCycleQty = skuPeriod !== null && effectivePeriod !== null
-      ? typicalPurchasedQty * effectivePeriod / skuPeriod
+      ? typicalRequestedQty * effectivePeriod / skuPeriod
       : 0;
     const confidence = purchases.length >= 7 ? "high" : purchases.length >= 4 ? "medium" : purchases.length >= 2 ? "low" : "insufficient";
     const lastPurchaseDate = purchases.at(-1)?.[0];
@@ -342,8 +304,8 @@ export function buildStockForecast(
           projectedQty: 0,
           totalQty: clampQty(series.knownByDay.get(date) ?? 0),
         }));
-    // Keep yesterday's sales visible even if this SKU has no three-day forecast.
-    if (forecastDays.every((day) => day.totalQty === 0) && yesterdayActualQty === 0 && todayActualQty === 0) continue;
+    // Keep yesterday's requests visible even if there is no forward prediction.
+    if (forecastDays.every((day) => day.totalQty === 0) && yesterdayRequestedQty === 0 && todayRequestedQty === 0) continue;
     rows.push({
       customerId: series.customerId,
       customerCode: customer.code,
@@ -357,12 +319,12 @@ export function buildStockForecast(
       effectiveCadenceDays: effectivePeriod === null ? null : Math.round(effectivePeriod * 10) / 10,
       purchaseDays: purchases.length,
       confidence,
-      yesterdayActualQty,
-      todayActualQty,
+      yesterdayRequestedQty,
+      todayRequestedQty,
       days: forecastDays,
     });
   }
 
   rows.sort((a, b) => a.customerName.localeCompare(b.customerName, "th") || a.sku.localeCompare(b.sku, "en"));
-  return { asOf: asOf.toISOString(), yesterdayDate, dates, historyDays: FORECAST_HISTORY_DAYS, unmeasuredPieceOrders, rows };
+  return { asOf: asOf.toISOString(), yesterdayDate, dates, historyDays: FORECAST_HISTORY_DAYS, rows };
 }
