@@ -16,6 +16,8 @@ export const FORECAST_HISTORY_DAYS = 90;
 export const FORECAST_DAYS = 3;
 const MIN_ORDER_TIMING_SAMPLES = 3;
 const MAX_ORDER_TIMING_SAMPLES = 12;
+const HAZARD_PRIOR_WEIGHT = 3;
+const MAX_AGGREGATE_STATES = 4096;
 
 export type ForecastOrderInput = {
   id: string;
@@ -47,6 +49,10 @@ export type ForecastDay = {
   knownQty: number;
   projectedQty: number;
   totalQty: number;
+  /** Probability of additional requested demand; known orders are always exact. */
+  projectedProbability?: number;
+  /** Quantity of one possible additional order, conditional on it occurring. */
+  possibleQty?: number;
 };
 
 export type ForecastRow = {
@@ -90,9 +96,51 @@ export type ProductForecastRow = {
   days: ForecastDay[];
 };
 
+/**
+ * Mode of the *sum* of independent customer demands. Summing customer modes
+ * is mathematically wrong: ten 40%-likely 1kg requests have individual modes
+ * of zero, while their total mode is 4kg.
+ *
+ * Convolve at the stored 0.001-unit precision, rounding only the resulting
+ * aggregate to one decimal. Rounding each customer's 0.05kg basket first would
+ * distort the most likely total. Bound states for unusually broad baskets.
+ */
+export function mostLikelyAggregateQty(candidates: { probability: number; quantity: number }[]) {
+  let states = new Map<number, number>([[0, 1]]);
+  for (const candidate of candidates) {
+    const probability = Math.min(1, Math.max(0, candidate.probability));
+    const quantity = Math.max(0, Math.round(candidate.quantity * 1000));
+    if (!quantity || probability <= 0) continue;
+    const next = new Map<number, number>();
+    for (const [total, mass] of states) {
+      next.set(total, (next.get(total) ?? 0) + mass * (1 - probability));
+      next.set(total + quantity, (next.get(total + quantity) ?? 0) + mass * probability);
+    }
+    if (next.size <= MAX_AGGREGATE_STATES) {
+      states = next;
+    } else {
+      // Retain the most likely totals, then renormalise. This bound prevents
+      // rare, highly variable demand from exhausting memory in a serverless run.
+      const top = [...next.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_AGGREGATE_STATES);
+      const retainedMass = top.reduce((sum, [, mass]) => sum + mass, 0);
+      states = new Map(top.map(([total, mass]) => [total, mass / retainedMass]));
+    }
+  }
+  let bestTotal = 0;
+  let bestMass = -1;
+  for (const [total, mass] of states) {
+    if (mass > bestMass + 1e-12 || (Math.abs(mass - bestMass) <= 1e-12 && total < bestTotal)) {
+      bestTotal = total;
+      bestMass = mass;
+    }
+  }
+  return Math.round(bestTotal / 100) / 10;
+}
+
 /** Demand totals sum original requested quantities across customers, keeping each unit separate. */
 export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[]): ProductForecastRow[] {
   const products = new Map<string, ProductForecastRow>();
+  const candidatesByProductDate = new Map<string, Map<string, { probability: number; quantity: number }[]>>();
   for (const row of rows) {
     const key = JSON.stringify([row.sku, row.unit]);
     let product = products.get(key);
@@ -119,15 +167,27 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
       if (!aggregateDay) continue;
       aggregateDay.knownQty += day.knownQty;
       aggregateDay.projectedQty += day.projectedQty;
+      if (day.projectedProbability !== undefined && day.possibleQty !== undefined) {
+        let days = candidatesByProductDate.get(key);
+        if (!days) {
+          days = new Map();
+          candidatesByProductDate.set(key, days);
+        }
+        const candidates = days.get(day.date) ?? [];
+        candidates.push({ probability: day.projectedProbability, quantity: day.possibleQty });
+        days.set(day.date, candidates);
+      }
     }
   }
-  for (const product of products.values()) {
+  for (const [key, product] of products.entries()) {
     product.customerCount = new Set(product.customers.map((row) => row.customerId)).size;
     product.yesterdayRequestedQty = clampQty(product.yesterdayRequestedQty);
     product.todayRequestedQty = clampQty(product.todayRequestedQty);
     product.customers.sort((a, b) => a.customerName.localeCompare(b.customerName, "th") || a.customerCode.localeCompare(b.customerCode));
     for (const day of product.days) {
       day.knownQty = clampQty(day.knownQty);
+      const candidates = candidatesByProductDate.get(key)?.get(day.date);
+      if (candidates) day.projectedQty = mostLikelyAggregateQty(candidates);
       day.projectedQty = clampQty(day.projectedQty);
       day.totalQty = clampQty(day.knownQty + day.projectedQty);
     }
@@ -209,10 +269,27 @@ function weightedAverage(numbers: number[]) {
   return recent.reduce((sum, n, index) => sum + n * (index + 1), 0) / weight;
 }
 
-function averageInterval(dateKeys: string[]) {
+/** A typical requested basket should resemble an actual basket, not the mean of outliers. */
+export function recencyWeightedMedian(numbers: number[]) {
+  if (!numbers.length) return null;
+  const recent = numbers.slice(-8);
+  const ranked = recent.map((value, i) => ({ value, weight: i + 1 })).sort((a, b) => a.value - b.value);
+  const midpoint = recent.length * (recent.length + 1) / 4;
+  let accumulated = 0;
+  for (const entry of ranked) {
+    accumulated += entry.weight;
+    if (accumulated >= midpoint) return entry.value;
+  }
+  return ranked.at(-1)!.value;
+}
+
+function purchaseIntervals(dateKeys: string[]) {
   const days = [...new Set(dateKeys)].sort();
-  if (days.length < 2) return null;
-  return weightedAverage(days.slice(1).map((date, index) => Math.max(1, daysBetween(days[index], date))));
+  return days.slice(1).map((date, index) => Math.max(1, daysBetween(days[index], date)));
+}
+
+function averageInterval(dateKeys: string[]) {
+  return weightedAverage(purchaseIntervals(dateKeys));
 }
 
 function clampQty(qty: number) {
@@ -232,6 +309,33 @@ export function conditionalOrderProbability(age: number, periodicity: number) {
   return Math.min(0.97, probability);
 }
 
+/**
+ * Empirical probability of reordering at this age, given no reorder earlier.
+ * Completed intervals shorter than age are no longer at risk. Shrink sparse
+ * counts towards the existing smooth cadence curve rather than fitting noise.
+ */
+export function observedRepeatProbability(age: number, periodicity: number, intervals: number[]) {
+  const prior = conditionalOrderProbability(age, periodicity);
+  if (!intervals.length || age < 1) return prior;
+  const atRisk = intervals.filter((gap) => gap >= age).length;
+  const events = intervals.filter((gap) => gap === age).length;
+  return (events + HAZARD_PRIOR_WEIGHT * prior) / (atRisk + HAZARD_PRIOR_WEIGHT);
+}
+
+/**
+ * Bayes' rule after observing that the customer has NOT yet submitted an order.
+ * Naively multiplying p by the remaining share overstates the negative signal:
+ * if p=0.8 and 80% usually order early, 20% may still order later, but the
+ * observation of no early order also makes a no-order day more likely.
+ */
+export function probabilityAfterNoOrderYet(prior: number, remainingShare: number) {
+  const p = Math.max(0, Math.min(1, prior));
+  const remaining = Math.max(0, Math.min(1, remainingShare));
+  const noArrivalLikelihood = 1 - p * (1 - remaining);
+  if (noArrivalLikelihood <= 1e-12) return 0;
+  return p * remaining / noArrivalLikelihood;
+}
+
 /** Modal demand: select the more likely of a full order and no order. */
 export function mostLikelyOrderQty(orderProbability: number, typicalOrderQty: number) {
   return orderProbability > 0.5 ? clampQty(typicalOrderQty) : 0;
@@ -245,36 +349,45 @@ function dailyDemandForecast(
   known: Map<string, number>,
   historicalOrderOffsets: number[],
   asOf: Date,
-  customerOrderPlan?: ForecastDay[]
+  historicalIntervals: number[],
+  customerOrderPlan?: ForecastDay[],
+  skuEvidenceWeight = 1
 ): ForecastDay[] {
-  let age = Math.max(0, daysBetween(lastPurchaseDate, dates[0]));
+  // Track all possible days-since-last-purchase states. Resetting only after
+  // a modal (>50%) event makes two-day forecasts artificially deterministic.
+  let ageStates = new Map<number, number>([[Math.max(0, daysBetween(lastPurchaseDate, dates[0])), 1]]);
   const nextBookedDate = dates.find((date) => (known.get(date) ?? 0) > 0);
   return dates.map((date) => {
     const knownQty = known.get(date) ?? 0;
     if (knownQty > 0) {
-      age = 1;
-      return { date, knownQty: clampQty(knownQty), projectedQty: 0, totalQty: clampQty(knownQty) };
+      ageStates = new Map([[1, 1]]);
+      return { date, knownQty: clampQty(knownQty), projectedQty: 0, totalQty: clampQty(knownQty), projectedProbability: 0, possibleQty: 0 };
     }
     // A future order already placed by this customer replaces the speculative
     // order in the preceding days; do not predict a second order before it.
     if (nextBookedDate && date < nextBookedDate) {
-      age += 1;
-      return { date, knownQty: 0, projectedQty: 0, totalQty: 0 };
+      ageStates = new Map([...ageStates].map(([age, probability]) => [age + 1, probability]));
+      return { date, knownQty: 0, projectedQty: 0, totalQty: 0, projectedProbability: 0, possibleQty: 0 };
     }
-    // An SKU cannot be ordered speculatively if the customer is unlikely to
-    // place any basket that day. If the customer has already submitted a
-    // basket for the day, only its explicitly requested SKUs are counted.
-    if (customerOrderPlan && (customerOrderPlan.find((day) => day.date === date)?.projectedQty ?? 0) <= 0) {
-      age += 1;
-      return { date, knownQty: 0, projectedQty: 0, totalQty: 0 };
+    const parentProbability = customerOrderPlan?.find((day) => day.date === date)?.projectedProbability ?? 0;
+    const remainingShare = customerOrderPlan ? 1 : remainingOrderWindowShare(asOf, date, historicalOrderOffsets);
+    const nextStates = new Map<number, number>();
+    let projectedProbability = 0;
+    for (const [age, stateMass] of ageStates) {
+      const priorProbability = observedRepeatProbability(age, periodicity, historicalIntervals);
+      // SKU purchases are a subset of the customer's baskets. Neither a hard
+      // customer-level cutoff nor multiplying two marginal probabilities is
+      // appropriate; cap SKU demand by the chance of any customer basket.
+      const eventProbability = customerOrderPlan
+        ? Math.min(parentProbability, priorProbability) * skuEvidenceWeight
+        : probabilityAfterNoOrderYet(priorProbability, remainingShare);
+      projectedProbability += stateMass * eventProbability;
+      nextStates.set(1, (nextStates.get(1) ?? 0) + stateMass * eventProbability);
+      nextStates.set(age + 1, (nextStates.get(age + 1) ?? 0) + stateMass * (1 - eventProbability));
     }
-    // The customer plan already applies the order-time cutoff. Do not apply
-    // that same probability a second time at the SKU level.
-    const stillPossible = customerOrderPlan ? 1 : remainingOrderWindowShare(asOf, date, historicalOrderOffsets);
-    const projectedQty = mostLikelyOrderQty(conditionalOrderProbability(age, periodicity) * stillPossible, typicalQty);
-    // A modal order becomes the new purchase date for subsequent forecast days.
-    age = projectedQty > 0 ? 1 : age + 1;
-    return { date, knownQty: 0, projectedQty, totalQty: projectedQty };
+    ageStates = nextStates;
+    const projectedQty = mostLikelyOrderQty(projectedProbability, typicalQty);
+    return { date, knownQty: 0, projectedQty, totalQty: projectedQty, projectedProbability, possibleQty: clampQty(typicalQty) };
   });
 }
 
@@ -299,7 +412,7 @@ export function buildStockForecast(
   const dates = Array.from({ length: FORECAST_DAYS }, (_, i) => addDays(today, i));
   const historyStartDate = addDays(today, -FORECAST_HISTORY_DAYS);
   const customerById = new Map(customers.filter((c) => !c.isTest).map((c) => [c.id, c]));
-  const ordersWithDemand = new Set(items.filter((item) => item.requestedQty !== null && item.requestedQty > 0).map((item) => item.orderId));
+  const ordersWithDemand = new Set(items.filter((item) => item.requestedQty !== null && Number.isFinite(item.requestedQty) && item.requestedQty > 0).map((item) => item.orderId));
   const activeOrders = orders.filter((o) =>
     o.status !== "cancelled" &&
     customerById.has(o.customerId) &&
@@ -323,11 +436,16 @@ export function buildStockForecast(
     const offsetMinutes = orderOffsetMinutes(order.createdAt, orderDay);
     if (Number.isFinite(offsetMinutes) && offsetMinutes <= 24 * 60) {
       const offsets = customerOrderOffsets.get(order.customerId) ?? [];
-      offsets.push({ deliveryDate: orderDay, offsetMinutes });
+      // Grouped /x orders and top-up orders on the same delivery day represent
+      // one customer ordering opportunity, not multiple timing observations.
+      const existing = offsets.find((entry) => entry.deliveryDate === orderDay);
+      if (existing) existing.offsetMinutes = Math.min(existing.offsetMinutes, offsetMinutes);
+      else offsets.push({ deliveryDate: orderDay, offsetMinutes });
       customerOrderOffsets.set(order.customerId, offsets);
     }
   }
   const customerCadence = new Map([...orderDates].map(([customerId, days]) => [customerId, averageInterval(days)]));
+  const customerIntervals = new Map([...orderDates].map(([customerId, days]) => [customerId, purchaseIntervals(days)]));
   const timingHistory = new Map([...customerOrderOffsets].map(([customerId, observations]) => [
     customerId,
     observations.sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate)).slice(-MAX_ORDER_TIMING_SAMPLES).map((o) => o.offsetMinutes),
@@ -344,21 +462,16 @@ export function buildStockForecast(
     known.set(deliveryDate, 1);
     customerKnownOrderDays.set(order.customerId, known);
   }
-  const customerOrderPlans = new Map<string, { regular: ForecastDay[]; freshMeat: ForecastDay[] }>();
+  const customerOrderPlans = new Map<string, ForecastDay[]>();
   for (const customerId of customerById.keys()) {
     const lastDeliveryDate = [...new Set(orderDates.get(customerId) ?? [])].sort().at(-1);
     const cadence = customerCadence.get(customerId) ?? null;
     const known = customerKnownOrderDays.get(customerId) ?? new Map<string, number>();
     const orderOffsets = timingHistory.get(customerId) ?? [];
-    const buildPlan = (period: number | null): ForecastDay[] =>
-      lastDeliveryDate && period !== null
-        ? dailyDemandForecast(dates, lastDeliveryDate, period, 1, known, orderOffsets, asOf)
-        : dates.map((date) => ({ date, knownQty: known.get(date) ?? 0, projectedQty: 0, totalQty: known.get(date) ?? 0 }));
-    customerOrderPlans.set(customerId, {
-      regular: buildPlan(cadence),
-      // Preserve the existing two-day cap for fresh meat at both levels.
-      freshMeat: buildPlan(cadence === null ? null : Math.min(2, cadence)),
-    });
+    const plan = lastDeliveryDate && cadence !== null
+      ? dailyDemandForecast(dates, lastDeliveryDate, cadence, 1, known, orderOffsets, asOf, customerIntervals.get(customerId) ?? [])
+      : dates.map((date) => ({ date, knownQty: known.get(date) ?? 0, projectedQty: 0, totalQty: known.get(date) ?? 0, projectedProbability: 0, possibleQty: 0 }));
+    customerOrderPlans.set(customerId, plan);
   }
 
   const seriesByKey = new Map<string, Series>();
@@ -405,30 +518,37 @@ export function buildStockForecast(
     const skuObservedPeriod = averageInterval(purchases.map(([date]) => date));
     const purchaseFrequency = purchases.length / Math.max(1, new Set(orderDates.get(series.customerId) ?? []).size);
     const baseline = customerPeriod !== null ? customerPeriod / Math.max(0.15, purchaseFrequency) : null;
-    const skuPeriod = skuObservedPeriod === null ? null
+    const skuPeriod = skuObservedPeriod === null ? baseline
       : purchases.length < 4 && baseline !== null
         ? 0.75 * skuObservedPeriod + 0.25 * baseline
         : skuObservedPeriod;
-    const effectivePeriod = skuPeriod === null ? null : Math.max(1, series.freshMeat ? Math.min(2, skuPeriod) : skuPeriod);
-    const typicalRequestedQty = weightedAverage(purchases.map(([, qty]) => qty)) ?? 0;
-    const typicalCycleQty = skuPeriod !== null && effectivePeriod !== null
-      ? typicalRequestedQty * effectivePeriod / skuPeriod
-      : 0;
+    // Freshness is a stockholding constraint, not evidence that the customer
+    // orders more frequently. Inventing 2-day meat orders distorts demand.
+    const effectivePeriod = skuPeriod === null ? null : Math.max(1, skuPeriod);
+    const typicalRequestedQty = recencyWeightedMedian(purchases.map(([, qty]) => qty)) ?? 0;
     const confidence = purchases.length >= 7 ? "high" : purchases.length >= 4 ? "medium" : purchases.length >= 2 ? "low" : "insufficient";
     const lastPurchaseDate = purchases.at(-1)?.[0];
-    const customerPlan = series.freshMeat
-      ? customerOrderPlans.get(series.customerId)?.freshMeat
-      : customerOrderPlans.get(series.customerId)?.regular;
+    const customerPlan = customerOrderPlans.get(series.customerId);
+    // One-off SKUs no longer vanish completely. Their repeat probability is
+    // deliberately shrunk using the fraction of the customer's baskets that
+    // actually contained that SKU; they won't create a confident 1-SKU order.
+    const customerPurchaseDays = new Set(orderDates.get(series.customerId) ?? []).size;
+    const skuEvidenceWeight = purchases.length === 1
+      ? Math.min(0.85, (purchases.length + 0.5) / (customerPurchaseDays + 1))
+      : 1;
     const forecastDays = lastPurchaseDate && effectivePeriod !== null
-      ? dailyDemandForecast(dates, lastPurchaseDate, effectivePeriod, typicalCycleQty, series.knownByDay, orderOffsets, asOf, customerPlan)
+      ? dailyDemandForecast(dates, lastPurchaseDate, effectivePeriod, typicalRequestedQty, series.knownByDay, orderOffsets, asOf, purchaseIntervals(purchases.map(([date]) => date)), customerPlan, skuEvidenceWeight)
       : dates.map((date) => ({
           date,
           knownQty: clampQty(series.knownByDay.get(date) ?? 0),
           projectedQty: 0,
           totalQty: clampQty(series.knownByDay.get(date) ?? 0),
+          projectedProbability: 0,
+          possibleQty: 0,
         }));
-    // Keep yesterday's requests visible even if there is no forward prediction.
-    if (forecastDays.every((day) => day.totalQty === 0) && yesterdayRequestedQty === 0 && todayRequestedQty === 0) continue;
+    // Keep below-50% candidates for the product-level probability convolution;
+    // many individually unlikely orders may still sum to likely aggregate demand.
+    if (forecastDays.every((day) => day.totalQty === 0 && (day.projectedProbability ?? 0) < 0.01) && yesterdayRequestedQty === 0 && todayRequestedQty === 0) continue;
     rows.push({
       customerId: series.customerId,
       customerCode: customer.code,
