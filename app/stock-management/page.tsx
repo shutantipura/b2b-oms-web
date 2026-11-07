@@ -67,6 +67,52 @@ function FivePeriodGrid({ yesterdayDate, yesterdayRequestedQty, todayRequestedQt
   );
 }
 
+function TomorrowDemandSummary({ day, unit, compact = false }: {
+  day: ForecastDay;
+  unit: string;
+  compact?: boolean;
+}) {
+  const figures = [
+    { label: "รับออเดอร์แล้ว", value: day.knownQty, note: "ยอดที่ลูกค้าขอสั่งแล้ว", className: "bg-[#F1F5F4] text-[#315C54]" },
+    { label: "คาดการณ์เฉลี่ย", value: day.totalQty, note: "รวมยอดที่คาดว่าจะสั่งเพิ่ม", className: "bg-[#EAF8F5] text-[#007F7F]" },
+    { label: `แผน ${PLANNING_LABEL}`, value: day.planningQty ?? day.totalQty, note: "เผื่อความเสี่ยงขาดสินค้า", className: "bg-[#FFF1C5] text-[#805A00]" },
+  ];
+  return (
+    <div className="grid grid-cols-3 gap-2" aria-label={`ความต้องการสำหรับวันส่ง ${day.date}`}>
+      {figures.map((figure) => (
+        <div key={figure.label} className={`min-w-0 rounded-xl px-2 py-3 text-center sm:px-3 ${figure.className}`}>
+          <p className="text-[10px] font-extrabold leading-4 sm:text-xs">{figure.label}</p>
+          <p className={`mt-1 break-words font-black tabular-nums ${compact ? "text-base sm:text-lg" : "text-xl sm:text-2xl"}`}>
+            {forecastQty(figure.value)}
+          </p>
+          <p className="text-[10px] font-semibold">{unit}</p>
+          {!compact && <p className="mt-1 hidden text-[10px] leading-4 opacity-80 sm:block">{figure.note}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DemandHistoryDetails({ yesterdayDate, yesterdayRequestedQty, todayRequestedQty, days, compact = false }: {
+  yesterdayDate: string;
+  yesterdayRequestedQty: number;
+  todayRequestedQty: number;
+  days: ForecastDay[];
+  compact?: boolean;
+}) {
+  return (
+    <details className="mt-2 rounded-xl border border-[#E0EEEA] bg-white">
+      <summary className="cursor-pointer px-3 py-2.5 text-xs font-bold text-[#008B8B]">
+        ดูยอดเมื่อวาน วันนี้ และคาดการณ์ 3 วัน
+      </summary>
+      <div className="border-t border-[#E0EEEA]">
+        <FivePeriodGrid yesterdayDate={yesterdayDate} yesterdayRequestedQty={yesterdayRequestedQty}
+          todayRequestedQty={todayRequestedQty} days={days} compact={compact} />
+      </div>
+    </details>
+  );
+}
+
 export default function StockManagementPage() {
   const [access, setAccess] = useState<Access>("loading");
   const [downloading, setDownloading] = useState(false);
@@ -292,32 +338,39 @@ export default function StockManagementPage() {
           <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="เลือกมุมมองการคาดการณ์">
             <button type="button" aria-pressed={forecastView === "noon"} onClick={() => setForecastView("noon")}
               className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-black ${forecastView === "noon" ? "border-[#CBA451] bg-[#FFF1C5] text-[#704D00]" : "border-[#CDE5DE] bg-white text-[#557A71]"}`}>
-              แผนสั่งสต็อกก่อน 12:00 น.
+              ณ 12:00 น. · ใช้ตัดสินใจสั่ง
             </button>
             <button type="button" aria-pressed={forecastView === "live"} onClick={() => setForecastView("live")}
               className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-black ${forecastView === "live" ? "border-[#02B0AF] bg-[#E5F8F5] text-[#008B8B]" : "border-[#CDE5DE] bg-white text-[#557A71]"}`}>
-              คาดการณ์สด
+              ล่าสุด · Live
             </button>
           </div>
+          <p className="mt-2 text-xs text-[#648279]">
+            ทั้งสองมุมมองใช้โมเดลเดียวกัน ต่างกันที่เวลาอ้างอิง · ก่อนเที่ยงข้อมูลเหมือนกัน
+            หลังเที่ยงมุมมอง 12:00 จะไม่นับออเดอร์ที่เพิ่งส่งเข้ามา
+          </p>
           {displayedForecast && (
             <div className="mt-5 rounded-xl border border-[#DDEEEA] p-2">
-              <p className="px-2 pt-1 text-xs font-extrabold text-[#436F66]">สรุปเนื้อสดทั้งหมด (กก. รวมชิ้นที่เทียบเป็นน้ำหนักได้)</p>
-              <FivePeriodGrid
-                yesterdayDate={displayedForecast.yesterdayDate}
-                yesterdayRequestedQty={productForecast.filter((row) => row.freshMeat).flatMap((row) => row.units.filter((unit) => unit.unit === "กก.")).reduce((sum, unit) => sum + unit.yesterdayRequestedQty, 0)}
-                todayRequestedQty={productForecast.filter((row) => row.freshMeat).flatMap((row) => row.units.filter((unit) => unit.unit === "กก.")).reduce((sum, unit) => sum + unit.todayRequestedQty, 0)}
-                days={displayedForecast.dates.map((date, index) => {
-                  const meat = productForecast.filter((row) => row.freshMeat).flatMap((row) => row.units.filter((unit) => unit.unit === "กก."));
-                  return {
-                    date,
-                    knownQty: meat.reduce((sum, row) => sum + row.days[index].knownQty, 0),
-                    projectedQty: meat.reduce((sum, row) => sum + row.days[index].projectedQty, 0),
-                    totalQty: meat.reduce((sum, row) => sum + row.days[index].totalQty, 0),
-                    planningQty: meat.reduce((sum, row) => sum + (row.days[index].planningQty ?? row.days[index].totalQty), 0),
-                  };
-                })}
-              />
-              <p className="px-2 pb-1 text-[10px] text-[#728E86]">{PLANNING_LABEL} ของเนื้อสดรวม = ผลรวมแผนราย SKU สำหรับดูภาพรวม ไม่ใช่ค่าเปอร์เซ็นไทล์ของยอดทุกสินค้าเมื่อรวมกัน</p>
+              <p className="px-2 py-2 text-sm font-black text-[#17453F]">เนื้อสดรวม · ส่งพรุ่งนี้ ({displayedForecast.dates[1]})</p>
+              {(() => {
+                const meat = productForecast.filter((row) => row.freshMeat).flatMap((row) => row.units.filter((unit) => unit.unit === "กก."));
+                const days = displayedForecast.dates.map((date, index) => ({
+                  date,
+                  knownQty: meat.reduce((sum, row) => sum + row.days[index].knownQty, 0),
+                  projectedQty: meat.reduce((sum, row) => sum + row.days[index].projectedQty, 0),
+                  totalQty: meat.reduce((sum, row) => sum + row.days[index].totalQty, 0),
+                  planningQty: meat.reduce((sum, row) => sum + (row.days[index].planningQty ?? row.days[index].totalQty), 0),
+                }));
+                return (
+                  <>
+                    <TomorrowDemandSummary day={days[1]} unit="กก." />
+                    <DemandHistoryDetails yesterdayDate={displayedForecast.yesterdayDate}
+                      yesterdayRequestedQty={meat.reduce((sum, unit) => sum + unit.yesterdayRequestedQty, 0)}
+                      todayRequestedQty={meat.reduce((sum, unit) => sum + unit.todayRequestedQty, 0)} days={days} />
+                  </>
+                );
+              })()}
+              <p className="px-2 pb-1 pt-2 text-[10px] text-[#728E86]">แผน {PLANNING_LABEL} เนื้อสดรวมเป็นผลรวมแผนราย SKU ไม่ใช่ P90 ของยอดรวมทั้งหมวด</p>
             </div>
           )}
 
@@ -351,8 +404,8 @@ export default function StockManagementPage() {
           {displayedForecast && (
             <>
               <div className="mt-5 rounded-2xl border border-[#F5D88F] bg-[#FFF9E8] p-4 text-sm leading-6 text-[#775817]">
-                <p className="font-black">{forecastView === "noon" ? "แผน ณ จุดตัด 12:00 น. สำหรับสั่งสินค้าให้รองรับ B2B พรุ่งนี้" : "ความต้องการ B2B ที่อัปเดตตามออเดอร์สด"}</p>
-                <p className="mt-1">ตัวเลขหลักเป็น <strong>คาดการณ์เฉลี่ย</strong> จากยอดที่สั่งแล้วและความน่าจะเป็นที่จะสั่งเพิ่ม ส่วน <strong>แผน {PLANNING_LABEL}</strong> เผื่อทั้งโอกาสสั่งและความผันผวนของปริมาณต่อครั้ง โดยลดน้ำหนักข้อมูลสุดโต่งเมื่อมีตัวอย่างน้อย</p>
+                <p className="font-black">{forecastView === "noon" ? "มุมมอง ณ 12:00 น. เพื่อวางแผนรองรับคำสั่งซื้อพรุ่งนี้" : "มุมมองล่าสุดตามคำสั่งซื้อ B2B ที่เข้ามา"}</p>
+                <p className="mt-1"><strong>รับแล้ว</strong> = ยอดลูกค้าขอสั่งแล้ว · <strong>คาดการณ์เฉลี่ย</strong> = รับแล้ว + คาดว่าจะสั่งเพิ่ม · <strong>แผน {PLANNING_LABEL}</strong> = ระดับความต้องการเผื่อขาดสินค้า (ไม่ใช่ปริมาณสั่งซัพพลายเออร์)</p>
                 <p className="mt-1 text-xs">{forecastView === "noon" ? "ก่อนเที่ยงจะแสดง ณ เวลาปัจจุบัน หลังเที่ยงจะจำลองจากออเดอร์ที่ส่งก่อน 12:00 น. (ยังไม่ใช่ snapshot เก็บถาวร) · " : ""}{PLANNING_LABEL} เป็นแนวทางวางแผน ไม่ใช่คำสั่งซื้อจากซัพพลายเออร์ ระบบยังไม่ได้หักสต็อกที่มีอยู่หรือคิดเวลาที่สินค้าซัพพลายเออร์มาถึง</p>
               </div>
               <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
@@ -387,11 +440,12 @@ export default function StockManagementPage() {
                     {product.units.map((unit) => (
                       <div key={unit.unit} className="border-b border-[#DCECE7] last:border-b-0">
                         <p className="bg-[#F8FCFB] px-3 py-2 text-sm font-black text-[#007F7F] sm:px-4">หน่วย: {unit.unit}</p>
-                        <div className="mx-2 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#F2DFA8] bg-[#FFF9E8] px-3 py-2 text-xs text-[#765613] sm:mx-3">
-                          <span className="font-bold">แผนรองรับความต้องการพรุ่งนี้ ({PLANNING_LABEL})</span>
-                          <strong className="text-lg tabular-nums">{forecastQty(unit.days[1]?.planningQty ?? unit.days[1]?.totalQty ?? 0)} {unit.unit}</strong>
+                        <div className="px-3 pt-3 sm:px-4">
+                          <p className="mb-2 text-xs font-bold text-[#52796F]">ความต้องการวันส่งพรุ่งนี้ ({unit.days[1]?.date})</p>
+                          <TomorrowDemandSummary day={unit.days[1]} unit={unit.unit} />
+                          <DemandHistoryDetails yesterdayDate={displayedForecast.yesterdayDate}
+                            yesterdayRequestedQty={unit.yesterdayRequestedQty} todayRequestedQty={unit.todayRequestedQty} days={unit.days} />
                         </div>
-                        <FivePeriodGrid yesterdayDate={displayedForecast.yesterdayDate} yesterdayRequestedQty={unit.yesterdayRequestedQty} todayRequestedQty={unit.todayRequestedQty} days={unit.days} />
                         <details className="group border-t border-[#E0EEEA]">
                           <summary className="cursor-pointer px-4 py-3 text-sm font-extrabold text-[#008B8B] marker:text-[#008B8B]">
                             ดูยอดแยกรายลูกค้า ({unit.customers.length}) · {unit.unit}
@@ -414,7 +468,10 @@ export default function StockManagementPage() {
                                 <p className="mt-1 text-[11px] text-[#648279]">
                                   โอกาสสั่งเพิ่มเป็น {unit.unit}: {customer.days.map((day, index) => `${["วันนี้", "พรุ่งนี้", "มะรืน"][index]} ${Math.round((day.projectedProbability ?? 0) * 100)}%`).join(" · ")}
                                 </p>
-                                <FivePeriodGrid yesterdayDate={displayedForecast.yesterdayDate} yesterdayRequestedQty={customer.yesterdayRequestedQty} todayRequestedQty={customer.todayRequestedQty} days={customer.days} compact />
+                                <p className="mb-2 mt-3 text-[11px] font-bold text-[#52796F]">ความต้องการพรุ่งนี้</p>
+                                <TomorrowDemandSummary day={customer.days[1]} unit={unit.unit} compact />
+                                <DemandHistoryDetails yesterdayDate={displayedForecast.yesterdayDate}
+                                  yesterdayRequestedQty={customer.yesterdayRequestedQty} todayRequestedQty={customer.todayRequestedQty} days={customer.days} compact />
                               </div>
                             ))}
                           </div>
