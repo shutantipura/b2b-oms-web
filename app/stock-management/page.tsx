@@ -9,14 +9,25 @@ import { stockReportDates } from "@/lib/stockSalesReport";
 import { aggregateForecastByProduct, describeCustomerOrderTime, STOCK_PLANNING_PERCENTILE, type ForecastDay, type StockForecast } from "@/lib/stockForecast";
 import type { DemandBacktestReport } from "@/lib/stockForecastBacktest";
 import { FRESH_MEAT_SHELF_LIFE_DAYS, MAX_SHORTAGE_PROBABILITY, type StockOrderRecommendation } from "@/lib/stockOrderOptimizer";
-import { sharedPurchaseDraft, TARGET_STOCK_DAYS } from "@/lib/sharedStockPurchaseDraft";
+import { sharedPurchaseDraft, TARGET_STOCK_DAYS, type SharedPurchaseDraft } from "@/lib/sharedStockPurchaseDraft";
+import { inventoryDiagnostics, inventoryFinancialExposure, type DemandPattern, type InventoryStatus, type SalesScope } from "@/lib/sharedStockDiagnostics";
 
 type Access = "loading" | "manager" | "denied" | "signed-out";
 const PLANNING_LABEL = `P${Math.round(STOCK_PLANNING_PERCENTILE * 100)}`;
 const PLANNING_TARGET = Math.round(STOCK_PLANNING_PERCENTILE * 100);
 type StockOrderPlansPayload = { noon: StockOrderRecommendation[]; live: StockOrderRecommendation[]; noonHorizonFrozen: boolean };
-type SharedInputs = { sourcePeriod: { start: string; end: string } | null; sourceFormat: "daily" | "total" | null; countDate: string; products: { sku: string; productName: string }[]; bySku: Record<string, { b2cDailyKg: number | null; b2cByDateKg?: Record<string, number | null>; onHandKg: number | null; countedAt: string | null }> };
+type SharedInputs = { sourcePeriod: { start: string; end: string } | null; sourceFormat: "daily" | "total" | null; sourceScope?: SalesScope; countDate: string; products: { sku: string; productName: string }[]; bySku: Record<string, { b2cDailyKg: number | null; b2cByDateKg?: Record<string, number | null>; onHandKg: number | null; countedAt: string | null; demandPattern?: DemandPattern | null; observedDays?: number; suspectedStockoutDays?: number; coefficientOfVariation?: number | null }> };
 type SharedInputsPayload = { noon: SharedInputs; live: SharedInputs; noonFrozen: boolean };
+type HistoricPurchasePlan = { date: string; capturedAt: string; late: boolean; available: boolean; readySkuCount: number | null; missingSkuCount: number | null; recommendedKg: number | null; scope: SalesScope };
+const INVENTORY_STATUS: Record<InventoryStatus, { label: string; className: string }> = {
+  missing: { label: "รอข้อมูล", className: "bg-amber-50 text-amber-800" },
+  excess: { label: "สต็อกสูง", className: "bg-red-50 text-red-800" },
+  cover_gap: { label: "ต้องเติมสต็อก", className: "bg-amber-50 text-amber-800" },
+  censored: { label: "เคยสต็อกเป็น 0", className: "bg-orange-50 text-orange-800" },
+  slow: { label: "ขายไม่สม่ำเสมอ", className: "bg-amber-50 text-amber-800" },
+  volatile: { label: "ยอดขายแกว่ง", className: "bg-amber-50 text-amber-800" },
+  normal: { label: "ปกติ", className: "bg-emerald-50 text-emerald-700" },
+};
 
 function qty(value: number) {
   return value.toLocaleString("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
@@ -128,6 +139,7 @@ export default function StockManagementPage() {
   const [noonForecast, setNoonForecast] = useState<StockForecast | null>(null);
   const [stockOrderPlans, setStockOrderPlans] = useState<StockOrderPlansPayload | null>(null);
   const [sharedStockInputs, setSharedStockInputs] = useState<SharedInputsPayload | null>(null);
+  const [officialPurchaseDrafts, setOfficialPurchaseDrafts] = useState<SharedPurchaseDraft[] | null>(null);
   const [snapshotStatus, setSnapshotStatus] = useState<"saved" | "preview" | "missing">("preview");
   const [snapshotCapturedAt, setSnapshotCapturedAt] = useState<string | null>(null);
   const [snapshotWasLate, setSnapshotWasLate] = useState(false);
@@ -142,6 +154,10 @@ export default function StockManagementPage() {
   const [backtest, setBacktest] = useState<DemandBacktestReport | null>(null);
   const [backtestLoading, setBacktestLoading] = useState(false);
   const [backtestError, setBacktestError] = useState("");
+  const [planHistory, setPlanHistory] = useState<HistoricPurchasePlan[] | null>(null);
+  const [planHistoryBusy, setPlanHistoryBusy] = useState(false);
+  const [planHistoryError, setPlanHistoryError] = useState("");
+  const [skuEconomics, setSkuEconomics] = useState<Record<string, { price: number | null; cost: number | null }>>({});
 
   useEffect(() => {
     let active = true;
@@ -177,11 +193,12 @@ export default function StockManagementPage() {
         const problem = await response.json().catch(() => ({}));
         throw new Error(typeof problem.error === "string" ? problem.error : "คำนวณคาดการณ์ไม่สำเร็จ");
       }
-      const next = (await response.json()) as StockForecast & { noonForecast?: StockForecast; stockOrderPlans?: StockOrderPlansPayload; sharedStockInputs?: SharedInputsPayload; snapshotStatus?: "saved" | "preview" | "missing"; snapshotCapturedAt?: string | null; snapshotWasLate?: boolean };
+      const next = (await response.json()) as StockForecast & { noonForecast?: StockForecast; stockOrderPlans?: StockOrderPlansPayload; sharedStockInputs?: SharedInputsPayload; officialPurchaseDrafts?: SharedPurchaseDraft[] | null; snapshotStatus?: "saved" | "preview" | "missing"; snapshotCapturedAt?: string | null; snapshotWasLate?: boolean };
       setForecast(next);
       setNoonForecast(next.noonForecast ?? null);
       setStockOrderPlans(next.stockOrderPlans ?? null);
       setSharedStockInputs(next.sharedStockInputs ?? null);
+      setOfficialPurchaseDrafts(next.officialPurchaseDrafts ?? null);
       setSnapshotStatus(next.snapshotStatus ?? "preview");
       setSnapshotCapturedAt(next.snapshotCapturedAt ?? null);
       setSnapshotWasLate(next.snapshotWasLate === true);
@@ -223,6 +240,7 @@ export default function StockManagementPage() {
   }, [productForecast, displayedSharedInputs]);
 
   const purchaseDrafts = useMemo(() => {
+    if (forecastView === "noon" && snapshotStatus === "saved" && officialPurchaseDrafts) return officialPurchaseDrafts;
     if (!displayedForecast || !displayedSharedInputs) return [];
     const forecastBySku = new Map(productForecast.map((product) => [product.sku, product]));
     return combinedMeatProducts.map((product) => {
@@ -241,11 +259,46 @@ export default function StockManagementPage() {
         morningOnHandKg: retail?.onHandKg ?? null,
       });
     }).sort((a, b) => (b.orderKg ?? -1) - (a.orderKg ?? -1));
-  }, [displayedForecast, displayedSharedInputs, productForecast, combinedMeatProducts]);
+  }, [displayedForecast, displayedSharedInputs, productForecast, combinedMeatProducts, forecastView, snapshotStatus, officialPurchaseDrafts]);
   const visiblePurchaseDrafts = useMemo(() => purchaseDrafts.filter((row) =>
     !simpleSearch.trim() || `${row.sku} ${row.productName}`.toLowerCase().includes(simpleSearch.trim().toLowerCase())), [purchaseDrafts, simpleSearch]);
+  const purchaseWarnings = useMemo(() => purchaseDrafts.map((row) => {
+    const retail = displayedSharedInputs?.bySku[row.sku];
+    const diagnostic = inventoryDiagnostics({ usableStockTomorrowKg: row.usableStockTomorrowKg,
+      expectedDemandTomorrowKg: row.expectedDemandTomorrowKg,
+      dayAfterDemandKg: row.targetStockKg === null || row.expectedDemandTomorrowKg === null ? null : Math.max(0, row.targetStockKg - row.expectedDemandTomorrowKg),
+      orderKg: row.orderKg, pattern: retail?.demandPattern ?? undefined, censoredDays: retail?.suspectedStockoutDays ?? 0 });
+    return { ...row, ...diagnostic, retail };
+  }), [purchaseDrafts, displayedSharedInputs]);
+  const warningsBySku = useMemo(() => new Map(purchaseWarnings.map((row) => [row.sku, row])), [purchaseWarnings]);
+  const flaggedPurchases = purchaseWarnings.filter((row) => row.status !== "normal" && row.status !== "missing");
+  const financialWarnings = useMemo(() => flaggedPurchases.map((row) => {
+    const values = skuEconomics[row.sku];
+    return { ...row, ...inventoryFinancialExposure({ usableStockTomorrowKg: row.usableStockTomorrowKg,
+      targetStockKg: row.targetStockKg, expectedDemandTomorrowKg: row.expectedDemandTomorrowKg,
+      costBahtPerKg: values?.cost ?? null, priceBahtPerKg: values?.price ?? null }) };
+  }).sort((a, b) => Math.max(b.excessInventoryValueBaht ?? 0, b.potentialUncoveredGrossProfitBaht ?? 0)
+    - Math.max(a.excessInventoryValueBaht ?? 0, a.potentialUncoveredGrossProfitBaht ?? 0)), [flaggedPurchases, skuEconomics]);
   const readyDrafts = purchaseDrafts.filter((row) => row.orderKg !== null);
   const pendingDrafts = purchaseDrafts.length - readyDrafts.length;
+
+  useEffect(() => {
+    if (pageView !== "detailed" || access !== "manager") return;
+    let live = true;
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session?.access_token) return;
+        const response = await fetch("/api/admin/stock-forecast?format=sku-economics", {
+          headers: { Authorization: `Bearer ${data.session.access_token}` }, cache: "no-store",
+        });
+        if (!response.ok) return;
+        const body = await response.json();
+        if (live) setSkuEconomics(body.economics ?? {});
+      } catch { /* Cost data can be missing; never replace missing economics with zero. */ }
+    })();
+    return () => { live = false; };
+  }, [pageView, access]);
 
   const visibleForecast = useMemo(() => {
     const filter = productSearch.trim().toLocaleLowerCase();
@@ -255,6 +308,22 @@ export default function StockManagementPage() {
         .some((part) => part.toLocaleLowerCase().includes(filter)))
     );
   }, [productForecast, productSearch, meatOnly]);
+
+  async function loadPlanHistory() {
+    if (access !== "manager" || planHistoryBusy) return;
+    setPlanHistoryBusy(true); setPlanHistoryError("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) throw new Error("กรุณาเข้าสู่ระบบใหม่");
+      const response = await fetch("/api/admin/stock-forecast?format=plan-history", {
+        headers: { Authorization: `Bearer ${data.session.access_token}` }, cache: "no-store",
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "โหลดประวัติไม่ได้");
+      setPlanHistory(body.history ?? []);
+    } catch (caught) { setPlanHistoryError(caught instanceof Error ? caught.message : "โหลดประวัติไม่ได้"); }
+    finally { setPlanHistoryBusy(false); }
+  }
 
   async function downloadForecast() {
     if (access !== "manager" || forecastDownloading) return;
@@ -413,18 +482,27 @@ export default function StockManagementPage() {
             <p className="mt-3 rounded-lg bg-[#FFF4DC] px-3 py-3 text-xs leading-5 text-[#7B5A16]">
               <strong>นโยบาย {TARGET_STOCK_DAYS.toFixed(1)} DOH:</strong> เป้าหมายสต็อกเท่ากับยอดคาดขายรวม B2B+B2C ของวันส่งพรุ่งนี้และวันถัดไป หักสต็อกที่คาดว่าจะเหลือหลังขายวันนี้ · รวมออเดอร์ B2B ที่ยืนยันแล้ว · ไม่แยกสต็อกตามวันหมดอายุ และไม่สมมติว่ามี FIFO สมบูรณ์ · ผลลัพธ์ยังเป็นตัวเลขทดลอง ไม่รับรองว่าจะไม่มีสินค้าขาดหรือหมดอายุ กรุณาตรวจสอบก่อนสั่ง
             </p>
+            {displayedSharedInputs?.sourceScope !== "b2c_only" && (
+              <p role="status" className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-bold leading-5 text-red-800">
+                ยังไม่ยืนยันว่าไฟล์ Power BI เป็นยอด B2C เท่านั้น · ปริมาณซื้อจะแสดง “รอข้อมูล” เพื่อป้องกันนับยอด B2B ซ้ำ · โปรดให้ IT ยืนยันประเภทข้อมูลแล้วเลือกในเมนูรายละเอียดก่อนนำเข้า
+              </p>
+            )}
+            {flaggedPurchases.length > 0 && <p className="mt-2 rounded-lg bg-[#FFF8E8] p-3 text-xs font-semibold text-[#7D5C17]">
+              มี {flaggedPurchases.length.toLocaleString()} SKU ที่ควรตรวจสอบ เช่น สต็อกสูง ยอดขายผันผวน หรือเคยพบสต็อกเช้าเป็นศูนย์ · ดูคำอธิบายทั้งหมดในมุมมองรายละเอียด
+            </p>}
             {snapshotStatus !== "saved" && <p className="mt-2 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-800">ยังไม่มีแผน 10:00 ที่บันทึกถาวรสำหรับวันนี้ · ตัวเลขอาจเปลี่ยนจนกว่าจะมีการบันทึกแผน</p>}
             {forecastError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700">{forecastError}</p>}
             <input type="search" value={simpleSearch} onChange={(event) => setSimpleSearch(event.target.value)} placeholder="ค้นหา SKU หรือชื่อสินค้า" aria-label="ค้นหาสินค้าในแผนสั่งสต็อก"
               className="mt-4 min-h-12 w-full rounded-xl border border-[#CDE9E3] px-4 text-sm outline-none focus:border-[#02B0AF]" />
             <div className="mt-3 overflow-x-auto rounded-xl border border-[#DCEAE6]">
-              <table className="w-full min-w-[570px] text-left text-xs sm:text-sm">
-                <thead className="bg-[#EDF8F5] text-[#376A60]"><tr><th className="p-3">สินค้า / SKU</th><th className="p-3 text-right">เป้าหมาย 2 วัน</th><th className="p-3 text-right">สต็อกที่คาดว่าเหลือ</th><th className="p-3 text-right">ปริมาณเติม (ทดลอง)</th></tr></thead>
+              <table className="w-full min-w-[700px] text-left text-xs sm:text-sm">
+                <thead className="bg-[#EDF8F5] text-[#376A60]"><tr><th className="p-3">สินค้า / SKU</th><th className="p-3 text-right">เป้าหมาย 2 วัน</th><th className="p-3 text-right">สต็อกที่คาดว่าเหลือ</th><th className="p-3 text-right">ปริมาณเติม (ทดลอง)</th><th className="p-3 text-right">สถานะ</th></tr></thead>
                 <tbody>{visiblePurchaseDrafts.map((row) => <tr key={row.sku} className="border-t border-[#E4EFEB]">
                   <td className="p-3"><strong>{row.productName}</strong><p className="text-[11px] text-[#78938A]">{row.sku}</p></td>
                   <td className="p-3 text-right tabular-nums">{row.targetStockKg === null ? "—" : forecastQty(row.targetStockKg)}</td>
                   <td className="p-3 text-right tabular-nums">{row.usableStockTomorrowKg === null ? "—" : forecastQty(row.usableStockTomorrowKg)}</td>
                   <td className="p-3 text-right font-black tabular-nums text-[#008B8B]">{row.orderKg === null ? <span className="text-xs text-amber-700">{row.missing.includes("b2c_history") ? "รอข้อมูล B2C" : "รอนับสต็อก"}</span> : <>{forecastQty(row.orderKg)} กก.</>}</td>
+                  <td className="p-3 text-right"><span className={`inline-block whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-bold ${INVENTORY_STATUS[warningsBySku.get(row.sku)?.status ?? "missing"].className}`}>{INVENTORY_STATUS[warningsBySku.get(row.sku)?.status ?? "missing"].label}</span></td>
                 </tr>)}</tbody>
               </table>
             </div>
@@ -442,6 +520,49 @@ export default function StockManagementPage() {
           <Link href="/stock-count" className="rounded-xl bg-[#02B0AF] px-4 py-3 text-sm font-black text-white">บันทึกสต็อกเช้า →</Link>
         </div>
         <B2CSalesImportPanel />
+
+        <section className="mt-5 rounded-[22px] border border-[#CDE9E3] bg-white p-4 sm:p-6" aria-label="สัญญาณเตือนความเสี่ยงสต็อก">
+          <h2 className="text-lg font-black text-[#17453F]">ตรวจสอบความเสี่ยงจากข้อมูลที่มี</h2>
+          <p className="mt-1 text-xs leading-5 text-[#66857C]">ระบบใช้ยอดขายรายวัน + สต็อกเช้าที่นับจริง และยังใช้เป้าหมาย 2 DOH ทุก SKU เหมือนเดิม สถานะนี้เป็นสัญญาณเตือนเพื่อให้ผู้จัดการตัดสินใจ ไม่ใช่ความน่าจะเป็นที่สินค้าจะหมดอายุหรือขาด</p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="rounded-xl bg-red-50 p-3 text-center"><p className="text-[11px] font-bold text-red-800">สต็อกเกิน 2.5 วัน</p><p className="mt-1 text-xl font-black text-red-800">{purchaseWarnings.filter((item) => item.status === "excess").length}</p></div>
+            <div className="rounded-xl bg-amber-50 p-3 text-center"><p className="text-[11px] font-bold text-amber-800">ต้องเติมเพื่อครอบคลุมพรุ่งนี้</p><p className="mt-1 text-xl font-black text-amber-800">{purchaseWarnings.filter((item) => item.status === "cover_gap").length}</p></div>
+            <div className="rounded-xl bg-[#E9F8F4] p-3 text-center"><p className="text-[11px] font-bold text-[#28766D]">สัญญาณเตือนทั้งหมด</p><p className="mt-1 text-xl font-black text-[#008B8B]">{flaggedPurchases.length}</p></div>
+          </div>
+          {displayedSharedInputs?.sourceScope !== "b2c_only" && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">แหล่งข้อมูล B2C ยังไม่ยืนยัน: รายงานรวมสาขาอาจมี B2B อยู่แล้ว จึงไม่นับซ้ำและยังไม่มีปริมาณสั่งซื้อที่พร้อมใช้สำหรับ SKU ดังกล่าว</p>}
+          {displayedSharedInputs?.sourcePeriod && (() => {
+            const age = Math.round((Date.parse(`${displayedSharedInputs.countDate}T00:00:00Z`) - Date.parse(`${displayedSharedInputs.sourcePeriod.end}T00:00:00Z`)) / 86400000);
+            return age > 14 ? <p className="mt-2 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">ข้อมูลยอดขาย B2C สิ้นสุดเมื่อ {displayedSharedInputs.sourcePeriod.end} ({age} วันที่ผ่านมา) · แบบจำลองใช้ได้แต่ไม่ทราบการเปลี่ยนแปลงล่าสุด ควรนำเข้ารอบใหม่เมื่อมีข้อมูล</p> : null;
+          })()}
+          <div className="mt-3 overflow-x-auto rounded-xl border border-[#E1EDE9]">
+            <table className="w-full min-w-[950px] text-left text-xs">
+              <thead className="bg-[#EDF8F5] text-[#3A6D62]"><tr><th className="p-2">SKU / สินค้า</th><th className="p-2">สัญญาณ</th><th className="p-2 text-right">DOH ก่อนสั่ง</th><th className="p-2 text-right">DOH หลังสั่ง</th><th className="p-2 text-right">ประวัติใช้ได้ (วัน)</th><th className="p-2 text-right">วันที่อาจขาดสต็อก</th><th className="p-2 text-right">มูลค่าสต็อกส่วนเกิน (฿)</th><th className="p-2 text-right">GP ที่เสี่ยงหากไม่เติม (฿)</th></tr></thead>
+              <tbody>{financialWarnings.slice(0, 50).map((row) => <tr key={row.sku} className="border-t border-[#E6EFEC]">
+                <td className="p-2"><strong>{row.productName}</strong><p className="text-[10px] text-[#7B928C]">{row.sku}</p></td>
+                <td className="p-2"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${INVENTORY_STATUS[row.status].className}`}>{INVENTORY_STATUS[row.status].label}</span></td>
+                <td className="p-2 text-right tabular-nums">{row.preOrderDoh === null ? "—" : Number.isFinite(row.preOrderDoh) ? `${forecastQty(row.preOrderDoh)} วัน` : "ไม่มียอดขาย"}</td>
+                <td className="p-2 text-right tabular-nums">{row.projectedDoh === null ? "—" : Number.isFinite(row.projectedDoh) ? `${forecastQty(row.projectedDoh)} วัน` : "ไม่มียอดขาย"}</td>
+                <td className="p-2 text-right">{row.retail?.observedDays ?? "—"}</td>
+                <td className="p-2 text-right">{row.retail?.suspectedStockoutDays ?? "—"}</td>
+                <td className="p-2 text-right tabular-nums">{row.excessInventoryValueBaht === null ? "N/A" : row.excessInventoryValueBaht.toLocaleString("th-TH", { maximumFractionDigits: 2 })}</td>
+                <td className="p-2 text-right tabular-nums">{row.potentialUncoveredGrossProfitBaht === null ? "N/A" : row.potentialUncoveredGrossProfitBaht.toLocaleString("th-TH", { maximumFractionDigits: 2 })}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-[#70877F]">คอลัมน์เงินบาทใช้ราคา/ต้นทุนจาก Master เพื่อจัดลำดับสิ่งที่ควรตรวจสอบ ไม่ใช่คาดการณ์ผลขาดทุนจริง · วันที่มีสต็อกเช้าเป็น 0 และยอดขายเป็น 0 จะไม่ถูกใช้เป็นหลักฐานว่าไม่มีความต้องการ (ถ้ามีประวัติการนับในวันนั้น) · DOH คำนวณจากยอดคาดขายสองวัน ไม่ใช่วันหมดอายุของสินค้าจริง · หากนับสต็อกหลังเริ่มขาย/หยิบสินค้า ต้องปรับการนับให้เกิดก่อนการเคลื่อนไหวของวัน มิฉะนั้นอาจหักยอดขายซ้ำ</p>
+        </section>
+
+        <section className="mt-5 rounded-[22px] border border-[#CDE9E3] bg-white p-4 sm:p-6" aria-label="ประวัติแผนสั่งซื้อ">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><h2 className="text-lg font-black text-[#17453F]">ประวัติแผนซื้อ ณ 10:00 น.</h2><p className="mt-1 text-xs text-[#6A847D]">เก็บปริมาณที่ระบบเสนอไว้ในบันทึกถาวร เพื่อใช้ตรวจสอบและปรับนโยบายในอนาคต · ไม่ใช่ปริมาณที่ผู้จัดการสั่งซื้อจริง</p></div>
+            <button type="button" onClick={() => void loadPlanHistory()} disabled={planHistoryBusy} className="min-h-11 rounded-xl bg-[#E6F8F4] px-4 text-sm font-black text-[#008B8B] disabled:opacity-50">{planHistoryBusy ? "กำลังโหลด..." : "ดูย้อนหลัง 14 วัน"}</button>
+          </div>
+          {planHistoryError && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-3 text-xs text-red-700">{planHistoryError}</p>}
+          {planHistory && <div className="mt-3 overflow-x-auto rounded-xl border border-[#DCEAE6]"><table className="w-full min-w-[520px] text-left text-xs">
+            <thead className="bg-[#EDF8F5] text-[#416D65]"><tr><th className="p-2">วันที่แผน</th><th className="p-2 text-right">SKU คำนวณได้</th><th className="p-2 text-right">SKU ขาดข้อมูล</th><th className="p-2 text-right">รวมแนะนำสั่ง (กก.)</th><th className="p-2">หมายเหตุ</th></tr></thead>
+            <tbody>{planHistory.map((day) => <tr key={day.date} className="border-t border-[#E3EEEA]"><td className="p-2">{day.date}</td><td className="p-2 text-right">{day.readySkuCount ?? "—"}</td><td className="p-2 text-right">{day.missingSkuCount ?? "—"}</td><td className="p-2 text-right font-bold">{day.recommendedKg === null ? "—" : forecastQty(day.recommendedKg)}</td><td className="p-2">{!day.available ? "แผนรุ่นก่อน ไม่มีข้อมูลซื้อ" : day.scope !== "b2c_only" ? "ยังไม่ยืนยันแหล่งข้อมูล B2C" : day.late ? "บันทึกหลัง 10:00" : "บันทึกตามเวลา"}</td></tr>)}</tbody>
+          </table></div>}
+        </section>
 
         <section className="mt-5 rounded-[22px] border border-[#CDE9E3] bg-white p-5 shadow-[0_4px_16px_rgba(18,96,89,0.05)] sm:p-7">
           <div className="flex flex-wrap items-start justify-between gap-3">

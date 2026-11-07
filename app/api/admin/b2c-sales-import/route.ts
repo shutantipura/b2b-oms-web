@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { parseB2CSales30DaySheet, parseB2CDailySheet, validateSalesPeriod, weekdayLabel, type B2CSales30DayRow } from "@/lib/sharedStockInputs";
 import { requireStockRole, stockErrorResponse } from "@/lib/server/stockAccess";
+import type { SalesScope } from "@/lib/sharedStockDiagnostics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,8 +20,8 @@ export async function GET(request: NextRequest) {
   try {
     const { admin } = await requireStockRole(request, ["manager"]);
     const [daily, legacy] = await Promise.all([
-      admin.from("b2c_daily_sales_imports").select("id, period_start, period_end, source_filename, sku_count, imported_at, dates").eq("is_active", true).maybeSingle(),
-      admin.from("b2c_sales_30d_imports").select("id, period_start, period_end, source_filename, row_count, imported_at").eq("is_active", true).maybeSingle(),
+      admin.from("b2c_daily_sales_imports").select("id, period_start, period_end, source_filename, sku_count, imported_at, dates, sales_scope").eq("is_active", true).maybeSingle(),
+      admin.from("b2c_sales_30d_imports").select("id, period_start, period_end, source_filename, row_count, imported_at, sales_scope").eq("is_active", true).maybeSingle(),
     ]);
     if (daily.error || legacy.error) throw daily.error ?? legacy.error;
     const activeImport = daily.data ? { ...daily.data, row_count: daily.data.sku_count, format: "daily" } :
@@ -36,6 +37,13 @@ export async function POST(request: NextRequest) {
     const file = form.get("file");
     const mode = form.get("mode") === "commit" ? "commit" : "preview";
     const blankAsZero = form.get("blankAsZero") === "true";
+    const salesScope = String(form.get("salesScope") ?? "unverified") as SalesScope;
+    if (!["unverified", "b2c_only", "all_store"].includes(salesScope)) {
+      return NextResponse.json({ error: "กรุณาระบุประเภทข้อมูลขายให้ถูกต้อง" }, { status: 400 });
+    }
+    if (mode === "commit" && salesScope === "unverified") {
+      return NextResponse.json({ error: "ก่อนนำเข้า กรุณาตรวจสอบกับ IT ว่ารายงานเป็นยอด B2C อย่างเดียวหรือยอดรวมทั้งสาขา" }, { status: 400 });
+    }
     const periodStart = String(form.get("periodStart") ?? "");
     const periodEnd = String(form.get("periodEnd") ?? "");
     if (!(file instanceof File) || !/\.(xlsx|xls)$/i.test(file.name) || file.size <= 0 || file.size > MAX_FILE_BYTES) {
@@ -88,6 +96,7 @@ export async function POST(request: NextRequest) {
       periodEnd: daily?.dates.at(-1) ?? periodEnd,
       dates: daily?.dates.map((date) => ({ date, weekday: weekdayLabel(date) })) ?? [],
       blankAsZero: daily ? blankAsZero : null,
+      salesScope,
       totalSkus: parsed.rows.length,
       matchedSkus: parsed.rows.length - unmatched.length,
       unmatchedSkus: unmatched.length,
@@ -105,7 +114,7 @@ export async function POST(request: NextRequest) {
       const { data: importBatch, error: createError } = await admin.from("b2c_daily_sales_imports")
         .insert({ period_start: daily.dates[0], period_end: daily.dates.at(-1), dates: daily.dates,
           source_filename: file.name.slice(0, 200), sku_count: daily.rows.length,
-          imported_by_staff_id: staffId, is_active: false }).select("id").single();
+          imported_by_staff_id: staffId, is_active: false, sales_scope: salesScope }).select("id").single();
       if (createError || !importBatch) throw createError ?? new Error("Could not open daily import batch");
       const profiles = daily.rows.map((row) => ({ import_id: importBatch.id, sku: row.sku,
         unit: row.unit, daily_qty: row.quantities }));
@@ -120,7 +129,7 @@ export async function POST(request: NextRequest) {
 
     const { data: importBatch, error: createError } = await admin.from("b2c_sales_30d_imports")
       .insert({ period_start: periodStart, period_end: periodEnd, source_filename: file.name.slice(0, 200),
-        row_count: parsed.rows.length, imported_by_staff_id: staffId, is_active: false })
+        row_count: parsed.rows.length, imported_by_staff_id: staffId, is_active: false, sales_scope: salesScope })
       .select("id").single();
     if (createError || !importBatch) throw createError ?? new Error("Could not open import batch");
     const rowsToInsert = (parsed.rows as B2CSales30DayRow[]).map((row) => ({

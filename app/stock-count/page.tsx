@@ -105,7 +105,7 @@ export default function MorningStockCountPage() {
           <p className="text-xs font-extrabold text-[#008B8B]">LOTUS’S B2B / MORNING STOCK COUNT</p>
           <h1 className="mt-2 text-2xl font-black text-[#17453F]">บันทึกสต็อกเช้า · เนื้อสด</h1>
           <p className="mt-1 text-sm text-[#66857C]">วันที่ {date || "กำลังโหลด..."} · นับสต็อกที่พร้อมขายจริง หน่วย กก.</p>
-          <p className="mt-2 rounded-lg bg-[#FFF4D4] p-3 text-xs leading-5 text-[#795D17]">ควรบันทึกก่อน 10:00 น. เพื่อให้แผนสั่งซื้อใช้ข้อมูลปัจจุบัน · สินค้าที่แยกไป Picking แล้วอย่านับซ้ำ · ช่องว่างหมายถึงยังไม่ได้นับ ส่วนเลข 0 หมายถึงนับแล้วว่าไม่มีสต็อก</p>
+          <p className="mt-2 rounded-lg bg-[#FFF4D4] p-3 text-xs leading-5 text-[#795D17]">ให้นับสต็อกก่อนเริ่มขายหรือ Picking ของวัน และบันทึกก่อน 10:00 น. · ระบบจะหักยอดขายที่คาดว่าจะเกิดขึ้นในวันนี้ออกจากสต็อกเช้า จึงไม่ควรนับหลังจากขาย/หยิบสินค้าไปแล้ว มิฉะนั้นยอดนั้นอาจถูกหักซ้ำ · สินค้าที่แยกไป Picking แล้วอย่านับซ้ำ · ช่องว่างหมายถึงยังไม่ได้นับ ส่วนเลข 0 หมายถึงนับแล้วว่าไม่มีสต็อก</p>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-bold text-[#38746C]">นับแล้ว {completed} / {products.length} SKU</p>
             <Link href="/stock-management" className="text-sm font-bold text-[#008B8B] underline">ไปหน้าพยากรณ์ (Manager)</Link>

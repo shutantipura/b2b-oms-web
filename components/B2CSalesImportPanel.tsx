@@ -9,6 +9,7 @@ type ImportPreview = {
   periodEnd: string;
   dates: { date: string; weekday: string }[];
   blankAsZero: boolean | null;
+  salesScope: "unverified" | "b2c_only" | "all_store";
   totalSkus: number;
   matchedSkus: number;
   unmatchedSkus: number;
@@ -16,7 +17,7 @@ type ImportPreview = {
   unitWarnings: string[];
   sample: { sku: string; soldQty: number; unit: string | null; productName: string; quantities?: (number | null)[] }[];
 };
-type ActiveImport = { id: string; period_start: string; period_end: string; source_filename: string; row_count: number; imported_at: string; format: "daily" | "total" };
+type ActiveImport = { id: string; period_start: string; period_end: string; source_filename: string; row_count: number; imported_at: string; format: "daily" | "total"; sales_scope: "unverified" | "b2c_only" | "all_store" };
 
 export default function B2CSalesImportPanel() {
   const [active, setActive] = useState<ActiveImport | null>(null);
@@ -24,6 +25,7 @@ export default function B2CSalesImportPanel() {
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
   const [blankAsZero, setBlankAsZero] = useState(true);
+  const [salesScope, setSalesScope] = useState<"unverified" | "b2c_only" | "all_store">("unverified");
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -60,7 +62,7 @@ export default function B2CSalesImportPanel() {
       const token = data.session?.access_token;
       if (!token) throw new Error("กรุณาเข้าสู่ระบบใหม่");
       const form = new FormData();
-      form.set("file", file); form.set("periodStart", periodStart); form.set("periodEnd", periodEnd); form.set("mode", mode); form.set("blankAsZero", String(blankAsZero));
+      form.set("file", file); form.set("periodStart", periodStart); form.set("periodEnd", periodEnd); form.set("mode", mode); form.set("blankAsZero", String(blankAsZero)); form.set("salesScope", salesScope);
       const response = await fetch("/api/admin/b2c-sales-import", {
         method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form,
       });
@@ -69,8 +71,8 @@ export default function B2CSalesImportPanel() {
       setPreview(result.preview ?? null);
       if (result.imported) {
         setActive({ id: result.importId, period_start: result.preview.periodStart, period_end: result.preview.periodEnd,
-          source_filename: file.name, row_count: result.preview.totalSkus, imported_at: new Date().toISOString(), format: result.preview.format });
-        setMessage(`นำเข้าสำเร็จ ${result.preview.totalSkus} SKU · ใช้เป็นฐาน B2C ปัจจุบันแล้ว`);
+          source_filename: file.name, row_count: result.preview.totalSkus, imported_at: new Date().toISOString(), format: result.preview.format, sales_scope: salesScope });
+        setMessage(salesScope === "b2c_only" ? `นำเข้าสำเร็จ ${result.preview.totalSkus} SKU · ใช้เป็นฐาน B2C ปัจจุบันแล้ว` : `นำเข้าสำเร็จ ${result.preview.totalSkus} SKU · เก็บไว้เพื่ออ้างอิง แต่จะไม่บวกกับ OMS เพื่อป้องกันนับยอด B2B ซ้ำ`);
       }
     } catch (caught) { setError(caught instanceof Error ? caught.message : "นำเข้าไม่สำเร็จ"); }
     finally { setBusy(false); }
@@ -83,8 +85,18 @@ export default function B2CSalesImportPanel() {
       </summary>
       <div className="space-y-4 border-t border-[#DCEAE6] p-4 sm:p-5">
         {active ? <p className="rounded-lg bg-[#E8F8F4] px-3 py-2 text-xs leading-5 text-[#28766D]">
-          ฐานข้อมูลปัจจุบัน: {active.format === "daily" ? "รายวัน" : "ยอดรวม 30 วัน"} · {active.row_count.toLocaleString()} SKU · ช่วง {active.period_start} ถึง {active.period_end} · {active.source_filename}
+          ฐานข้อมูลปัจจุบัน: {active.format === "daily" ? "รายวัน" : "ยอดรวม 30 วัน"} · {active.row_count.toLocaleString()} SKU · ช่วง {active.period_start} ถึง {active.period_end} · {active.source_filename} · {active.sales_scope === "b2c_only" ? "ยืนยันว่าเป็น B2C เท่านั้น" : "ยังไม่ใช้ในแผนเติมสต็อก (อาจนับ B2B ซ้ำ)"}
         </p> : <p className="rounded-lg bg-[#FFF4DC] px-3 py-2 text-xs text-[#826324]">ยังไม่มียอดขาย B2C ที่นำเข้า · ตัวเลขรวม B2B+B2C จะยังไม่พร้อมใช้งาน</p>}
+        <label className="block rounded-xl border border-[#F4D68A] bg-[#FFF9E8] p-3 text-xs font-bold leading-5 text-[#755721]">
+          <span>ประเภทข้อมูลจาก Power BI (โปรดตรวจสอบกับ IT ก่อนยืนยัน)</span>
+          <select value={salesScope} onChange={(event) => { setSalesScope(event.target.value as typeof salesScope); setPreview(null); }}
+            className="mt-2 min-h-11 w-full rounded-lg border border-[#D8BA75] bg-white px-3 text-sm text-[#17453F]">
+            <option value="unverified">ยังไม่ทราบว่าในรายงานรวม B2B ด้วยหรือไม่</option>
+            <option value="b2c_only">เฉพาะยอดขาย B2C เท่านั้น (IT ยืนยันแล้ว)</option>
+            <option value="all_store">ยอดขายรวมสาขา / อาจรวม B2B</option>
+          </select>
+          <span className="mt-2 block font-normal">หากเป็นยอดรวมสาขา ระบบจะเก็บข้อมูลไว้ แต่ไม่บวกกับยอด B2B จาก OMS จนกว่าจะแยกแหล่งข้อมูลได้</span>
+        </label>
         <p className="text-xs leading-5 text-[#68867D]">รูปแบบใหม่: SKU อยู่แถวซ้าย วันที่อยู่หัวคอลัมน์ เช่น <strong>01/09/2026, 02/09/2026</strong> ไม่จำกัดเดือน (7–120 วันติดต่อกัน) · ระบบอ่านวันที่และคำนวณวันในสัปดาห์ให้อัตโนมัติ · ยอดขายต้องเป็นจำนวน ไม่ใช่เงินบาท · หน่วยเนื้อสดเป็น กก.</p>
         <label className="flex items-start gap-2 rounded-lg bg-[#FFF8E8] p-3 text-xs leading-5 text-[#785D21]">
           <input type="checkbox" checked={blankAsZero} onChange={(event) => { setBlankAsZero(event.target.checked); setPreview(null); }} className="mt-1" />
@@ -127,7 +139,7 @@ export default function B2CSalesImportPanel() {
               <tbody>{preview.sample.map((row) => <tr key={row.sku} className="border-t border-[#E3EDE9]"><td className="p-2">{row.sku}</td><td className="p-2">{row.productName}</td><td className="p-2 text-right tabular-nums">{row.soldQty.toLocaleString()} {row.unit ?? ""}</td>{preview.format === "daily" && row.quantities?.slice(0, 7).map((value, index) => <td key={index} className="p-2 text-right">{value ?? "—"}</td>)}</tr>)}</tbody>
             </table>
           </div>
-          <button type="button" disabled={busy || preview.unitWarnings.length > 0} onClick={() => void submit("commit")}
+          <button type="button" disabled={busy || preview.unitWarnings.length > 0 || salesScope === "unverified"} onClick={() => void submit("commit")}
             className="min-h-12 w-full rounded-xl bg-[#02B0AF] p-3 text-sm font-black text-white disabled:opacity-40">
             {busy ? "กำลังบันทึก..." : "ยืนยันนำเข้าฐานยอดขาย B2C"}
           </button>
