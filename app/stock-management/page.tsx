@@ -14,7 +14,7 @@ type Access = "loading" | "manager" | "denied" | "signed-out";
 const PLANNING_LABEL = `P${Math.round(STOCK_PLANNING_PERCENTILE * 100)}`;
 const PLANNING_TARGET = Math.round(STOCK_PLANNING_PERCENTILE * 100);
 type StockOrderPlansPayload = { noon: StockOrderRecommendation[]; live: StockOrderRecommendation[]; noonHorizonFrozen: boolean };
-type SharedInputs = { sourcePeriod: { start: string; end: string } | null; countDate: string; products: { sku: string; productName: string }[]; bySku: Record<string, { b2cDailyKg: number | null; onHandKg: number | null; countedAt: string | null }> };
+type SharedInputs = { sourcePeriod: { start: string; end: string } | null; sourceFormat: "daily" | "total" | null; countDate: string; products: { sku: string; productName: string }[]; bySku: Record<string, { b2cDailyKg: number | null; b2cByDateKg?: Record<string, number | null>; onHandKg: number | null; countedAt: string | null }> };
 type SharedInputsPayload = { noon: SharedInputs; live: SharedInputs; noonFrozen: boolean };
 
 function qty(value: number) {
@@ -424,30 +424,32 @@ export default function StockManagementPage() {
             <section className="mt-5 rounded-2xl border border-[#B9DFD6] bg-[#F5FCFA] p-4" aria-label="ความต้องการร่วม B2B B2C">
               <h3 className="text-lg font-black text-[#17453F]">ความต้องการร่วม B2B + B2C · เนื้อสด</h3>
               <p className="mt-1 text-xs leading-5 text-[#557970]">
-                B2C ใช้ยอดขายรวม 30 วัน ÷ 30 เป็นค่าเฉลี่ยรายวัน · B2B ใช้ค่าเฉลี่ยวันที่ส่งพรุ่งนี้ ({displayedForecast.dates[1]}) · สต็อกคือยอดที่พนักงานนับวันนี้ ({displayedSharedInputs.countDate})
+                B2B ใช้ค่าเฉลี่ยวันที่ส่งพรุ่งนี้ ({displayedForecast.dates[1]}) · B2C {displayedSharedInputs.sourceFormat === "daily" ? "ใช้ค่าเฉลี่ยตามวันในสัปดาห์จากยอดขายรายวัน (ปรับลดความผันผวนด้วยค่าเฉลี่ยรวม)" : "ใช้ยอดรวม 30 วัน ÷ 30"} · สต็อกคือยอดที่พนักงานนับวันนี้ ({displayedSharedInputs.countDate})
               </p>
               <p className="mt-2 text-xs font-bold text-[#487A70]">
-                {displayedSharedInputs.sourcePeriod ? `ข้อมูล B2C: ${displayedSharedInputs.sourcePeriod.start} ถึง ${displayedSharedInputs.sourcePeriod.end}` : "ยังไม่มีข้อมูล B2C · กรุณานำเข้า Excel 30 วัน"}
+                {displayedSharedInputs.sourcePeriod ? `ข้อมูล B2C: ${displayedSharedInputs.sourcePeriod.start} ถึง ${displayedSharedInputs.sourcePeriod.end}` : "ยังไม่มีข้อมูล B2C · กรุณานำเข้า Excel รายวัน"}
                 {forecastView === "noon" && !sharedStockInputs?.noonFrozen ? " · แผนเดิมยังไม่ได้ล็อกข้อมูล B2C/สต็อกไว้ที่ 10:00" : ""}
               </p>
               <div className="mt-3 overflow-x-auto rounded-xl border border-[#D5EBE5] bg-white">
                 <table className="w-full min-w-[640px] text-left text-xs">
-                  <thead className="bg-[#E7F6F1] text-[#315C54]"><tr><th className="p-2">สินค้า / SKU</th><th className="p-2 text-right">B2B พรุ่งนี้</th><th className="p-2 text-right">B2C เฉลี่ย/วัน</th><th className="p-2 text-right">รวมเฉลี่ย/วัน</th><th className="p-2 text-right">สต็อกเช้า</th></tr></thead>
+                  <thead className="bg-[#E7F6F1] text-[#315C54]"><tr><th className="p-2">สินค้า / SKU</th><th className="p-2 text-right">B2B พรุ่งนี้</th><th className="p-2 text-right">B2C เฉลี่ยทุกวัน</th><th className="p-2 text-right">B2C พรุ่งนี้ (ตามวันสัปดาห์)</th><th className="p-2 text-right">รวมพรุ่งนี้</th><th className="p-2 text-right">สต็อกเช้า</th></tr></thead>
                   <tbody>{combinedMeatProducts.map((product) => {
                     const b2b = product.b2bKg;
                     const entry = displayedSharedInputs.bySku[product.sku];
+                    const b2cTomorrow = entry?.b2cByDateKg?.[displayedForecast.dates[1]] ?? entry?.b2cDailyKg;
                     return <tr key={product.sku} className="border-t border-[#E2EDE9]">
                       <td className="p-2"><strong>{product.productName}</strong><p className="text-[10px] text-[#738D85]">{product.sku}</p></td>
                       <td className="p-2 text-right tabular-nums">{forecastQty(b2b)}</td>
                       <td className="p-2 text-right tabular-nums">{entry?.b2cDailyKg === null || entry?.b2cDailyKg === undefined ? "N/A" : forecastQty(entry.b2cDailyKg)}</td>
-                      <td className="p-2 text-right font-black tabular-nums text-[#008B8B]">{entry?.b2cDailyKg === null || entry?.b2cDailyKg === undefined ? "N/A" : forecastQty(b2b + entry.b2cDailyKg)}</td>
+                      <td className="p-2 text-right tabular-nums">{b2cTomorrow == null ? "N/A" : forecastQty(b2cTomorrow)}</td>
+                      <td className="p-2 text-right font-black tabular-nums text-[#008B8B]">{b2cTomorrow == null ? "N/A" : forecastQty(b2b + b2cTomorrow)}</td>
                       <td className="p-2 text-right tabular-nums">{entry?.onHandKg === null || entry?.onHandKg === undefined ? "ยังไม่นับ" : forecastQty(entry.onHandKg)}</td>
                     </tr>;
                   })}</tbody>
                 </table>
               </div>
               <p className="mt-3 rounded-lg bg-[#FFF4DC] p-3 text-xs leading-5 text-[#805D18]">
-                ยังไม่คำนวณปริมาณสั่งซื้อหรือความเสี่ยงขาด/หมดอายุจากข้อมูลรวมนี้: ยอด B2C เป็นค่าเฉลี่ย 30 วัน ไม่ทราบความผันผวนรายวัน และสต็อกไม่มีข้อมูลอายุสินค้า จึงยังพิสูจน์เกณฑ์ขาดไม่เกิน 5% หรือ FIFO จริงไม่ได้
+                ยังไม่คำนวณปริมาณสั่งซื้อหรือความเสี่ยงขาด/หมดอายุจากข้อมูลรวมนี้: {displayedSharedInputs.sourceFormat === "daily" ? "ยอดขายรายวันช่วยประมาณความผันผวนได้ แต่ยอดขายที่ถูกจำกัดด้วยสินค้าขาดอาจต่ำกว่าความต้องการจริง" : "ข้อมูล B2C ยอดรวมยังไม่บอกความผันผวนรายวัน"} และสต็อกไม่มีข้อมูลอายุสินค้า จึงยังพิสูจน์เกณฑ์ขาดไม่เกิน 5% หรือ FIFO จริงไม่ได้
               </p>
             </section>
           )}

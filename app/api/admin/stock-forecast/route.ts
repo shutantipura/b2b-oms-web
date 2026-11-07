@@ -18,6 +18,7 @@ import {
 } from "@/lib/stockForecast";
 import { BACKTEST_DAYS, backtestStockForecast } from "@/lib/stockForecastBacktest";
 import { extendForecastForExpiry, optimizeFreshMeatOrders, type SkuEconomics, type StockOrderRecommendation } from "@/lib/stockOrderOptimizer";
+import { dailyWeekdayBaseline } from "@/lib/sharedStockInputs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -246,47 +247,64 @@ type SnapshotRecord = {
 
 type SharedStockInputs = {
   sourcePeriod: { start: string; end: string } | null;
+  sourceFormat: "daily" | "total" | null;
   countDate: string;
   products: { sku: string; productName: string }[];
-  bySku: Record<string, { b2cDailyKg: number | null; onHandKg: number | null; countedAt: string | null }>;
+  bySku: Record<string, { b2cDailyKg: number | null; b2cByDateKg: Record<string, number | null>; onHandKg: number | null; countedAt: string | null }>;
 };
 
-async function loadSharedStockInputs(admin: SupabaseClient, skuList: string[], today: string): Promise<SharedStockInputs> {
-  const [imports, catalogue] = await Promise.all([
+async function loadSharedStockInputs(admin: SupabaseClient, skuList: string[], today: string, targetDates: string[]): Promise<SharedStockInputs> {
+  const [imports, dailyImports, catalogue] = await Promise.all([
     admin.from("b2c_sales_30d_imports").select("id, period_start, period_end").eq("is_active", true).maybeSingle(),
+    admin.from("b2c_daily_sales_imports").select("id, period_start, period_end, dates").eq("is_active", true).maybeSingle(),
     admin.from("products").select("sku, product_name, category").in("category", ["Fresh Meat", "เนื้อสัตว์และอาหารทะเล", "MEAT+SEAFOOD", "B2B-MEAT+SEAFOOD"])
       .eq("is_active", true).limit(1500),
   ]);
-  if (imports.error || catalogue.error) throw imports.error ?? catalogue.error;
-  const source = imports.data;
+  if (imports.error || dailyImports.error || catalogue.error) throw imports.error ?? dailyImports.error ?? catalogue.error;
+  const dailySource = dailyImports.data;
+  const source = dailySource ?? imports.data;
   const products = [...new Map((catalogue.data ?? [])
     .filter((product) => product.sku && isFreshMeat(product.category, product.product_name ?? ""))
     .map((product) => [product.sku, { sku: product.sku, productName: product.product_name ?? product.sku }])).values()];
   skuList = [...new Set([...skuList, ...products.map((product) => product.sku)])];
   const bySku: SharedStockInputs["bySku"] = {};
-  for (const sku of skuList) bySku[sku] = { b2cDailyKg: null, onHandKg: null, countedAt: null };
+  for (const sku of skuList) bySku[sku] = { b2cDailyKg: null, b2cByDateKg: {}, onHandKg: null, countedAt: null };
   for (const skus of batch(skuList, 150)) {
-    const [sales, counts] = await Promise.all([
-      source ? admin.from("b2c_sales_30d_rows").select("sku, sold_qty, unit")
+    const [sales, dailySales, counts] = await Promise.all([
+      !dailySource && source ? admin.from("b2c_sales_30d_rows").select("sku, sold_qty, unit")
         .eq("import_id", source.id).in("sku", skus) : Promise.resolve({ data: [], error: null }),
+      dailySource ? admin.from("b2c_daily_sales_profiles").select("sku, unit, daily_qty")
+        .eq("import_id", dailySource.id).in("sku", skus) : Promise.resolve({ data: [], error: null }),
       admin.from("stock_morning_counts").select("sku, quantity_kg, counted_at")
         .eq("count_date", today).in("sku", skus),
     ]);
-    if (sales.error) throw sales.error;
+    if (sales.error || dailySales.error) throw sales.error ?? dailySales.error;
     if (counts.error) throw counts.error;
     for (const row of sales.data ?? []) {
       // One 30-day total supports a daily mean, not a B2C variance or P95.
       // If the optional unit disagrees with kg, do not silently add quantities.
       if (bySku[row.sku] && (!row.unit || ["กก.", "กก", "kg", "KG"].includes(row.unit))) {
         bySku[row.sku].b2cDailyKg = Number(row.sold_qty) / 30;
+        for (const date of targetDates) bySku[row.sku].b2cByDateKg[date] = Number(row.sold_qty) / 30;
       }
+    }
+    for (const row of dailySales.data ?? []) {
+      if (!bySku[row.sku] || (row.unit && !["กก.", "กก", "kg", "KG"].includes(row.unit))) continue;
+      const dateHistory = dailySource?.dates;
+      const quantities = row.daily_qty;
+      if (!Array.isArray(dateHistory) || !Array.isArray(quantities) || quantities.length !== dateHistory.length) continue;
+      const validQuantities = quantities.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+      if (!validQuantities.length) continue;
+      bySku[row.sku].b2cDailyKg = validQuantities.reduce((sum, value) => sum + value, 0) / validQuantities.length;
+      for (const date of targetDates) bySku[row.sku].b2cByDateKg[date] = dailyWeekdayBaseline(dateHistory, quantities, date);
     }
     for (const row of counts.data ?? []) if (bySku[row.sku]) {
       bySku[row.sku].onHandKg = Number(row.quantity_kg);
       bySku[row.sku].countedAt = row.counted_at;
     }
   }
-  return { sourcePeriod: source ? { start: source.period_start, end: source.period_end } : null, countDate: today, products, bySku };
+  return { sourcePeriod: source ? { start: source.period_start, end: source.period_end } : null,
+    sourceFormat: dailySource ? "daily" : source ? "total" : null, countDate: today, products, bySku };
 }
 
 async function officialSnapshot(admin: SupabaseClient, date: string): Promise<SnapshotRecord | null> {
@@ -323,7 +341,7 @@ export async function POST(request: NextRequest) {
     const skuList = [...new Set(stockPlanningHorizon.rows
       .filter((row) => row.freshMeat && row.unit === "กก.").map((row) => row.sku))];
     const [economics, sharedStockInputs] = await Promise.all([
-      masterEconomicsBySku(admin, skuList), loadSharedStockInputs(admin, skuList, today),
+      masterEconomicsBySku(admin, skuList), loadSharedStockInputs(admin, skuList, today, inputs.noonForecast.dates),
     ]);
     const stockOrderPlan = optimizeFreshMeatOrders(stockPlanningHorizon, economics);
     const { error } = await admin.from("b2b_demand_forecast_snapshots").insert({
@@ -501,7 +519,7 @@ export async function GET(request: NextRequest) {
     const skuList = [...new Set([...noonPlanningHorizon.rows, ...livePlanningHorizon.rows]
       .filter((row) => row.freshMeat && row.unit === "กก.").map((row) => row.sku))];
     const [economics, liveSharedInputs] = await Promise.all([
-      masterEconomicsBySku(admin, skuList), loadSharedStockInputs(admin, skuList, today),
+      masterEconomicsBySku(admin, skuList), loadSharedStockInputs(admin, skuList, today, inputs.forecast.dates),
     ]);
     const noonOrders = savedOrderPlan ?? optimizeFreshMeatOrders(noonPlanningHorizon, economics);
     const liveOrders = optimizeFreshMeatOrders(livePlanningHorizon, economics);
