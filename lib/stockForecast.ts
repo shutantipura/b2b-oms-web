@@ -8,9 +8,9 @@ export function bangkokDateKey(value: Date | string) {
 }
 
 
-/** Replays the 12:00 Bangkok procurement decision after the deadline passes. */
+/** Replays the 10:00 Bangkok purchasing forecast after staff begin supplier entry. */
 export function procurementForecastAsOf(now: Date) {
-  const cutoff = new Date(`${bangkokDateKey(now)}T12:00:00+07:00`);
+  const cutoff = new Date(`${bangkokDateKey(now)}T10:00:00+07:00`);
   return new Date(Math.min(now.getTime(), cutoff.getTime()));
 }
 

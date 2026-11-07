@@ -35,13 +35,13 @@ test("fresh meat classification excludes eggs, fish, frozen products", () => {
   assert.equal(isFreshMeat("Fresh Meat", "เนื้อวัว กก."), true);
 });
 
-test("procurement replay uses live time before Bangkok noon and freezes its cutoff afterwards", () => {
-  const before = new Date("2026-11-06T04:59:59Z");
+test("procurement replay uses live time before 10:00 Bangkok and freezes its cutoff afterwards", () => {
+  const before = new Date("2026-11-06T02:59:59Z");
   const after = new Date("2026-11-06T06:40:00Z");
   assert.equal(procurementForecastAsOf(before).toISOString(), before.toISOString());
-  assert.equal(procurementForecastAsOf(after).toISOString(), "2026-11-06T05:00:00.000Z");
+  assert.equal(procurementForecastAsOf(after).toISOString(), "2026-11-06T03:00:00.000Z");
   assert.equal(procurementForecastAsOf(new Date("2026-11-05T18:00:00Z")).toISOString(),
-    "2026-11-05T18:00:00.000Z", "Bangkok already entered 6 Nov after midnight, but before noon");
+    "2026-11-05T18:00:00.000Z", "Bangkok already entered 6 Nov after midnight, but before 10:00");
 });
 
 test("modal forecast chooses the full likely quantity instead of probability-weighting it", () => {

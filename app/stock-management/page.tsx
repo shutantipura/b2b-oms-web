@@ -120,6 +120,9 @@ export default function StockManagementPage() {
   const [dates] = useState<string[]>(() => stockReportDates());
   const [forecast, setForecast] = useState<StockForecast | null>(null);
   const [noonForecast, setNoonForecast] = useState<StockForecast | null>(null);
+  const [snapshotStatus, setSnapshotStatus] = useState<"saved" | "preview" | "missing">("preview");
+  const [snapshotCapturedAt, setSnapshotCapturedAt] = useState<string | null>(null);
+  const [snapshotWasLate, setSnapshotWasLate] = useState(false);
   const [forecastView, setForecastView] = useState<"noon" | "live">("noon");
   const [forecastLoading, setForecastLoading] = useState(false);
   const [forecastError, setForecastError] = useState("");
@@ -164,9 +167,12 @@ export default function StockManagementPage() {
         const problem = await response.json().catch(() => ({}));
         throw new Error(typeof problem.error === "string" ? problem.error : "คำนวณคาดการณ์ไม่สำเร็จ");
       }
-      const next = (await response.json()) as StockForecast & { noonForecast?: StockForecast };
+      const next = (await response.json()) as StockForecast & { noonForecast?: StockForecast; snapshotStatus?: "saved" | "preview" | "missing"; snapshotCapturedAt?: string | null; snapshotWasLate?: boolean };
       setForecast(next);
       setNoonForecast(next.noonForecast ?? null);
+      setSnapshotStatus(next.snapshotStatus ?? "preview");
+      setSnapshotCapturedAt(next.snapshotCapturedAt ?? null);
+      setSnapshotWasLate(next.snapshotWasLate === true);
       setForecastError("");
     } catch (caught) {
       setForecastError(caught instanceof Error ? caught.message : "คำนวณคาดการณ์ไม่สำเร็จ");
@@ -322,7 +328,7 @@ export default function StockManagementPage() {
               <p className="text-xs font-extrabold tracking-wide text-[#008B8B]">REQUESTED DEMAND + ROLLING FORECAST</p>
               <h2 className="mt-1 text-2xl font-black text-[#17453F]">พยากรณ์ความต้องการสินค้า 3 วัน</h2>
               <p className="mt-2 text-sm leading-6 text-[#648279]">
-                ใช้ Requested Qty ตามวันส่ง/รับสินค้า · เรียนรู้รอบสั่งสินค้าและช่วงเวลาของลูกค้า · มีทั้งแผนก่อนเที่ยงสำหรับสั่งสต็อก และคาดการณ์สด · อัปเดตทุก 1 นาที
+                ใช้ Requested Qty ตามวันส่ง/รับสินค้า · เรียนรู้รอบสั่งสินค้าและช่วงเวลาของลูกค้า · ล็อกแผนเวลา 10:00 เพื่อให้พนักงานสั่งสต็อกทัน 12:00 · คาดการณ์สดอัปเดตทุก 1 นาที
               </p>
               {displayedForecast && (
                 <p className="mt-1 text-xs text-[#77918A]">
@@ -338,7 +344,7 @@ export default function StockManagementPage() {
           <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="เลือกมุมมองการคาดการณ์">
             <button type="button" aria-pressed={forecastView === "noon"} onClick={() => setForecastView("noon")}
               className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-black ${forecastView === "noon" ? "border-[#CBA451] bg-[#FFF1C5] text-[#704D00]" : "border-[#CDE5DE] bg-white text-[#557A71]"}`}>
-              ณ 12:00 น. · ใช้ตัดสินใจสั่ง
+              แผน 10:00 น. · ใช้ตัดสินใจสั่ง
             </button>
             <button type="button" aria-pressed={forecastView === "live"} onClick={() => setForecastView("live")}
               className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-black ${forecastView === "live" ? "border-[#02B0AF] bg-[#E5F8F5] text-[#008B8B]" : "border-[#CDE5DE] bg-white text-[#557A71]"}`}>
@@ -346,9 +352,16 @@ export default function StockManagementPage() {
             </button>
           </div>
           <p className="mt-2 text-xs text-[#648279]">
-            ทั้งสองมุมมองใช้โมเดลเดียวกัน ต่างกันที่เวลาอ้างอิง · ก่อนเที่ยงข้อมูลเหมือนกัน
-            หลังเที่ยงมุมมอง 12:00 จะไม่นับออเดอร์ที่เพิ่งส่งเข้ามา
+            ทั้งสองมุมมองใช้โมเดลเดียวกัน ต่างกันที่เวลาอ้างอิง · ก่อน 10:00 ข้อมูลเหมือนกัน
+            หลัง 10:00 แผนทางการจะไม่นับออเดอร์ที่เข้ามาทีหลัง
           </p>
+          {forecastView === "noon" && (
+            <p className={`mt-2 rounded-lg px-3 py-2 text-xs font-bold ${snapshotStatus === "saved" ? "bg-[#E5F8F5] text-[#006F6B]" : "bg-amber-50 text-amber-800"}`}>
+              {snapshotStatus === "saved"
+                ? `บันทึกแผน 10:00 ถาวรแล้ว${snapshotCapturedAt ? ` · จัดเก็บจริง ${new Date(snapshotCapturedAt).toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" })} น.` : ""}${snapshotWasLate ? " · บันทึกช้ากว่าเวลาที่กำหนด" : ""}`
+                : snapshotStatus === "preview" ? "ตัวอย่างแผนก่อน 10:00 · จะบันทึกแผนทางการเวลา 10:00 น." : "ยังไม่พบบันทึกแผน 10:00 ถาวร · กำลังแสดงแผนคำนวณย้อนหลังแทน (กรุณาตรวจสอบการบันทึกอัตโนมัติ)"}
+            </p>
+          )}
           {displayedForecast && (
             <div className="mt-5 rounded-xl border border-[#DDEEEA] p-2">
               <p className="px-2 py-2 text-sm font-black text-[#17453F]">เนื้อสดรวม · ส่งพรุ่งนี้ ({displayedForecast.dates[1]})</p>
@@ -404,9 +417,9 @@ export default function StockManagementPage() {
           {displayedForecast && (
             <>
               <div className="mt-5 rounded-2xl border border-[#F5D88F] bg-[#FFF9E8] p-4 text-sm leading-6 text-[#775817]">
-                <p className="font-black">{forecastView === "noon" ? "มุมมอง ณ 12:00 น. เพื่อวางแผนรองรับคำสั่งซื้อพรุ่งนี้" : "มุมมองล่าสุดตามคำสั่งซื้อ B2B ที่เข้ามา"}</p>
+                <p className="font-black">{forecastView === "noon" ? "แผน ณ 10:00 น. เพื่อวางแผนรองรับคำสั่งซื้อพรุ่งนี้" : "มุมมองล่าสุดตามคำสั่งซื้อ B2B ที่เข้ามา"}</p>
                 <p className="mt-1"><strong>รับแล้ว</strong> = ยอดลูกค้าขอสั่งแล้ว · <strong>คาดการณ์เฉลี่ย</strong> = รับแล้ว + คาดว่าจะสั่งเพิ่ม · <strong>แผน {PLANNING_LABEL}</strong> = ระดับความต้องการเผื่อขาดสินค้า (ไม่ใช่ปริมาณสั่งซัพพลายเออร์)</p>
-                <p className="mt-1 text-xs">{forecastView === "noon" ? "ก่อนเที่ยงจะแสดง ณ เวลาปัจจุบัน หลังเที่ยงจะจำลองจากออเดอร์ที่ส่งก่อน 12:00 น. (ยังไม่ใช่ snapshot เก็บถาวร) · " : ""}{PLANNING_LABEL} เป็นแนวทางวางแผน ไม่ใช่คำสั่งซื้อจากซัพพลายเออร์ ระบบยังไม่ได้หักสต็อกที่มีอยู่หรือคิดเวลาที่สินค้าซัพพลายเออร์มาถึง</p>
+                <p className="mt-1 text-xs">{forecastView === "noon" ? "ก่อน 10:00 แสดงข้อมูลล่าสุด หลัง 10:00 ใช้บันทึกถาวรของวันนั้นหากมี · " : ""}{PLANNING_LABEL} เป็นแนวทางวางแผน ไม่ใช่คำสั่งซื้อจากซัพพลายเออร์ ระบบยังไม่ได้หักสต็อกที่มีอยู่หรือคิดเวลาที่สินค้าซัพพลายเออร์มาถึง</p>
               </div>
               <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
                    <h3 className="text-lg font-black text-[#17453F]">ความต้องการคาดการณ์รวมตามสินค้า (ทุกลูกค้า)</h3>
@@ -509,7 +522,7 @@ export default function StockManagementPage() {
               <p className="text-xs font-extrabold tracking-wide text-[#008B8B]">WALK-FORWARD BACKTEST</p>
               <h2 className="mt-1 text-xl font-black text-[#17453F]">ตรวจสอบความแม่นยำย้อนหลัง</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-[#648279]">
-                ย้อนเวลากลับไปคาดการณ์ ณ 12:00 น. ของวันก่อนส่ง (เวลาปิดรับคำสั่งซื้อสต็อกของพนักงาน) แล้วเทียบกับปริมาณที่ลูกค้าขอสั่งจริงตามวันส่ง
+                ย้อนเวลากลับไปคาดการณ์ ณ 10:00 น. ของวันก่อนส่ง (เวลาจัดทำแผนให้พนักงาน ก่อนสั่งซัพพลายเออร์ 12:00 น.) แล้วเทียบกับปริมาณที่ลูกค้าขอสั่งจริงตามวันส่ง
                 และเทียบกับการใช้เฉพาะยอดออเดอร์ที่รับไว้แล้ว โดยไม่ให้โมเดลเห็นคำสั่งซื้อในอนาคต
               </p>
             </div>
@@ -527,7 +540,7 @@ export default function StockManagementPage() {
             <div className="mt-5 space-y-5">
               <div className="rounded-xl border border-[#DDEEEA] bg-[#F4FAF8] p-3 text-sm text-[#315E54]">
                 ตรวจสอบ <strong>{backtest.evaluatedDays} วันส่ง</strong> / <strong>{backtest.evaluatedSkuDays} SKU-วัน</strong>
-                {" · "}เวลาอ้างอิง 12:00 น. วันก่อนส่ง (ประเทศไทย)
+                {" · "}เวลาอ้างอิง 10:00 น. วันก่อนส่ง (ประเทศไทย)
               </div>
               {backtest.byUnit.length ? (
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -570,7 +583,7 @@ export default function StockManagementPage() {
               )}
               <p className="text-xs leading-6 text-[#6E8982]">
                 WAPE = ผลรวมความคลาดเคลื่อนสัมบูรณ์ราย SKU ÷ ยอดสั่งจริง (ยิ่งต่ำยิ่งดี) · คิดแยกตามหน่วย กก./ชิ้น ·
-                Bias บวกหมายถึงคาดสูงเกินจริง และ Bias ลบหมายถึงคาดต่ำเกินจริง · Coverage วันที่สั่งจริงไม่นับวันที่ไม่มีความต้องการ จึงสะท้อนความเสี่ยงขาดสินค้าชัดกว่า · ผลย้อนหลังอาจมีจำนวนวันน้อย และยังไม่มี snapshot ณ เวลา 12:00 น. แบบถาวร
+                Bias บวกหมายถึงคาดสูงเกินจริง และ Bias ลบหมายถึงคาดต่ำเกินจริง · Coverage วันที่สั่งจริงไม่นับวันที่ไม่มีความต้องการ จึงสะท้อนความเสี่ยงขาดสินค้าชัดกว่า · ผลย้อนหลังอาศัยการจำลองจากข้อมูลปัจจุบัน ส่วนแผนจริงตั้งแต่เริ่มใช้ระบบจะถูกบันทึกถาวรทุกวันเวลา 10:00 น.
               </p>
               {backtest.days.length > 0 && (
                 <details className="rounded-xl border border-[#DDEEEA]">

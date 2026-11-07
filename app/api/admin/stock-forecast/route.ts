@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import {
@@ -153,8 +154,8 @@ async function customersById(admin: SupabaseClient, ids: string[]) {
 async function loadForecast(admin: SupabaseClient, extraHistoryDays = 0) {
   const now = new Date();
   const today = bangkokDateKey(now);
-  // The purchasing decision is due by 12:00 Bangkok. Before noon the view is
-  // live; afterwards replay it as of noon, excluding later order submissions.
+  // Staff need a final forecast at 10:00 Bangkok to enter orders by 12:00.
+  // Later requests replay the cutoff, excluding orders submitted after 10:00.
   const procurementAsOf = procurementForecastAsOf(now);
   const dateMillis = Date.parse(`${today}T00:00:00Z`);
   const startDate = new Date(dateMillis - (FORECAST_HISTORY_DAYS + extraHistoryDays) * 86_400_000).toISOString().slice(0, 10);
@@ -200,6 +201,63 @@ async function loadForecast(admin: SupabaseClient, extraHistoryDays = 0) {
     customers,
     now,
   };
+}
+
+type SnapshotRecord = {
+  snapshot_date: string;
+  cutoff_at: string;
+  captured_at: string;
+  forecast: StockForecast;
+  is_late: boolean;
+};
+
+async function officialSnapshot(admin: SupabaseClient, date: string): Promise<SnapshotRecord | null> {
+  const { data, error } = await admin.from("b2b_demand_forecast_snapshots")
+    .select("snapshot_date, cutoff_at, captured_at, forecast, is_late")
+    .eq("snapshot_date", date).maybeSingle();
+  if (error) throw error;
+  return (data as SnapshotRecord | null) ?? null;
+}
+
+function isSnapshotRequestAuthorized(request: NextRequest) {
+  const secret = process.env.FORECAST_SNAPSHOT_SECRET;
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
+  if (!secret || !token) return false;
+  const expected = Buffer.from(secret);
+  const received = Buffer.from(token);
+  return expected.length === received.length && timingSafeEqual(expected, received);
+}
+
+// Called by Supabase Cron at 03:00 UTC (10:00 Bangkok). Each day is immutable:
+// retries return the original snapshot instead of overwriting purchasing history.
+export async function POST(request: NextRequest) {
+  if (!isSnapshotRequestAuthorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const now = new Date();
+    const today = bangkokDateKey(now);
+    const cutoffAt = new Date(`${today}T10:00:00+07:00`);
+    if (now < cutoffAt) return NextResponse.json({ error: "The 10:00 Bangkok cutoff has not passed" }, { status: 425 });
+    const admin = adminClient();
+    const existing = await officialSnapshot(admin, today);
+    if (existing) return NextResponse.json({ snapshotDate: today, capturedAt: existing.captured_at, alreadyRecorded: true });
+    const inputs = await loadForecast(admin);
+    const { error } = await admin.from("b2b_demand_forecast_snapshots").insert({
+      snapshot_date: today,
+      target_delivery_date: inputs.noonForecast.dates[1],
+      cutoff_at: cutoffAt.toISOString(),
+      captured_at: now.toISOString(),
+      is_late: now.getTime() - cutoffAt.getTime() > 120_000,
+      model_version: "periodic-p90-10am-v1",
+      forecast: inputs.noonForecast,
+    });
+    // A simultaneous retry must never replace the snapshot that won the race.
+    if (error?.code === "23505") return NextResponse.json({ snapshotDate: today, alreadyRecorded: true });
+    if (error) throw error;
+    return NextResponse.json({ snapshotDate: today, capturedAt: now.toISOString(), recorded: true });
+  } catch (error) {
+    console.error("Stock forecast 10:00 snapshot capture failed", error);
+    return NextResponse.json({ error: "Snapshot could not be recorded" }, { status: 500 });
+  }
 }
 
 function excelResponse(forecast: StockForecast) {
@@ -317,10 +375,19 @@ export async function GET(request: NextRequest) {
         { headers: { "Cache-Control": "private, no-store, max-age=0" } }
       );
     }
+    const today = bangkokDateKey(inputs.now);
+    const snapshot = await officialSnapshot(admin, today);
+    const officialForecast = snapshot?.forecast ?? inputs.noonForecast;
     if (format === "xlsx") return excelResponse(inputs.forecast);
-    if (format === "noon-xlsx") return excelResponse(inputs.noonForecast);
+    if (format === "noon-xlsx") return excelResponse(officialForecast);
     return NextResponse.json(
-      { ...inputs.forecast, noonForecast: inputs.noonForecast },
+      {
+        ...inputs.forecast,
+        noonForecast: officialForecast,
+        snapshotStatus: snapshot ? "saved" : inputs.now < new Date(`${today}T10:00:00+07:00`) ? "preview" : "missing",
+        snapshotCapturedAt: snapshot?.captured_at ?? null,
+        snapshotWasLate: snapshot?.is_late ?? false,
+      },
       { headers: { "Cache-Control": "private, no-store, max-age=0" } }
     );
   } catch (error) {

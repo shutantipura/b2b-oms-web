@@ -18,7 +18,7 @@ function item(orderId, sku, quantity, unit = "กก.") {
   };
 }
 
-const asOf = new Date("2026-11-06T05:00:00Z"); // 12:00 in Bangkok
+const asOf = new Date("2026-11-06T03:00:00Z"); // 10:00 in Bangkok
 const priorOrders = [
   order("h0", "2026-10-19", "2026-10-18T10:00:00+07:00"),
   order("h1", "2026-10-22", "2026-10-21T10:00:00+07:00"),
@@ -29,10 +29,10 @@ const priorOrders = [
 ];
 const priorItems = priorOrders.map(({ id }) => item(id, "pork", 5));
 
-test("backtest replays historical forecasts at noon previous day, excluding orders submitted after the deadline", () => {
-  const early = order("early", "2026-11-05", "2026-11-04T11:59:59+07:00");
-  const exactNoon = order("exact-noon", "2026-11-05", "2026-11-04T12:00:00+07:00");
-  const late = order("late", "2026-11-05", "2026-11-04T12:00:01+07:00");
+test("backtest replays historical forecasts at 10:00 previous day, excluding orders submitted after the deadline", () => {
+  const early = order("early", "2026-11-05", "2026-11-04T09:59:59+07:00");
+  const exactNoon = order("exact-noon", "2026-11-05", "2026-11-04T10:00:00+07:00");
+  const late = order("late", "2026-11-05", "2026-11-04T10:00:01+07:00");
   const earlyOnly = backtestStockForecast(
     [...priorOrders, early, exactNoon],
     [...priorItems, item("early", "pork", 4), item("exact-noon", "pork", 1)],
@@ -46,9 +46,9 @@ test("backtest replays historical forecasts at noon previous day, excluding orde
   const before = earlyOnly.days.find((day) => day.deliveryDate === "2026-11-05" && day.unit === "กก.");
   const after = withLate.days.find((day) => day.deliveryDate === "2026-11-05" && day.unit === "กก.");
   assert.ok(before && after);
-  assert.equal(BACKTEST_CUTOFF_HOUR, 12);
+  assert.equal(BACKTEST_CUTOFF_HOUR, 10);
   assert.equal(BACKTEST_DAYS, 28);
-  assert.equal(after.cutoffAt, "2026-11-04T05:00:00.000Z");
+  assert.equal(after.cutoffAt, "2026-11-04T03:00:00.000Z");
   assert.equal(after.bookedOnlyQty, 5);
   assert.equal(before.forecastQty, after.forecastQty);
   assert.equal(after.actualQty, before.actualQty + 2);
@@ -60,7 +60,7 @@ test("backtest replays historical forecasts at noon previous day, excluding orde
 });
 
 test("requested quantities are scored by delivery date, excluding tests and cancellations", () => {
-  const live = order("live", "2026-11-05", "2026-11-04T12:00:00+07:00");
+  const live = order("live", "2026-11-05", "2026-11-04T10:00:00+07:00");
   const cancelled = order("cancelled", "2026-11-05", "2026-11-04T11:00:00+07:00", "restaurant", "cancelled");
   const testing = order("testorder", "2026-11-05", "2026-11-04T10:00:00+07:00", "test");
   const report = backtestStockForecast(
@@ -143,6 +143,6 @@ test("backtest scores piece requests as kg using only historical weight calibrat
   const day = report.days.find((row) => row.deliveryDate === "2026-11-05" && row.unit === "กก.");
   assert.ok(day);
   assert.equal(day.actualQty, 6, "three requested pieces x historical 2 kg/pc");
-  assert.equal(day.bookedOnlyQty, 0, "order placed after previous-day noon cutoff");
+  assert.equal(day.bookedOnlyQty, 0, "order placed after previous-day 10:00 cutoff");
   assert.ok(!report.days.some((row) => row.deliveryDate === "2026-11-05" && row.unit === "ชิ้น"));
 });
