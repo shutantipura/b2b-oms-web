@@ -17,6 +17,7 @@ type Customer = {
   id: string;
   customer_code: string;
   customer_name: string;
+  contact_name: string | null;
   is_active: boolean;
 };
 
@@ -367,6 +368,7 @@ export default function CustomerFavouritesPage() {
           id,
           customer_code,
           customer_name,
+          contact_name,
           is_active
         `)
         .order(
@@ -1107,7 +1109,8 @@ export default function CustomerFavouritesPage() {
     const compactTerm = term.replace(/[\s-]/g, "");
     return customers.filter((customer) =>
       String(customer.customer_code ?? "").toLocaleLowerCase("th").replace(/[\s-]/g, "").includes(compactTerm) ||
-      String(customer.customer_name ?? "").normalize("NFKC").toLocaleLowerCase("th").includes(term)
+      String(customer.customer_name ?? "").normalize("NFKC").toLocaleLowerCase("th").includes(term) ||
+      String(customer.contact_name ?? "").normalize("NFKC").toLocaleLowerCase("th").includes(term)
     );
   }, [customers, customerSearch]);
 
@@ -1226,7 +1229,7 @@ export default function CustomerFavouritesPage() {
                 type="search"
                 value={customerSearch}
                 onChange={(event) => setCustomerSearch(event.target.value)}
-                placeholder="ค้นหาชื่อร้าน หรือเลขลูกค้า / CV"
+                placeholder="ค้นหาชื่อร้าน ชื่อผู้ติดต่อ (CV) หรือเลขลูกค้า"
                 className="w-full border border-[#BBD9D2] rounded-lg px-4 py-3 mb-3 focus:outline-none focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/15"
               />
 
@@ -1265,6 +1268,9 @@ export default function CustomerFavouritesPage() {
                       {
                         customer.customer_name
                       }
+                      {customer.contact_name?.trim()
+                        ? ` · ผู้ติดต่อ: ${customer.contact_name.trim()}`
+                        : ""}
                       {!customer.is_active
                         ? " · ไม่ใช้งาน"
                         : ""}
@@ -1297,6 +1303,9 @@ export default function CustomerFavouritesPage() {
                           className={`block w-full border-b border-[#EDF3F0] px-3 py-2.5 text-left text-sm last:border-b-0 ${customer.id === selectedCustomer ? "bg-[#E5F7F3] font-bold text-[#007F7F]" : "text-[#315E54] hover:bg-[#F3FAF8]"}`}
                         >
                           {customer.customer_code} · {customer.customer_name}
+                          {customer.contact_name?.trim()
+                            ? ` · ผู้ติดต่อ: ${customer.contact_name.trim()}`
+                            : ""}
                           {!customer.is_active ? " · ไม่ใช้งาน" : ""}
                         </button>
                       ))}
@@ -1342,6 +1351,9 @@ export default function CustomerFavouritesPage() {
                   selectedCustomerInfo.customer_name
                 }
               </span>
+              {selectedCustomerInfo.contact_name?.trim()
+                ? ` · ผู้ติดต่อ: ${selectedCustomerInfo.contact_name.trim()}`
+                : ""}
               {" · "}
               {
                 favouriteIds.size
