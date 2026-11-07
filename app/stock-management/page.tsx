@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import LotusLoading from "@/components/LotusLoading";
+import B2CSalesImportPanel from "@/components/B2CSalesImportPanel";
 import { supabase } from "@/lib/supabase";
 import { stockReportDates } from "@/lib/stockSalesReport";
 import { aggregateForecastByProduct, describeCustomerOrderTime, STOCK_PLANNING_PERCENTILE, type ForecastDay, type StockForecast } from "@/lib/stockForecast";
@@ -13,6 +14,8 @@ type Access = "loading" | "manager" | "denied" | "signed-out";
 const PLANNING_LABEL = `P${Math.round(STOCK_PLANNING_PERCENTILE * 100)}`;
 const PLANNING_TARGET = Math.round(STOCK_PLANNING_PERCENTILE * 100);
 type StockOrderPlansPayload = { noon: StockOrderRecommendation[]; live: StockOrderRecommendation[]; noonHorizonFrozen: boolean };
+type SharedInputs = { sourcePeriod: { start: string; end: string } | null; countDate: string; products: { sku: string; productName: string }[]; bySku: Record<string, { b2cDailyKg: number | null; onHandKg: number | null; countedAt: string | null }> };
+type SharedInputsPayload = { noon: SharedInputs; live: SharedInputs; noonFrozen: boolean };
 
 function qty(value: number) {
   return value.toLocaleString("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
@@ -123,6 +126,7 @@ export default function StockManagementPage() {
   const [forecast, setForecast] = useState<StockForecast | null>(null);
   const [noonForecast, setNoonForecast] = useState<StockForecast | null>(null);
   const [stockOrderPlans, setStockOrderPlans] = useState<StockOrderPlansPayload | null>(null);
+  const [sharedStockInputs, setSharedStockInputs] = useState<SharedInputsPayload | null>(null);
   const [snapshotStatus, setSnapshotStatus] = useState<"saved" | "preview" | "missing">("preview");
   const [snapshotCapturedAt, setSnapshotCapturedAt] = useState<string | null>(null);
   const [snapshotWasLate, setSnapshotWasLate] = useState(false);
@@ -170,10 +174,11 @@ export default function StockManagementPage() {
         const problem = await response.json().catch(() => ({}));
         throw new Error(typeof problem.error === "string" ? problem.error : "คำนวณคาดการณ์ไม่สำเร็จ");
       }
-      const next = (await response.json()) as StockForecast & { noonForecast?: StockForecast; stockOrderPlans?: StockOrderPlansPayload; snapshotStatus?: "saved" | "preview" | "missing"; snapshotCapturedAt?: string | null; snapshotWasLate?: boolean };
+      const next = (await response.json()) as StockForecast & { noonForecast?: StockForecast; stockOrderPlans?: StockOrderPlansPayload; sharedStockInputs?: SharedInputsPayload; snapshotStatus?: "saved" | "preview" | "missing"; snapshotCapturedAt?: string | null; snapshotWasLate?: boolean };
       setForecast(next);
       setNoonForecast(next.noonForecast ?? null);
       setStockOrderPlans(next.stockOrderPlans ?? null);
+      setSharedStockInputs(next.sharedStockInputs ?? null);
       setSnapshotStatus(next.snapshotStatus ?? "preview");
       setSnapshotCapturedAt(next.snapshotCapturedAt ?? null);
       setSnapshotWasLate(next.snapshotWasLate === true);
@@ -194,6 +199,7 @@ export default function StockManagementPage() {
 
   const displayedForecast = forecastView === "noon" ? noonForecast ?? forecast : forecast;
   const displayedStockOrders = forecastView === "noon" ? stockOrderPlans?.noon ?? [] : stockOrderPlans?.live ?? [];
+  const displayedSharedInputs = forecastView === "noon" ? sharedStockInputs?.noon : sharedStockInputs?.live;
   const stockOrderTotals = displayedStockOrders.reduce((total, row) => ({
     recommendedKg: total.recommendedKg + (row.recommendedOrderKg ?? 0),
     expiredKg: total.expiredKg + (row.expectedExpiredKg ?? 0),
@@ -201,6 +207,17 @@ export default function StockManagementPage() {
   }), { recommendedKg: 0, expiredKg: 0, shortageKg: 0 });
   const productForecast = useMemo(() =>
     displayedForecast ? aggregateForecastByProduct(displayedForecast.rows, displayedForecast.dates) : [], [displayedForecast]);
+  const combinedMeatProducts = useMemo(() => {
+    const meat = new Map<string, { sku: string; productName: string; b2bKg: number }>();
+    for (const product of displayedSharedInputs?.products ?? []) meat.set(product.sku, { ...product, b2bKg: 0 });
+    for (const product of productForecast.filter((row) => row.freshMeat)) {
+      const b2bKg = product.units.filter((unit) => unit.unit === "กก.")
+        .reduce((sum, unit) => sum + unit.days[1].totalQty, 0);
+      meat.set(product.sku, { sku: product.sku, productName: product.productName, b2bKg });
+    }
+    return [...meat.values()].filter((product) => product.b2bKg > 0 || displayedSharedInputs?.bySku[product.sku]?.b2cDailyKg != null)
+      .sort((a, b) => (b.b2bKg + (displayedSharedInputs?.bySku[b.sku]?.b2cDailyKg ?? 0)) - (a.b2bKg + (displayedSharedInputs?.bySku[a.sku]?.b2cDailyKg ?? 0)));
+  }, [productForecast, displayedSharedInputs]);
 
   const visibleForecast = useMemo(() => {
     const filter = productSearch.trim().toLocaleLowerCase();
@@ -332,6 +349,12 @@ export default function StockManagementPage() {
           </div>
         </header>
 
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#CDE9E3] bg-white p-4">
+          <p className="text-sm font-bold text-[#315C54]">สต็อกใช้ร่วมกันระหว่าง B2C และ B2B · ให้พนักงานนับจำนวนคงเหลือทุกเช้า</p>
+          <Link href="/stock-count" className="rounded-xl bg-[#02B0AF] px-4 py-3 text-sm font-black text-white">บันทึกสต็อกเช้า →</Link>
+        </div>
+        <B2CSalesImportPanel />
+
         <section className="mt-5 rounded-[22px] border border-[#CDE9E3] bg-white p-5 shadow-[0_4px_16px_rgba(18,96,89,0.05)] sm:p-7">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -397,11 +420,43 @@ export default function StockManagementPage() {
             </div>
           )}
 
+          {displayedForecast && displayedSharedInputs && (
+            <section className="mt-5 rounded-2xl border border-[#B9DFD6] bg-[#F5FCFA] p-4" aria-label="ความต้องการร่วม B2B B2C">
+              <h3 className="text-lg font-black text-[#17453F]">ความต้องการร่วม B2B + B2C · เนื้อสด</h3>
+              <p className="mt-1 text-xs leading-5 text-[#557970]">
+                B2C ใช้ยอดขายรวม 30 วัน ÷ 30 เป็นค่าเฉลี่ยรายวัน · B2B ใช้ค่าเฉลี่ยวันที่ส่งพรุ่งนี้ ({displayedForecast.dates[1]}) · สต็อกคือยอดที่พนักงานนับวันนี้ ({displayedSharedInputs.countDate})
+              </p>
+              <p className="mt-2 text-xs font-bold text-[#487A70]">
+                {displayedSharedInputs.sourcePeriod ? `ข้อมูล B2C: ${displayedSharedInputs.sourcePeriod.start} ถึง ${displayedSharedInputs.sourcePeriod.end}` : "ยังไม่มีข้อมูล B2C · กรุณานำเข้า Excel 30 วัน"}
+                {forecastView === "noon" && !sharedStockInputs?.noonFrozen ? " · แผนเดิมยังไม่ได้ล็อกข้อมูล B2C/สต็อกไว้ที่ 10:00" : ""}
+              </p>
+              <div className="mt-3 overflow-x-auto rounded-xl border border-[#D5EBE5] bg-white">
+                <table className="w-full min-w-[640px] text-left text-xs">
+                  <thead className="bg-[#E7F6F1] text-[#315C54]"><tr><th className="p-2">สินค้า / SKU</th><th className="p-2 text-right">B2B พรุ่งนี้</th><th className="p-2 text-right">B2C เฉลี่ย/วัน</th><th className="p-2 text-right">รวมเฉลี่ย/วัน</th><th className="p-2 text-right">สต็อกเช้า</th></tr></thead>
+                  <tbody>{combinedMeatProducts.map((product) => {
+                    const b2b = product.b2bKg;
+                    const entry = displayedSharedInputs.bySku[product.sku];
+                    return <tr key={product.sku} className="border-t border-[#E2EDE9]">
+                      <td className="p-2"><strong>{product.productName}</strong><p className="text-[10px] text-[#738D85]">{product.sku}</p></td>
+                      <td className="p-2 text-right tabular-nums">{forecastQty(b2b)}</td>
+                      <td className="p-2 text-right tabular-nums">{entry?.b2cDailyKg === null || entry?.b2cDailyKg === undefined ? "N/A" : forecastQty(entry.b2cDailyKg)}</td>
+                      <td className="p-2 text-right font-black tabular-nums text-[#008B8B]">{entry?.b2cDailyKg === null || entry?.b2cDailyKg === undefined ? "N/A" : forecastQty(b2b + entry.b2cDailyKg)}</td>
+                      <td className="p-2 text-right tabular-nums">{entry?.onHandKg === null || entry?.onHandKg === undefined ? "ยังไม่นับ" : forecastQty(entry.onHandKg)}</td>
+                    </tr>;
+                  })}</tbody>
+                </table>
+              </div>
+              <p className="mt-3 rounded-lg bg-[#FFF4DC] p-3 text-xs leading-5 text-[#805D18]">
+                ยังไม่คำนวณปริมาณสั่งซื้อหรือความเสี่ยงขาด/หมดอายุจากข้อมูลรวมนี้: ยอด B2C เป็นค่าเฉลี่ย 30 วัน ไม่ทราบความผันผวนรายวัน และสต็อกไม่มีข้อมูลอายุสินค้า จึงยังพิสูจน์เกณฑ์ขาดไม่เกิน 5% หรือ FIFO จริงไม่ได้
+              </p>
+            </section>
+          )}
+
           {displayedForecast && stockOrderPlans && (
             <section className="mt-5 rounded-2xl border border-[#F3D58B] bg-[#FFFDF5] p-3 sm:p-4" aria-label="แผนปริมาณสั่งซื้อเนื้อสดจำลอง">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <h3 className="text-lg font-black text-[#694C0C]">ปริมาณสั่งซื้อแนะนำ · จำลอง</h3>
+                  <h3 className="text-lg font-black text-[#694C0C]">แผนจำลองเฉพาะ B2B (ไม่ใช่คำแนะนำสั่งซื้อสต็อกรวม)</h3>
                   <p className="mt-1 text-xs text-[#826A38]">โอกาสขาดสินค้าไม่เกิน {MAX_SHORTAGE_PROBABILITY * 100}% ต่อ SKU ตามแบบจำลอง · FIFO · อายุ {FRESH_MEAT_SHELF_LIFE_DAYS} วัน</p>
                 </div>
                 <span className="rounded-full border border-[#E9C86C] bg-[#FFF1C5] px-3 py-1 text-xs font-black text-[#805A00]">ยังไม่ใช่คำสั่งซื้อจริง</span>

@@ -6,6 +6,7 @@ import {
   aggregateForecastByProduct,
   bangkokDateKey,
   buildStockForecast,
+  isFreshMeat,
   describeCustomerOrderTime,
   FORECAST_DAYS,
   FORECAST_HISTORY_DAYS,
@@ -239,9 +240,54 @@ type SnapshotRecord = {
   snapshot_date: string;
   cutoff_at: string;
   captured_at: string;
-  forecast: StockForecast & { stockPlanningHorizon?: StockForecast; stockOrderPlan?: StockOrderRecommendation[] };
+  forecast: StockForecast & { stockPlanningHorizon?: StockForecast; stockOrderPlan?: StockOrderRecommendation[]; sharedStockInputs?: SharedStockInputs };
   is_late: boolean;
 };
+
+type SharedStockInputs = {
+  sourcePeriod: { start: string; end: string } | null;
+  countDate: string;
+  products: { sku: string; productName: string }[];
+  bySku: Record<string, { b2cDailyKg: number | null; onHandKg: number | null; countedAt: string | null }>;
+};
+
+async function loadSharedStockInputs(admin: SupabaseClient, skuList: string[], today: string): Promise<SharedStockInputs> {
+  const [imports, catalogue] = await Promise.all([
+    admin.from("b2c_sales_30d_imports").select("id, period_start, period_end").eq("is_active", true).maybeSingle(),
+    admin.from("products").select("sku, product_name, category").in("category", ["Fresh Meat", "เนื้อสัตว์และอาหารทะเล", "MEAT+SEAFOOD", "B2B-MEAT+SEAFOOD"])
+      .eq("is_active", true).limit(1500),
+  ]);
+  if (imports.error || catalogue.error) throw imports.error ?? catalogue.error;
+  const source = imports.data;
+  const products = [...new Map((catalogue.data ?? [])
+    .filter((product) => product.sku && isFreshMeat(product.category, product.product_name ?? ""))
+    .map((product) => [product.sku, { sku: product.sku, productName: product.product_name ?? product.sku }])).values()];
+  skuList = [...new Set([...skuList, ...products.map((product) => product.sku)])];
+  const bySku: SharedStockInputs["bySku"] = {};
+  for (const sku of skuList) bySku[sku] = { b2cDailyKg: null, onHandKg: null, countedAt: null };
+  for (const skus of batch(skuList, 150)) {
+    const [sales, counts] = await Promise.all([
+      source ? admin.from("b2c_sales_30d_rows").select("sku, sold_qty, unit")
+        .eq("import_id", source.id).in("sku", skus) : Promise.resolve({ data: [], error: null }),
+      admin.from("stock_morning_counts").select("sku, quantity_kg, counted_at")
+        .eq("count_date", today).in("sku", skus),
+    ]);
+    if (sales.error) throw sales.error;
+    if (counts.error) throw counts.error;
+    for (const row of sales.data ?? []) {
+      // One 30-day total supports a daily mean, not a B2C variance or P95.
+      // If the optional unit disagrees with kg, do not silently add quantities.
+      if (bySku[row.sku] && (!row.unit || ["กก.", "กก", "kg", "KG"].includes(row.unit))) {
+        bySku[row.sku].b2cDailyKg = Number(row.sold_qty) / 30;
+      }
+    }
+    for (const row of counts.data ?? []) if (bySku[row.sku]) {
+      bySku[row.sku].onHandKg = Number(row.quantity_kg);
+      bySku[row.sku].countedAt = row.counted_at;
+    }
+  }
+  return { sourcePeriod: source ? { start: source.period_start, end: source.period_end } : null, countDate: today, products, bySku };
+}
 
 async function officialSnapshot(admin: SupabaseClient, date: string): Promise<SnapshotRecord | null> {
   const { data, error } = await admin.from("b2b_demand_forecast_snapshots")
@@ -276,7 +322,9 @@ export async function POST(request: NextRequest) {
     const stockPlanningHorizon = extendForecastForExpiry(inputs.noonForecast, inputs.noonPlanningHorizon);
     const skuList = [...new Set(stockPlanningHorizon.rows
       .filter((row) => row.freshMeat && row.unit === "กก.").map((row) => row.sku))];
-    const economics = await masterEconomicsBySku(admin, skuList);
+    const [economics, sharedStockInputs] = await Promise.all([
+      masterEconomicsBySku(admin, skuList), loadSharedStockInputs(admin, skuList, today),
+    ]);
     const stockOrderPlan = optimizeFreshMeatOrders(stockPlanningHorizon, economics);
     const { error } = await admin.from("b2b_demand_forecast_snapshots").insert({
       snapshot_date: today,
@@ -285,7 +333,7 @@ export async function POST(request: NextRequest) {
       captured_at: now.toISOString(),
       is_late: now.getTime() - cutoffAt.getTime() > 120_000,
       model_version: "periodic-p90-fifo3-10am-v2",
-      forecast: { ...inputs.noonForecast, stockPlanningHorizon, stockOrderPlan },
+      forecast: { ...inputs.noonForecast, stockPlanningHorizon, stockOrderPlan, sharedStockInputs },
     });
     // A simultaneous retry must never replace the snapshot that won the race.
     if (error?.code === "23505") return NextResponse.json({ snapshotDate: today, alreadyRecorded: true });
@@ -445,14 +493,16 @@ export async function GET(request: NextRequest) {
     const savedForecast = snapshot?.forecast ?? inputs.noonForecast;
     // Do not duplicate the four-day internal simulation inputs in the public
     // forecast payload. Existing snapshots retain their original 3-day data.
-    const { stockPlanningHorizon: savedHorizon, stockOrderPlan: savedOrderPlan, ...officialForecast } = savedForecast as StockForecast & {
-      stockPlanningHorizon?: StockForecast; stockOrderPlan?: StockOrderRecommendation[];
+    const { stockPlanningHorizon: savedHorizon, stockOrderPlan: savedOrderPlan, sharedStockInputs: savedSharedInputs, ...officialForecast } = savedForecast as StockForecast & {
+      stockPlanningHorizon?: StockForecast; stockOrderPlan?: StockOrderRecommendation[]; sharedStockInputs?: SharedStockInputs;
     };
     const noonPlanningHorizon = savedHorizon ?? extendForecastForExpiry(officialForecast, inputs.noonPlanningHorizon);
     const livePlanningHorizon = extendForecastForExpiry(inputs.forecast, inputs.livePlanningHorizon);
     const skuList = [...new Set([...noonPlanningHorizon.rows, ...livePlanningHorizon.rows]
       .filter((row) => row.freshMeat && row.unit === "กก.").map((row) => row.sku))];
-    const economics = await masterEconomicsBySku(admin, skuList);
+    const [economics, liveSharedInputs] = await Promise.all([
+      masterEconomicsBySku(admin, skuList), loadSharedStockInputs(admin, skuList, today),
+    ]);
     const noonOrders = savedOrderPlan ?? optimizeFreshMeatOrders(noonPlanningHorizon, economics);
     const liveOrders = optimizeFreshMeatOrders(livePlanningHorizon, economics);
     if (format === "xlsx") return excelResponse(inputs.forecast, liveOrders);
@@ -466,6 +516,11 @@ export async function GET(request: NextRequest) {
           live: liveOrders,
           /** Old snapshots predate four-day freezing; explain the fallback. */
           noonHorizonFrozen: !!savedHorizon && !!savedOrderPlan || !snapshot,
+        },
+        sharedStockInputs: {
+          noon: savedSharedInputs ?? liveSharedInputs,
+          live: liveSharedInputs,
+          noonFrozen: !!savedSharedInputs || !snapshot,
         },
         snapshotStatus: snapshot ? "saved" : inputs.now < new Date(`${today}T10:00:00+07:00`) ? "preview" : "missing",
         snapshotCapturedAt: snapshot?.captured_at ?? null,

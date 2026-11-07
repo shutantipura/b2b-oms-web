@@ -45,12 +45,14 @@ const WORKSPACE_ROOTS = [
   "/line-access",
   "/kpi",
   "/stock-management",
+  "/stock-count",
 ];
 
 const GENERAL_NAV: NavItem[] = [
   { href: "/login", label: "หน้าหลัก", icon: "home" },
   { href: "/tasks", label: "งาน", icon: "tasks" },
   { href: "/orders", label: "คำสั่งซื้อ", icon: "orders" },
+  { href: "/stock-count", label: "นับสต็อกเช้า", icon: "stock" },
 ];
 
 const MANAGER_NAV: NavItem[] = [
