@@ -16,6 +16,7 @@ import {
   type StockForecast,
 } from "@/lib/stockForecast";
 import { BACKTEST_DAYS, backtestStockForecast } from "@/lib/stockForecastBacktest";
+import { extendForecastForExpiry, optimizeFreshMeatOrders, type SkuEconomics, type StockOrderRecommendation } from "@/lib/stockOrderOptimizer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -151,6 +152,33 @@ async function customersById(admin: SupabaseClient, ids: string[]) {
   return result;
 }
 
+async function masterEconomicsBySku(admin: SupabaseClient, skus: string[]) {
+  const prices: Record<string, SkuEconomics> = {};
+  const products: { id: string; sku: string; normal_price: number | string | null }[] = [];
+  for (const chunk of batch([...new Set(skus)])) {
+    const { data, error } = await admin.from("products")
+      .select("id, sku, normal_price").in("sku", chunk);
+    if (error) throw error;
+    products.push(...(data ?? []));
+  }
+  const costs = new Map<string, number | null>();
+  for (const chunk of batch(products.map((product) => product.id))) {
+    const { data, error } = await admin.from("product_costs")
+      .select("product_id, cost").in("product_id", chunk);
+    if (error) throw error;
+    for (const row of data ?? []) costs.set(row.product_id, numeric(row.cost));
+  }
+  for (const product of products) {
+    const price = numeric(product.normal_price);
+    const cost = costs.get(product.id) ?? null;
+    prices[product.sku] = {
+      price: price !== null && price > 0 ? price : null,
+      cost: cost !== null && cost >= 0 ? cost : null,
+    };
+  }
+  return prices;
+}
+
 async function loadForecast(admin: SupabaseClient, extraHistoryDays = 0) {
   const now = new Date();
   const today = bangkokDateKey(now);
@@ -159,7 +187,9 @@ async function loadForecast(admin: SupabaseClient, extraHistoryDays = 0) {
   const procurementAsOf = procurementForecastAsOf(now);
   const dateMillis = Date.parse(`${today}T00:00:00Z`);
   const startDate = new Date(dateMillis - (FORECAST_HISTORY_DAYS + extraHistoryDays) * 86_400_000).toISOString().slice(0, 10);
-  const endDate = new Date(dateMillis + (FORECAST_DAYS - 1) * 86_400_000).toISOString().slice(0, 10);
+  // The replenishment forecast is three visible dates, but tomorrow's new
+  // meat batch needs tomorrow PLUS two more days to assess its expiry.
+  const endDate = new Date(dateMillis + FORECAST_DAYS * 86_400_000).toISOString().slice(0, 10);
   const orders = await ordersForDeliveryDates(admin, startDate, endDate);
   const liveOrders = orders.filter((order) => order.status !== "cancelled");
   const [items, customers] = await Promise.all([
@@ -196,6 +226,8 @@ async function loadForecast(admin: SupabaseClient, extraHistoryDays = 0) {
   return {
     forecast: buildStockForecast(inputOrders, inputItems, customers, now),
     noonForecast: buildStockForecast(inputOrders, inputItems, customers, procurementAsOf),
+    livePlanningHorizon: buildStockForecast(inputOrders, inputItems, customers, now, FORECAST_DAYS + 1),
+    noonPlanningHorizon: buildStockForecast(inputOrders, inputItems, customers, procurementAsOf, FORECAST_DAYS + 1),
     orders: inputOrders,
     items: inputItems,
     customers,
@@ -207,7 +239,7 @@ type SnapshotRecord = {
   snapshot_date: string;
   cutoff_at: string;
   captured_at: string;
-  forecast: StockForecast;
+  forecast: StockForecast & { stockPlanningHorizon?: StockForecast; stockOrderPlan?: StockOrderRecommendation[] };
   is_late: boolean;
 };
 
@@ -241,14 +273,19 @@ export async function POST(request: NextRequest) {
     const existing = await officialSnapshot(admin, today);
     if (existing) return NextResponse.json({ snapshotDate: today, capturedAt: existing.captured_at, alreadyRecorded: true });
     const inputs = await loadForecast(admin);
+    const stockPlanningHorizon = extendForecastForExpiry(inputs.noonForecast, inputs.noonPlanningHorizon);
+    const skuList = [...new Set(stockPlanningHorizon.rows
+      .filter((row) => row.freshMeat && row.unit === "กก.").map((row) => row.sku))];
+    const economics = await masterEconomicsBySku(admin, skuList);
+    const stockOrderPlan = optimizeFreshMeatOrders(stockPlanningHorizon, economics);
     const { error } = await admin.from("b2b_demand_forecast_snapshots").insert({
       snapshot_date: today,
       target_delivery_date: inputs.noonForecast.dates[1],
       cutoff_at: cutoffAt.toISOString(),
       captured_at: now.toISOString(),
       is_late: now.getTime() - cutoffAt.getTime() > 120_000,
-      model_version: "periodic-p90-10am-v1",
-      forecast: inputs.noonForecast,
+      model_version: "periodic-p90-fifo3-10am-v2",
+      forecast: { ...inputs.noonForecast, stockPlanningHorizon, stockOrderPlan },
     });
     // A simultaneous retry must never replace the snapshot that won the race.
     if (error?.code === "23505") return NextResponse.json({ snapshotDate: today, alreadyRecorded: true });
@@ -260,7 +297,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function excelResponse(forecast: StockForecast) {
+function excelResponse(forecast: StockForecast, recommendations: StockOrderRecommendation[] = []) {
   const products = aggregateForecastByProduct(forecast.rows, forecast.dates);
   const summaryHeaders = [
     "SKU", "ชื่อสินค้า", "หน่วย", "จำนวนลูกค้า", "เนื้อสด",
@@ -352,6 +389,34 @@ function excelResponse(forecast: StockForecast) {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, summary, "รวมตามสินค้า");
   XLSX.utils.book_append_sheet(workbook, sheet, "รายละเอียดรายลูกค้า");
+  if (recommendations.length) {
+    const planRows: (number | string)[][] = [
+      ["แผนสั่งซื้อเนื้อสดจำลอง · เป้าหมายขาดสินค้าไม่เกิน 5% · FIFO อายุ 3 วัน · สมมติสต็อกต้นงวดเป็นศูนย์"],
+      ["ยังไม่ใช่คำสั่งซื้อจริง · การขายอื่นนอก OMS และสต็อกที่มีอยู่ยังไม่ถูกรวม · ความเสี่ยงเป็นเพียงประมาณการ"],
+      [],
+      ["SKU", "ชื่อสินค้า", "ราคาขาย ฿/กก.", "ต้นทุน ฿/กก.", "คาดเฉลี่ย กก.", "แผน P90 กก.", "แนะนำสั่ง กก.", "เสี่ยงขาด %", "เสี่ยงหมดอายุ %", "ขาดเฉลี่ย กก.", "หมดอายุเฉลี่ย กก.", "ผลเสียทางการเงิน ฿", "สถานะ"],
+      ...recommendations.map((row) => [
+        row.sku, row.productName, row.sellingPriceBahtPerKg ?? "N/A", row.costBahtPerKg ?? "N/A",
+        row.expectedDemandKg, row.originalP90Kg, row.recommendedOrderKg ?? "N/A",
+        row.shortageProbabilityPct ?? "N/A", row.expiryProbabilityPct ?? "N/A",
+        row.expectedShortageKg ?? "N/A", row.expectedExpiredKg ?? "N/A",
+        row.expectedFinancialLossBaht ?? "N/A", row.confidence === "limited" ? "ประวัติน้อย" : "เบื้องต้น",
+      ]),
+    ];
+    const planSheet = XLSX.utils.aoa_to_sheet(planRows);
+    planSheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } },
+    ];
+    planSheet["!cols"] = [{ wch: 16 }, { wch: 44 }, ...Array.from({ length: 10 }, () => ({ wch: 21 })), { wch: 18 }];
+    for (let r = 4; r < planRows.length; r++) {
+      for (let c = 2; c <= 11; c++) {
+        const cell = planSheet[XLSX.utils.encode_cell({ r, c })];
+        if (cell && typeof cell.v === "number") cell.z = "#,##0.00";
+      }
+    }
+    XLSX.utils.book_append_sheet(workbook, planSheet, "สั่งซื้อจำลอง FIFO");
+  }
   const bytes = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" });
   return new NextResponse(new Uint8Array(bytes), {
     status: 200,
@@ -377,13 +442,31 @@ export async function GET(request: NextRequest) {
     }
     const today = bangkokDateKey(inputs.now);
     const snapshot = await officialSnapshot(admin, today);
-    const officialForecast = snapshot?.forecast ?? inputs.noonForecast;
-    if (format === "xlsx") return excelResponse(inputs.forecast);
-    if (format === "noon-xlsx") return excelResponse(officialForecast);
+    const savedForecast = snapshot?.forecast ?? inputs.noonForecast;
+    // Do not duplicate the four-day internal simulation inputs in the public
+    // forecast payload. Existing snapshots retain their original 3-day data.
+    const { stockPlanningHorizon: savedHorizon, stockOrderPlan: savedOrderPlan, ...officialForecast } = savedForecast as StockForecast & {
+      stockPlanningHorizon?: StockForecast; stockOrderPlan?: StockOrderRecommendation[];
+    };
+    const noonPlanningHorizon = savedHorizon ?? extendForecastForExpiry(officialForecast, inputs.noonPlanningHorizon);
+    const livePlanningHorizon = extendForecastForExpiry(inputs.forecast, inputs.livePlanningHorizon);
+    const skuList = [...new Set([...noonPlanningHorizon.rows, ...livePlanningHorizon.rows]
+      .filter((row) => row.freshMeat && row.unit === "กก.").map((row) => row.sku))];
+    const economics = await masterEconomicsBySku(admin, skuList);
+    const noonOrders = savedOrderPlan ?? optimizeFreshMeatOrders(noonPlanningHorizon, economics);
+    const liveOrders = optimizeFreshMeatOrders(livePlanningHorizon, economics);
+    if (format === "xlsx") return excelResponse(inputs.forecast, liveOrders);
+    if (format === "noon-xlsx") return excelResponse(officialForecast, noonOrders);
     return NextResponse.json(
       {
         ...inputs.forecast,
         noonForecast: officialForecast,
+        stockOrderPlans: {
+          noon: noonOrders,
+          live: liveOrders,
+          /** Old snapshots predate four-day freezing; explain the fallback. */
+          noonHorizonFrozen: !!savedHorizon && !!savedOrderPlan || !snapshot,
+        },
         snapshotStatus: snapshot ? "saved" : inputs.now < new Date(`${today}T10:00:00+07:00`) ? "preview" : "missing",
         snapshotCapturedAt: snapshot?.captured_at ?? null,
         snapshotWasLate: snapshot?.is_late ?? false,

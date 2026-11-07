@@ -755,11 +755,12 @@ export function buildStockForecast(
   orders: ForecastOrderInput[],
   items: ForecastItemInput[],
   customers: ForecastCustomerInput[],
-  asOf = new Date()
+  asOf = new Date(),
+  horizonDays = FORECAST_DAYS
 ): StockForecast {
   const today = bangkokDateKey(asOf);
   const yesterdayDate = addDays(today, -1);
-  const dates = Array.from({ length: FORECAST_DAYS }, (_, i) => addDays(today, i));
+  const dates = Array.from({ length: horizonDays }, (_, i) => addDays(today, i));
   const historyStartDate = addDays(today, -FORECAST_HISTORY_DAYS);
   const customerById = new Map(customers.filter((c) => !c.isTest).map((c) => [c.id, c]));
   const ordersWithDemand = new Set(items.filter((item) => item.requestedQty !== null && Number.isFinite(item.requestedQty) && item.requestedQty > 0).map((item) => item.orderId));

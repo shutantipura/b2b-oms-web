@@ -7,10 +7,12 @@ import { supabase } from "@/lib/supabase";
 import { stockReportDates } from "@/lib/stockSalesReport";
 import { aggregateForecastByProduct, describeCustomerOrderTime, STOCK_PLANNING_PERCENTILE, type ForecastDay, type StockForecast } from "@/lib/stockForecast";
 import type { DemandBacktestReport } from "@/lib/stockForecastBacktest";
+import { FRESH_MEAT_SHELF_LIFE_DAYS, MAX_SHORTAGE_PROBABILITY, type StockOrderRecommendation } from "@/lib/stockOrderOptimizer";
 
 type Access = "loading" | "manager" | "denied" | "signed-out";
 const PLANNING_LABEL = `P${Math.round(STOCK_PLANNING_PERCENTILE * 100)}`;
 const PLANNING_TARGET = Math.round(STOCK_PLANNING_PERCENTILE * 100);
+type StockOrderPlansPayload = { noon: StockOrderRecommendation[]; live: StockOrderRecommendation[]; noonHorizonFrozen: boolean };
 
 function qty(value: number) {
   return value.toLocaleString("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
@@ -120,6 +122,7 @@ export default function StockManagementPage() {
   const [dates] = useState<string[]>(() => stockReportDates());
   const [forecast, setForecast] = useState<StockForecast | null>(null);
   const [noonForecast, setNoonForecast] = useState<StockForecast | null>(null);
+  const [stockOrderPlans, setStockOrderPlans] = useState<StockOrderPlansPayload | null>(null);
   const [snapshotStatus, setSnapshotStatus] = useState<"saved" | "preview" | "missing">("preview");
   const [snapshotCapturedAt, setSnapshotCapturedAt] = useState<string | null>(null);
   const [snapshotWasLate, setSnapshotWasLate] = useState(false);
@@ -167,9 +170,10 @@ export default function StockManagementPage() {
         const problem = await response.json().catch(() => ({}));
         throw new Error(typeof problem.error === "string" ? problem.error : "คำนวณคาดการณ์ไม่สำเร็จ");
       }
-      const next = (await response.json()) as StockForecast & { noonForecast?: StockForecast; snapshotStatus?: "saved" | "preview" | "missing"; snapshotCapturedAt?: string | null; snapshotWasLate?: boolean };
+      const next = (await response.json()) as StockForecast & { noonForecast?: StockForecast; stockOrderPlans?: StockOrderPlansPayload; snapshotStatus?: "saved" | "preview" | "missing"; snapshotCapturedAt?: string | null; snapshotWasLate?: boolean };
       setForecast(next);
       setNoonForecast(next.noonForecast ?? null);
+      setStockOrderPlans(next.stockOrderPlans ?? null);
       setSnapshotStatus(next.snapshotStatus ?? "preview");
       setSnapshotCapturedAt(next.snapshotCapturedAt ?? null);
       setSnapshotWasLate(next.snapshotWasLate === true);
@@ -189,6 +193,12 @@ export default function StockManagementPage() {
   }, [access, refreshForecast]);
 
   const displayedForecast = forecastView === "noon" ? noonForecast ?? forecast : forecast;
+  const displayedStockOrders = forecastView === "noon" ? stockOrderPlans?.noon ?? [] : stockOrderPlans?.live ?? [];
+  const stockOrderTotals = displayedStockOrders.reduce((total, row) => ({
+    recommendedKg: total.recommendedKg + (row.recommendedOrderKg ?? 0),
+    expiredKg: total.expiredKg + (row.expectedExpiredKg ?? 0),
+    shortageKg: total.shortageKg + (row.expectedShortageKg ?? 0),
+  }), { recommendedKg: 0, expiredKg: 0, shortageKg: 0 });
   const productForecast = useMemo(() =>
     displayedForecast ? aggregateForecastByProduct(displayedForecast.rows, displayedForecast.dates) : [], [displayedForecast]);
 
@@ -385,6 +395,72 @@ export default function StockManagementPage() {
               })()}
               <p className="px-2 pb-1 pt-2 text-[10px] text-[#728E86]">แผน {PLANNING_LABEL} เนื้อสดรวมเป็นผลรวมแผนราย SKU ไม่ใช่ P90 ของยอดรวมทั้งหมวด</p>
             </div>
+          )}
+
+          {displayedForecast && stockOrderPlans && (
+            <section className="mt-5 rounded-2xl border border-[#F3D58B] bg-[#FFFDF5] p-3 sm:p-4" aria-label="แผนปริมาณสั่งซื้อเนื้อสดจำลอง">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h3 className="text-lg font-black text-[#694C0C]">ปริมาณสั่งซื้อแนะนำ · จำลอง</h3>
+                  <p className="mt-1 text-xs text-[#826A38]">โอกาสขาดสินค้าไม่เกิน {MAX_SHORTAGE_PROBABILITY * 100}% ต่อ SKU ตามแบบจำลอง · FIFO · อายุ {FRESH_MEAT_SHELF_LIFE_DAYS} วัน</p>
+                </div>
+                <span className="rounded-full border border-[#E9C86C] bg-[#FFF1C5] px-3 py-1 text-xs font-black text-[#805A00]">ยังไม่ใช่คำสั่งซื้อจริง</span>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="rounded-xl bg-white p-2 text-center sm:p-3">
+                  <p className="text-[10px] font-bold leading-4 text-[#6D8177]">แนะนำสั่งรวม</p>
+                  <p className="mt-1 text-lg font-black tabular-nums text-[#008B8B] sm:text-2xl">{forecastQty(stockOrderTotals.recommendedKg)}</p>
+                  <p className="text-[10px] text-[#718C84]">กก.</p>
+                </div>
+                <div className="rounded-xl bg-white p-2 text-center sm:p-3">
+                  <p className="text-[10px] font-bold leading-4 text-[#6D8177]">คาดว่าอาจขาด</p>
+                  <p className="mt-1 text-lg font-black tabular-nums text-[#995D18] sm:text-2xl">{forecastQty(stockOrderTotals.shortageKg)}</p>
+                  <p className="text-[10px] text-[#718C84]">กก. เฉลี่ย</p>
+                </div>
+                <div className="rounded-xl bg-white p-2 text-center sm:p-3">
+                  <p className="text-[10px] font-bold leading-4 text-[#6D8177]">คาดว่าอาจหมดอายุ</p>
+                  <p className="mt-1 text-lg font-black tabular-nums text-[#995D18] sm:text-2xl">{forecastQty(stockOrderTotals.expiredKg)}</p>
+                  <p className="text-[10px] text-[#718C84]">กก. เฉลี่ย</p>
+                </div>
+              </div>
+              <p className="mt-3 rounded-lg bg-[#FFF1D8] px-3 py-2 text-xs leading-5 text-[#795A20]">
+                <strong>ข้อสมมติสำคัญ:</strong> ยังไม่มีสต็อกคงเหลือแยกวันหมดอายุ จึงจำลองว่าสต็อกเก่าเริ่มต้นเป็นศูนย์ และสินค้าใหม่มาถึงวันส่งพรุ่งนี้ · ใช้ราคาและต้นทุนปกติจาก Master Price (สินค้าหมดอายุคิดสูญเสียเต็มต้นทุน ไม่มีมูลค่ากู้คืน) · ยังไม่รวมยอดขายหน้าร้านนอก OMS · การสั่งซ้ำรายวันจำลองจากความน่าจะเป็นรายวัน จึงเป็นค่าประมาณ ยังไม่รับประกันความเสี่ยงจริง
+                {forecastView === "noon" && !stockOrderPlans.noonHorizonFrozen && " · แผน 10:00 เดิมไม่ได้เก็บวันที่ 3 ของอายุสินค้า จึงประเมินวันนั้นย้อนหลังแทน"}
+              </p>
+              <details className="mt-3 overflow-hidden rounded-xl border border-[#EBD9AC] bg-white">
+                <summary className="cursor-pointer px-3 py-3 text-sm font-black text-[#8A6509] marker:text-[#8A6509]">
+                  ดูผลแยกสินค้า ({displayedStockOrders.length} SKU) · ปริมาณแนะนำและความเสี่ยง
+                </summary>
+                <div className="space-y-2 border-t border-[#EEE0C3] bg-[#FFFEFB] p-2 sm:p-3">
+                  {displayedStockOrders.map((item) => (
+                    <div key={item.sku} className="rounded-xl border border-[#E9E3D4] bg-white p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-black text-[#17453F]">{item.productName}</p>
+                          <p className="mt-0.5 text-[11px] text-[#688078]">SKU {item.sku} · ราคา {item.sellingPriceBahtPerKg?.toFixed(2) ?? "N/A"} ฿/กก. · ต้นทุน {item.costBahtPerKg?.toFixed(2) ?? "N/A"} ฿/กก.</p>
+                          {item.expiryProbabilityPct !== null && item.expiryProbabilityPct >= 50 &&
+                            <p className="mt-1 text-xs font-black text-red-700">⚠ เสี่ยงหมดอายุสูงภายใต้เงื่อนไขขาดสินค้าไม่เกิน 5%</p>}
+                        </div>
+                        <div className="rounded-lg bg-[#E9F8F4] px-3 py-2 text-right">
+                          <p className="text-[10px] font-bold text-[#3B7770]">แนะนำสั่ง</p>
+                          <p className="text-xl font-black tabular-nums text-[#008B8B]">{item.recommendedOrderKg === null ? "N/A" : forecastQty(item.recommendedOrderKg)} <span className="text-xs">กก.</span></p>
+                        </div>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                        <p>คาดเฉลี่ย <strong>{forecastQty(item.expectedDemandKg)}</strong> กก.</p>
+                        <p>แผน P90 <strong>{forecastQty(item.originalP90Kg)}</strong> กก.</p>
+                        <p>เสี่ยงขาด <strong>{item.shortageProbabilityPct?.toFixed(1) ?? "N/A"}%</strong></p>
+                        <p>เสี่ยงหมดอายุ <strong>{item.expiryProbabilityPct?.toFixed(1) ?? "N/A"}%</strong></p>
+                        <p>ขาดเฉลี่ย <strong>{item.expectedShortageKg?.toFixed(2) ?? "N/A"}</strong> กก.</p>
+                        <p>หมดอายุเฉลี่ย <strong>{item.expectedExpiredKg?.toFixed(2) ?? "N/A"}</strong> กก.</p>
+                        <p>ผลเสียทางการเงิน <strong>{item.expectedFinancialLossBaht?.toFixed(2) ?? "N/A"}</strong> ฿</p>
+                        <p className={item.confidence === "limited" ? "font-bold text-amber-700" : "text-[#58827A]"}>{item.confidence === "limited" ? "ประวัติน้อย · ความมั่นใจต่ำ" : "ประมาณการเบื้องต้น"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </section>
           )}
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
