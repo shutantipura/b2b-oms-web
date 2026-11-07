@@ -1102,21 +1102,18 @@ export default function CustomerFavouritesPage() {
     ]);
 
   const matchingCustomers = useMemo(() => {
-    const term = customerSearch.trim().toLowerCase();
+    const term = customerSearch.normalize("NFKC").trim().toLocaleLowerCase("th");
     if (!term) return customers;
+    const compactTerm = term.replace(/[\s-]/g, "");
     return customers.filter((customer) =>
-      customer.customer_code.toLowerCase().includes(term) ||
-      customer.customer_name.toLowerCase().includes(term)
+      String(customer.customer_code ?? "").toLocaleLowerCase("th").replace(/[\s-]/g, "").includes(compactTerm) ||
+      String(customer.customer_name ?? "").normalize("NFKC").toLocaleLowerCase("th").includes(term)
     );
   }, [customers, customerSearch]);
 
-  // Keep the currently selected customer visible even during a different search.
-  const customerOptions = useMemo(() => {
-    const current = customers.find((customer) => customer.id === selectedCustomer);
-    return current && !matchingCustomers.some((customer) => customer.id === current.id)
-      ? [current, ...matchingCustomers]
-      : matchingCustomers;
-  }, [customers, matchingCustomers, selectedCustomer]);
+  // Show only matching customers; the previously selected customer must not
+  // be mistaken for a search result.
+  const customerOptions = matchingCustomers;
 
   const selectedCustomerInfo =
     customers.find(
@@ -1229,7 +1226,7 @@ export default function CustomerFavouritesPage() {
                 type="search"
                 value={customerSearch}
                 onChange={(event) => setCustomerSearch(event.target.value)}
-                placeholder="ชื่อร้าน หรือรหัส CV"
+                placeholder="ค้นหาชื่อร้าน หรือเลขลูกค้า / CV"
                 className="w-full border border-[#BBD9D2] rounded-lg px-4 py-3 mb-3 focus:outline-none focus:border-[#02B0AF] focus:ring-2 focus:ring-[#02B0AF]/15"
               />
 
@@ -1239,9 +1236,7 @@ export default function CustomerFavouritesPage() {
 
               <select
                 id="favourites-customer-select"
-                value={
-                  selectedCustomer
-                }
+                value={customerOptions.some((customer) => customer.id === selectedCustomer) ? selectedCustomer : ""}
                 onChange={(event) => {
                   activeCustomerRef.current = event.target.value;
                   setSelectedCustomer(event.target.value);
@@ -1281,11 +1276,36 @@ export default function CustomerFavouritesPage() {
               </select>
 
               {customerSearch.trim() && (
-                <p role="status" className="mt-2 text-xs text-[#647D74]">
-                  {matchingCustomers.length > 0
-                    ? `พบลูกค้า ${matchingCustomers.length} ราย`
-                    : "ไม่พบลูกค้าที่ค้นหา"}
-                </p>
+                <div className="mt-2" aria-label="ผลการค้นหาลูกค้า">
+                  <p role="status" className="text-xs text-[#647D74]">
+                    {matchingCustomers.length > 0
+                      ? `พบลูกค้า ${matchingCustomers.length} ราย · แตะชื่อเพื่อเลือก`
+                      : "ไม่พบลูกค้าที่ค้นหา"}
+                  </p>
+                  {matchingCustomers.length > 0 && (
+                    <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-[#D7E8E2] bg-white">
+                      {matchingCustomers.slice(0, 12).map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => {
+                            activeCustomerRef.current = customer.id;
+                            setSelectedCustomer(customer.id);
+                            setCustomerSearch("");
+                          }}
+                          aria-pressed={customer.id === selectedCustomer}
+                          className={`block w-full border-b border-[#EDF3F0] px-3 py-2.5 text-left text-sm last:border-b-0 ${customer.id === selectedCustomer ? "bg-[#E5F7F3] font-bold text-[#007F7F]" : "text-[#315E54] hover:bg-[#F3FAF8]"}`}
+                        >
+                          {customer.customer_code} · {customer.customer_name}
+                          {!customer.is_active ? " · ไม่ใช้งาน" : ""}
+                        </button>
+                      ))}
+                      {matchingCustomers.length > 12 && (
+                        <p className="px-3 py-2 text-xs text-[#647D74]">แสดง 12 รายการแรก · พิมพ์เพิ่มเพื่อจำกัดผลการค้นหา</p>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
 
             </div>
