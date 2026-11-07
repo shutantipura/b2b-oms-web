@@ -484,7 +484,7 @@ export default function StockManagementPage() {
             </p>
             {displayedSharedInputs?.sourceScope !== "b2c_only" && (
               <p role="status" className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-bold leading-5 text-red-800">
-                ยังไม่ยืนยันว่าไฟล์ Power BI เป็นยอด B2C เท่านั้น · ปริมาณซื้อจะแสดง “รอข้อมูล” เพื่อป้องกันนับยอด B2B ซ้ำ · โปรดให้ IT ยืนยันประเภทข้อมูลแล้วเลือกในเมนูรายละเอียดก่อนนำเข้า
+                ยังไม่มีข้อมูลยอดขาย B2C ที่ใช้คำนวณได้ · โปรดนำเข้าไฟล์ในมุมมองรายละเอียด ปริมาณที่ข้อมูลไม่ครบจะแสดง “รอข้อมูล”
               </p>
             )}
             {flaggedPurchases.length > 0 && <p className="mt-2 rounded-lg bg-[#FFF8E8] p-3 text-xs font-semibold text-[#7D5C17]">
@@ -529,7 +529,7 @@ export default function StockManagementPage() {
             <div className="rounded-xl bg-amber-50 p-3 text-center"><p className="text-[11px] font-bold text-amber-800">ต้องเติมเพื่อครอบคลุมพรุ่งนี้</p><p className="mt-1 text-xl font-black text-amber-800">{purchaseWarnings.filter((item) => item.status === "cover_gap").length}</p></div>
             <div className="rounded-xl bg-[#E9F8F4] p-3 text-center"><p className="text-[11px] font-bold text-[#28766D]">สัญญาณเตือนทั้งหมด</p><p className="mt-1 text-xl font-black text-[#008B8B]">{flaggedPurchases.length}</p></div>
           </div>
-          {displayedSharedInputs?.sourceScope !== "b2c_only" && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">แหล่งข้อมูล B2C ยังไม่ยืนยัน: รายงานรวมสาขาอาจมี B2B อยู่แล้ว จึงไม่นับซ้ำและยังไม่มีปริมาณสั่งซื้อที่พร้อมใช้สำหรับ SKU ดังกล่าว</p>}
+          {displayedSharedInputs?.sourceScope !== "b2c_only" && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">ยังไม่มีฐาน B2C ที่ใช้พยากรณ์ได้ · นำเข้าข้อมูลยอดขาย B2C จาก Excel เพื่อให้คำนวณยอดรวมทั้งสองช่องทาง</p>}
           {displayedSharedInputs?.sourcePeriod && (() => {
             const age = Math.round((Date.parse(`${displayedSharedInputs.countDate}T00:00:00Z`) - Date.parse(`${displayedSharedInputs.sourcePeriod.end}T00:00:00Z`)) / 86400000);
             return age > 14 ? <p className="mt-2 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">ข้อมูลยอดขาย B2C สิ้นสุดเมื่อ {displayedSharedInputs.sourcePeriod.end} ({age} วันที่ผ่านมา) · แบบจำลองใช้ได้แต่ไม่ทราบการเปลี่ยนแปลงล่าสุด ควรนำเข้ารอบใหม่เมื่อมีข้อมูล</p> : null;
@@ -560,7 +560,7 @@ export default function StockManagementPage() {
           {planHistoryError && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-3 text-xs text-red-700">{planHistoryError}</p>}
           {planHistory && <div className="mt-3 overflow-x-auto rounded-xl border border-[#DCEAE6]"><table className="w-full min-w-[520px] text-left text-xs">
             <thead className="bg-[#EDF8F5] text-[#416D65]"><tr><th className="p-2">วันที่แผน</th><th className="p-2 text-right">SKU คำนวณได้</th><th className="p-2 text-right">SKU ขาดข้อมูล</th><th className="p-2 text-right">รวมแนะนำสั่ง (กก.)</th><th className="p-2">หมายเหตุ</th></tr></thead>
-            <tbody>{planHistory.map((day) => <tr key={day.date} className="border-t border-[#E3EEEA]"><td className="p-2">{day.date}</td><td className="p-2 text-right">{day.readySkuCount ?? "—"}</td><td className="p-2 text-right">{day.missingSkuCount ?? "—"}</td><td className="p-2 text-right font-bold">{day.recommendedKg === null ? "—" : forecastQty(day.recommendedKg)}</td><td className="p-2">{!day.available ? "แผนรุ่นก่อน ไม่มีข้อมูลซื้อ" : day.scope !== "b2c_only" ? "ยังไม่ยืนยันแหล่งข้อมูล B2C" : day.late ? "บันทึกหลัง 10:00" : "บันทึกตามเวลา"}</td></tr>)}</tbody>
+            <tbody>{planHistory.map((day) => <tr key={day.date} className="border-t border-[#E3EEEA]"><td className="p-2">{day.date}</td><td className="p-2 text-right">{day.readySkuCount ?? "—"}</td><td className="p-2 text-right">{day.missingSkuCount ?? "—"}</td><td className="p-2 text-right font-bold">{day.recommendedKg === null ? "—" : forecastQty(day.recommendedKg)}</td><td className="p-2">{!day.available ? "แผนรุ่นก่อน ไม่มีข้อมูลซื้อ" : day.scope !== "b2c_only" ? "ยังไม่มีฐาน B2C" : day.late ? "บันทึกหลัง 10:00" : "บันทึกตามเวลา"}</td></tr>)}</tbody>
           </table></div>}
         </section>
 

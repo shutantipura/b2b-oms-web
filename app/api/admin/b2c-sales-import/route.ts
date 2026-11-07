@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { parseB2CSales30DaySheet, parseB2CDailySheet, validateSalesPeriod, weekdayLabel, type B2CSales30DayRow } from "@/lib/sharedStockInputs";
 import { requireStockRole, stockErrorResponse } from "@/lib/server/stockAccess";
-import type { SalesScope } from "@/lib/sharedStockDiagnostics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,13 +36,9 @@ export async function POST(request: NextRequest) {
     const file = form.get("file");
     const mode = form.get("mode") === "commit" ? "commit" : "preview";
     const blankAsZero = form.get("blankAsZero") === "true";
-    const salesScope = String(form.get("salesScope") ?? "unverified") as SalesScope;
-    if (!["unverified", "b2c_only", "all_store"].includes(salesScope)) {
-      return NextResponse.json({ error: "กรุณาระบุประเภทข้อมูลขายให้ถูกต้อง" }, { status: 400 });
-    }
-    if (mode === "commit" && salesScope === "unverified") {
-      return NextResponse.json({ error: "ก่อนนำเข้า กรุณาตรวจสอบกับ IT ว่ารายงานเป็นยอด B2C อย่างเดียวหรือยอดรวมทั้งสาขา" }, { status: 400 });
-    }
+    // The manager supplies a pre-filtered B2C-only sales report. No extra
+    // classification is needed at import time.
+    const salesScope = "b2c_only";
     const periodStart = String(form.get("periodStart") ?? "");
     const periodEnd = String(form.get("periodEnd") ?? "");
     if (!(file instanceof File) || !/\.(xlsx|xls)$/i.test(file.name) || file.size <= 0 || file.size > MAX_FILE_BYTES) {
