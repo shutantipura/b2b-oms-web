@@ -9,6 +9,7 @@ import { stockReportDates } from "@/lib/stockSalesReport";
 import { aggregateForecastByProduct, describeCustomerOrderTime, STOCK_PLANNING_PERCENTILE, type ForecastDay, type StockForecast } from "@/lib/stockForecast";
 import type { DemandBacktestReport } from "@/lib/stockForecastBacktest";
 import { FRESH_MEAT_SHELF_LIFE_DAYS, MAX_SHORTAGE_PROBABILITY, type StockOrderRecommendation } from "@/lib/stockOrderOptimizer";
+import { sharedPurchaseDraft } from "@/lib/sharedStockPurchaseDraft";
 
 type Access = "loading" | "manager" | "denied" | "signed-out";
 const PLANNING_LABEL = `P${Math.round(STOCK_PLANNING_PERCENTILE * 100)}`;
@@ -131,6 +132,8 @@ export default function StockManagementPage() {
   const [snapshotCapturedAt, setSnapshotCapturedAt] = useState<string | null>(null);
   const [snapshotWasLate, setSnapshotWasLate] = useState(false);
   const [forecastView, setForecastView] = useState<"noon" | "live">("noon");
+  const [pageView, setPageView] = useState<"simple" | "detailed">("simple");
+  const [simpleSearch, setSimpleSearch] = useState("");
   const [forecastLoading, setForecastLoading] = useState(false);
   const [forecastError, setForecastError] = useState("");
   const [forecastDownloading, setForecastDownloading] = useState(false);
@@ -218,6 +221,28 @@ export default function StockManagementPage() {
     return [...meat.values()].filter((product) => product.b2bKg > 0 || displayedSharedInputs?.bySku[product.sku]?.b2cDailyKg != null)
       .sort((a, b) => (b.b2bKg + (displayedSharedInputs?.bySku[b.sku]?.b2cDailyKg ?? 0)) - (a.b2bKg + (displayedSharedInputs?.bySku[a.sku]?.b2cDailyKg ?? 0)));
   }, [productForecast, displayedSharedInputs]);
+
+  const purchaseDrafts = useMemo(() => {
+    if (!displayedForecast || !displayedSharedInputs) return [];
+    const forecastBySku = new Map(productForecast.map((product) => [product.sku, product]));
+    return combinedMeatProducts.map((product) => {
+      const original = forecastBySku.get(product.sku);
+      const kgUnits = original?.units.filter((unit) => unit.unit === "กก.") ?? [];
+      const b2bTodayMeanKg = kgUnits.reduce((sum, unit) => sum + (unit.days[0]?.totalQty ?? 0), 0);
+      const b2bTomorrowP90Kg = kgUnits.reduce((sum, unit) => sum + (unit.days[1]?.planningQty ?? unit.days[1]?.totalQty ?? 0), 0);
+      const retail = displayedSharedInputs.bySku[product.sku];
+      return sharedPurchaseDraft({ sku: product.sku, productName: product.productName,
+        b2bTodayMeanKg, b2bTomorrowP90Kg,
+        b2cTodayMeanKg: retail?.b2cByDateKg?.[displayedForecast.dates[0]] ?? retail?.b2cDailyKg ?? null,
+        b2cTomorrowMeanKg: retail?.b2cByDateKg?.[displayedForecast.dates[1]] ?? retail?.b2cDailyKg ?? null,
+        morningOnHandKg: retail?.onHandKg ?? null,
+      });
+    }).sort((a, b) => (b.orderKg ?? -1) - (a.orderKg ?? -1));
+  }, [displayedForecast, displayedSharedInputs, productForecast, combinedMeatProducts]);
+  const visiblePurchaseDrafts = useMemo(() => purchaseDrafts.filter((row) =>
+    !simpleSearch.trim() || `${row.sku} ${row.productName}`.toLowerCase().includes(simpleSearch.trim().toLowerCase())), [purchaseDrafts, simpleSearch]);
+  const readyDrafts = purchaseDrafts.filter((row) => row.orderKg !== null);
+  const pendingDrafts = purchaseDrafts.length - readyDrafts.length;
 
   const visibleForecast = useMemo(() => {
     const filter = productSearch.trim().toLocaleLowerCase();
@@ -341,13 +366,73 @@ export default function StockManagementPage() {
             <div>
               <p className="text-[11px] font-extrabold tracking-[0.13em] text-[#008B8B]">LOTUS’S B2B / OMS</p>
               <h1 className="mt-2 text-3xl font-black text-[#17453F]">จัดการสต็อก</h1>
-              <p className="mt-2 text-sm text-[#6B8880]">พยากรณ์ความต้องการจากยอดสั่งของลูกค้า พร้อมรายงานยอดขายจริงแยกต่างหาก</p>
+              <p className="mt-2 text-sm text-[#6B8880]">วางแผนเติมสต็อกเนื้อสดร่วม B2B/B2C · ส่งคำสั่งซื้อให้ซัพพลายเออร์โดยผู้จัดการ</p>
             </div>
             <span className="rounded-full border border-[#F7DB83] bg-[#FFF7DC] px-4 py-2 text-sm font-extrabold text-[#815B00]">
               Manager
             </span>
           </div>
         </header>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-[#CDE9E3] bg-white p-2" role="group" aria-label="เลือกมุมมองการจัดการสต็อก">
+          <button type="button" onClick={() => setPageView("simple")} aria-pressed={pageView === "simple"}
+            className={`min-h-12 rounded-xl px-4 py-2 text-sm font-black ${pageView === "simple" ? "bg-[#02B0AF] text-white" : "text-[#476D65]"}`}>
+            มุมมองใช้งาน · สั่งสต็อก
+          </button>
+          <button type="button" onClick={() => setPageView("detailed")} aria-pressed={pageView === "detailed"}
+            className={`min-h-12 rounded-xl px-4 py-2 text-sm font-black ${pageView === "detailed" ? "bg-[#02B0AF] text-white" : "text-[#476D65]"}`}>
+            รายละเอียด · ข้อมูลและโมเดล
+          </button>
+        </div>
+
+        {pageView === "simple" && (
+          <section className="mt-4 rounded-[22px] border border-[#CDE9E3] bg-white p-4 shadow-sm sm:p-6" aria-label="ปริมาณเติมสต็อกเบื้องต้น">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-extrabold text-[#008B8B]">DAILY PURCHASING · WORKING ESTIMATE</p>
+                <h2 className="mt-1 text-2xl font-black text-[#17453F]">ปริมาณเติมสต็อกพรุ่งนี้</h2>
+                <p className="mt-1 text-sm text-[#66857A]">{displayedForecast?.dates[1] ?? "กำลังโหลดวันที่ส่ง"} · แผน 10:00 น.</p>
+              </div>
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-800">ตัวเลขทดลอง · รอตรวจสอบก่อนสั่งจริง</span>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#E9F8F4] p-3">
+              <div>
+                <p className="text-sm font-black text-[#17594E]">ข้อมูลที่ต้องมีวันนี้</p>
+                <p className="mt-1 text-xs text-[#43766C]">พนักงานนับสต็อกตอนเช้า · ระบบอ่าน B2B จาก OMS และ B2C จากไฟล์ประวัติที่นำเข้าไว้</p>
+              </div>
+              <Link href="/stock-count" className="rounded-xl bg-[#02B0AF] px-4 py-3 text-sm font-black text-white">กรอก/ตรวจสต็อกเช้า</Link>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="rounded-xl bg-[#F1F6F4] p-3 text-center"><p className="text-xs font-bold text-[#597A72]">SKU ที่คำนวณได้</p><p className="mt-1 text-xl font-black text-[#17453F]">{readyDrafts.length}</p></div>
+              <div className="rounded-xl bg-[#FFF5DD] p-3 text-center"><p className="text-xs font-bold text-[#90702A]">รอข้อมูล</p><p className="mt-1 text-xl font-black text-[#835F12]">{pendingDrafts}</p></div>
+              <div className="rounded-xl bg-[#E5F7F4] p-3 text-center"><p className="text-xs font-bold text-[#377B70]">รวมปริมาณที่คำนวณได้</p><p className="mt-1 text-xl font-black text-[#007F7F]">{forecastQty(readyDrafts.reduce((sum, row) => sum + (row.orderKg ?? 0), 0))} <span className="text-xs">กก.</span></p></div>
+            </div>
+            <p className="mt-3 rounded-lg bg-[#FFF4DC] px-3 py-3 text-xs leading-5 text-[#7B5A16]">
+              <strong>สำคัญ:</strong> ปริมาณด้านล่างเป็นเพียงตัวเลขเบื้องต้นจากแผน B2B P90 + B2C คาดเฉลี่ยตามวันในสัปดาห์ หักสต็อกที่คาดว่าจะเหลือหลังขายวันนี้ · ยังไม่ใช่คำตอบจากแบบจำลองต้นทุน/การหมดอายุ และยังไม่รับรองความเสี่ยงขาดไม่เกิน 5% · กรุณาตรวจสอบอายุสินค้าและการขายที่เกิดขึ้นแล้วก่อนสั่งจริง
+            </p>
+            {snapshotStatus !== "saved" && <p className="mt-2 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-800">ยังไม่มีแผน 10:00 ที่บันทึกถาวรสำหรับวันนี้ · ตัวเลขอาจเปลี่ยนจนกว่าจะมีการบันทึกแผน</p>}
+            {forecastError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700">{forecastError}</p>}
+            <input type="search" value={simpleSearch} onChange={(event) => setSimpleSearch(event.target.value)} placeholder="ค้นหา SKU หรือชื่อสินค้า" aria-label="ค้นหาสินค้าในแผนสั่งสต็อก"
+              className="mt-4 min-h-12 w-full rounded-xl border border-[#CDE9E3] px-4 text-sm outline-none focus:border-[#02B0AF]" />
+            <div className="mt-3 overflow-x-auto rounded-xl border border-[#DCEAE6]">
+              <table className="w-full min-w-[570px] text-left text-xs sm:text-sm">
+                <thead className="bg-[#EDF8F5] text-[#376A60]"><tr><th className="p-3">สินค้า / SKU</th><th className="p-3 text-right">คาดขายพรุ่งนี้</th><th className="p-3 text-right">สต็อกที่คาดว่าเหลือ</th><th className="p-3 text-right">ปริมาณเติม (ทดลอง)</th></tr></thead>
+                <tbody>{visiblePurchaseDrafts.map((row) => <tr key={row.sku} className="border-t border-[#E4EFEB]">
+                  <td className="p-3"><strong>{row.productName}</strong><p className="text-[11px] text-[#78938A]">{row.sku}</p></td>
+                  <td className="p-3 text-right tabular-nums">{row.expectedDemandTomorrowKg === null ? "—" : forecastQty(row.expectedDemandTomorrowKg)}</td>
+                  <td className="p-3 text-right tabular-nums">{row.usableStockTomorrowKg === null ? "—" : forecastQty(row.usableStockTomorrowKg)}</td>
+                  <td className="p-3 text-right font-black tabular-nums text-[#008B8B]">{row.orderKg === null ? <span className="text-xs text-amber-700">{row.missing.includes("b2c_history") ? "รอข้อมูล B2C" : "รอนับสต็อก"}</span> : <>{forecastQty(row.orderKg)} กก.</>}</td>
+                </tr>)}</tbody>
+              </table>
+            </div>
+            {visiblePurchaseDrafts.length === 0 && <p className="p-4 text-center text-sm text-[#708A82]">ยังไม่มีสินค้าในเงื่อนไขที่เลือก</p>}
+            <p className="mt-3 text-xs text-[#718B83]">SKU ที่ข้อมูลไม่ครบแสดง “รอข้อมูล” ไม่ถือว่าเป็น 0 กก. · ค่าตัวเลขทดลองยังไม่ควรนำไปสั่งซื้อโดยไม่ตรวจสอบ</p>
+            <button type="button" onClick={() => setPageView("detailed")}
+              className="mt-4 min-h-12 w-full rounded-xl border border-[#B8DAD2] px-4 text-sm font-bold text-[#008B8B]">ดูแหล่งข้อมูลและวิธีคำนวณในมุมมองรายละเอียด</button>
+          </section>
+        )}
+
+        {pageView === "detailed" && <>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#CDE9E3] bg-white p-4">
           <p className="text-sm font-bold text-[#315C54]">สต็อกใช้ร่วมกันระหว่าง B2C และ B2B · ให้พนักงานนับจำนวนคงเหลือทุกเช้า</p>
@@ -795,8 +880,9 @@ export default function StockManagementPage() {
         </section>
 
         <p className="mt-5 text-center text-xs leading-5 text-[#79928B]">
-          ระบบคาดการณ์กำลังอยู่ในระยะทดลอง · ยังไม่เชื่อมต่อยอดสต็อกจริงหรือส่งคำสั่งซื้อให้ซัพพลายเออร์
+          ระบบคาดการณ์เชื่อมต่อยอดนับสต็อกรายวันแล้ว แต่ยังไม่มีอายุสินค้าแยกล็อต · ยังไม่ส่งคำสั่งซื้อให้ซัพพลายเออร์อัตโนมัติ
         </p>
+        </>}
       </div>
     </main>
   );
