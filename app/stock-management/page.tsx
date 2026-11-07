@@ -9,7 +9,7 @@ import { stockReportDates } from "@/lib/stockSalesReport";
 import { aggregateForecastByProduct, describeCustomerOrderTime, STOCK_PLANNING_PERCENTILE, type ForecastDay, type StockForecast } from "@/lib/stockForecast";
 import type { DemandBacktestReport } from "@/lib/stockForecastBacktest";
 import { FRESH_MEAT_SHELF_LIFE_DAYS, MAX_SHORTAGE_PROBABILITY, type StockOrderRecommendation } from "@/lib/stockOrderOptimizer";
-import { sharedPurchaseDraft } from "@/lib/sharedStockPurchaseDraft";
+import { sharedPurchaseDraft, TARGET_STOCK_DAYS } from "@/lib/sharedStockPurchaseDraft";
 
 type Access = "loading" | "manager" | "denied" | "signed-out";
 const PLANNING_LABEL = `P${Math.round(STOCK_PLANNING_PERCENTILE * 100)}`;
@@ -229,12 +229,15 @@ export default function StockManagementPage() {
       const original = forecastBySku.get(product.sku);
       const kgUnits = original?.units.filter((unit) => unit.unit === "กก.") ?? [];
       const b2bTodayMeanKg = kgUnits.reduce((sum, unit) => sum + (unit.days[0]?.totalQty ?? 0), 0);
-      const b2bTomorrowP90Kg = kgUnits.reduce((sum, unit) => sum + (unit.days[1]?.planningQty ?? unit.days[1]?.totalQty ?? 0), 0);
+      const b2bTomorrowMeanKg = kgUnits.reduce((sum, unit) => sum + (unit.days[1]?.totalQty ?? 0), 0);
+      const b2bDayAfterMeanKg = kgUnits.reduce((sum, unit) => sum + (unit.days[2]?.totalQty ?? 0), 0);
+      const b2bConfirmedTomorrowKg = kgUnits.reduce((sum, unit) => sum + (unit.days[1]?.knownQty ?? 0), 0);
       const retail = displayedSharedInputs.bySku[product.sku];
       return sharedPurchaseDraft({ sku: product.sku, productName: product.productName,
-        b2bTodayMeanKg, b2bTomorrowP90Kg,
+        b2bTodayMeanKg, b2bTomorrowMeanKg, b2bDayAfterMeanKg, b2bConfirmedTomorrowKg,
         b2cTodayMeanKg: retail?.b2cByDateKg?.[displayedForecast.dates[0]] ?? retail?.b2cDailyKg ?? null,
         b2cTomorrowMeanKg: retail?.b2cByDateKg?.[displayedForecast.dates[1]] ?? retail?.b2cDailyKg ?? null,
+        b2cDayAfterMeanKg: retail?.b2cByDateKg?.[displayedForecast.dates[2]] ?? retail?.b2cDailyKg ?? null,
         morningOnHandKg: retail?.onHandKg ?? null,
       });
     }).sort((a, b) => (b.orderKg ?? -1) - (a.orderKg ?? -1));
@@ -389,8 +392,8 @@ export default function StockManagementPage() {
           <section className="mt-4 rounded-[22px] border border-[#CDE9E3] bg-white p-4 shadow-sm sm:p-6" aria-label="ปริมาณเติมสต็อกเบื้องต้น">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-extrabold text-[#008B8B]">DAILY PURCHASING · WORKING ESTIMATE</p>
-                <h2 className="mt-1 text-2xl font-black text-[#17453F]">ปริมาณเติมสต็อกพรุ่งนี้</h2>
+                <p className="text-xs font-extrabold text-[#008B8B]">DAILY PURCHASING · {TARGET_STOCK_DAYS.toFixed(1)} DOH</p>
+                <h2 className="mt-1 text-2xl font-black text-[#17453F]">เติมสต็อกให้เพียงพอ {TARGET_STOCK_DAYS} วัน</h2>
                 <p className="mt-1 text-sm text-[#66857A]">{displayedForecast?.dates[1] ?? "กำลังโหลดวันที่ส่ง"} · แผน 10:00 น.</p>
               </div>
               <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-800">ตัวเลขทดลอง · รอตรวจสอบก่อนสั่งจริง</span>
@@ -408,7 +411,7 @@ export default function StockManagementPage() {
               <div className="rounded-xl bg-[#E5F7F4] p-3 text-center"><p className="text-xs font-bold text-[#377B70]">รวมปริมาณที่คำนวณได้</p><p className="mt-1 text-xl font-black text-[#007F7F]">{forecastQty(readyDrafts.reduce((sum, row) => sum + (row.orderKg ?? 0), 0))} <span className="text-xs">กก.</span></p></div>
             </div>
             <p className="mt-3 rounded-lg bg-[#FFF4DC] px-3 py-3 text-xs leading-5 text-[#7B5A16]">
-              <strong>สำคัญ:</strong> ปริมาณด้านล่างเป็นเพียงตัวเลขเบื้องต้นจากแผน B2B P90 + B2C คาดเฉลี่ยตามวันในสัปดาห์ หักสต็อกที่คาดว่าจะเหลือหลังขายวันนี้ · ยังไม่ใช่คำตอบจากแบบจำลองต้นทุน/การหมดอายุ และยังไม่รับรองความเสี่ยงขาดไม่เกิน 5% · กรุณาตรวจสอบอายุสินค้าและการขายที่เกิดขึ้นแล้วก่อนสั่งจริง
+              <strong>นโยบาย {TARGET_STOCK_DAYS.toFixed(1)} DOH:</strong> เป้าหมายสต็อกเท่ากับยอดคาดขายรวม B2B+B2C ของวันส่งพรุ่งนี้และวันถัดไป หักสต็อกที่คาดว่าจะเหลือหลังขายวันนี้ · รวมออเดอร์ B2B ที่ยืนยันแล้ว · ไม่แยกสต็อกตามวันหมดอายุ และไม่สมมติว่ามี FIFO สมบูรณ์ · ผลลัพธ์ยังเป็นตัวเลขทดลอง ไม่รับรองว่าจะไม่มีสินค้าขาดหรือหมดอายุ กรุณาตรวจสอบก่อนสั่ง
             </p>
             {snapshotStatus !== "saved" && <p className="mt-2 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-800">ยังไม่มีแผน 10:00 ที่บันทึกถาวรสำหรับวันนี้ · ตัวเลขอาจเปลี่ยนจนกว่าจะมีการบันทึกแผน</p>}
             {forecastError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700">{forecastError}</p>}
@@ -416,10 +419,10 @@ export default function StockManagementPage() {
               className="mt-4 min-h-12 w-full rounded-xl border border-[#CDE9E3] px-4 text-sm outline-none focus:border-[#02B0AF]" />
             <div className="mt-3 overflow-x-auto rounded-xl border border-[#DCEAE6]">
               <table className="w-full min-w-[570px] text-left text-xs sm:text-sm">
-                <thead className="bg-[#EDF8F5] text-[#376A60]"><tr><th className="p-3">สินค้า / SKU</th><th className="p-3 text-right">คาดขายพรุ่งนี้</th><th className="p-3 text-right">สต็อกที่คาดว่าเหลือ</th><th className="p-3 text-right">ปริมาณเติม (ทดลอง)</th></tr></thead>
+                <thead className="bg-[#EDF8F5] text-[#376A60]"><tr><th className="p-3">สินค้า / SKU</th><th className="p-3 text-right">เป้าหมาย 2 วัน</th><th className="p-3 text-right">สต็อกที่คาดว่าเหลือ</th><th className="p-3 text-right">ปริมาณเติม (ทดลอง)</th></tr></thead>
                 <tbody>{visiblePurchaseDrafts.map((row) => <tr key={row.sku} className="border-t border-[#E4EFEB]">
                   <td className="p-3"><strong>{row.productName}</strong><p className="text-[11px] text-[#78938A]">{row.sku}</p></td>
-                  <td className="p-3 text-right tabular-nums">{row.expectedDemandTomorrowKg === null ? "—" : forecastQty(row.expectedDemandTomorrowKg)}</td>
+                  <td className="p-3 text-right tabular-nums">{row.targetStockKg === null ? "—" : forecastQty(row.targetStockKg)}</td>
                   <td className="p-3 text-right tabular-nums">{row.usableStockTomorrowKg === null ? "—" : forecastQty(row.usableStockTomorrowKg)}</td>
                   <td className="p-3 text-right font-black tabular-nums text-[#008B8B]">{row.orderKg === null ? <span className="text-xs text-amber-700">{row.missing.includes("b2c_history") ? "รอข้อมูล B2C" : "รอนับสต็อก"}</span> : <>{forecastQty(row.orderKg)} กก.</>}</td>
                 </tr>)}</tbody>
@@ -534,7 +537,7 @@ export default function StockManagementPage() {
                 </table>
               </div>
               <p className="mt-3 rounded-lg bg-[#FFF4DC] p-3 text-xs leading-5 text-[#805D18]">
-                ยังไม่คำนวณปริมาณสั่งซื้อหรือความเสี่ยงขาด/หมดอายุจากข้อมูลรวมนี้: {displayedSharedInputs.sourceFormat === "daily" ? "ยอดขายรายวันช่วยประมาณความผันผวนได้ แต่ยอดขายที่ถูกจำกัดด้วยสินค้าขาดอาจต่ำกว่าความต้องการจริง" : "ข้อมูล B2C ยอดรวมยังไม่บอกความผันผวนรายวัน"} และสต็อกไม่มีข้อมูลอายุสินค้า จึงยังพิสูจน์เกณฑ์ขาดไม่เกิน 5% หรือ FIFO จริงไม่ได้
+                ใช้นโยบายสต็อกเป้าหมาย {TARGET_STOCK_DAYS} วันในมุมมองใช้งาน · ยังไม่คำนวณความเสี่ยงหมดอายุหรือการขาดสินค้าอย่างแม่นยำ: {displayedSharedInputs.sourceFormat === "daily" ? "ยอดขายรายวันช่วยประมาณความผันผวนได้ แต่ยอดขายที่ถูกจำกัดด้วยสินค้าขาดอาจต่ำกว่าความต้องการจริง" : "ข้อมูล B2C ยอดรวมยังไม่บอกความผันผวนรายวัน"} และเราไม่มีอายุสินค้าแยกล็อต · ไม่ตั้งสมมติฐานว่าพนักงานทำ FIFO สมบูรณ์
               </p>
             </section>
           )}
@@ -543,7 +546,7 @@ export default function StockManagementPage() {
             <section className="mt-5 rounded-2xl border border-[#F3D58B] bg-[#FFFDF5] p-3 sm:p-4" aria-label="แผนปริมาณสั่งซื้อเนื้อสดจำลอง">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <h3 className="text-lg font-black text-[#694C0C]">แผนจำลองเฉพาะ B2B (ไม่ใช่คำแนะนำสั่งซื้อสต็อกรวม)</h3>
+                  <h3 className="text-lg font-black text-[#694C0C]">แบบจำลอง FIFO เดิมเฉพาะ B2B (เพื่อศึกษาเท่านั้น)</h3>
                   <p className="mt-1 text-xs text-[#826A38]">โอกาสขาดสินค้าไม่เกิน {MAX_SHORTAGE_PROBABILITY * 100}% ต่อ SKU ตามแบบจำลอง · FIFO · อายุ {FRESH_MEAT_SHELF_LIFE_DAYS} วัน</p>
                 </div>
                 <span className="rounded-full border border-[#E9C86C] bg-[#FFF1C5] px-3 py-1 text-xs font-black text-[#805A00]">ยังไม่ใช่คำสั่งซื้อจริง</span>
@@ -566,7 +569,7 @@ export default function StockManagementPage() {
                 </div>
               </div>
               <p className="mt-3 rounded-lg bg-[#FFF1D8] px-3 py-2 text-xs leading-5 text-[#795A20]">
-                <strong>ข้อสมมติสำคัญ:</strong> ยังไม่มีสต็อกคงเหลือแยกวันหมดอายุ จึงจำลองว่าสต็อกเก่าเริ่มต้นเป็นศูนย์ และสินค้าใหม่มาถึงวันส่งพรุ่งนี้ · ใช้ราคาและต้นทุนปกติจาก Master Price (สินค้าหมดอายุคิดสูญเสียเต็มต้นทุน ไม่มีมูลค่ากู้คืน) · ยังไม่รวมยอดขายหน้าร้านนอก OMS · การสั่งซ้ำรายวันจำลองจากความน่าจะเป็นรายวัน จึงเป็นค่าประมาณ ยังไม่รับประกันความเสี่ยงจริง
+                <strong>แบบจำลองเดิม ไม่ใช้สำหรับสั่งซื้อ:</strong> สมมติว่า FIFO สมบูรณ์และไม่มีสต็อกเก่า ซึ่งไม่ตรงกับการทำงานจริงของร้าน · ใช้ราคาและต้นทุนปกติจาก Master Price · ยังไม่รวมยอดขายหน้าร้านนอก OMS · ค่าความเสี่ยงทั้งหมดเป็นเพียงการทดลอง ไม่รับประกันความเสี่ยงจริง · แผนใช้งานปัจจุบันยึด {TARGET_STOCK_DAYS.toFixed(1)} DOH
                 {forecastView === "noon" && !stockOrderPlans.noonHorizonFrozen && " · แผน 10:00 เดิมไม่ได้เก็บวันที่ 3 ของอายุสินค้า จึงประเมินวันนั้นย้อนหลังแทน"}
               </p>
               <details className="mt-3 overflow-hidden rounded-xl border border-[#EBD9AC] bg-white">
