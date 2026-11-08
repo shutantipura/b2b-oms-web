@@ -12,6 +12,7 @@ import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 import { groupOrdersForManagement, orderDisplayNumber } from "../../lib/groupOrderDisplay";
 import { getOrderDeliveryUrgency, type DeliveryUrgency } from "../../lib/deliveryRules";
+import { useAutoRefresh } from "../../lib/useAutoRefresh";
 
 type Order = {
   id: string;
@@ -628,11 +629,14 @@ export default function OrdersPage() {
 
   async function loadOrders(
     date: string = selectedDate,
-    includeAllDates: boolean = allDates
+    includeAllDates: boolean = allDates,
+    quiet = false
   ) {
     const requestId = ++loadRequestRef.current;
-    setLoading(true);
-    setMessage("");
+    if (!quiet) {
+      setLoading(true);
+      setMessage("");
+    }
 
     // Supabase queries can be capped by the project's maximum-row setting.
     // Load in stable pages so the “all dates” choice truly includes older orders.
@@ -700,6 +704,9 @@ export default function OrdersPage() {
       loadRequestRef.current += 1;
     };
   }, [filtersRestored, selectedDate, allDates]);
+
+  // Refresh live order statuses without resetting the user's filters or scroll position.
+  useAutoRefresh(() => loadOrders(selectedDate, allDates, true), filtersRestored);
 
   useEffect(() => {
     const refreshClock = () => setClock(getBangkokClock());

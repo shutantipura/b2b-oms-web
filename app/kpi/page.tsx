@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
+import { useAutoRefresh } from "../../lib/useAutoRefresh";
 
 type KPIOrder = {
   order_id: string;
@@ -277,10 +278,12 @@ export default function KPIPage() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const requestIdRef = useRef(0);
 
-  async function loadKPI(date: string = selectedDate) {
+  async function loadKPI(date: string = selectedDate, quiet = false) {
     const requestId = ++requestIdRef.current;
-    setLoading(true);
-    setMessage("");
+    if (!quiet) {
+      setLoading(true);
+      setMessage("");
+    }
 
     // Operational KPIs use delivery date; Financials use Bangkok bill date but ONLY completed orders.
     const [operationalResult, financialResult, cancellationResult] = await Promise.all([
@@ -459,6 +462,9 @@ export default function KPIPage() {
       requestIdRef.current += 1;
     };
   }, [selectedDate]);
+
+  // Refresh reports as tasks finish, without hiding the current metrics while polling.
+  useAutoRefresh(() => loadKPI(selectedDate, true));
 
   useEffect(() => {
     const interval = window.setInterval(() => setNowMs(Date.now()), 60_000);

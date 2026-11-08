@@ -15,6 +15,7 @@ import { prepareOrderPhoto } from "../../../lib/orderPhotoUpload";
 import { isConsolidatedGroup } from "../../../lib/groupOrderDisplay";
 import { combinePickedItems, type PickedItem } from "../../../lib/groupedOrderItems";
 import { compareOrderFiles } from "../../../lib/orderFileSort";
+import { useAutoRefresh } from "../../../lib/useAutoRefresh";
 
 
 
@@ -1247,6 +1248,38 @@ export default function OrderDetailsPage() {
     }
 
   }, [orderNumber]);
+
+  // Photos may be uploaded by another employee while this order is open.
+  // Refresh only server-owned display data, leaving manager form drafts untouched.
+  useAutoRefresh(async () => {
+    if (!order?.id) return;
+    const orderId = order.id;
+    const [headerResult, filesResult] = await Promise.all([
+      supabase.from("orders").select("status, final_amount").eq("id", orderId).maybeSingle(),
+      supabase.from("order_files")
+        .select("id,file_type,storage_path,original_filename,mime_type,is_current,created_at")
+        .eq("order_id", orderId)
+        .order("created_at", { ascending: true }),
+    ]);
+
+    const refreshedHeader = headerResult.error ? null : headerResult.data;
+    if (refreshedHeader) {
+      setOrder((current) => current?.id === orderId
+        ? { ...current, status: refreshedHeader.status, final_amount: refreshedHeader.final_amount }
+        : current);
+    }
+    if (filesResult.error) throw filesResult.error;
+
+    const filesToShow = ((filesResult.data ?? []) as OrderFile[]).filter((file) =>
+      file.is_current || file.file_type === "cart_photo" || file.file_type === "cart_photo_2"
+    );
+    const freshFiles = await Promise.all(filesToShow.map(async (file): Promise<DisplayFile> => {
+      const { data, error } = await supabase.storage.from("order-files")
+        .createSignedUrl(file.storage_path, 60 * 60);
+      return { ...file, url: error || !data ? null : data.signedUrl };
+    }));
+    setFiles(freshFiles.sort(compareOrderFiles));
+  }, Boolean(order?.id) && !uploadingManagerBill && !uploadingManagerQr && !uploadingManagerSlip);
 
 
 

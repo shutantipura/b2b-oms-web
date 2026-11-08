@@ -20,6 +20,7 @@ import { supabase } from "../../lib/supabase";
 import { getOrderDeliveryUrgency, type DeliveryUrgency } from "../../lib/deliveryRules";
 import { formatActiveTaskDuration } from "../../lib/taskElapsed";
 import { calculatePickedOrderEstimate, calculateStockCheckedOrderEstimate } from "../../lib/taskPickedEstimate";
+import { useAutoRefresh } from "../../lib/useAutoRefresh";
 
 
 
@@ -646,11 +647,11 @@ export default function TasksPage() {
 
 
 
-  async function loadData() {
+  async function loadData(quiet = false) {
 
-    setLoading(true);
+    if (!quiet) setLoading(true);
 
-    setMessage("");
+    if (!quiet) setMessage("");
 
 
 
@@ -1132,6 +1133,9 @@ export default function TasksPage() {
 
   }, []);
 
+  // Keep the operational task queue current, including after another employee finishes a task.
+  useAutoRefresh(() => loadData(true));
+
 
 
   // =====================================================
@@ -1381,11 +1385,7 @@ export default function TasksPage() {
 
           <button
 
-            onClick={
-
-              loadData
-
-            }
+            onClick={() => void loadData()}
 
             className="bg-white border rounded-lg px-4 py-2"
 

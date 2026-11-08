@@ -6,6 +6,7 @@ import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
 import { lineApiFetch } from "../../../lib/lineSession";
 import { prepareOrderPhoto } from "../../../lib/orderPhotoUpload";
+import { useAutoRefresh } from "../../../lib/useAutoRefresh";
 
 type DisplayFile = {
   fileType: string;
@@ -125,6 +126,12 @@ export default function MiniAppPaymentPage() {
     setData(result);
     return result;
   }
+
+  // Update bill, payment QR, and slip pictures when staff add them after this page opens.
+  useAutoRefresh(async () => {
+    if (!idToken || !customerCode || !data?.order || submitting || slipFile) return;
+    await loadPayment(idToken, customerCode, data.order.orderNumber);
+  }, Boolean(idToken && customerCode && data?.order) && !submitting && !slipFile);
 
   useEffect(() => {
     let cancelled = false;

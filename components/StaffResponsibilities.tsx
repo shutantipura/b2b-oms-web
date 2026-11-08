@@ -11,6 +11,7 @@ import {
   type ReportTaskStage,
 } from "@/lib/staffTaskReport";
 import { supabase } from "@/lib/supabase";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 type StaffSummary = {
   id: string;
@@ -57,6 +58,8 @@ export default function StaffResponsibilities({ staff }: { staff: StaffSummary[]
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+
+  useAutoRefresh(() => setReloadKey((value) => value + 1));
 
   useEffect(() => {
     let cancelled = false;
