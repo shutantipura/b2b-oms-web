@@ -20,6 +20,7 @@ import { supabase } from "../../lib/supabase";
 import { getOrderDeliveryUrgency, type DeliveryUrgency } from "../../lib/deliveryRules";
 import { formatActiveTaskDuration } from "../../lib/taskElapsed";
 import { calculatePickedOrderEstimate, calculateStockCheckedOrderEstimate } from "../../lib/taskPickedEstimate";
+import { evaluateTaskEntry, type TaskEntrySnapshot, type TaskEntryStage } from "../../lib/taskEntryValidation";
 
 
 
@@ -95,7 +96,7 @@ type TaskGroup = {
 
   title: string;
 
-  stage: string;
+  stage: TaskEntryStage;
 
   statuses: string[];
 
@@ -1142,7 +1143,52 @@ export default function TasksPage() {
 
 
 
-  async function startWork(orderNumber: number, stage: string) {
+  // Always read the latest database state when someone taps Start or Continue.
+  // The task list itself can be old, but an old card must never grant entry.
+  async function readLatestTaskState(orderNumber: number, stage: TaskEntryStage): Promise<TaskEntrySnapshot> {
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .select("id,status")
+      .eq("order_number", orderNumber)
+      .maybeSingle();
+    if (orderError) throw orderError;
+    if (!order) throw new Error("ไม่พบคำสั่งซื้อนี้ กรุณารีเฟรชรายการงาน");
+
+    const { data: claim, error: claimError } = await supabase
+      .from("task_claims")
+      .select("staff_id")
+      .eq("order_id", order.id)
+      .eq("stage", stage)
+      .eq("claim_status", "active")
+      .maybeSingle();
+    if (claimError) throw claimError;
+
+    let ownerName: string | null = null;
+    if (claim?.staff_id && claim.staff_id !== currentStaff?.id) {
+      const { data: owner, error: staffError } = await supabase
+        .from("staff")
+        .select("staff_name")
+        .eq("id", claim.staff_id)
+        .maybeSingle();
+      if (staffError) console.warn("Cannot load current task owner:", staffError.message);
+      ownerName = owner?.staff_name ?? null;
+    }
+
+    return {
+      status: order.status,
+      ownerStaffId: claim?.staff_id ?? null,
+      ownerStaffName: ownerName,
+    };
+  }
+
+  async function showOutdatedTask(orderNumber: number, stage: TaskEntryStage, reason: string) {
+    await loadData();
+    // The stale card may disappear after reload, so keep a visible page-level notice.
+    setMessage(`⚠️ คำสั่งซื้อ #${orderNumber}: ${reason}`);
+    setClaimError({ orderNumber, stage, text: reason });
+  }
+
+  async function startWork(orderNumber: number, stage: TaskEntryStage) {
     const taskKey = `${stage}:${orderNumber}`;
     if (claimingTaskKey) return;
 
@@ -1156,17 +1202,30 @@ export default function TasksPage() {
     setMessage("");
 
     try {
+      const latest = await readLatestTaskState(orderNumber, stage);
+      const entry = evaluateTaskEntry(stage, "start", latest, currentStaff?.id ?? null);
+      if (!entry.allowed) {
+        await showOutdatedTask(orderNumber, stage, entry.message);
+        return;
+      }
+
+      // An independent server-side row lock and stage check protects the race
+      // between this pre-flight read and another employee claiming the task.
       const { data, error } = await supabase.rpc("claim_my_task", {
         p_order_number: orderNumber,
         p_stage: stage,
       });
 
       if (error || (data && typeof data === "object" && data.success === false)) {
-        const detail = error?.message ?? "ระบบไม่สามารถรับงานได้";
-        // Load the new task state first, then display an error that won't be
-        // erased by loadData()'s usual setMessage("") at its start.
-        await loadData();
-        setClaimError({ orderNumber, stage, text: `ไม่สามารถรับงานได้: ${detail}` });
+        let detail = error?.message ?? "ระบบไม่สามารถรับงานได้";
+        try {
+          const fresh = await readLatestTaskState(orderNumber, stage);
+          const state = evaluateTaskEntry(stage, "start", fresh, currentStaff?.id ?? null);
+          if (!state.allowed) detail = state.message;
+        } catch {
+          // Retain the original RPC rejection if the follow-up check fails.
+        }
+        await showOutdatedTask(orderNumber, stage, `ไม่สามารถรับงานได้: ${detail}`);
         return;
       }
 
@@ -1175,6 +1234,29 @@ export default function TasksPage() {
     } catch (error) {
       const detail = error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการเชื่อมต่อ";
       setClaimError({ orderNumber, stage, text: `ไม่สามารถรับงานได้: ${detail}` });
+    } finally {
+      setClaimingTaskKey(null);
+    }
+  }
+
+  async function continueWork(orderNumber: number, stage: TaskEntryStage) {
+    const taskKey = `${stage}:${orderNumber}`;
+    if (claimingTaskKey) return;
+    setClaimingTaskKey(taskKey);
+    setClaimError(null);
+
+    try {
+      const latest = await readLatestTaskState(orderNumber, stage);
+      const entry = evaluateTaskEntry(stage, "continue", latest, currentStaff?.id ?? null);
+      if (!allowedStages.includes(stage) || !entry.allowed) {
+        await showOutdatedTask(orderNumber, stage,
+          !allowedStages.includes(stage) ? "คุณไม่มีสิทธิ์ทำงานประเภทนี้" : entry.message);
+        return;
+      }
+      window.location.assign(taskLink(stage, orderNumber));
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "ไม่สามารถตรวจสอบสถานะงานล่าสุดได้";
+      setClaimError({ orderNumber, stage, text: detail });
     } finally {
       setClaimingTaskKey(null);
     }
@@ -1769,12 +1851,14 @@ export default function TasksPage() {
                                   <div className="flex flex-col items-end gap-1">
                                     <span className="text-[11px] font-semibold text-[#52786F]">คุณรับงานแล้ว</span>
                                     <ActiveWorkClock claimedAt={claim.claimed_at} />
-                                    <Link
-                                      href={taskLink(group.stage, order.order_number)}
-                                      className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[#00BCB4] px-3 py-2 text-sm font-bold text-[#173F3C]"
+                                    <button
+                                      type="button"
+                                      onClick={() => void continueWork(order.order_number, group.stage)}
+                                      disabled={claimingTaskKey !== null}
+                                      className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[#00BCB4] px-3 py-2 text-sm font-bold text-[#173F3C] disabled:cursor-wait disabled:opacity-60"
                                     >
-                                      ทำต่อ
-                                    </Link>
+                                      {claimingTaskKey === `${group.stage}:${order.order_number}` ? "กำลังตรวจสอบ..." : "ทำต่อ"}
+                                    </button>
                                   </div>
                                 ) : (
                                   <div className="max-w-24 text-right text-[11px] leading-snug text-[#647D75]">
