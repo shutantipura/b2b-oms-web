@@ -142,6 +142,16 @@ function OrdersListIcon() {
   );
 }
 
+function PaymentSlipIcon() {
+  return (
+    <svg aria-hidden="true" width="37" height="37" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" />
+      <path d="M9 8h6M9 12h6" />
+      <path d="m9 16 1.5 1.5L14 14" />
+    </svg>
+  );
+}
+
 export default function MiniAppHomePage() {
 
   const router =
@@ -1755,20 +1765,24 @@ export default function MiniAppHomePage() {
                 key={payment.orderNumber}
                 type="button"
                 onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(selectedCustomer.customerCode)}&order=${payment.orderNumber}`)}
-                className="group flex min-h-[100px] w-full items-center justify-between gap-4 rounded-2xl border-2 border-[#E8AD07] bg-[#FDBC16] px-5 py-5 text-left text-[#173E31] shadow-[0_7px_20px_rgba(253,188,22,0.28)] transition hover:bg-[#FFCD3D] active:scale-[0.99]"
+                className="group w-full rounded-2xl border-2 border-[#E8AD07] bg-[#FDBC16] p-5 text-left text-[#173E31] shadow-[0_7px_20px_rgba(253,188,22,0.28)] transition hover:bg-[#FFCD3D] active:scale-[0.99]"
               >
-                <span className="min-w-0">
-                  <span className="block text-[26px] font-black leading-tight">ชำระเงิน / อัปโหลดสลิป</span>
-                  <span className="mt-1 block text-sm font-extrabold text-[#594600]">
-                    ดู QR เพื่อชำระเงิน · คำสั่งซื้อ #{payment.orderNumber}
-                  </span>
-                  {payment.finalAmount !== null && (
-                    <span className="mt-1 block text-sm font-bold tabular-nums text-[#5A4700]">
-                      ยอดชำระ ฿{payment.finalAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  )}
-                </span>
-                <NavigationArrow prominent />
+                <div className="mb-3 flex items-center justify-between">
+                  <span aria-hidden="true" className="grid h-16 w-16 place-items-center rounded-2xl bg-[#FFF3CB] text-[#0C6662] shadow-[inset_0_0_0_1px_rgba(23,62,49,0.10)]"><PaymentSlipIcon /></span>
+                  <NavigationArrow prominent />
+                </div>
+                <p className="text-[22px] font-extrabold leading-tight">ชำระเงิน / อัปโหลดสลิป</p>
+                <p className="mt-1 text-sm font-semibold text-[#594600]">
+                  ดู QR เพื่อชำระเงิน · คำสั่งซื้อ #{payment.orderNumber}
+                </p>
+                {payment.finalAmount !== null && (
+                  <div className="mt-3 rounded-xl bg-white/35 px-3 py-2">
+                    <p className="text-xs font-bold text-[#594600]">ยอดชำระ</p>
+                    <p className="text-[34px] font-black leading-tight tabular-nums text-[#173E31]">
+                      ฿{payment.finalAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                )}
               </button>
             ))}
 
