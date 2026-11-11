@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { getPaymentReadyOrders } from "../lib/customerPayNow.ts";
+import { getPaymentReadyOrders, summarizeOutstandingPayments } from "../lib/customerPayNow.ts";
 
 const row = (order_number, status, group_sequence = null, final_amount = 540) => ({
   order_number, status, group_sequence, final_amount,
@@ -45,19 +45,70 @@ test("multiple independent unpaid orders keep their own links, including store p
   ]);
 });
 
+test("customer home sums two unpaid invoices in satang, not floating-point baht", () => {
+  const orders = getPaymentReadyOrders([
+    row(257, "awaiting_payment", null, 681),
+    row(258, "awaiting_payment", null, 425),
+  ]);
+  assert.deepEqual(summarizeOutstandingPayments(orders), { count: 2, totalAmount: 1106 });
+  assert.deepEqual(summarizeOutstandingPayments([
+    { orderNumber: 1, finalAmount: 0.1 },
+    { orderNumber: 2, finalAmount: 0.2 },
+  ]), { count: 2, totalAmount: 0.3 });
+});
+
+test("unknown invoice value does not produce a misleading partial total", () => {
+  assert.deepEqual(summarizeOutstandingPayments([
+    { orderNumber: 1, finalAmount: 100 },
+    { orderNumber: 2, finalAmount: null },
+  ]), { count: 2, totalAmount: null });
+  assert.deepEqual(summarizeOutstandingPayments([]), { count: 0, totalAmount: 0 });
+  assert.deepEqual(summarizeOutstandingPayments([
+    { orderNumber: 3, finalAmount: -5 },
+  ]), { count: 1, totalAmount: null });
+});
+
+test("grouped children count once when combined with another payable bill", () => {
+  const root = new Map([["root-1", { order_number: 500, final_amount: 681 }]]);
+  const orders = getPaymentReadyOrders([
+    { ...row(501, "awaiting_payment", 1, 300), group_root_order_id: "root-1" },
+    { ...row(502, "awaiting_payment", 2, 381), group_root_order_id: "root-1" },
+    row(503, "awaiting_payment", null, 425),
+  ], root);
+  assert.deepEqual(summarizeOutstandingPayments(orders), { count: 2, totalAmount: 1106 });
+});
+
 test("customer home fetches only authorized pending-payment summaries", () => {
   const home = readFileSync(new URL("../app/miniapp/page.tsx", import.meta.url), "utf8");
   const api = readFileSync(new URL("../app/api/line/orders/route.ts", import.meta.url), "utf8");
   assert.match(home, /summaryOnly:\s*true/);
   assert.match(home, /\/miniapp\/payment\?customer=/);
+  assert.match(home, /\/miniapp\/payments\?customer=/);
+  assert.match(home, /payableOrders\.length === 1/);
+  assert.match(home, /summarizeOutstandingPayments\(payableOrders\)/);
+  assert.match(home, /ยอดค้างชำระรวม/);
   assert.match(home, /ชำระเงิน \/ อัปโหลดสลิป/);
   assert.match(home, /<PaymentSlipIcon \/>/);
   assert.match(home, /text-\[22px\] font-extrabold leading-tight">ชำระเงิน \/ อัปโหลดสลิป/);
   assert.match(home, /text-\[clamp\(22px,6\.5vw,30px\)\] font-black leading-tight tabular-nums/);
-  const paymentCard = home.split("{payableOrders.map((payment) => (")[1]?.split("{paymentCheckFailed && (")[0] ?? "";
+  const paymentCard = home.split("{payableOrders.length > 0 && (")[1]?.split("{paymentCheckFailed && (")[0] ?? "";
   assert.ok(paymentCard.indexOf("ยอดชำระ") < paymentCard.indexOf("<NavigationArrow prominent />"));
   assert.doesNotMatch(paymentCard, /mt-3 rounded-xl bg-white\/35/);
+  assert.doesNotMatch(paymentCard, /payableOrders\.map/);
   assert.match(api, /summaryOnly\s*=\s*body\.summaryOnly\s*===\s*true/);
   assert.match(api, /\.eq\("status",\s*"awaiting_payment"\)/);
   assert.match(api, /getPaymentReadyOrders\(orders, rootsById\)/);
+});
+
+test("bill selection refreshes authorized invoices and routes to individual payments", () => {
+  const selector = readFileSync(new URL("../app/miniapp/payments/page.tsx", import.meta.url), "utf8");
+  const payment = readFileSync(new URL("../app/miniapp/payment/page.tsx", import.meta.url), "utf8");
+  assert.match(selector, /lineApiFetch\("\/api\/line\/orders"/);
+  assert.match(selector, /summaryOnly: true/);
+  assert.match(selector, /idToken,/);
+  assert.match(selector, /เลือกบิลที่ต้องการชำระ/);
+  assert.match(selector, /orders\.map\(\(order\) =>/);
+  assert.match(selector, /&order=\$\{orderNumber\}&from=payments/);
+  assert.match(payment, /params\.get\("from"\) === "payments"/);
+  assert.match(payment, /miniapp\/payments\?customer=/);
 });

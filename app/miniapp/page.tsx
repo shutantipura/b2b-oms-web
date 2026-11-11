@@ -28,7 +28,7 @@ import LotusLoading from "../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
 import { displayCustomerCode } from "../../lib/customerCodeDisplay";
 import { clearLineSessionReload, isLineIdTokenExpired, lineApiFetch, requestLineSessionReloadOnce, LINE_SESSION_EXPIRED_MESSAGE } from "../../lib/lineSession";
-import type { PaymentReadyOrder } from "../../lib/customerPayNow";
+import { summarizeOutstandingPayments, type PaymentReadyOrder } from "../../lib/customerPayNow";
 
 type Customer = {
 
@@ -1590,6 +1590,7 @@ export default function MiniAppHomePage() {
 
     const payableOrders = paymentSnapshot?.customerCode === selectedCustomer.customerCode
       ? paymentSnapshot.orders : [];
+    const outstanding = summarizeOutstandingPayments(payableOrders);
     const paymentCheckFailed = paymentSnapshot?.customerCode === selectedCustomer.customerCode
       && paymentSnapshot.failed;
 
@@ -1760,31 +1761,36 @@ export default function MiniAppHomePage() {
             </button>
 
             {/* Payment/slip shortcut — visible only after delivery (or pickup billing) is complete. */}
-            {payableOrders.map((payment) => (
+            {payableOrders.length > 0 && (
               <button
-                key={payment.orderNumber}
                 type="button"
-                onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(selectedCustomer.customerCode)}&order=${payment.orderNumber}`)}
+                onClick={() => router.push(payableOrders.length === 1
+                  ? `/miniapp/payment?customer=${encodeURIComponent(selectedCustomer.customerCode)}&order=${payableOrders[0].orderNumber}`
+                  : `/miniapp/payments?customer=${encodeURIComponent(selectedCustomer.customerCode)}`)}
                 className="group w-full rounded-2xl border-2 border-[#E8AD07] bg-[#FDBC16] p-5 text-left text-[#173E31] shadow-[0_7px_20px_rgba(253,188,22,0.28)] transition hover:bg-[#FFCD3D] active:scale-[0.99]"
               >
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <span aria-hidden="true" className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-[#FFF3CB] text-[#0C6662] shadow-[inset_0_0_0_1px_rgba(23,62,49,0.10)]"><PaymentSlipIcon /></span>
-                  {payment.finalAmount !== null && (
-                    <div className="min-w-0 flex-1 text-right">
-                      <p className="text-xs font-bold text-[#594600]">ยอดชำระ</p>
+                  <div className="min-w-0 flex-1 text-right">
+                    <p className="text-xs font-bold text-[#594600]">{outstanding.count > 1 ? "ยอดค้างชำระรวม" : "ยอดชำระ"}</p>
+                    {outstanding.totalAmount === null ? (
+                      <p className="text-sm font-extrabold text-[#173E31]">ตรวจสอบยอดแต่ละบิล</p>
+                    ) : (
                       <p className="break-words text-[clamp(22px,6.5vw,30px)] font-black leading-tight tabular-nums tracking-tight text-[#173E31]">
-                        ฿{payment.finalAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ฿{outstanding.totalAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
-                    </div>
-                  )}
+                    )}
+                  </div>
                   <NavigationArrow prominent />
                 </div>
                 <p className="text-[22px] font-extrabold leading-tight">ชำระเงิน / อัปโหลดสลิป</p>
                 <p className="mt-1 text-sm font-semibold text-[#594600]">
-                  ดู QR เพื่อชำระเงิน · คำสั่งซื้อ #{payment.orderNumber}
+                  {outstanding.count > 1
+                    ? `${outstanding.count} บิลรอชำระเงิน · แตะเพื่อเลือกบิล`
+                    : `ดู QR เพื่อชำระเงิน · คำสั่งซื้อ #${payableOrders[0].orderNumber}`}
                 </p>
               </button>
-            ))}
+            )}
 
             {paymentCheckFailed && (
               <p className="rounded-xl border border-[#F0E0AE] bg-[#FFF9E9] px-4 py-3 text-xs font-semibold text-[#806000]">

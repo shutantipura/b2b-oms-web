@@ -103,6 +103,7 @@ export default function MiniAppPaymentPage() {
 
   const [customerCode, setCustomerCode] = useState("");
   const [idToken, setIdToken] = useState("");
+  const [fromBillSelection, setFromBillSelection] = useState(false);
   const [data, setData] = useState<PaymentResponse | null>(null);
   const [slipFile, setSlipFile] = useState<File | null>(null);
   const [slipPreview, setSlipPreview] = useState<string | null>(null);
@@ -135,6 +136,7 @@ export default function MiniAppPaymentPage() {
         const params = new URLSearchParams(window.location.search);
         const code = (params.get("customer") ?? "").trim().toUpperCase();
         const orderNumber = Number(params.get("order"));
+        setFromBillSelection(params.get("from") === "payments");
 
         if (!code || !Number.isInteger(orderNumber) || orderNumber <= 0) {
           throw new Error("ไม่พบข้อมูลลูกค้าหรือหมายเลขคำสั่งซื้อ");
@@ -187,6 +189,10 @@ export default function MiniAppPaymentPage() {
     const code = data?.customer?.customerCode ?? customerCode;
     if (!code) {
       router.push("/miniapp?portal=customer");
+      return;
+    }
+    if (fromBillSelection) {
+      router.push(`/miniapp/payments?customer=${encodeURIComponent(code)}`);
       return;
     }
     const view = data?.order?.status === "completed" || data?.order?.status === "cancelled"
@@ -279,7 +285,7 @@ export default function MiniAppPaymentPage() {
       <main className="min-h-screen bg-[#F6FAF8] p-5 text-[#173E31]">
         <div className="mx-auto max-w-md pt-5">
           <button type="button" onClick={goBack} className="flex min-h-11 items-center gap-1 font-bold text-[#008F8D]">
-            <ArrowLeftIcon /> กลับไปหน้าคำสั่งซื้อ
+            <ArrowLeftIcon /> {fromBillSelection ? "กลับไปเลือกบิล" : "กลับไปหน้าคำสั่งซื้อ"}
           </button>
           <div className={`${cardClass} mt-5 p-6`}>
             <h1 className="text-xl font-extrabold">ไม่สามารถเปิดข้อมูลการชำระเงินได้</h1>
@@ -311,7 +317,7 @@ export default function MiniAppPaymentPage() {
     <main className="min-h-screen bg-[#F6FAF8] pb-20 text-[#173E31]">
       <header className="sticky top-0 z-30 border-b border-[#E0EBE6] bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
-          <button type="button" onClick={goBack} aria-label="กลับไปหน้าคำสั่งซื้อ" className="grid h-11 w-11 place-items-center rounded-xl text-[#37665C] hover:bg-[#F0F8F5]">
+          <button type="button" onClick={goBack} aria-label={fromBillSelection ? "กลับไปเลือกบิล" : "กลับไปหน้าคำสั่งซื้อ"} className="grid h-11 w-11 place-items-center rounded-xl text-[#37665C] hover:bg-[#F0F8F5]">
             <ArrowLeftIcon />
           </button>
           <div className="text-center">
@@ -566,7 +572,7 @@ export default function MiniAppPaymentPage() {
         </details>
 
         <button type="button" onClick={goBack} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold text-[#547D70]">
-          <ArrowLeftIcon /> กลับไปหน้าคำสั่งซื้อ
+          <ArrowLeftIcon /> {fromBillSelection ? "กลับไปเลือกบิล" : "กลับไปหน้าคำสั่งซื้อ"}
         </button>
       </div>
     </main>

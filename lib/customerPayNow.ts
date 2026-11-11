@@ -3,6 +3,27 @@ export type PaymentReadyOrder = {
   finalAmount: number | null;
 };
 
+// An incomplete bill must not make a partial sum look like the full amount due.
+// Add in satang to avoid floating-point display errors such as 0.1 + 0.2.
+export function summarizeOutstandingPayments(orders: PaymentReadyOrder[]): {
+  count: number;
+  totalAmount: number | null;
+} {
+  let totalSatang = 0;
+  for (const order of orders) {
+    const amount = order.finalAmount;
+    if (amount === null || !Number.isFinite(amount) || amount < 0) {
+      return { count: orders.length, totalAmount: null };
+    }
+    const satang = Math.round(amount * 100);
+    if (!Number.isSafeInteger(satang) || !Number.isSafeInteger(totalSatang + satang)) {
+      return { count: orders.length, totalAmount: null };
+    }
+    totalSatang += satang;
+  }
+  return { count: orders.length, totalAmount: totalSatang / 100 };
+}
+
 type PaymentOrderRow = {
   order_number: number;
   status: string;
