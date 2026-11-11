@@ -882,7 +882,8 @@ async function submitPayment(
 
   return NextResponse.json({
     success: true,
-    status: "completed",
+    // A customer-submitted slip still requires staff verification.
+    status: "payment_submitted",
   });
 }
 
