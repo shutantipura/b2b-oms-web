@@ -14,6 +14,8 @@ import {
 
 } from "@supabase/supabase-js";
 
+import { getPaymentReadyOrders } from "@/lib/customerPayNow";
+
 
 
 type LineVerifyResponse = {
@@ -132,6 +134,10 @@ export async function POST(
         ? "history"
 
         : "active";
+
+    // The customer home only needs payable order numbers, not item images,
+    // price lookups or full order history.
+    const summaryOnly = body.summaryOnly === true;
 
 
 
@@ -846,7 +852,9 @@ export async function POST(
 
 
 
-    if (
+    if (summaryOnly) {
+      orderQuery = orderQuery.eq("status", "awaiting_payment");
+    } else if (
       mode === "history"
     ) {
 
@@ -937,6 +945,12 @@ export async function POST(
       : {data:[],error:null};
     if (rootError) throw new Error("Could not resolve grouped orders: "+rootError.message);
     const rootsById = new Map((rootRows??[]).map(o=>[o.id,o]));
+    if (summaryOnly) {
+      return NextResponse.json({
+        customer: selectedCustomer,
+        pendingPayments: getPaymentReadyOrders(orders, rootsById),
+      });
+    }
 
 
 

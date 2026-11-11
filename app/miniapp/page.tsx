@@ -25,7 +25,8 @@ import {
 import LotusLoading from "../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
 import { displayCustomerCode } from "../../lib/customerCodeDisplay";
-import { clearLineSessionReload, isLineIdTokenExpired, requestLineSessionReloadOnce, LINE_SESSION_EXPIRED_MESSAGE } from "../../lib/lineSession";
+import { clearLineSessionReload, isLineIdTokenExpired, lineApiFetch, requestLineSessionReloadOnce, LINE_SESSION_EXPIRED_MESSAGE } from "../../lib/lineSession";
+import type { PaymentReadyOrder } from "../../lib/customerPayNow";
 
 type Customer = {
 
@@ -92,6 +93,11 @@ type StaffSessionResponse = {
 
   error?: string;
 
+};
+
+type PendingPaymentsResponse = {
+  pendingPayments?: PaymentReadyOrder[];
+  error?: string;
 };
 
 function NavigationArrow({ light = false, prominent = false }: { light?: boolean; prominent?: boolean }) {
@@ -227,6 +233,64 @@ export default function MiniAppHomePage() {
   ] =
 
     useState(false);
+
+  const [paymentSnapshot, setPaymentSnapshot] = useState<{
+    customerCode: string;
+    orders: PaymentReadyOrder[];
+    failed: boolean;
+  } | null>(null);
+
+  // Refresh only the customer-home payment CTA, never the page or a staff task.
+  // A completed delivery enters awaiting_payment; payment_submitted/completed
+  // orders automatically disappear from the CTA at the next status check.
+  useEffect(() => {
+    if (portal !== "customer" || !selectedCustomer?.customerCode || !lineIdToken) return;
+
+    const customerCode = selectedCustomer.customerCode;
+    let disposed = false;
+    let requestInFlight = false;
+
+    async function refreshPendingPayments() {
+      if (requestInFlight) return;
+      requestInFlight = true;
+      try {
+        const response = await lineApiFetch("/api/line/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken: lineIdToken,
+            customerCode,
+            mode: "active",
+            summaryOnly: true,
+          }),
+        });
+        const result = (await response.json()) as PendingPaymentsResponse;
+        if (!response.ok) throw new Error(result.error ?? "ไม่สามารถตรวจสอบคำสั่งซื้อที่รอชำระเงินได้");
+        if (!disposed) {
+          setPaymentSnapshot({ customerCode, orders: result.pendingPayments ?? [], failed: false });
+        }
+      } catch {
+        if (!disposed) setPaymentSnapshot({ customerCode, orders: [], failed: true });
+      } finally {
+        requestInFlight = false;
+      }
+    }
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshPendingPayments();
+    };
+
+    void refreshPendingPayments();
+    const interval = window.setInterval(refreshWhenVisible, 30_000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [portal, selectedCustomer?.customerCode, lineIdToken]);
 
   // =====================================================
 
@@ -1510,6 +1574,11 @@ export default function MiniAppHomePage() {
 
   ) {
 
+    const payableOrders = paymentSnapshot?.customerCode === selectedCustomer.customerCode
+      ? paymentSnapshot.orders : [];
+    const paymentCheckFailed = paymentSnapshot?.customerCode === selectedCustomer.customerCode
+      && paymentSnapshot.failed;
+
     return (
 
       <main className="min-h-screen bg-[#F7FAFA] p-4 pb-12 text-[#173E31] sm:p-6">
@@ -1675,6 +1744,35 @@ export default function MiniAppHomePage() {
               </p>
 
             </button>
+
+            {/* PAY NOW — visible only after delivery (or pickup billing) is complete. */}
+            {payableOrders.map((payment) => (
+              <button
+                key={payment.orderNumber}
+                type="button"
+                onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(selectedCustomer.customerCode)}&order=${payment.orderNumber}`)}
+                className="group flex min-h-[100px] w-full items-center justify-between gap-4 rounded-2xl border-2 border-[#E8AD07] bg-[#FDBC16] px-5 py-5 text-left text-[#173E31] shadow-[0_7px_20px_rgba(253,188,22,0.28)] transition hover:bg-[#FFCD3D] active:scale-[0.99]"
+              >
+                <span className="min-w-0">
+                  <span className="block text-[26px] font-black leading-tight">Pay now</span>
+                  <span className="mt-1 block text-sm font-extrabold text-[#594600]">
+                    ชำระเงินตอนนี้ · คำสั่งซื้อ #{payment.orderNumber}
+                  </span>
+                  {payment.finalAmount !== null && (
+                    <span className="mt-1 block text-sm font-bold tabular-nums text-[#5A4700]">
+                      ยอดชำระ ฿{payment.finalAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  )}
+                </span>
+                <NavigationArrow prominent />
+              </button>
+            ))}
+
+            {paymentCheckFailed && (
+              <p className="rounded-xl border border-[#F0E0AE] bg-[#FFF9E9] px-4 py-3 text-xs font-semibold text-[#806000]">
+                ตรวจสอบคำสั่งซื้อที่รอชำระเงินไม่สำเร็จ กรุณาเปิด “ติดตามคำสั่งซื้อ” เพื่อตรวจสอบ
+              </p>
+            )}
 
 
 
