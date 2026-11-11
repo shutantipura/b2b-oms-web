@@ -2,9 +2,10 @@
 
 
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import Link from "next/link";
+import Image from "next/image";
 
 import { useParams, useRouter } from "next/navigation";
 
@@ -553,14 +554,12 @@ export default function DeliveryPage() {
 
 
 
+  const loadCurrentOrder = useEffectEvent(() => { void loadOrder(); });
+
   useEffect(() => {
-
-    if (!Number.isNaN(orderNumber)) {
-
-      loadOrder();
-
-    }
-
+    if (Number.isNaN(orderNumber)) return;
+    const initial = window.setTimeout(() => loadCurrentOrder(), 0);
+    return () => window.clearTimeout(initial);
   }, [orderNumber]);
 
 
@@ -1175,7 +1174,9 @@ export default function DeliveryPage() {
                   <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border bg-[#F3F7F5]">
                     <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-xl">📦</span>
                     {item.products?.image_url && (
-                      <img
+                      <Image
+                        unoptimized
+                        fill
                         src={item.products.image_url}
                         alt={item.product_name_snapshot}
                         loading="lazy"
@@ -1238,7 +1239,7 @@ export default function DeliveryPage() {
                       <p className="mb-2 text-sm font-bold text-[#007F79]">ออเดอร์ #{photo.orderLabel}</p>
                       {isImage(photo) ? (
                         <a href={photo.url} target="_blank" rel="noreferrer">
-                          <img src={photo.url} alt={`รูปรถเข็นออเดอร์ ${photo.orderLabel}`}
+                          <Image unoptimized width={600} height={400} src={photo.url} alt={`รูปรถเข็นออเดอร์ ${photo.orderLabel}`}
                             className="h-48 w-full rounded-lg bg-gray-50 object-contain" />
                         </a>
                       ) : (
@@ -1267,7 +1268,10 @@ export default function DeliveryPage() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <img
+                  <Image
+                    unoptimized
+                    width={500}
+                    height={500}
                     src={bill.url}
                     alt="บิล"
                     className="w-full h-56 object-contain border rounded-xl bg-gray-50"
@@ -1301,7 +1305,10 @@ export default function DeliveryPage() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <img
+                  <Image
+                    unoptimized
+                    width={500}
+                    height={500}
                     src={paymentQr.url}
                     alt={order.billing_account_suspended ? "CV Card ลูกค้า" : "QR ชำระเงิน"}
                     className="w-full h-56 object-contain border rounded-xl bg-gray-50"

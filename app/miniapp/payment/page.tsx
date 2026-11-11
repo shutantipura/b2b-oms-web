@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
@@ -171,17 +172,14 @@ export default function MiniAppPaymentPage() {
   }, []);
 
   useEffect(() => {
-    if (!slipFile || !slipFile.type.startsWith("image/")) {
-      setSlipPreview(null);
-      return;
-    }
-    const url = URL.createObjectURL(slipFile);
-    setSlipPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [slipFile]);
+    return () => {
+      if (slipPreview) URL.revokeObjectURL(slipPreview);
+    };
+  }, [slipPreview]);
 
   function clearSlip() {
     setSlipFile(null);
+    setSlipPreview(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -423,7 +421,7 @@ export default function MiniAppPaymentPage() {
             ) : files?.paymentQr ? (
               <>
                 <div className="mx-auto mt-5 w-full max-w-[340px] rounded-2xl border border-[#E4EEE9] bg-white p-3 shadow-sm">
-                  <img src={files.paymentQr.url} alt={order.billingAccountSuspended ? "CV Card ลูกค้า" : "QR สำหรับชำระเงินที่ทีมงานอัปโหลด"} loading="lazy" className="mx-auto max-h-[390px] w-full object-contain" />
+                  <Image unoptimized src={files.paymentQr.url} alt={order.billingAccountSuspended ? "CV Card ลูกค้า" : "QR สำหรับชำระเงินที่ทีมงานอัปโหลด"} width={800} height={1000} className="mx-auto max-h-[390px] w-full object-contain" />
                 </div>
                 <a href={files.paymentQr.url} target="_blank" rel="noreferrer" className="mt-4 flex min-h-12 w-full items-center justify-center rounded-xl border-2 border-[#BDE4DD] bg-[#F1FAF7] px-4 py-3 text-sm font-extrabold text-[#008F8D]">
                   {order.billingAccountSuspended ? "เปิดรูป CV Card เต็มขนาด ↗" : "เปิดรูป QR เต็มขนาด ↗"}
@@ -431,7 +429,7 @@ export default function MiniAppPaymentPage() {
                 {files.paymentQr2 && !order.billingAccountSuspended && (
                   <div className="mt-4 rounded-2xl border border-[#D6E8E2] bg-white p-3">
                     <p className="mb-2 text-sm font-bold text-[#17453F]">รูป QR ชำระเงินที่ 2</p>
-                    <img src={files.paymentQr2.url} alt="QR ชำระเงินที่ 2" loading="lazy" className="mx-auto max-h-[390px] w-full object-contain" />
+                    <Image unoptimized src={files.paymentQr2.url} alt="QR ชำระเงินที่ 2" width={800} height={1000} className="mx-auto max-h-[390px] w-full object-contain" />
                     <a href={files.paymentQr2.url} target="_blank" rel="noreferrer" className="mt-3 block text-center text-sm font-extrabold text-[#008F8D] underline">เปิดรูป QR ที่ 2 เต็มขนาด</a>
                   </div>
                 )}
@@ -461,7 +459,7 @@ export default function MiniAppPaymentPage() {
             <>
               {isImage(files.bill) ? (
                 <div className="mt-4 overflow-hidden rounded-xl border border-[#E2EBE6] bg-[#F8FAF9] p-2">
-                  <img src={files.bill.url} alt="บิลค่าสินค้าจากทีมงาน" loading="lazy" className="mx-auto max-h-[450px] w-full object-contain" />
+                  <Image unoptimized src={files.bill.url} alt="บิลค่าสินค้าจากทีมงาน" width={800} height={1000} className="mx-auto max-h-[450px] w-full object-contain" />
                 </div>
               ) : (
                 <div className="mt-4 rounded-xl border border-[#E2EBE6] bg-[#F8FAF9] p-4 text-sm font-semibold text-[#617F73]">{files.bill.name || "เอกสารบิลค่าสินค้า"}</div>
@@ -473,7 +471,7 @@ export default function MiniAppPaymentPage() {
                 <div className="mt-4 rounded-xl border border-[#D6E8E2] bg-[#F8FAF9] p-3">
                   <p className="mb-2 text-sm font-bold text-[#17453F]">บิลรูปที่ 2</p>
                   {isImage(files.bill2) ? (
-                    <img src={files.bill2.url} alt="บิลรูปที่ 2" loading="lazy" className="mx-auto max-h-[450px] w-full object-contain" />
+                    <Image unoptimized src={files.bill2.url} alt="บิลรูปที่ 2" width={800} height={1000} className="mx-auto max-h-[450px] w-full object-contain" />
                   ) : <p className="text-sm">{files.bill2.name}</p>}
                   <a href={files.bill2.url} target="_blank" rel="noreferrer" className="mt-2 block text-sm font-extrabold text-[#008F8D] underline">เปิดบิลรูปที่ 2 เต็มขนาด</a>
                 </div>
@@ -501,7 +499,9 @@ export default function MiniAppPaymentPage() {
               type="file"
               accept="image/*,application/pdf"
               onChange={(event) => {
-                setSlipFile(event.currentTarget.files?.[0] ?? null);
+                const selectedFile = event.currentTarget.files?.[0] ?? null;
+                setSlipFile(selectedFile);
+                setSlipPreview(selectedFile?.type.startsWith("image/") ? URL.createObjectURL(selectedFile) : null);
                 setNotice(null);
               }}
               className="sr-only"
@@ -518,7 +518,7 @@ export default function MiniAppPaymentPage() {
               <div className="mt-3 overflow-hidden rounded-xl border border-[#CDE5DC] bg-white p-3">
                 <div className="flex items-start gap-3">
                   {slipPreview ? (
-                    <img src={slipPreview} alt="ตัวอย่างสลิปที่เลือก" className="h-20 w-20 shrink-0 rounded-lg border border-[#E3ECE6] bg-[#F8FAF8] object-contain" />
+                    <Image unoptimized src={slipPreview} alt="ตัวอย่างสลิปที่เลือก" width={80} height={80} className="h-20 w-20 shrink-0 rounded-lg border border-[#E3ECE6] bg-[#F8FAF8] object-contain" />
                   ) : (
                     <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-[#EDF7F3] text-xs font-black text-[#008F8D]">PDF</div>
                   )}
@@ -555,7 +555,7 @@ export default function MiniAppPaymentPage() {
             {files?.deliveryProof ? (
               <>
                 {isImage(files.deliveryProof) && (
-                  <img src={files.deliveryProof.url} alt="หลักฐานการจัดส่ง" loading="lazy" className="mx-auto max-h-[390px] w-full rounded-xl border border-[#E6EEE9] object-contain" />
+                  <Image unoptimized src={files.deliveryProof.url} alt="หลักฐานการจัดส่ง" width={800} height={1000} className="mx-auto max-h-[390px] w-full rounded-xl border border-[#E6EEE9] object-contain" />
                 )}
                 <a href={files.deliveryProof.url} target="_blank" rel="noreferrer" className="mt-3 block rounded-xl border border-[#D6E8E2] px-4 py-3 text-center text-sm font-bold text-[#008F8D]">เปิดหลักฐานการจัดส่ง ↗</a>
               </>

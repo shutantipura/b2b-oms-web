@@ -42,15 +42,18 @@ const MANAGER_NAVIGATION: NavigationItem[] = [
 const STAFF_NAVIGATION = MANAGER_NAVIGATION.slice(0, 2);
 
 function goToLineLogin() {
-  window.location.assign("/miniapp?portal=access");
+  window.location.assign(new URL("/miniapp?portal=access", window.location.origin).toString());
 }
 
 export default function OmsHomePage() {
   const [staff, setStaff] = useState<StaffProfile | null>(null);
   const [fixedTerminal, setFixedTerminal] = useState(false);
   useEffect(() => {
-    try { setFixedTerminal(window.localStorage.getItem("lotus-dedicated-terminal") === "1"); }
-    catch { setFixedTerminal(false); }
+    const initial = window.setTimeout(() => {
+      try { setFixedTerminal(window.localStorage.getItem("lotus-dedicated-terminal") === "1"); }
+      catch { setFixedTerminal(false); }
+    }, 0);
+    return () => window.clearTimeout(initial);
   }, []);
 
   const [activeOrderCount, setActiveOrderCount] = useState(0);
@@ -130,7 +133,8 @@ export default function OmsHomePage() {
   }, []);
 
   useEffect(() => {
-    void loadStaff();
+    const initial = window.setTimeout(() => void loadStaff(), 0);
+    return () => window.clearTimeout(initial);
   }, [loadStaff]);
 
   async function handleSwitchMode() {

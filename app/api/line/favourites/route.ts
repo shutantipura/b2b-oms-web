@@ -126,7 +126,7 @@ export async function POST(
     // SERVER SUPABASE
     // =====================================================
 
-    const supabase: any =
+    const supabase =
       createClient(
         supabaseUrl,
         secret,

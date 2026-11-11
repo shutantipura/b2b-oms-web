@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -156,7 +157,7 @@ function HistoricalOrderItemCard({ item }: { item: OrderItem }) {
       <div className="flex items-center gap-3">
         <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-[#E4EEE7] bg-[#F4F8F5]">
           <div className="absolute inset-0 grid place-items-center text-xl text-[#92AA9D]">📦</div>
-          {item.imageUrl && <img src={item.imageUrl} alt={item.productName} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full bg-white object-contain p-1" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
+          {item.imageUrl && <Image unoptimized fill src={item.imageUrl} alt={item.productName} className="absolute inset-0 h-full w-full bg-white object-contain p-1" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
         </div>
         <p className="min-w-0 flex-1 text-sm font-bold leading-5 text-[#21483D]">{item.productName}</p>
       </div>
@@ -290,7 +291,7 @@ export default function CustomerOrdersPage() {
       void loadOrders(idToken, mode, customer.customerCode, true);
     }, 30_000);
     return () => window.clearInterval(interval);
-  }, [idToken, mode, customer?.customerCode]);
+  }, [idToken, mode, customer]);
 
   async function chooseCustomer(selected: Customer) {
     setCustomerCode(selected.customerCode);
@@ -509,7 +510,7 @@ export default function CustomerOrdersPage() {
                               <div className="flex items-start gap-3">
                                 <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-[#E4EEE7] bg-[#F4F8F5]">
                                   <div className="absolute inset-0 grid place-items-center text-2xl text-[#92AA9D]">📦</div>
-                                  {item.imageUrl && <img src={item.imageUrl} alt={item.productName} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full bg-white object-contain p-1" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
+                                  {item.imageUrl && <Image unoptimized fill src={item.imageUrl} alt={item.productName} className="absolute inset-0 h-full w-full bg-white object-contain p-1" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-sm font-bold">{item.productName}</p>

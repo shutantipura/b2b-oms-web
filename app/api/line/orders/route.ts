@@ -32,13 +32,7 @@ type LineVerifyResponse = {
 
 
 
-type RawItem = Record<
-
-  string,
-
-  any
-
->;
+type RawItem = { product_id: string; [key: string]: unknown };
 
 // Use prices saved with the order, never today's catalogue price.
 // Older orders without a stored price remain without an estimate.
@@ -580,7 +574,19 @@ export async function POST(
 
         .map(
 
-          (link: any) => {
+          (link: { customers: {
+            id: string;
+            customer_code: string;
+            customer_name: string;
+            has_no_cv: boolean | null;
+            is_active: boolean;
+          } | {
+            id: string;
+            customer_code: string;
+            customer_name: string;
+            has_no_cv: boolean | null;
+            is_active: boolean;
+          }[] | null }) => {
 
             const customer =
 

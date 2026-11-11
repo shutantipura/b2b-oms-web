@@ -1,8 +1,9 @@
 "use client";
+import Image from "next/image";
 
 
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 
 import Link from "next/link";
 
@@ -666,10 +667,10 @@ export default function CustomerDetailPage() {
 
 
 
+  const loadCurrentCustomer = useEffectEvent(() => { void loadCustomer(); });
   useEffect(() => {
-
-    loadCustomer();
-
+    const initial = window.setTimeout(() => loadCurrentCustomer(), 0);
+    return () => window.clearTimeout(initial);
   }, [customerCode]);
 
 
@@ -2222,7 +2223,7 @@ export default function CustomerDetailPage() {
           {cvCardUrl ? (
             <a href={cvCardUrl} target="_blank" rel="noreferrer"
               className="mt-4 block max-w-sm rounded-xl border bg-gray-50 p-3">
-              <img src={cvCardUrl} alt="CV card ของลูกค้า" className="max-h-64 w-full object-contain" />
+              <Image unoptimized src={cvCardUrl} alt="CV card ของลูกค้า" width={640} height={480} className="max-h-64 w-full object-contain" />
             </a>
           ) : (
             <p className="mt-4 text-sm text-gray-500">

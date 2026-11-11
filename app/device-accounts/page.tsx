@@ -66,12 +66,14 @@ export default function DeviceAccountsPage() {
 
   useEffect(() => {
     if (!staffId) {
-      setEmail("");
-      return;
+      const reset = window.setTimeout(() => setEmail(""), 0);
+      return () => window.clearTimeout(reset);
     }
     let active = true;
-    setEmail("");
-    setMessage("");
+    const reset = window.setTimeout(() => {
+      setEmail("");
+      setMessage("");
+    }, 0);
     void (async () => {
       try {
         const response = await managerRequest(
@@ -84,7 +86,7 @@ export default function DeviceAccountsPage() {
         if (active) setMessage(e instanceof Error ? e.message : "Unable to load login");
       }
     })();
-    return () => { active = false; };
+    return () => { active = false; window.clearTimeout(reset); };
   }, [staffId]);
 
   const selected = staff.find(s => s.id === staffId);

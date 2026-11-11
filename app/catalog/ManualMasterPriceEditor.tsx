@@ -64,30 +64,34 @@ export default function ManualMasterPriceEditor({
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const searchRequest = useRef(0);
+  const [lastRefreshToken, setLastRefreshToken] = useState(refreshToken);
 
-  useEffect(() => {
+  // Reset drafts in the render prompted by a new master-price revision.
+  // This preserves the search query without introducing an effect render cycle.
+  if (lastRefreshToken !== refreshToken) {
+    setLastRefreshToken(refreshToken);
     setSelected(null);
     setNormalDraft("");
     setCostDraft("");
     setSuccessMessage("");
-  }, [refreshToken]);
+  }
 
   useEffect(() => {
     const term = query.trim();
     const requestId = ++searchRequest.current;
-    if (term.length < 2 || disabled) {
-      setMatches([]);
-      setSearching(false);
-      return;
-    }
-
-    setSearching(true);
-    setErrorMessage("");
+    let cancelled = false;
     const timeout = window.setTimeout(async () => {
+      if (term.length < 2 || disabled) {
+        setMatches([]);
+        setSearching(false);
+        return;
+      }
+      setSearching(true);
+      setErrorMessage("");
       const { data, error } = await supabase.rpc("search_master_price_adjustments", {
         p_query: term,
       });
-      if (searchRequest.current !== requestId) return;
+      if (cancelled || searchRequest.current !== requestId) return;
       if (error) {
         setMatches([]);
         setErrorMessage("ค้นหาสินค้าไม่สำเร็จ: " + error.message);
@@ -95,10 +99,10 @@ export default function ManualMasterPriceEditor({
         setMatches((data ?? []) as MasterPriceProduct[]);
       }
       setSearching(false);
-    }, 300);
+    }, term.length < 2 || disabled ? 0 : 300);
     return () => {
+      cancelled = true;
       window.clearTimeout(timeout);
-      if (searchRequest.current === requestId) searchRequest.current++;
     };
   }, [query, disabled, refreshToken]);
 

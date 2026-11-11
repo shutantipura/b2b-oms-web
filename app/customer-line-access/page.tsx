@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useEffectEvent,
   useMemo,
   useState,
 } from "react";
@@ -204,8 +205,10 @@ export default function CustomerLineAccessPage() {
     );
   }
 
+  const loadCurrentAccess = useEffectEvent(() => { void loadData(); });
   useEffect(() => {
-    loadData();
+    const initial = window.setTimeout(() => loadCurrentAccess(), 0);
+    return () => window.clearTimeout(initial);
   }, []);
 
   // =====================================================

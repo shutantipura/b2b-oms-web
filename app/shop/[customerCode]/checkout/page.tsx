@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useEffectEvent,
   useMemo,
   useState,
 } from "react";
@@ -389,8 +390,10 @@ export default function CheckoutPage() {
     setLoading(false);
   }
 
+  const loadCurrentCheckout = useEffectEvent(() => { void loadCheckout(); });
   useEffect(() => {
-    loadCheckout();
+    const initial = window.setTimeout(() => loadCurrentCheckout(), 0);
+    return () => window.clearTimeout(initial);
   }, [customerCode]);
 
   // =====================================================

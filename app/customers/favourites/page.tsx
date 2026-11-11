@@ -1,7 +1,9 @@
 "use client";
+import Image from "next/image";
 
 import {
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -186,11 +188,9 @@ function ProductThumbnail({
       </div>
 
       {imageUrl ? (
-        <img
+        <Image unoptimized fill
           src={imageUrl}
           alt={alt}
-          loading="lazy"
-          decoding="async"
           className="absolute inset-0 w-full h-full object-contain bg-white p-1"
           onError={(event) => {
             event.currentTarget.style.display =
@@ -718,6 +718,10 @@ export default function CustomerFavouritesPage() {
     setSearchingProducts(false);
   }
 
+  const searchCurrentProducts = useEffectEvent((query: string) => {
+    void searchProductsToAdd(query);
+  });
+
   useEffect(() => {
     if (
       !showAddProduct
@@ -728,9 +732,7 @@ export default function CustomerFavouritesPage() {
     const timer =
       window.setTimeout(
         () => {
-          void searchProductsToAdd(
-            addSearch
-          );
+          searchCurrentProducts(addSearch);
         },
         300
       );

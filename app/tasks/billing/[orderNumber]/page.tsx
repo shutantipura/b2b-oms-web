@@ -1,8 +1,9 @@
 "use client";
+import Image from "next/image";
 
 
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import Link from "next/link";
 
@@ -514,14 +515,11 @@ export default function BillingPage() {
 
 
 
+  const loadCurrentOrder = useEffectEvent(() => { void loadOrder(); });
   useEffect(() => {
-
-    if (!Number.isNaN(orderNumber)) {
-
-      loadOrder();
-
-    }
-
+    if (Number.isNaN(orderNumber)) return;
+    const initial = window.setTimeout(() => loadCurrentOrder(), 0);
+    return () => window.clearTimeout(initial);
   }, [orderNumber]);
 
 
@@ -1371,7 +1369,7 @@ export default function BillingPage() {
                     </p>
                     {photo.url ? (
                       <a href={photo.url} target="_blank" rel="noopener noreferrer">
-                        <img src={photo.url} alt="รูปรถเข็นสินค้าของคำสั่งซื้อ" loading="lazy"
+                        <Image unoptimized src={photo.url} alt="รูปรถเข็นสินค้าของคำสั่งซื้อ" width={640} height={480}
                           className="h-48 w-full rounded-lg border object-contain" />
                       </a>
                     ) : (
@@ -1567,7 +1565,7 @@ export default function BillingPage() {
                 <p className="mb-2 text-sm font-semibold text-[#17453F]">ตัวอย่างบิลที่บันทึกไว้</p>
                 {billMimeType?.startsWith("image/") ? (
                   <a href={billPreviewUrl} target="_blank" rel="noreferrer">
-                    <img src={billPreviewUrl} alt="ตัวอย่างภาพบิล" className="max-h-72 w-full rounded-lg object-contain" />
+                    <Image unoptimized src={billPreviewUrl} alt="ตัวอย่างภาพบิล" width={640} height={480} className="max-h-72 w-full rounded-lg object-contain" />
                   </a>
                 ) : (
                   <a href={billPreviewUrl} target="_blank" rel="noreferrer" className="font-semibold text-[#008F8D] underline">
@@ -1593,7 +1591,7 @@ export default function BillingPage() {
                 />
                 {bill2PreviewUrl && (
                   <a href={bill2PreviewUrl} target="_blank" rel="noreferrer" className="mt-3 block">
-                    <img src={bill2PreviewUrl} alt="ตัวอย่างบิลรูปที่ 2" className="max-h-64 w-full rounded-lg border border-[#D5ECE6] bg-white object-contain" />
+                    <Image unoptimized src={bill2PreviewUrl} alt="ตัวอย่างบิลรูปที่ 2" width={640} height={480} className="max-h-64 w-full rounded-lg border border-[#D5ECE6] bg-white object-contain" />
                     <span className="mt-2 block text-sm font-bold text-[#008F8D] underline">เปิดรูปบิลที่ 2 เต็มขนาด</span>
                   </a>
                 )}
@@ -1636,7 +1634,7 @@ export default function BillingPage() {
               cvCardUrl ? (
                 <div className="rounded-xl border border-[#B8EAE5] bg-[#F4FBFA] p-3">
                   <p className="mb-2 text-sm font-semibold text-[#007F79]">✓ CV Card ที่จะใช้แทน QR</p>
-                  <img src={cvCardUrl} alt="CV Card ของลูกค้า" className="max-h-72 w-full rounded-lg object-contain" />
+                  <Image unoptimized src={cvCardUrl} alt="CV Card ของลูกค้า" width={640} height={480} className="max-h-72 w-full rounded-lg object-contain" />
                 </div>
               ) : (
                 <p className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
@@ -1664,7 +1662,7 @@ export default function BillingPage() {
               <div className="mt-4 rounded-xl border bg-gray-50 p-3">
                 <p className="mb-2 text-sm font-semibold text-[#17453F]">ตัวอย่าง QR ที่บันทึกไว้</p>
                 <a href={qrPreviewUrl} target="_blank" rel="noreferrer">
-                  <img src={qrPreviewUrl} alt="ตัวอย่าง QR ชำระเงิน" className="max-h-72 w-full rounded-lg object-contain" />
+                  <Image unoptimized src={qrPreviewUrl} alt="ตัวอย่าง QR ชำระเงิน" width={640} height={480} className="max-h-72 w-full rounded-lg object-contain" />
                 </a>
               </div>
             )}
@@ -1685,7 +1683,7 @@ export default function BillingPage() {
                 />
                 {qr2PreviewUrl && (
                   <a href={qr2PreviewUrl} target="_blank" rel="noreferrer" className="mt-3 block">
-                    <img src={qr2PreviewUrl} alt="ตัวอย่าง QR ชำระเงินที่ 2" className="max-h-64 w-full rounded-lg border border-[#D5ECE6] bg-white object-contain" />
+                    <Image unoptimized src={qr2PreviewUrl} alt="ตัวอย่าง QR ชำระเงินที่ 2" width={640} height={480} className="max-h-64 w-full rounded-lg border border-[#D5ECE6] bg-white object-contain" />
                     <span className="mt-2 block text-sm font-bold text-[#008F8D] underline">เปิดรูป QR ที่ 2 เต็มขนาด</span>
                   </a>
                 )}

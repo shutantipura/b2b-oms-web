@@ -110,7 +110,7 @@ async function getAuthorizedContext(
     throw new Error("LINE_ID_TOKEN_INVALID");
   }
 
-  const supabase: any =
+  const supabase =
     createClient(
       supabaseUrl,
       secret,
@@ -249,7 +249,7 @@ async function getAuthorizedContext(
 }
 
 async function createSignedFile(
-  supabase: any,
+  supabase: Awaited<ReturnType<typeof getAuthorizedContext>>["supabase"],
   file:
     | OrderFileRow
     | undefined

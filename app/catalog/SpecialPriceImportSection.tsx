@@ -322,7 +322,7 @@ export default function SpecialPriceImportSection() {
       const data =
         XLSX.utils
           .sheet_to_json<
-            any[]
+            unknown[]
           >(
             sheet,
             {
@@ -335,7 +335,7 @@ export default function SpecialPriceImportSection() {
               raw:
                 false,
             }
-          ) as any[][];
+          ) as unknown[][];
 
       if (
         !data ||

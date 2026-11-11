@@ -62,7 +62,7 @@ export const options = {
   },
 };
 
-export default function () {
+export default function omsReadOnlyLoadTest() {
   const route = ROUTES[Math.floor(Math.random() * ROUTES.length)];
 
   const response = http.get(`${TARGET}${route}`, {

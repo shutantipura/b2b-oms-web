@@ -228,7 +228,8 @@ export default function StaffAccessPage() {
   }
 
   useEffect(() => {
-    loadData();
+    const initial = window.setTimeout(() => void loadData(), 0);
+    return () => window.clearTimeout(initial);
   }, []);
 
   // =====================================================
