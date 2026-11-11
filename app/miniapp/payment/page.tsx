@@ -45,7 +45,7 @@ type PaymentResponse = {
 type Notice = { kind: "success" | "error"; text: string };
 
 const cardClass =
-  "overflow-hidden rounded-[22px] border border-[#D6E8E2] bg-white shadow-[0_5px_18px_rgba(0,105,100,0.07)]";
+  "overflow-hidden rounded-[24px] border border-[#DFECE7] bg-white shadow-[0_8px_24px_rgba(12,82,71,0.05)]";
 
 function isImage(file: DisplayFile | null | undefined) {
   if (!file) return false;
@@ -93,6 +93,23 @@ function CheckIcon() {
   return (
     <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="m5 12 4.5 4.5L19 7" />
+    </svg>
+  );
+}
+
+function ReceiptIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 3h14v18l-3.5-2-3.5 2-3.5-2L5 21V3Z" />
+      <path d="M9 8h6M9 12h6" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m6 9 6 6 6-6" />
     </svg>
   );
 }
@@ -314,7 +331,7 @@ export default function MiniAppPaymentPage() {
         : "border-[#DDE8E2] bg-[#F3F7F4] text-[#617A70]";
 
   return (
-    <main className="min-h-screen bg-[#F6FAF8] pb-20 text-[#173E31]">
+    <main className="min-h-screen bg-[#F6FAF8] pb-16 text-[#173E31]">
       <header className="sticky top-0 z-30 border-b border-[#E0EBE6] bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
           <button type="button" onClick={goBack} aria-label={fromBillSelection ? "กลับไปเลือกบิล" : "กลับไปหน้าคำสั่งซื้อ"} className="grid h-11 w-11 place-items-center rounded-xl text-[#37665C] hover:bg-[#F0F8F5]">
@@ -322,7 +339,7 @@ export default function MiniAppPaymentPage() {
           </button>
           <div className="text-center">
             <LotusBrand size="sm" align="center" />
-            <p className="text-[11px] font-semibold text-[#78958B]">รายละเอียดการชำระเงิน</p>
+            <p className="text-[11px] font-semibold text-[#78958B]">ชำระเงินคำสั่งซื้อ</p>
           </div>
           <button type="button" aria-label="รีเฟรชข้อมูลการชำระเงิน" disabled={refreshing || submitting} onClick={() => void refreshPayment()} className="grid h-11 w-11 place-items-center rounded-xl border border-[#E0EBE6] bg-[#F8FCFA] text-xl font-bold text-[#008F8D] disabled:opacity-40">
             <span aria-hidden="true" className={refreshing ? "inline-block animate-spin" : ""}>↻</span>
@@ -330,20 +347,13 @@ export default function MiniAppPaymentPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-2xl space-y-4 px-3 pt-5 sm:px-5">
-        <div className="px-1">
-          <p className="text-xs font-bold tracking-wide text-[#7C978C]">การชำระเงิน</p>
-          <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-            <h1 className="text-2xl font-black tracking-tight">คำสั่งซื้อ #{order.orderNumber}</h1>
+      <div className="mx-auto max-w-xl space-y-3.5 px-4 pt-5 sm:px-6">
+        <div className="px-0.5">
+          <p className="truncate text-xs font-semibold text-[#729087]">{data.customer.customerName} · คำสั่งซื้อ #{order.orderNumber}</p>
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+            <h1 className="text-[26px] font-black tracking-tight">รายละเอียดการชำระเงิน</h1>
             <span className={`rounded-full border px-3 py-1.5 text-xs font-extrabold ${statusClass}`}>{statusLabel}</span>
           </div>
-          {(dateText || order.deliverySlot) && (
-            <p className="mt-1 text-xs text-[#7B978B]">
-              {dateText ? `กำหนดจัดส่ง ${dateText}` : ""}
-              {dateText && order.deliverySlot ? " · " : ""}
-              {order.deliverySlot ?? ""}
-            </p>
-          )}
         </div>
 
         {notice && (
@@ -352,13 +362,16 @@ export default function MiniAppPaymentPage() {
           </div>
         )}
 
-        <section className="overflow-hidden rounded-[22px] border-2 border-[#BDE5DE] bg-gradient-to-br from-[#ECFAF6] via-white to-white p-5 shadow-[0_5px_20px_rgba(0,105,100,0.07)] sm:p-6">
-          <p className="text-sm font-bold text-[#55786A]">ยอดสุทธิที่ต้องชำระ</p>
-          <div className="mt-2 break-words text-4xl font-black tracking-tight text-[#009F9D] sm:text-[42px]">
+        <section className="overflow-hidden rounded-[26px] bg-[#0B746F] p-5 text-white shadow-[0_12px_28px_rgba(0,99,91,0.17)] sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-[#D9F5ED]">ยอดที่ต้องชำระ</p>
+            <span className="rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white">บิล #{order.orderNumber}</span>
+          </div>
+          <div className="mt-1 break-words text-[clamp(2.25rem,10vw,3.4rem)] font-black leading-tight tracking-tight tabular-nums">
             {order.finalAmount === null ? "รอยอดสุทธิ" : `฿${money(order.finalAmount)}`}
           </div>
-          <div className="mt-4 h-px bg-[#DDECE6]" />
-          <p className="mt-3 text-xs leading-5 text-[#718F81]">
+          <div className="mt-4 h-px bg-white/20" />
+          <p className="mt-3 text-xs leading-5 text-[#D9F5ED]">
             {order.finalAmount === null
               ? "ทีมงานจะยืนยันยอดชำระหลังออกบิล กรุณาตรวจสอบยอดจากบิลก่อนโอนเงิน"
               : order.billingAccountSuspended
@@ -367,10 +380,12 @@ export default function MiniAppPaymentPage() {
                   ? "พักบิล · ทีมงานบันทึกรูปพักบิลจากเครื่อง POS แล้ว โปรดตรวจสอบวิธีชำระเงินกับเจ้าหน้าที่"
                   : "ยอดชำระตามคำสั่งซื้อ โปรดตรวจสอบรายละเอียดในบิลที่ทีมงานแนบไว้"}
           </p>
-          {canSubmit && (
-            <a href="#upload-slip" className="mt-4 inline-flex min-h-10 items-center gap-1 rounded-xl bg-[#02B0AF] px-4 py-2 text-sm font-extrabold text-white shadow-sm">
-              {order.billingNoCv ? "แนบหลักฐานการชำระเงิน" : "แนบสลิปการโอนเงิน"} <span aria-hidden="true">↓</span>
-            </a>
+          {(dateText || order.deliverySlot) && (
+            <p className="mt-2 text-[11px] text-[#CCEEE4]">
+              {dateText ? `กำหนดจัดส่ง ${dateText}` : ""}
+              {dateText && order.deliverySlot ? " · " : ""}
+              {order.deliverySlot ?? ""}
+            </p>
           )}
         </section>
 
@@ -406,17 +421,55 @@ export default function MiniAppPaymentPage() {
           </section>
         )}
 
+        <details id="bill-details" className={`${cardClass} group`}>
+          <summary className="flex min-h-20 cursor-pointer list-none items-center gap-3 px-4 py-3.5 marker:content-none sm:px-5">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#E9F7F2] text-[#008F8D]"><ReceiptIcon /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-extrabold text-[#204A40]">{order.billingNoCv ? "ดูรูปพักบิลจาก POS" : "ตรวจสอบบิลค่าสินค้า"}</span>
+              <span className="mt-0.5 block text-xs text-[#849B91]">{files?.bill ? "แตะเพื่อดูรายละเอียดและรูปบิล" : "ทีมงานยังไม่ได้แนบรูปบิล"}</span>
+            </span>
+            <span className="text-[#008F8D] transition-transform group-open:rotate-180"><ChevronDownIcon /></span>
+          </summary>
+          <div className="border-t border-[#E7F0EA] px-4 pb-5 pt-4 sm:px-5">
+            {files?.bill ? (
+              <>
+                {isImage(files.bill) ? (
+                  <div className="overflow-hidden rounded-xl border border-[#E2EBE6] bg-[#F8FAF9] p-2">
+                    <Image unoptimized src={files.bill.url} alt="บิลค่าสินค้าจากทีมงาน" width={800} height={1000} className="mx-auto max-h-[440px] w-full object-contain" />
+                  </div>
+                ) : (
+                  <p className="rounded-xl bg-[#F8FAF9] p-4 text-sm font-semibold text-[#617F73]">{files.bill.name || "เอกสารบิลค่าสินค้า"}</p>
+                )}
+                <a href={files.bill.url} target="_blank" rel="noreferrer" className="mt-3 flex min-h-11 items-center justify-center rounded-xl border border-[#DCEBE4] px-4 text-sm font-extrabold text-[#008F8D]">
+                  เปิดดูบิลเต็มขนาด ↗
+                </a>
+                {files.bill2 && (
+                  <div className="mt-4 border-t border-[#E7F0EA] pt-4">
+                    <p className="mb-2 text-sm font-bold text-[#17453F]">บิลรูปที่ 2</p>
+                    {isImage(files.bill2) ? (
+                      <Image unoptimized src={files.bill2.url} alt="บิลรูปที่ 2" width={800} height={1000} className="mx-auto max-h-[440px] w-full rounded-xl border border-[#E2EBE6] bg-[#F8FAF9] object-contain" />
+                    ) : <p className="text-sm">{files.bill2.name}</p>}
+                    <a href={files.bill2.url} target="_blank" rel="noreferrer" className="mt-3 block text-center text-sm font-bold text-[#008F8D] underline underline-offset-4">เปิดบิลรูปที่ 2 เต็มขนาด</a>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="rounded-xl bg-[#F8FBF9] px-4 py-5 text-center text-sm text-[#839A8E]">{order.billingAccountSuspended ? "บัญชีลูกค้าถูกระงับ · ไม่ต้องแนบรูปบิล" : "ทีมงานยังไม่ได้แนบบิล"}</p>
+            )}
+          </div>
+        </details>
+
         {!cancelled && (
-          <section className={`${cardClass} p-5 sm:p-6`}>
+          <section className={`${cardClass} p-4 sm:p-6`}>
             <div className="flex items-start gap-3">
-              {canSubmit && <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#FFF2C5] text-sm font-black text-[#8E6400]">1</span>}
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#FFF1C2] text-sm font-black text-[#866300]">1</span>
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-black">{order.billingAccountSuspended ? "CV Card ลูกค้า"
+                <h2 className="text-lg font-black">{order.billingAccountSuspended ? "ตรวจสอบ CV Card"
                   : order.billingNoCv ? "พักบิล — ไม่มี QR ชำระเงิน"
-                  : canSubmit ? "สแกน QR เพื่อชำระเงิน" : "QR สำหรับชำระเงิน"}</h2>
-                <p className="mt-1 text-xs leading-5 text-[#82998F]">{order.billingAccountSuspended ? "ใช้รูปบัตร CV ที่บันทึกไว้ในข้อมูลลูกค้าแทน QR ชำระเงิน"
+                  : "สแกน QR เพื่อชำระเงิน"}</h2>
+                <p className="mt-1 text-xs leading-5 text-[#82998F]">{order.billingAccountSuspended ? "ใช้รูปบัตร CV ที่ทีมงานบันทึกไว้แทน QR ชำระเงิน"
                   : order.billingNoCv ? "ทีมงานออกบิลผ่านเครื่อง POS และแนบรูปพักบิลแทนขั้นตอน QR"
-                  : "รูป QR นี้จัดเตรียมและอัปโหลดโดยทีมงาน Lotus’s"}</p>
+                  : "ใช้ QR ที่ทีมงาน Lotus’s แนบไว้ด้านล่าง"}</p>
               </div>
             </div>
 
@@ -426,21 +479,26 @@ export default function MiniAppPaymentPage() {
               </div>
             ) : files?.paymentQr ? (
               <>
-                <div className="mx-auto mt-5 w-full max-w-[340px] rounded-2xl border border-[#E4EEE9] bg-white p-3 shadow-sm">
-                  <Image unoptimized src={files.paymentQr.url} alt={order.billingAccountSuspended ? "CV Card ลูกค้า" : "QR สำหรับชำระเงินที่ทีมงานอัปโหลด"} width={800} height={1000} className="mx-auto max-h-[390px] w-full object-contain" />
+                <div className="mx-auto mt-4 w-full max-w-[320px] rounded-[20px] border border-[#E7EEEA] bg-[#FBFDFC] p-3">
+                  <Image unoptimized src={files.paymentQr.url} alt={order.billingAccountSuspended ? "CV Card ลูกค้า" : "QR สำหรับชำระเงินที่ทีมงานอัปโหลด"} width={800} height={1000} className="mx-auto max-h-[315px] w-full object-contain" />
                 </div>
-                <a href={files.paymentQr.url} target="_blank" rel="noreferrer" className="mt-4 flex min-h-12 w-full items-center justify-center rounded-xl border-2 border-[#BDE4DD] bg-[#F1FAF7] px-4 py-3 text-sm font-extrabold text-[#008F8D]">
-                  {order.billingAccountSuspended ? "เปิดรูป CV Card เต็มขนาด ↗" : "เปิดรูป QR เต็มขนาด ↗"}
+                <a href={files.paymentQr.url} target="_blank" rel="noreferrer" className="mt-3 flex min-h-11 w-full items-center justify-center rounded-xl border border-[#D7EAE3] bg-[#F3FAF7] px-4 py-2 text-sm font-extrabold text-[#008F8D]">
+                  {order.billingAccountSuspended ? "เปิด CV Card เต็มขนาด ↗" : "เปิดรูป QR เต็มขนาด ↗"}
                 </a>
                 {files.paymentQr2 && !order.billingAccountSuspended && (
-                  <div className="mt-4 rounded-2xl border border-[#D6E8E2] bg-white p-3">
-                    <p className="mb-2 text-sm font-bold text-[#17453F]">รูป QR ชำระเงินที่ 2</p>
-                    <Image unoptimized src={files.paymentQr2.url} alt="QR ชำระเงินที่ 2" width={800} height={1000} className="mx-auto max-h-[390px] w-full object-contain" />
-                    <a href={files.paymentQr2.url} target="_blank" rel="noreferrer" className="mt-3 block text-center text-sm font-extrabold text-[#008F8D] underline">เปิดรูป QR ที่ 2 เต็มขนาด</a>
-                  </div>
+                  <details className="group mt-3 rounded-xl border border-[#E3EEE9] px-3 py-2.5">
+                    <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between text-sm font-bold text-[#008F8D] marker:content-none">
+                      ดู QR ชำระเงินอีกภาพ
+                      <span className="transition-transform group-open:rotate-180"><ChevronDownIcon /></span>
+                    </summary>
+                    <div className="border-t border-[#E8F0EA] pt-3">
+                      <Image unoptimized src={files.paymentQr2.url} alt="QR ชำระเงินที่ 2" width={800} height={1000} className="mx-auto max-h-[315px] w-full object-contain" />
+                      <a href={files.paymentQr2.url} target="_blank" rel="noreferrer" className="mt-2 block text-center text-sm font-bold text-[#008F8D] underline underline-offset-4">เปิดรูป QR ที่ 2 เต็มขนาด</a>
+                    </div>
+                  </details>
                 )}
                 {canSubmit && (
-                  <p className="mt-3 text-center text-xs leading-5 text-[#7A9285]">หลังชำระเงินแล้ว โปรดแนบสลิปในขั้นตอนถัดไป</p>
+                  <p className="mt-3 text-center text-xs leading-5 text-[#7A9285]">ชำระเงินเรียบร้อยแล้ว? แนบสลิปในขั้นตอนถัดไป</p>
                 )}
               </>
             ) : (
@@ -452,50 +510,13 @@ export default function MiniAppPaymentPage() {
           </section>
         )}
 
-        <section className={`${cardClass} p-5 sm:p-6`}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-black">{order.billingNoCv ? "รูปพักบิลจาก POS" : "บิลค่าสินค้า"}</h2>
-              <p className="mt-1 text-xs leading-5 text-[#82998F]">{order.billingNoCv ? "รูปพักบิลที่ทีมงานถ่ายจากหน้าเครื่อง POS" : "เอกสารยอดสุทธิที่ทีมงานอัปโหลด"}</p>
-            </div>
-            <span className="rounded-lg bg-[#ECF7F3] px-2.5 py-1 text-[11px] font-bold text-[#318078]">ใบแจ้งยอด</span>
-          </div>
-
-          {files?.bill ? (
-            <>
-              {isImage(files.bill) ? (
-                <div className="mt-4 overflow-hidden rounded-xl border border-[#E2EBE6] bg-[#F8FAF9] p-2">
-                  <Image unoptimized src={files.bill.url} alt="บิลค่าสินค้าจากทีมงาน" width={800} height={1000} className="mx-auto max-h-[450px] w-full object-contain" />
-                </div>
-              ) : (
-                <div className="mt-4 rounded-xl border border-[#E2EBE6] bg-[#F8FAF9] p-4 text-sm font-semibold text-[#617F73]">{files.bill.name || "เอกสารบิลค่าสินค้า"}</div>
-              )}
-              <a href={files.bill.url} target="_blank" rel="noreferrer" className="mt-3 flex min-h-12 w-full items-center justify-center rounded-xl border border-[#DCEBE4] px-4 py-3 text-sm font-extrabold text-[#008F8D]">
-                เปิดดูบิลเต็มขนาด ↗
-              </a>
-              {files.bill2 && (
-                <div className="mt-4 rounded-xl border border-[#D6E8E2] bg-[#F8FAF9] p-3">
-                  <p className="mb-2 text-sm font-bold text-[#17453F]">บิลรูปที่ 2</p>
-                  {isImage(files.bill2) ? (
-                    <Image unoptimized src={files.bill2.url} alt="บิลรูปที่ 2" width={800} height={1000} className="mx-auto max-h-[450px] w-full object-contain" />
-                  ) : <p className="text-sm">{files.bill2.name}</p>}
-                  <a href={files.bill2.url} target="_blank" rel="noreferrer" className="mt-2 block text-sm font-extrabold text-[#008F8D] underline">เปิดบิลรูปที่ 2 เต็มขนาด</a>
-                </div>
-              )}
-
-            </>
-          ) : (
-            <div className="mt-4 rounded-xl border border-dashed border-[#CFDFD6] bg-[#F8FBF9] px-4 py-6 text-center text-sm text-[#839A8E]">{order.billingAccountSuspended ? "บัญชีลูกค้าถูกระงับ · ไม่ต้องแนบรูปบิล" : "ทีมงานยังไม่ได้แนบบิล"}</div>
-          )}
-        </section>
-
         {canSubmit && (
-          <section id="upload-slip" className={`${cardClass} scroll-mt-24 border-2 border-[#9DDBD2] p-5 sm:p-6`}>
+          <section id="upload-slip" className={`${cardClass} scroll-mt-24 border-[#B6E5DA] p-4 sm:p-6`}>
             <div className="flex items-start gap-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#E0F6EF] text-sm font-black text-[#008F8D]">2</span>
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#DDF6ED] text-sm font-black text-[#008F8D]">2</span>
               <div>
-                <h2 className="text-lg font-black">แนบหลักฐานการชำระเงิน</h2>
-                <p className="mt-1 text-xs leading-5 text-[#82998F]">{order.billingNoCv ? "หากชำระเงินแล้ว กรุณาแนบหลักฐานการชำระเงิน หรือสอบถามทีมงาน" : "หลังโอนเงินสำเร็จ โปรดอัปโหลดรูปสลิปหรือไฟล์ PDF"}</p>
+                <h2 className="text-lg font-black">อัปโหลดสลิปการชำระเงิน</h2>
+                <p className="mt-1 text-xs leading-5 text-[#82998F]">{order.billingNoCv ? "หากชำระเงินแล้ว กรุณาแนบหลักฐาน หรือสอบถามทีมงาน" : "หลังโอนเงินสำเร็จ แนบรูปสลิปเพื่อให้ทีมงานตรวจสอบ"}</p>
               </div>
             </div>
 
@@ -514,10 +535,10 @@ export default function MiniAppPaymentPage() {
               aria-label="เลือกไฟล์หลักฐานการชำระเงิน"
             />
 
-            <label htmlFor="payment-slip-file" className="mt-5 flex min-h-[144px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#9BDCD1] bg-[#F5FCF9] px-4 py-5 text-center transition hover:bg-[#EBF9F4]">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-[#02B0AF] shadow-sm"><UploadIcon /></span>
-              <span className="mt-3 text-sm font-extrabold text-[#007F7D]">{slipFile ? "เปลี่ยนรูปสลิปที่เลือก" : "แตะเพื่อเลือกรูปสลิป"}</span>
-              <span className="mt-1 text-xs text-[#86A095]">{slipFile ? "สามารถเปลี่ยนไฟล์ได้ก่อนกดยืนยันและส่งสลิป" : "รองรับรูปภาพและ PDF · เลือกแล้วจะยังไม่ส่งทันที"}</span>
+            <label htmlFor="payment-slip-file" className="mt-4 flex min-h-[122px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#A4DCD3] bg-[#F5FCF9] px-4 py-4 text-center transition hover:border-[#02B0AF] hover:bg-[#EAF9F4]">
+              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-[#02A9A5] shadow-sm"><UploadIcon /></span>
+              <span className="mt-2 text-sm font-extrabold text-[#007F7D]">{slipFile ? "เปลี่ยนสลิปที่เลือก" : "แตะเพื่อเลือกรูปสลิป"}</span>
+              <span className="mt-1 text-xs text-[#86A095]">{slipFile ? "ตรวจสอบรูปก่อนกดส่ง" : "รูปภาพหรือ PDF · ยังไม่ส่งจนกว่าจะกดยืนยัน"}</span>
             </label>
 
             {slipFile && (
@@ -541,11 +562,11 @@ export default function MiniAppPaymentPage() {
               type="button"
               onClick={() => void submitSlip()}
               disabled={submitting || !slipFile}
-              className="mt-4 flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#02B0AF] px-5 py-4 text-base font-black text-white shadow-[0_4px_12px_rgba(0,165,158,0.2)] transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-[#B9DAD3] disabled:shadow-none"
+              className="mt-4 flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#02AAA7] px-5 py-4 text-base font-black text-white shadow-[0_5px_16px_rgba(0,165,158,0.18)] transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-[#B9DAD3] disabled:shadow-none"
             >
-              {submitting ? "กำลังส่งหลักฐาน..." : "ยืนยันและส่งสลิปที่เลือก"}
+              {submitting ? "กำลังส่งสลิป..." : "ยืนยันและส่งสลิป"}
             </button>
-            <p className="mt-3 text-center text-[11px] leading-5 text-[#82998F]">เมื่อส่งสลิปแล้ว ทีมงานจะตรวจสอบยอดชำระและอัปเดตสถานะคำสั่งซื้อ</p>
+            <p className="mt-3 text-center text-[11px] leading-5 text-[#82998F]">ส่งสลิปแล้วจะเข้าสู่ขั้นตอนรอเจ้าหน้าที่ตรวจสอบ</p>
           </section>
         )}
 
