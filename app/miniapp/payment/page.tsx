@@ -241,25 +241,25 @@ export default function MiniAppPaymentPage() {
       }
 
       clearSlip();
-      setNotice({ kind: "success", text: "ส่งหลักฐานการชำระเงินและปิดคำสั่งซื้อเรียบร้อยแล้ว" });
+      setNotice({ kind: "success", text: "ส่งหลักฐานการชำระเงินแล้ว กำลังรอเจ้าหน้าที่ตรวจสอบ" });
       try {
         const refreshed = await loadPayment(idToken, customerCode, data.order.orderNumber);
         if (refreshed.order?.status === "awaiting_payment") {
           // The upload was accepted even if the read endpoint is briefly stale.
           setData((previous) => previous?.order ? {
             ...previous,
-            order: { ...previous.order, status: "completed" },
+            order: { ...previous.order, status: "payment_submitted" },
           } : previous);
         }
       } catch {
         // Upload succeeded. Avoid offering a second submission while status refresh fails.
         setData((previous) => previous?.order ? {
           ...previous,
-          order: { ...previous.order, status: "completed" },
+          order: { ...previous.order, status: "payment_submitted" },
         } : previous);
         setNotice({
           kind: "success",
-          text: "ส่งหลักฐานแล้ว แต่ยังอัปเดตสถานะไม่ได้ กรุณารีเฟรชอีกครั้งในภายหลัง",
+          text: "ส่งหลักฐานแล้วและกำลังรอตรวจสอบ แต่ยังโหลดสถานะล่าสุดไม่ได้ กรุณารีเฟรชอีกครั้งในภายหลัง",
         });
       }
     } catch (caught) {
@@ -379,7 +379,7 @@ export default function MiniAppPaymentPage() {
                   {completed ? "คำสั่งซื้อเสร็จสิ้นแล้ว" : "ได้รับหลักฐานการชำระเงินแล้ว"}
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-[#547A6C]">
-                  {completed ? "ระบบปิดคำสั่งซื้อหลังได้รับหลักฐานการชำระเงินแล้ว" : "เราได้รับหลักฐานการชำระเงินแล้ว คุณไม่จำเป็นต้องส่งซ้ำ"}
+                  {completed ? "ทีมงานตรวจสอบหลักฐานการชำระเงินและปิดคำสั่งซื้อแล้ว" : "เราได้รับหลักฐานแล้ว กำลังรอเจ้าหน้าที่ตรวจสอบ คุณไม่จำเป็นต้องส่งซ้ำ"}
                 </p>
                 {files?.paymentSlip2 && (
                   <a href={files.paymentSlip2.url} target="_blank" rel="noreferrer" className="mt-3 mr-3 inline-flex min-h-10 items-center font-bold text-[#008F8D] underline underline-offset-4">
