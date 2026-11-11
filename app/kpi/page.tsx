@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 
@@ -453,9 +453,12 @@ export default function KPIPage() {
     setLoading(false);
   }
 
+  const loadSelectedKPI = useEffectEvent(() => { void loadKPI(selectedDate); });
+
   useEffect(() => {
-    void loadKPI(selectedDate);
+    const initial = window.setTimeout(() => loadSelectedKPI(), 0);
     return () => {
+      window.clearTimeout(initial);
       requestIdRef.current += 1;
     };
   }, [selectedDate]);
@@ -635,7 +638,7 @@ export default function KPIPage() {
                 ← กลับหน้าหลัก
               </Link>
               <p className="mt-3 text-[10px] font-extrabold uppercase tracking-wider text-[#008F8D]">
-                KPI / LOTUS'S B2B
+                KPI / LOTUS&apos;S B2B
               </p>
               <h1 className="mt-1 text-xl font-extrabold sm:text-2xl">ตัวชี้วัดการปฏิบัติงาน</h1>
               <p className="mt-1 text-xs text-[#6C877E]">Operational Timeliness และ Order Fulfilment ตามวันจัดส่ง · Sales &amp; Profitability ตามวันออกบิล</p>

@@ -54,7 +54,7 @@ function statusOf(station: Station, now: number) {
 
 export default function AlarmStationsPage() {
   const [stations, setStations] = useState<Station[]>([]);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("JAS Alarm Station");
@@ -76,9 +76,12 @@ export default function AlarmStationsPage() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    const initial = window.setTimeout(() => void refresh(), 0);
     const every = window.setInterval(() => void refresh(), 20_000);
-    return () => window.clearInterval(every);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(every);
+    };
   }, [refresh]);
 
   async function createCode() {

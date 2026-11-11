@@ -6,6 +6,8 @@ import {
 
   useEffect,
 
+  useEffectEvent,
+
   useMemo,
 
   useRef,
@@ -21,6 +23,7 @@ import {
   useRouter,
 
 } from "next/navigation";
+import Image from "next/image";
 
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
@@ -1693,67 +1696,16 @@ export default function MiniAppShopPage() {
 
 
 
+  const loadCurrentSearch = useEffectEvent((query: string) => {
+    setSelectedCategory("");
+    void loadAllProducts(query, 0, false, "");
+  });
+
   useEffect(() => {
-
-    if (
-
-      !catalogueReady ||
-
-      tab !== "all"
-
-    ) {
-
-      return;
-
-    }
-
-
-
-    if (
-
-      debouncedSearch ===
-
-        loadedSearch
-
-    ) {
-
-      return;
-
-    }
-
-
-
-    setSelectedCategory(
-
-      ""
-
-    );
-
-
-
-    void loadAllProducts(
-
-      debouncedSearch,
-
-      0,
-
-      false,
-
-      ""
-
-    );
-
-  }, [
-
-    debouncedSearch,
-
-    tab,
-
-    catalogueReady,
-
-    loadedSearch,
-
-  ]);
+    if (!catalogueReady || tab !== "all" || debouncedSearch === loadedSearch) return;
+    const initial = window.setTimeout(() => loadCurrentSearch(debouncedSearch), 0);
+    return () => window.clearTimeout(initial);
+  }, [debouncedSearch, tab, catalogueReady, loadedSearch]);
 
 
 
@@ -3122,7 +3074,7 @@ export default function MiniAppShopPage() {
                         <span className="text-[11px]">{hideImage ? "หมวดสุราและยาสูบ" : "ไม่มีรูปสินค้า"}</span>
                       </div>
                       {product.imageUrl && !hideImage && (
-                        <img src={product.imageUrl} alt={product.productName} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full bg-white object-contain p-3 transition duration-300 group-hover:scale-[1.03]" onError={(event) => { event.currentTarget.style.display = "none"; }} />
+                        <Image unoptimized fill src={product.imageUrl} alt={product.productName} className="absolute inset-0 h-full w-full bg-white object-contain p-3 transition duration-300 group-hover:scale-[1.03]" onError={(event) => { event.currentTarget.style.display = "none"; }} />
                       )}
                       {(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) && <span className="absolute left-2 top-2 rounded-lg bg-[#FFF3CF] px-2 py-1 text-[10px] font-extrabold text-[#9D6500]">ราคาพิเศษ</span>}
                       <button
@@ -3240,7 +3192,7 @@ export default function MiniAppShopPage() {
                       <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-[#F4F8F3]">
                         <div className="absolute inset-0 grid place-items-center text-2xl">{isLiquorTobaccoCategory(product.category) ? "ⓘ" : "📦"}</div>
                         {product.imageUrl && !isLiquorTobaccoCategory(product.category) && (
-                          <img src={product.imageUrl} alt={product.productName} loading="lazy" className="absolute inset-0 h-full w-full bg-white object-contain p-1" onError={(event) => { event.currentTarget.style.display = "none"; }} />
+                          <Image unoptimized fill src={product.imageUrl} alt={product.productName} className="absolute inset-0 h-full w-full bg-white object-contain p-1" onError={(event) => { event.currentTarget.style.display = "none"; }} />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">

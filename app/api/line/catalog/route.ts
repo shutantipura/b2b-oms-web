@@ -138,6 +138,44 @@ type CategoryFacet = {
 
 };
 
+type CatalogueSourceProduct = {
+  id: string;
+  sku: string;
+  product_name: string;
+  image_url: string | null;
+  category: string | null;
+  unit: string;
+  normal_price: number | string;
+};
+
+type AuthorizedCustomer = {
+  id: string;
+  customerCode: string;
+  customerName: string;
+  deliveryAddress: string;
+};
+
+type CustomerLink = {
+  customers: {
+    id: string;
+    customer_code: string;
+    customer_name: string;
+    delivery_address: string | null;
+    is_active: boolean;
+  } | {
+    id: string;
+    customer_code: string;
+    customer_name: string;
+    delivery_address: string | null;
+    is_active: boolean;
+  }[] | null;
+};
+
+type CategoryFacetRow = {
+  category: string | null;
+  product_count: number | string;
+};
+
 
 
 
@@ -1424,7 +1462,7 @@ export async function POST(
 
 
 
-        .map((link: any) => {
+        .map((link: CustomerLink) => {
 
 
 
@@ -1532,7 +1570,7 @@ export async function POST(
 
 
 
-        .filter(Boolean);
+        .filter((customer): customer is AuthorizedCustomer => customer !== null);
 
 
 
@@ -1604,7 +1642,7 @@ export async function POST(
 
 
 
-        (customer: any) =>
+        (customer: AuthorizedCustomer) =>
 
 
 
@@ -1828,7 +1866,7 @@ export async function POST(
 
 
 
-      pageProductData ??
+      (pageProductData as (CatalogueSourceProduct & { total_count?: number | string })[] | null) ??
 
 
 
@@ -1892,7 +1930,7 @@ export async function POST(
 
 
 
-          product: any
+          product: CatalogueSourceProduct & { total_count?: number | string }
 
 
 
@@ -1917,6 +1955,8 @@ export async function POST(
 
 
           } = product;
+
+          void _totalCount;
 
 
 
@@ -1952,7 +1992,7 @@ export async function POST(
 
 
 
-          product: any
+          product: CatalogueSourceProduct
 
 
 
@@ -2126,7 +2166,7 @@ export async function POST(
 
 
 
-        facetData ??
+        (facetData as CategoryFacetRow[] | null) ??
 
 
 
@@ -2150,7 +2190,7 @@ export async function POST(
 
 
 
-            row: any
+            row: CategoryFacetRow
 
 
 
@@ -2222,7 +2262,7 @@ export async function POST(
 
 
 
-              row: any
+              row: CategoryFacetRow
 
 
 
@@ -2270,7 +2310,7 @@ export async function POST(
 
 
 
-              row: any
+              row: CategoryFacetRow
 
 
 
@@ -2282,7 +2322,7 @@ export async function POST(
 
 
 
-                row.category,
+                row.category as string,
 
 
 
@@ -2439,7 +2479,7 @@ export async function POST(
 
 
 
-    let contextProducts: any[] =
+    let contextProducts: CatalogueSourceProduct[] =
 
 
 
@@ -2795,7 +2835,7 @@ export async function POST(
 
 
 
-    let priceData: any[] =
+    let priceData: { product_id: string; agreed_price: number | string }[] =
 
 
 
@@ -3047,7 +3087,7 @@ export async function POST(
 
 
 
-      product: any
+      product: CatalogueSourceProduct
 
 
 

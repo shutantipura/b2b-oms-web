@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useEffectEvent,
   useMemo,
   useState,
 } from "react";
@@ -156,6 +157,7 @@ export default function CustomerShopPage() {
   // =====================================================
 
   useEffect(() => {
+    const initial = window.setTimeout(() => {
     const stored =
       localStorage.getItem(
         `b2b-cart-${customerCode}`
@@ -176,6 +178,8 @@ export default function CustomerShopPage() {
         `b2b-cart-${customerCode}`
       );
     }
+    }, 0);
+    return () => window.clearTimeout(initial);
   }, [customerCode]);
 
   // =====================================================
@@ -416,8 +420,10 @@ export default function CustomerShopPage() {
     setLoading(false);
   }
 
+  const loadCurrentCatalogue = useEffectEvent(() => { void loadCatalogue(); });
   useEffect(() => {
-    loadCatalogue();
+    const initial = window.setTimeout(() => loadCurrentCatalogue(), 0);
+    return () => window.clearTimeout(initial);
   }, [customerCode]);
 
   // =====================================================

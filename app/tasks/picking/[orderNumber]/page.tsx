@@ -2,11 +2,13 @@
 
 import {
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
 } from "react";
 
 import Link from "next/link";
+import Image from "next/image";
 
 import {
   useParams,
@@ -169,7 +171,9 @@ function ProductThumbnail({
       </div>
 
       {imageUrl ? (
-        <img
+        <Image
+          unoptimized
+          fill
           src={imageUrl}
           alt={alt}
           loading="lazy"
@@ -553,14 +557,12 @@ export default function PickingPage() {
     setLoading(false);
   }
 
+  const loadCurrentOrder = useEffectEvent(() => { void loadOrder(); });
+
   useEffect(() => {
-    if (
-      !Number.isNaN(
-        orderNumber
-      )
-    ) {
-      void loadOrder();
-    }
+    if (Number.isNaN(orderNumber)) return;
+    const initial = window.setTimeout(() => loadCurrentOrder(), 0);
+    return () => window.clearTimeout(initial);
   }, [orderNumber]);
 
   function closeAddProduct() {
@@ -675,6 +677,10 @@ export default function PickingPage() {
     );
   }
 
+  const searchProductsForEffect = useEffectEvent((query: string) => {
+    void searchProducts(query);
+  });
+
   useEffect(() => {
     if (
       !addProductOpen ||
@@ -689,28 +695,18 @@ export default function PickingPage() {
     if (!query) {
       searchRequestId.current +=
         1;
-
-      setSearchResults(
-        []
-      );
-
-      setSearchingProducts(
-        false
-      );
-
-      setAddProductMessage(
-        ""
-      );
-
-      return;
+      const clear = window.setTimeout(() => {
+        setSearchResults([]);
+        setSearchingProducts(false);
+        setAddProductMessage("");
+      }, 0);
+      return () => window.clearTimeout(clear);
     }
 
     const timer =
       window.setTimeout(
         () => {
-          void searchProducts(
-            query
-          );
+          searchProductsForEffect(query);
         },
         350
       );
@@ -1370,7 +1366,7 @@ export default function PickingPage() {
                   <div key={photo.id} className="rounded-lg border border-[#CEE7E0] bg-white p-2">
                     {photo.url ? (
                       <a href={photo.url} target="_blank" rel="noopener noreferrer">
-                        <img src={photo.url} alt={`รูปรถเข็นเดิม ${i + 1}`} loading="lazy" className="h-28 w-full rounded-md object-contain" />
+                        <Image unoptimized src={photo.url} alt={`รูปรถเข็นเดิม ${i + 1}`} width={400} height={300} className="h-28 w-full rounded-md object-contain" />
                       </a>
                     ) : (
                       <div className="flex h-28 items-center justify-center rounded-md bg-gray-100 text-xs text-gray-500">ไม่สามารถเปิดภาพได้</div>

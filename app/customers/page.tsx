@@ -148,7 +148,9 @@ export default function CustomersPage() {
 
   useEffect(() => {
 
-    loadCustomers();
+    const initial = window.setTimeout(() => void loadCustomers(), 0);
+
+    return () => window.clearTimeout(initial);
 
   }, []);
 

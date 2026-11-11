@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -420,7 +421,8 @@ export default function OrdersPage() {
   // Restore before fetching orders, so going back from a detail page doesn't
   // briefly fetch a different day or overwrite the saved filters.
   useEffect(() => {
-    try {
+    const timer = window.setTimeout(() => {
+      try {
       const stored = window.sessionStorage.getItem(ORDERS_FILTERS_STORAGE_KEY);
       if (stored) {
         const saved: unknown = JSON.parse(stored);
@@ -442,10 +444,12 @@ export default function OrdersPage() {
           }
         }
       }
-    } catch {
-      // Browsers may block storage; the normal filter defaults still work.
-    }
-    setFiltersRestored(true);
+      } catch {
+        // Browsers may block storage; the normal filter defaults still work.
+      }
+      setFiltersRestored(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -692,11 +696,16 @@ export default function OrdersPage() {
     setLoading(false);
   }
 
+  const loadCurrentOrders = useEffectEvent((date: string, includeAllDates: boolean) => {
+    void loadManagerAccess();
+    void loadOrders(date, includeAllDates);
+  });
+
   useEffect(() => {
     if (!filtersRestored) return;
-    void loadManagerAccess();
-    void loadOrders(selectedDate, allDates);
+    const initial = window.setTimeout(() => loadCurrentOrders(selectedDate, allDates), 0);
     return () => {
+      window.clearTimeout(initial);
       loadRequestRef.current += 1;
     };
   }, [filtersRestored, selectedDate, allDates]);

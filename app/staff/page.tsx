@@ -3,6 +3,7 @@
 import {
   FormEvent,
   useEffect,
+  useEffectEvent,
   useMemo,
   useState,
 } from "react";
@@ -112,7 +113,8 @@ export default function StaffManagementPage() {
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("tab") === "responsibilities") {
-      setActiveTab("responsibilities");
+      const initial = window.setTimeout(() => setActiveTab("responsibilities"), 0);
+      return () => window.clearTimeout(initial);
     }
   }, []);
 
@@ -323,8 +325,11 @@ export default function StaffManagementPage() {
     }
   }
 
+  const loadCurrentStaff = useEffectEvent(() => { void loadStaff(); });
+
   useEffect(() => {
-    void loadStaff();
+    const initial = window.setTimeout(() => loadCurrentStaff(), 0);
+    return () => window.clearTimeout(initial);
   }, []);
 
   // =====================================================

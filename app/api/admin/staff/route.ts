@@ -335,7 +335,7 @@ function queueStatusForStage(
 }
 
 async function releaseClaimsForRemovedPermissions(
-  admin: any,
+  admin: ReturnType<typeof getAdminClient>,
   staffId: string,
   managerStaffId: string,
   removedStages: TaskStage[]
@@ -427,7 +427,7 @@ async function releaseClaimsForRemovedPermissions(
   const orderStatusMap =
     new Map<string, string>(
       (orders ?? []).map(
-        (order: any) => [
+        (order: { id: string; status: string }) => [
           order.id,
           order.status,
         ]
@@ -547,7 +547,7 @@ async function releaseClaimsForRemovedPermissions(
 }
 
 async function replacePermissions(
-  admin: any,
+  admin: ReturnType<typeof getAdminClient>,
   staffId: string,
   stages: TaskStage[]
 ) {

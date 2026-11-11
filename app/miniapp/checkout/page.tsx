@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
@@ -66,7 +67,6 @@ type CheckoutResponse = {
 
 type Cart = Record<string, number>;
 
-const BRAND = "#02B0AF";
 const formatMoney = (value: number) =>
   new Intl.NumberFormat("th-TH", {
     minimumFractionDigits: 2,
@@ -265,6 +265,8 @@ export default function MiniAppCheckoutPage() {
   // Candidates may become ineligible after this check; the submit RPC
   // always rechecks inside the same transaction as the merge.
   useEffect(() => {
+    const controller = new AbortController();
+    const initial = window.setTimeout(() => {
     if (!idToken || !customer || !deliveryDate || !deliveryAddress || fulfillmentMethod === "pickup") {
       setMergeCandidates([]);
       setMergeIntoOrderNumber(null);
@@ -273,7 +275,6 @@ export default function MiniAppCheckoutPage() {
       setMergeOptionsError("");
       return;
     }
-    const controller = new AbortController();
     setLoadingMergeOptions(true);
     setMergeOptionsError("");
     setMergeCandidates([]);
@@ -309,7 +310,11 @@ export default function MiniAppCheckoutPage() {
       }
     })();
 
-    return () => controller.abort();
+    }, 0);
+    return () => {
+      window.clearTimeout(initial);
+      controller.abort();
+    };
   }, [idToken, customer, deliveryDate, deliveryAddress, cart, pieceProductIds, mergeRefreshTick, fulfillmentMethod]);
 
   // Only offer the same primary delivery slot when that slot is still
@@ -539,11 +544,9 @@ export default function MiniAppCheckoutPage() {
                     <span className="mt-1 text-[9px]">ไม่มีรูปสินค้า</span>
                   </div>
                   {imageByProductId[item.id] && (
-                    <img
+                    <Image unoptimized fill
                       src={imageByProductId[item.id]}
                       alt={item.productName}
-                      loading="lazy"
-                      decoding="async"
                       className="absolute inset-0 h-full w-full bg-white object-contain p-1.5"
                       onError={(event) => { event.currentTarget.style.display = "none"; }}
                     />

@@ -115,7 +115,7 @@ export default function OrderAlarmPage() {
   }, []);
 
   useEffect(() => {
-    setOnline(navigator.onLine);
+    const initial = window.setTimeout(() => setOnline(navigator.onLine), 0);
     const onOnline = () => { setOnline(true); void refresh(); };
     const onOffline = () => setOnline(false);
     const onVisibility = () => {
@@ -133,6 +133,7 @@ export default function OrderAlarmPage() {
     window.addEventListener("offline", onOffline);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      window.clearTimeout(initial);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       document.removeEventListener("visibilitychange", onVisibility);
@@ -156,8 +157,10 @@ export default function OrderAlarmPage() {
   async function enableSound() {
     try {
       const ctx = audioRef.current ?? new AudioContext();
-      audioRef.current = ctx;
-      ctx.onstatechange = () => setAudioReady(ctx.state === "running");
+      if (!audioRef.current) {
+        ctx.addEventListener("statechange", () => setAudioReady(ctx.state === "running"));
+        audioRef.current = ctx;
+      }
       await ctx.resume();
       if (ctx.state !== "running") throw new Error("Audio context is suspended");
       enabledRef.current = true;

@@ -171,17 +171,9 @@ async function verifyLineAndCustomer(
   // 2. SERVER-SIDE SUPABASE
   // -------------------------------------------------
 
-  // We deliberately use `any` here.
-  //
-  // We do not currently have generated Supabase
-  // Database types wired into this Next.js project.
-  // Without them, supabase-js can incorrectly infer
-  // some query results as `never`.
-  //
-  // This API is server-only, and we explicitly type
-  // the returned rows below.
-
-  const supabase: any =
+  // The client is inferred from createClient; database rows are
+  // validated and shaped explicitly at the query boundaries.
+  const supabase =
     createClient(
       supabaseUrl,
       supabaseSecret,
@@ -361,7 +353,7 @@ async function verifyLineAndCustomer(
 // =====================================================
 
 async function buildCart(
-  supabase: any,
+  supabase: Awaited<ReturnType<typeof verifyLineAndCustomer>>["supabase"],
   customerId: string,
   cart: Cart,
   pieceProductIds: string[]
@@ -722,7 +714,7 @@ function extractOrderNumber(
 
 // This is only a preview. The database RPC repeats all checks
 // while locking the primary order so billing cannot start mid-merge.
-async function findMergeCandidates(supabase: any, customerId: string, deliveryDate: string, deliveryAddress: string) {
+async function findMergeCandidates(supabase: Awaited<ReturnType<typeof verifyLineAndCustomer>>["supabase"], customerId: string, deliveryDate: string, deliveryAddress: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate)) return [];
 
   const { data: orders, error: orderError } = await supabase

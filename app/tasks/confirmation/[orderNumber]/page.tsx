@@ -1,7 +1,9 @@
 "use client";
+import Image from "next/image";
 
 import {
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
 } from "react";
@@ -115,11 +117,9 @@ function ProductThumbnail({
       </div>
 
       {imageUrl ? (
-        <img
+        <Image unoptimized fill
           src={imageUrl}
           alt={alt}
-          loading="lazy"
-          decoding="async"
           className="absolute inset-0 w-full h-full object-contain bg-white p-1"
           onError={(event) => {
             event.currentTarget.style.display =
@@ -390,13 +390,12 @@ export default function ConfirmationPage() {
     setLoading(false);
   }
 
+  const loadCurrentOrder = useEffectEvent(() => { void loadOrder(); });
+
   useEffect(() => {
-    if (
-      !Number.isNaN(
-        orderNumber
-      )
-    ) {
-      void loadOrder();
+    if (!Number.isNaN(orderNumber)) {
+      const initial = window.setTimeout(() => loadCurrentOrder(), 0);
+      return () => window.clearTimeout(initial);
     }
   }, [orderNumber]);
 
@@ -512,6 +511,10 @@ export default function ConfirmationPage() {
     );
   }
 
+  const searchCurrentProducts = useEffectEvent((query: string) => {
+    void searchProducts(query);
+  });
+
   useEffect(() => {
     if (
       !addProductOpen ||
@@ -524,30 +527,19 @@ export default function ConfirmationPage() {
       productSearch.trim();
 
     if (!query) {
-      searchRequestId.current +=
-        1;
-
-      setSearchResults(
-        []
-      );
-
-      setSearchingProducts(
-        false
-      );
-
-      setAddProductMessage(
-        ""
-      );
-
-      return;
+      searchRequestId.current += 1;
+      const reset = window.setTimeout(() => {
+        setSearchResults([]);
+        setSearchingProducts(false);
+        setAddProductMessage("");
+      }, 0);
+      return () => window.clearTimeout(reset);
     }
 
     const timer =
       window.setTimeout(
         () => {
-          void searchProducts(
-            query
-          );
+          searchCurrentProducts(query);
         },
         350
       );

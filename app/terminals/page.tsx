@@ -40,6 +40,7 @@ export default function TerminalsPage() {
  const [busy,setBusy]=useState(false);
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState("");
+ const [now,setNow]=useState(()=>Date.now());
  const refresh=useCallback(async()=>{
   try {
    const response=await managerRequest("/api/admin/terminals");
@@ -48,12 +49,14 @@ export default function TerminalsPage() {
    setTerminals(data.terminals??[]);
    setPending(data.pending??[]);
    setInactive(data.inactive??[]);
+   setNow(Date.now());
    setError("");
   }catch(e){setError(e instanceof Error?e.message:"Unable to load terminals");}
   finally{setLoading(false);}
  },[]);
- useEffect(()=>{void refresh();const id=window.setInterval(()=>void refresh(),20000);
-  return ()=>clearInterval(id)},[refresh]);
+ useEffect(()=>{const initial=window.setTimeout(()=>void refresh(),0);
+  const id=window.setInterval(()=>void refresh(),20000);
+  return ()=>{window.clearTimeout(initial);clearInterval(id)}},[refresh]);
 
  async function create() {
   if(busy)return;
@@ -129,9 +132,9 @@ export default function TerminalsPage() {
  function health(t:Terminal){
    if(t.revoked_at||!t.staff?.is_active)return "ปิดใช้งาน · ต้องจับคู่ใหม่";
    if(!t.last_seen_at)return "ลงทะเบียนแล้ว · รอสัญญาณ";
-   if(Date.now()-Date.parse(t.last_seen_at)>90000)return "ไม่ออนไลน์";
+   if(now-Date.parse(t.last_seen_at)>90000)return "ไม่ออนไลน์";
    if(!t.monitor_active)return "ออนไลน์ · ปิดการตรวจสอบ";
-   if(!t.last_success_at||Date.now()-Date.parse(t.last_success_at)>120000)
+   if(!t.last_success_at||now-Date.parse(t.last_success_at)>120000)
      return "ออนไลน์ · ตรวจ OMS ไม่สำเร็จ";
    return "ออนไลน์ · ตรวจ OMS สำเร็จ";
  }
@@ -218,7 +221,7 @@ export default function TerminalsPage() {
      {terminals.map(t=><article key={t.id} className="rounded-2xl border border-[#CDE5DE] bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
        <h3 className="text-lg font-bold">{t.label}</h3>
-       <span className={`rounded-full px-3 py-1 text-xs font-bold ${!t.revoked_at&&t.last_seen_at&&Date.now()-Date.parse(t.last_seen_at)<90000&&t.monitor_active?"bg-[#DEF8EC] text-[#167953]":"bg-[#FFF2D9] text-[#916000]"}`}>{health(t)}</span>
+       <span className={`rounded-full px-3 py-1 text-xs font-bold ${!t.revoked_at&&t.last_seen_at&&now-Date.parse(t.last_seen_at)<90000&&t.monitor_active?"bg-[#DEF8EC] text-[#167953]":"bg-[#FFF2D9] text-[#916000]"}`}>{health(t)}</span>
       </div>
       <p className="mt-2 text-sm text-[#6A8279]">
        Staff: {t.staff?.staff_code??"—"} · {t.staff?.staff_name??"—"} · v{t.app_version??"—"}

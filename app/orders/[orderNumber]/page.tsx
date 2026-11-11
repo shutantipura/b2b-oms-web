@@ -1,8 +1,9 @@
 "use client";
+import Image from "next/image";
 
 
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import Link from "next/link";
 
@@ -1238,14 +1239,11 @@ export default function OrderDetailsPage() {
     }
   }
 
+  const loadCurrentOrder = useEffectEvent(() => { void loadOrder(); });
   useEffect(() => {
-
-    if (!Number.isNaN(orderNumber)) {
-
-      loadOrder();
-
-    }
-
+    if (Number.isNaN(orderNumber)) return;
+    const initial = window.setTimeout(() => loadCurrentOrder(), 0);
+    return () => window.clearTimeout(initial);
   }, [orderNumber]);
 
 
@@ -1934,7 +1932,7 @@ export default function OrderDetailsPage() {
                       />
                       {existing?.url && existing.mime_type?.startsWith("image/") && (
                         <a href={existing.url} target="_blank" rel="noreferrer" className="mt-3 block">
-                          <img src={existing.url} alt={slot === "bill" ? "รูปบิลที่ 1" : "รูปบิลที่ 2"}
+                          <Image unoptimized src={existing.url} alt={slot === "bill" ? "รูปบิลที่ 1" : "รูปบิลที่ 2"} width={640} height={480}
                             className="h-32 w-full rounded-lg bg-[#FAFDFB] object-contain" />
                         </a>
                       )}
@@ -1992,7 +1990,7 @@ export default function OrderDetailsPage() {
                       />
                       {existing?.url && existing.mime_type?.startsWith("image/") && (
                         <a href={existing.url} target="_blank" rel="noreferrer" className="mt-3 block">
-                          <img src={existing.url} alt={first ? "รูป QR ที่ 1" : "รูป QR ที่ 2"}
+                          <Image unoptimized src={existing.url} alt={first ? "รูป QR ที่ 1" : "รูป QR ที่ 2"} width={640} height={480}
                             className="h-32 w-full rounded-lg bg-[#FAFDFB] object-contain" />
                         </a>
                       )}
@@ -2043,7 +2041,7 @@ export default function OrderDetailsPage() {
                       {existing?.url && (
                         <a href={existing.url} target="_blank" rel="noreferrer" className="mt-3 block">
                           {existing.mime_type?.startsWith("image/") ?
-                            <img src={existing.url} alt={first ? "สลิปรูปที่ 1" : "สลิปรูปที่ 2"}
+                            <Image unoptimized src={existing.url} alt={first ? "สลิปรูปที่ 1" : "สลิปรูปที่ 2"} width={640} height={480}
                               className="h-32 w-full rounded-lg bg-[#FAFDFB] object-contain" /> :
                             <span className="text-sm font-bold text-[#008F8D] underline">เปิดไฟล์สลิปเดิม</span>}
                         </a>
@@ -2103,8 +2101,8 @@ export default function OrderDetailsPage() {
                   <div key={bill.id} className="mt-4">
                     <p className="mb-2 text-sm font-bold text-[#17453F]">รูปบิลพิมพ์ซ้ำ</p>
                     <a href={bill.url ?? undefined} target="_blank" rel="noreferrer" className="block rounded-xl border border-[#B7E1D4] bg-white p-2">
-                      <img
-                        src={bill.url ?? undefined}
+                      <Image unoptimized width={640} height={480}
+                        src={bill.url ?? ""}
                         alt="รูปบิลพิมพ์ซ้ำสำหรับ CV Card"
                         className="mx-auto max-h-80 w-full rounded-lg object-contain"
                       />
@@ -2195,7 +2193,7 @@ export default function OrderDetailsPage() {
 
                       <>
 
-                        <img
+                        <Image unoptimized width={640} height={480}
 
                           src={file.url}
 

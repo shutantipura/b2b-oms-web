@@ -68,20 +68,6 @@ type VisiblePreviewResult = {
 
 
 
-type VisibleApplyResult = {
-
-  success: boolean;
-
-  matchedCount: number;
-
-  unmatchedCount: number;
-
-  visibleProductCount: number;
-
-};
-
-
-
 type MasterProduct = {
 
   sku: string;
@@ -686,7 +672,7 @@ export default function CatalogPage() {
 
     useState<
 
-      any[][]
+      unknown[][]
 
     >(
 
@@ -1054,7 +1040,7 @@ export default function CatalogPage() {
 
         XLSX.utils
 
-          .sheet_to_json<any[]>(
+          .sheet_to_json<unknown[]>(
 
             sheet,
 
@@ -1068,7 +1054,7 @@ export default function CatalogPage() {
 
             }
 
-          ) as any[][];
+          ) as unknown[][];
 
 
 
@@ -2463,34 +2449,6 @@ export default function CatalogPage() {
 
 
 
-  const visibleSkuValues =
-
-    useMemo(
-
-      () =>
-
-        visibleImportRows.map(
-
-          (
-
-            row
-
-          ) =>
-
-            row.sku
-
-        ),
-
-      [
-
-        visibleImportRows,
-
-      ]
-
-    );
-
-
-
   // =====================================================
 
   // DETECT VISIBLE SKU COLUMN
@@ -2955,7 +2913,7 @@ export default function CatalogPage() {
 
         XLSX.utils
 
-          .sheet_to_json<any[]>(
+          .sheet_to_json<unknown[]>(
 
             sheet,
 
@@ -2969,7 +2927,7 @@ export default function CatalogPage() {
 
             }
 
-          ) as any[][];
+          ) as unknown[][];
 
 
 

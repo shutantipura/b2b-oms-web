@@ -84,12 +84,12 @@ export default function ManualVisibleProductsPage() {
     } finally {
       if (id === requestId.current) setLoading(false);
     }
-  }, [filter, page, query, reload]);
+  }, [filter, page, query]);
 
   useEffect(() => {
-    void loadProducts();
-    return () => { requestId.current += 1; };
-  }, [loadProducts]);
+    const initial = window.setTimeout(() => void loadProducts(), 0);
+    return () => { window.clearTimeout(initial); requestId.current += 1; };
+  }, [loadProducts, reload]);
 
   async function updateVisibility(product: ProductRow) {
     if (saving) return;

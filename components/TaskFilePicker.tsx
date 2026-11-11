@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import Image from "next/image";
 
 type TaskFilePickerProps = {
   label: string;
@@ -86,7 +87,7 @@ export default function TaskFilePicker({
       {fileName && <p className="mt-1 break-all text-xs font-semibold text-[#17453F]">{fileName}</p>}
       {previewUrl && (
         <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="mt-3 block" aria-label={`เปิดดู${label}เต็มขนาด`}>
-          <img src={previewUrl} alt={`ตัวอย่าง${label}`} loading="lazy" className="max-h-64 w-full rounded-xl border border-[#D5ECE6] bg-white object-contain" />
+          <Image unoptimized src={previewUrl} alt={`ตัวอย่าง${label}`} width={960} height={640} className="max-h-64 w-full rounded-xl border border-[#D5ECE6] bg-white object-contain" />
         </a>
       )}
     </div>

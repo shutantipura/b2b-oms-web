@@ -67,7 +67,7 @@ export function pickingCallShortages(
     const actionable = actionableIds.has(item.id);
     const mixed = item.piece_price_per_kg_snapshot != null;
     let picked: number | null;
-    let target = confirmed;
+    const target = confirmed;
     if (mixed && addonMode && actionable && (qty(item.addon_requested_qty) ?? 0) > 0) {
       // For a repeat picking pass, new piece counts are incremental.
       const newlyConfirmed = qty(item.addon_confirmed_qty);

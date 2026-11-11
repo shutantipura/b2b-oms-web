@@ -1,6 +1,7 @@
 "use client";
+import Image from "next/image";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../../lib/supabase";
@@ -123,23 +124,21 @@ export default function StaffPaymentPage() {
   }
 
   useEffect(() => {
-    if (!selectedSlip) {
-      setSelectedSlipUrl(null);
-      return;
-    }
-    const previewUrl = URL.createObjectURL(selectedSlip);
-    setSelectedSlipUrl(previewUrl);
-    return () => URL.revokeObjectURL(previewUrl);
+    const previewUrl = selectedSlip ? URL.createObjectURL(selectedSlip) : null;
+    const timer = window.setTimeout(() => setSelectedSlipUrl(previewUrl), 0);
+    return () => {
+      window.clearTimeout(timer);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
   }, [selectedSlip]);
 
   useEffect(() => {
-    if (!selectedSlip2) {
-      setSelectedSlip2Url(null);
-      return;
-    }
-    const previewUrl = URL.createObjectURL(selectedSlip2);
-    setSelectedSlip2Url(previewUrl);
-    return () => URL.revokeObjectURL(previewUrl);
+    const previewUrl = selectedSlip2 ? URL.createObjectURL(selectedSlip2) : null;
+    const timer = window.setTimeout(() => setSelectedSlip2Url(previewUrl), 0);
+    return () => {
+      window.clearTimeout(timer);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
   }, [selectedSlip2]);
 
   const [loading, setLoading] =
@@ -359,13 +358,12 @@ export default function StaffPaymentPage() {
     setLoading(false);
   }
 
+  const loadCurrentOrder = useEffectEvent(() => { void loadOrder(); });
+
   useEffect(() => {
-    if (
-      !Number.isNaN(
-        orderNumber
-      )
-    ) {
-      void loadOrder();
+    if (!Number.isNaN(orderNumber)) {
+      const initial = window.setTimeout(() => loadCurrentOrder(), 0);
+      return () => window.clearTimeout(initial);
     }
   }, [orderNumber]);
 
@@ -703,7 +701,7 @@ export default function StaffPaymentPage() {
                 <a href={billUrl} target="_blank" rel="noreferrer"
                   className="min-w-0 rounded-xl border border-[#D6E8E2] bg-[#F8FBFA] p-2 text-center">
                   {billMime?.startsWith("image/") ? (
-                    <img src={billUrl} alt="บิลรูปที่ 1" loading="lazy"
+                    <Image unoptimized src={billUrl} alt="บิลรูปที่ 1" width={640} height={480}
                       className="h-36 w-full rounded-lg bg-white object-contain" />
                   ) : (
                     <div className="grid h-36 place-items-center rounded-lg bg-white text-sm font-bold text-[#617F73]">เอกสาร / PDF</div>
@@ -716,7 +714,7 @@ export default function StaffPaymentPage() {
                   <a href={bill2Url} target="_blank" rel="noreferrer"
                     className="min-w-0 rounded-xl border border-[#D6E8E2] bg-[#F8FBFA] p-2 text-center">
                     {bill2Mime?.startsWith("image/") ? (
-                      <img src={bill2Url} alt="บิลรูปที่ 2" loading="lazy"
+                      <Image unoptimized src={bill2Url} alt="บิลรูปที่ 2" width={640} height={480}
                         className="h-36 w-full rounded-lg bg-white object-contain" />
                     ) : (
                       <div className="grid h-36 place-items-center rounded-lg bg-white text-sm font-bold text-[#617F73]">เอกสาร</div>
@@ -747,7 +745,7 @@ export default function StaffPaymentPage() {
               <p className="text-sm text-gray-500">พักบิล: ไม่จำเป็นต้องใช้ QR ชำระเงิน</p>
             ) : qrUrl ? (
               <>
-              <img
+              <Image unoptimized width={640} height={480}
                 src={
                   qrUrl
                 }
@@ -757,7 +755,7 @@ export default function StaffPaymentPage() {
               {qr2Url && !order.billing_account_suspended && (
                 <a href={qr2Url} target="_blank" rel="noreferrer" className="mt-3 block rounded-lg border border-[#B7E1D4] bg-[#F4FBF9] p-3">
                   <p className="mb-2 font-bold text-[#007F79]">QR ชำระเงินที่ 2</p>
-                  <img src={qr2Url} alt="QR ชำระเงินที่ 2" className="max-w-full max-h-80 object-contain"/>
+                  <Image unoptimized src={qr2Url} alt="QR ชำระเงินที่ 2" width={640} height={480} className="max-w-full max-h-80 object-contain"/>
                 </a>
               )}
               </>
@@ -787,7 +785,7 @@ export default function StaffPaymentPage() {
                     <p className="mb-2 text-xs font-bold text-[#17453F]">สลิปรูปที่ 1</p>
                     {slipMime?.startsWith("image/") ? (
                       <a href={slipUrl} target="_blank" rel="noreferrer">
-                        <img src={slipUrl} alt="สลิปการชำระเงินรูปที่ 1" className="h-40 w-full rounded-lg object-contain" />
+                        <Image unoptimized src={slipUrl} alt="สลิปการชำระเงินรูปที่ 1" width={640} height={480} className="h-40 w-full rounded-lg object-contain" />
                       </a>
                     ) : (
                       <a href={slipUrl} target="_blank" rel="noreferrer" className="text-sm font-bold text-[#008F8D] underline">เปิดไฟล์สลิป / PDF</a>
@@ -797,7 +795,7 @@ export default function StaffPaymentPage() {
                     <div className="min-w-0 rounded-xl border border-[#D6EAE2] bg-white p-2">
                       <p className="mb-2 text-xs font-bold text-[#17453F]">สลิปรูปที่ 2</p>
                       <a href={slip2Url} target="_blank" rel="noreferrer">
-                        <img src={slip2Url} alt="สลิปการชำระเงินรูปที่ 2" className="h-40 w-full rounded-lg object-contain" />
+                        <Image unoptimized src={slip2Url} alt="สลิปการชำระเงินรูปที่ 2" width={640} height={480} className="h-40 w-full rounded-lg object-contain" />
                         <span className="mt-1 block truncate text-xs text-[#008F8D] underline">{slip2Name ?? "เปิดสลิปรูปที่ 2"}</span>
                       </a>
                     </div>
@@ -874,7 +872,7 @@ export default function StaffPaymentPage() {
                       <div className="min-w-0 rounded-xl border border-[#DAEBE4] bg-white p-2">
                         <p className="mb-2 text-xs font-bold text-[#17453F]">สลิปรูปที่ 1</p>
                         {selectedSlip.type.startsWith("image/") ? (
-                          <img src={selectedSlipUrl} alt="ตัวอย่างสลิปการชำระเงินรูปที่ 1 ที่ยังไม่ได้ส่ง" className="max-h-80 w-full rounded-lg object-contain" />
+                          <Image unoptimized src={selectedSlipUrl} alt="ตัวอย่างสลิปการชำระเงินรูปที่ 1 ที่ยังไม่ได้ส่ง" width={640} height={480} className="max-h-80 w-full rounded-lg object-contain" />
                         ) : (
                           <a href={selectedSlipUrl} target="_blank" rel="noreferrer" className="block rounded-lg px-2 py-3 text-center text-sm font-bold text-[#008F8D] underline">เปิดดูไฟล์ PDF ก่อนยืนยัน</a>
                         )}
@@ -883,7 +881,7 @@ export default function StaffPaymentPage() {
                     {selectedSlip2 && selectedSlip2Url && (
                       <div className="min-w-0 rounded-xl border border-[#DAEBE4] bg-white p-2">
                         <p className="mb-2 text-xs font-bold text-[#17453F]">สลิปรูปที่ 2</p>
-                        <img src={selectedSlip2Url} alt="ตัวอย่างสลิปการชำระเงินรูปที่ 2 ที่ยังไม่ได้ส่ง" className="max-h-80 w-full rounded-lg object-contain" />
+                        <Image unoptimized src={selectedSlip2Url} alt="ตัวอย่างสลิปการชำระเงินรูปที่ 2 ที่ยังไม่ได้ส่ง" width={640} height={480} className="max-h-80 w-full rounded-lg object-contain" />
                       </div>
                     )}
                   </div>

@@ -4,6 +4,8 @@ import {
 
   useEffect,
 
+  useEffectEvent,
+
   useRef,
 
   useState,
@@ -498,7 +500,7 @@ export default function MiniAppHomePage() {
       }
 
       setStaffLoginStep("กำลังเปิดระบบ OMS...");
-      window.location.assign("/login");
+      window.location.assign(new URL("/login", window.location.origin).href);
     } catch (error) {
       clearTimeout(serverTimeout);
       console.error("[LINE Staff Login]", {
@@ -1028,10 +1030,12 @@ export default function MiniAppHomePage() {
 
     };
 
-  }, []);
+  }, [router]);
 
   // Staff/manager-only LINE accounts enter OMS automatically.
   // The guard avoids repeated login attempts after a timeout or failure.
+  const openCurrentStaffOms = useEffectEvent(() => { void openStaffOms(); });
+
   useEffect(() => {
     if (
       loading ||
@@ -1043,7 +1047,7 @@ export default function MiniAppHomePage() {
     ) return;
 
     autoStaffLoginAttempted.current = true;
-    void openStaffOms();
+    openCurrentStaffOms();
   }, [loading, access?.hasStaffAccess, access?.hasCustomerAccess, portal, lineIdToken]);
 
   // =====================================================
@@ -1092,7 +1096,7 @@ export default function MiniAppHomePage() {
                 const liff = liffModule.default;
                 window.sessionStorage.removeItem("lotus_b2b_desktop_line_reauth_once");
                 try { liff.logout(); } catch { /* LIFF may not be initialized */ }
-                window.location.assign("/miniapp");
+                window.location.assign(new URL("/miniapp", window.location.origin).href);
               }}
               className="mt-5 min-h-12 w-full rounded-xl bg-[#02B0AF] px-5 py-3 font-bold text-white"
             >

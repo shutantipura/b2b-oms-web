@@ -210,7 +210,7 @@ export default function PictureImportSection() {
         null;
 
       let selectedData:
-        any[][] | null =
+        unknown[][] | null =
         null;
 
       // Find a sheet containing both
@@ -228,7 +228,7 @@ export default function PictureImportSection() {
         const data =
           XLSX.utils
             .sheet_to_json<
-              any[]
+              unknown[]
             >(
               sheet,
               {
