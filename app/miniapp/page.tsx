@@ -1749,7 +1749,7 @@ export default function MiniAppHomePage() {
 
             </button>
 
-            {/* PAY NOW — visible only after delivery (or pickup billing) is complete. */}
+            {/* Payment/slip shortcut — visible only after delivery (or pickup billing) is complete. */}
             {payableOrders.map((payment) => (
               <button
                 key={payment.orderNumber}
@@ -1758,9 +1758,9 @@ export default function MiniAppHomePage() {
                 className="group flex min-h-[100px] w-full items-center justify-between gap-4 rounded-2xl border-2 border-[#E8AD07] bg-[#FDBC16] px-5 py-5 text-left text-[#173E31] shadow-[0_7px_20px_rgba(253,188,22,0.28)] transition hover:bg-[#FFCD3D] active:scale-[0.99]"
               >
                 <span className="min-w-0">
-                  <span className="block text-[26px] font-black leading-tight">Pay now</span>
+                  <span className="block text-[26px] font-black leading-tight">ชำระเงิน / อัปโหลดสลิป</span>
                   <span className="mt-1 block text-sm font-extrabold text-[#594600]">
-                    ชำระเงินตอนนี้ · คำสั่งซื้อ #{payment.orderNumber}
+                    ดู QR เพื่อชำระเงิน · คำสั่งซื้อ #{payment.orderNumber}
                   </span>
                   {payment.finalAmount !== null && (
                     <span className="mt-1 block text-sm font-bold tabular-nums text-[#5A4700]">

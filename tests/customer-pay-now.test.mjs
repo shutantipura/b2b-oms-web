@@ -50,7 +50,7 @@ test("customer home fetches only authorized pending-payment summaries", () => {
   const api = readFileSync(new URL("../app/api/line/orders/route.ts", import.meta.url), "utf8");
   assert.match(home, /summaryOnly:\s*true/);
   assert.match(home, /\/miniapp\/payment\?customer=/);
-  assert.match(home, /Pay now/);
+  assert.match(home, /ชำระเงิน \/ อัปโหลดสลิป/);
   assert.match(api, /summaryOnly\s*=\s*body\.summaryOnly\s*===\s*true/);
   assert.match(api, /\.eq\("status",\s*"awaiting_payment"\)/);
   assert.match(api, /getPaymentReadyOrders\(orders, rootsById\)/);
