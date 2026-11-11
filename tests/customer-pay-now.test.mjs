@@ -53,7 +53,10 @@ test("customer home fetches only authorized pending-payment summaries", () => {
   assert.match(home, /ชำระเงิน \/ อัปโหลดสลิป/);
   assert.match(home, /<PaymentSlipIcon \/>/);
   assert.match(home, /text-\[22px\] font-extrabold leading-tight">ชำระเงิน \/ อัปโหลดสลิป/);
-  assert.match(home, /text-\[34px\] font-black leading-tight tabular-nums/);
+  assert.match(home, /text-\[clamp\(22px,6\.5vw,30px\)\] font-black leading-tight tabular-nums/);
+  const paymentCard = home.split("{payableOrders.map((payment) => (")[1]?.split("{paymentCheckFailed && (")[0] ?? "";
+  assert.ok(paymentCard.indexOf("ยอดชำระ") < paymentCard.indexOf("<NavigationArrow prominent />"));
+  assert.doesNotMatch(paymentCard, /mt-3 rounded-xl bg-white\/35/);
   assert.match(api, /summaryOnly\s*=\s*body\.summaryOnly\s*===\s*true/);
   assert.match(api, /\.eq\("status",\s*"awaiting_payment"\)/);
   assert.match(api, /getPaymentReadyOrders\(orders, rootsById\)/);
