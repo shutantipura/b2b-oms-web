@@ -1767,22 +1767,22 @@ export default function MiniAppHomePage() {
                 onClick={() => router.push(`/miniapp/payment?customer=${encodeURIComponent(selectedCustomer.customerCode)}&order=${payment.orderNumber}`)}
                 className="group w-full rounded-2xl border-2 border-[#E8AD07] bg-[#FDBC16] p-5 text-left text-[#173E31] shadow-[0_7px_20px_rgba(253,188,22,0.28)] transition hover:bg-[#FFCD3D] active:scale-[0.99]"
               >
-                <div className="mb-3 flex items-center justify-between">
-                  <span aria-hidden="true" className="grid h-16 w-16 place-items-center rounded-2xl bg-[#FFF3CB] text-[#0C6662] shadow-[inset_0_0_0_1px_rgba(23,62,49,0.10)]"><PaymentSlipIcon /></span>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <span aria-hidden="true" className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-[#FFF3CB] text-[#0C6662] shadow-[inset_0_0_0_1px_rgba(23,62,49,0.10)]"><PaymentSlipIcon /></span>
+                  {payment.finalAmount !== null && (
+                    <div className="min-w-0 flex-1 text-right">
+                      <p className="text-xs font-bold text-[#594600]">ยอดชำระ</p>
+                      <p className="break-words text-[clamp(22px,6.5vw,30px)] font-black leading-tight tabular-nums tracking-tight text-[#173E31]">
+                        ฿{payment.finalAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  )}
                   <NavigationArrow prominent />
                 </div>
                 <p className="text-[22px] font-extrabold leading-tight">ชำระเงิน / อัปโหลดสลิป</p>
                 <p className="mt-1 text-sm font-semibold text-[#594600]">
                   ดู QR เพื่อชำระเงิน · คำสั่งซื้อ #{payment.orderNumber}
                 </p>
-                {payment.finalAmount !== null && (
-                  <div className="mt-3 rounded-xl bg-white/35 px-3 py-2">
-                    <p className="text-xs font-bold text-[#594600]">ยอดชำระ</p>
-                    <p className="text-[34px] font-black leading-tight tabular-nums text-[#173E31]">
-                      ฿{payment.finalAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                )}
               </button>
             ))}
 
