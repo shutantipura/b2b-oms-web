@@ -72,6 +72,7 @@ type CustomerLinkRow = {
 };
 
 type ProductRow = {
+  is_customer_out_of_stock: boolean;
   id: string;
   sku: string;
   product_name: string;
@@ -436,7 +437,8 @@ async function buildCart(
         sku,
         product_name,
         unit,
-        normal_price
+        normal_price,
+        is_customer_out_of_stock
       `)
       .eq(
         "is_active",
@@ -470,6 +472,14 @@ async function buildCart(
   ) {
     throw new Error(
       "One or more products in your cart are no longer available."
+    );
+  }
+
+  const unavailable = products.filter(product => product.is_customer_out_of_stock);
+  if (unavailable.length > 0) {
+    throw new Error(
+      "สินค้าหมดชั่วคราว กรุณากลับไปนำออกจากตะกร้า: " +
+      unavailable.slice(0, 5).map(product => product.product_name + " (SKU " + product.sku + ")").join(", ")
     );
   }
 
@@ -1200,6 +1210,7 @@ export async function POST(
   } catch (error) {
     const invalidLineIdentity =
       error instanceof Error && error.message === "LINE_ID_TOKEN_INVALID";
+    const unavailableProduct = error instanceof Error && error.message.startsWith("สินค้าหมดชั่วคราว");
     if (!invalidLineIdentity) console.error("LINE checkout API:", error);
     return NextResponse.json(
       {
@@ -1208,7 +1219,7 @@ export async function POST(
           : error instanceof Error ? error.message : "Unexpected server error.",
         ...(invalidLineIdentity ? { code: "LINE_ID_TOKEN_INVALID" } : {}),
       },
-      { status: invalidLineIdentity ? 401 : 500 }
+      { status: invalidLineIdentity ? 401 : unavailableProduct ? 409 : 500 }
     );
   }
 }

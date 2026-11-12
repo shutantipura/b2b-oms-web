@@ -61,6 +61,10 @@ export default function ManualMasterPriceEditor({
   const [normalDraft, setNormalDraft] = useState("");
   const [costDraft, setCostDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [outOfStock, setOutOfStock] = useState<boolean | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilitySaving, setAvailabilitySaving] = useState(false);
+  const selectedAvailabilityRef = useRef<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const searchRequest = useRef(0);
@@ -71,6 +75,8 @@ export default function ManualMasterPriceEditor({
   if (lastRefreshToken !== refreshToken) {
     setLastRefreshToken(refreshToken);
     setSelected(null);
+    selectedAvailabilityRef.current = null;
+    setOutOfStock(null);
     setNormalDraft("");
     setCostDraft("");
     setSuccessMessage("");
@@ -107,12 +113,24 @@ export default function ManualMasterPriceEditor({
   }, [query, disabled, refreshToken]);
 
   function chooseProduct(product: MasterPriceProduct) {
-    if (saving || disabled) return;
+    if (saving || availabilitySaving || disabled) return;
+    selectedAvailabilityRef.current = product.product_id;
     setSelected(product);
     setNormalDraft(String(Number(product.normal_price)));
     setCostDraft(product.cost === null ? "N/A" : String(Number(product.cost)));
+    setOutOfStock(null);
+    setAvailabilityLoading(true);
     setErrorMessage("");
     setSuccessMessage("");
+    void (async () => {
+      const { data, error } = await supabase.from("products")
+        .select("is_customer_out_of_stock")
+        .eq("id", product.product_id).single();
+      if (selectedAvailabilityRef.current !== product.product_id) return;
+      setAvailabilityLoading(false);
+      if (error || !data) setErrorMessage("ไม่สามารถตรวจสอบสถานะสินค้าได้ กรุณาเลือกสินค้าอีกครั้ง");
+      else setOutOfStock(Boolean(data.is_customer_out_of_stock));
+    })();
   }
 
   const oldPrice = selected ? Number(selected.normal_price) : null;
@@ -192,13 +210,47 @@ export default function ManualMasterPriceEditor({
     }
   }
 
+  async function toggleOutOfStock() {
+    if (!selected || outOfStock === null || disabled || saving || availabilityLoading || availabilitySaving) return;
+    const productId = selected.product_id;
+    const nextState = !outOfStock;
+    if (!window.confirm(
+      (nextState ? "ยืนยันทำเครื่องหมายสินค้าหมดชั่วคราว?" : "ยืนยันเปิดให้ลูกค้าสั่งสินค้านี้อีกครั้ง?") +
+      "\n" + selected.product_name + " (SKU " + selected.sku + ")" +
+      "\nมีผลเฉพาะคำสั่งซื้อใหม่ ไม่แก้ไขออเดอร์เดิม"
+    )) return;
+    setAvailabilitySaving(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+    try {
+      const { data, error } = await supabase.rpc("set_product_customer_out_of_stock", {
+        p_product_id: productId, p_out_of_stock: nextState,
+      });
+      if (error) throw error;
+      const result = data as { success?: boolean; is_out_of_stock?: boolean } | null;
+      if (!result?.success || typeof result.is_out_of_stock !== "boolean")
+        throw new Error("ระบบไม่ยืนยันการเปลี่ยนสถานะสินค้า");
+      if (selectedAvailabilityRef.current === productId) {
+        setOutOfStock(result.is_out_of_stock);
+        setSuccessMessage(result.is_out_of_stock
+          ? "✓ ปิดรับคำสั่งซื้อใหม่สำหรับ SKU " + selected.sku + " แล้ว"
+          : "✓ เปิดให้ลูกค้าสั่ง SKU " + selected.sku + " ได้อีกครั้งแล้ว");
+      }
+    } catch (error) {
+      if (selectedAvailabilityRef.current === productId)
+        setErrorMessage(error instanceof Error ? error.message : "เปลี่ยนสถานะสินค้าไม่สำเร็จ");
+    } finally {
+      setAvailabilitySaving(false);
+    }
+  }
+
   return (
     <div className="mb-6 rounded-2xl border border-[#BFDCD3] bg-[#F7FBF9] p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-bold text-[#17453F]">ปรับราคาปกติและต้นทุนราย SKU</h3>
+          <h3 className="text-lg font-bold text-[#17453F]">จัดการสถานะสินค้าหมดชั่วคราว / ราคาและต้นทุน</h3>
           <p className="mt-1 text-xs text-[#648278]">
-            ค้นหาสินค้า เลือกหนึ่งรายการ แล้วปรับราคาปกติหรือต้นทุนได้ทันที
+            ค้นหาสินค้าแล้วเลือกกำหนดสถานะขายหรือปรับราคาและต้นทุน
           </p>
         </div>
         <span className="rounded-full bg-[#DDEFE7] px-3 py-1 text-xs font-semibold text-[#28604E]">
@@ -269,6 +321,26 @@ export default function ManualMasterPriceEditor({
               (oldPrice !== null && oldCost !== null && oldPrice < oldCost ? "font-semibold text-red-700" : "text-[#6A857A]")}>
               {grossProfitLabel(oldPrice, oldCost)}
             </p>
+          </div>
+          <div className="mb-5 rounded-xl border border-[#BFDCD3] bg-[#F4FAF7] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-extrabold text-[#17453F]">สถานะขายใน Lotus’s B2B MINI App</p>
+                <p className="mt-1 text-xs text-[#6A857A]">เปลี่ยนได้ทุกเมื่อ · ไม่กระทบสต็อกหน้าร้านหรือคำสั่งซื้อเดิม</p>
+              </div>
+              <span className={outOfStock === null
+                ? "rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-600"
+                : outOfStock ? "rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700"
+                  : "rounded-full bg-[#DDF5E9] px-3 py-1 text-xs font-bold text-[#087E68]"}>
+                {availabilityLoading ? "กำลังตรวจสอบ..." : outOfStock === null ? "ไม่ทราบสถานะ" : outOfStock ? "สินค้าหมดชั่วคราว" : "พร้อมให้สั่งซื้อ"}
+              </span>
+            </div>
+            <button type="button"
+              disabled={disabled || saving || availabilityLoading || availabilitySaving || outOfStock === null}
+              onClick={() => void toggleOutOfStock()}
+              className={`mt-4 min-h-12 w-full rounded-xl px-4 py-3 text-sm font-extrabold disabled:cursor-not-allowed disabled:opacity-50 ${outOfStock ? "border border-[#A7DCD3] bg-[#E6F8F2] text-[#007E75]" : "bg-[#FFF0D6] text-[#986100]"}`}>
+              {availabilitySaving ? "กำลังบันทึก..." : outOfStock ? "✓ เปิดให้สั่งซื้ออีกครั้ง" : "สินค้าหมดชั่วคราว — ปิดรับออเดอร์"}
+            </button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-xs font-bold text-[#315C4F]">
