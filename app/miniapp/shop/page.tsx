@@ -46,6 +46,7 @@ type Customer = {
 
 
 type Product = {
+  isOutOfStock: boolean;
 
   id: string;
 
@@ -2486,6 +2487,7 @@ export default function MiniAppShopPage() {
 
     // Buttons add or remove one whole selling unit (including kg).
     // The number input still uses getQuantityStep, so customers can type 0.1 kg, 1.25 kg, etc.
+    if (product.isOutOfStock && direction > 0) return;
     const step = 1;
 
 
@@ -2824,6 +2826,8 @@ export default function MiniAppShopPage() {
 
 
 
+  const hasUnavailableCartItems = cartProducts.some(product => product.isOutOfStock);
+
   const cartItemCount =
 
     cartProducts.length;
@@ -3111,7 +3115,9 @@ export default function MiniAppShopPage() {
                       {product.imageUrl && !hideImage && (
                         <Image unoptimized fill src={product.imageUrl} alt={product.productName} className="absolute inset-0 h-full w-full bg-white object-contain p-3 transition duration-300 group-hover:scale-[1.03]" onError={(event) => { event.currentTarget.style.display = "none"; }} />
                       )}
-                      {(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) && <span className="absolute left-2 top-2 rounded-lg bg-[#FFF3CF] px-2 py-1 text-[10px] font-extrabold text-[#9D6500]">ราคาพิเศษ</span>}
+                      {product.isOutOfStock
+                          ? <span className="absolute left-2 top-2 rounded-lg bg-[#FFF0EA] px-2 py-1 text-[11px] font-extrabold text-[#B94730]">สินค้าหมดชั่วคราว</span>
+                          : (product.hasSpecialPrice && product.effectivePrice < product.normalPrice) && <span className="absolute left-2 top-2 rounded-lg bg-[#FFF3CF] px-2 py-1 text-[10px] font-extrabold text-[#9D6500]">ราคาพิเศษ</span>}
                       <button
                         type="button"
                         disabled={favouriteBusy}
@@ -3129,7 +3135,11 @@ export default function MiniAppShopPage() {
                       </div>
                       <div className="mt-auto pt-2.5">
                         <div className="flex min-w-0 items-center gap-1.5">
-                          {quantity > 0 ? (
+                          {product.isOutOfStock ? (
+                            <div role="status" className="flex h-10 min-w-0 flex-1 items-center justify-center rounded-xl border border-[#F5C8BE] bg-[#FFF1ED] px-2 text-xs font-extrabold text-[#AB4B36]">
+                              สินค้าหมดชั่วคราว
+                            </div>
+                          ) : quantity > 0 ? (
                             <div className="flex h-10 min-w-0 flex-1 items-center overflow-hidden rounded-xl border border-[#BCE9E5]">
                               <button type="button" onClick={() => changeQuantity(product, -1)} className="grid h-full w-8 shrink-0 place-items-center bg-[#EFF7F1] text-lg font-bold text-[#009F9D]" aria-label={`ลดจำนวน ${product.productName}`}>−</button>
                               <input
@@ -3146,7 +3156,7 @@ export default function MiniAppShopPage() {
                           ) : (
                             <button type="button" onClick={() => changeQuantity(product, 1)} aria-label={`เพิ่ม ${product.productName} ลงตะกร้า`} className="h-10 min-w-0 flex-1 rounded-xl bg-[#02B0AF] px-1.5 text-xs font-bold text-white transition hover:bg-[#008F8B]">เพิ่ม</button>
                           )}
-                          {weighted && (
+                          {weighted && !product.isOutOfStock && (
                             <button
                               type="button"
                               onClick={() => selectOrderUnit(product, !isPiece)}
@@ -3234,11 +3244,12 @@ export default function MiniAppShopPage() {
                         <p className="text-sm font-bold leading-5 text-[#274937]">{product.productName}</p>
                         <p className="mt-1 text-xs text-[#8E9D91]"><span className={(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) ? "font-bold text-[#DC2626]" : ""}>฿{formatPrice(product.effectivePrice)}</span> / {product.unit}</p>
                         <p className="mt-1 text-xs font-bold text-[#608073]">สั่ง {formatQuantity(product.quantity)} {pieceProductIds.includes(product.id) ? "ชิ้น" : product.unit}</p>
+                        {product.isOutOfStock && <p role="status" className="mt-1 text-xs font-bold text-[#B94730]">สินค้าหมดชั่วคราว · กรุณานำออกจากตะกร้า</p>}
                         {pieceProductIds.includes(product.id) && <p className="mt-1 text-[11px] text-[#92671B]">คิดราคาเมื่อชั่งน้ำหนักจริง</p>}
                         <div className="mt-3 inline-flex h-9 items-center overflow-hidden rounded-lg border border-[#D3E7D9]">
                           <button type="button" onClick={() => changeQuantity(product, -1)} aria-label={`ลดจำนวน ${product.productName}`} className="h-full w-9 bg-[#EEF7EF] text-lg font-bold text-[#0D8466]">−</button>
                           <span className="min-w-14 px-2 text-center text-xs font-extrabold">{formatQuantity(product.quantity)}</span>
-                          <button type="button" onClick={() => changeQuantity(product, 1)} aria-label={`เพิ่มจำนวน ${product.productName}`} className="h-full w-9 bg-[#00886B] text-lg font-bold text-white">+</button>
+                          <button type="button" onClick={() => changeQuantity(product, 1)} aria-label={`เพิ่มจำนวน ${product.productName}`} disabled={product.isOutOfStock} className="h-full w-9 bg-[#00886B] disabled:opacity-40 text-lg font-bold text-white">+</button>
                         </div>
                       </div>
                       <p className={`shrink-0 text-sm font-extrabold ${(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) ? "text-[#DC2626]" : "text-[#009F9D]"}`}>{pieceProductIds.includes(product.id) ? "รอชั่งจริง" : "฿" + formatPrice(product.quantity * product.effectivePrice)}</p>
@@ -3257,10 +3268,10 @@ export default function MiniAppShopPage() {
               </div>
               <button
                 type="button"
-                disabled={cartProducts.length === 0}
+                disabled={cartProducts.length === 0 || hasUnavailableCartItems}
                 onClick={() => router.push(`/miniapp/checkout?customer=${encodeURIComponent(customer.customerCode)}`)}
                 className="min-h-13 w-full rounded-xl bg-[#02B0AF] px-5 py-3.5 text-sm font-extrabold text-white disabled:opacity-40"
-              >ดำเนินการสั่งซื้อ <span className="ml-1">→</span></button>
+              >{hasUnavailableCartItems ? "กรุณานำสินค้าหมดชั่วคราวออกก่อน" : "ดำเนินการสั่งซื้อ"} <span className="ml-1">→</span></button>
               <div className="mt-3 flex justify-center gap-4">
                 <button type="button" onClick={() => setShowCart(false)} className="px-3 py-2 text-xs font-bold text-[#58806A]">เลือกซื้อสินค้าต่อ</button>
                 {cartProducts.length > 0 && <button type="button" onClick={() => { if (window.confirm("ต้องการล้างสินค้าทั้งหมดในตะกร้าหรือไม่?")) { saveCart({}); setPieceProductIds([]); localStorage.removeItem(`b2b-cart-pieces-${customer.customerCode}`); setQuantityInputs({}); setShowCart(false); } }} className="px-3 py-2 text-xs font-semibold text-[#B65B53]">ล้างตะกร้า</button>}
