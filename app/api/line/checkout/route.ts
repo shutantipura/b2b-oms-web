@@ -11,6 +11,7 @@ import {
   getDeliveryOptions,
   validateDeliverySelection,
 } from "../../../../lib/deliveryRules";
+import { chooseAutomaticMerge } from "../../../../lib/automaticOrderMerge";
 
 // =====================================================
 // TYPES
@@ -1018,10 +1019,24 @@ export async function POST(
     // the delivery rules.
     // -------------------------------------------------
 
+    // Always join the oldest eligible group for the selected delivery date.
+    // This check runs again on submission, independently of the customer's UI.
+    const availableSlots = getDeliveryOptions()
+      .find(option => option.date === deliveryDate)?.slots.map(slot => slot.value) ?? [];
+    const automaticMerge = fulfillmentMethod === "delivery"
+      ? chooseAutomaticMerge(
+          await findMergeCandidates(supabase, customer.id, deliveryDate, deliveryAddress),
+          deliveryDate,
+          deliveryAddress,
+          availableSlots,
+        )
+      : null;
+    const effectiveDeliverySlot = automaticMerge?.deliverySlot ?? deliverySlot;
+
     const validation =
       validateDeliverySelection(
         deliveryDate,
-        deliverySlot
+        effectiveDeliverySlot
       );
 
     if (
@@ -1070,15 +1085,22 @@ export async function POST(
 
     // Grouping creates a new independent suborder; the original is not modified.
     // LINE authorization above is compulsory for both code paths.
-    const mergeIntoOrderNumber = Number(body.mergeIntoOrderNumber);
-    const merging = Number.isSafeInteger(mergeIntoOrderNumber) && mergeIntoOrderNumber > 0;
-    const requestId = typeof body.requestId === "string" ? body.requestId : "";
-
-    if (merging && fulfillmentMethod === "pickup") {
-      return NextResponse.json({ error: "Store pickup orders cannot be merged with delivery orders." }, { status: 400 });
+    // Do not trust a merge choice sent by the browser. Old or manually
+    // modified clients cannot force a separate order on a merge-eligible date.
+    const requestedMergeNumber = Number(body.mergeIntoOrderNumber);
+    if (Number.isSafeInteger(requestedMergeNumber) && requestedMergeNumber > 0 &&
+        (fulfillmentMethod === "pickup" || requestedMergeNumber !== automaticMerge?.orderNumber)) {
+      return NextResponse.json({
+        error: "คำสั่งซื้อเดิมไม่สามารถรวมได้แล้ว กรุณาตรวจสอบวันที่และลองอีกครั้ง",
+      }, { status: 409 });
     }
+
+    const mergeIntoOrderNumber = automaticMerge?.orderNumber ?? null;
+    const merging = mergeIntoOrderNumber !== null;
+    const suppliedRequestId = typeof body.requestId === "string" ? body.requestId : "";
+    const requestId = suppliedRequestId || crypto.randomUUID();
     if (merging && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)) {
-      return NextResponse.json({ error: "Missing merge request reference. Please try again." }, { status: 400 });
+      return NextResponse.json({ error: "Invalid merge request reference. Please try again." }, { status: 400 });
     }
 
     const { data: orderData, error: orderError } = merging
@@ -1086,7 +1108,7 @@ export async function POST(
           p_customer_id: customer.id,
           p_primary_order_number: mergeIntoOrderNumber,
           p_delivery_date: deliveryDate,
-          p_delivery_slot: deliverySlot,
+          p_delivery_slot: effectiveDeliverySlot,
           p_customer_notes: notes,
           p_delivery_address: deliveryAddress,
           p_items: orderItems,
@@ -1097,14 +1119,14 @@ export async function POST(
         ? await supabase.rpc("create_customer_pickup_order", {
             p_customer_code: customer.customer_code,
             p_delivery_date: deliveryDate,
-            p_delivery_slot: deliverySlot,
+            p_delivery_slot: effectiveDeliverySlot,
             p_customer_notes: notes,
             p_items: orderItems,
           })
         : await supabase.rpc("create_customer_order", {
             p_customer_code: customer.customer_code,
             p_delivery_date: deliveryDate,
-            p_delivery_slot: deliverySlot,
+            p_delivery_slot: effectiveDeliverySlot,
             p_delivery_address: deliveryAddress,
             p_customer_notes: notes,
             p_items: orderItems,
