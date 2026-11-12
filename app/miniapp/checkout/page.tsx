@@ -369,7 +369,7 @@ export default function MiniAppCheckoutPage() {
     const confirmation = fulfillmentMethod === "pickup"
       ? `ยืนยันรับสินค้าที่สาขา ${prettyDate(deliveryDate)} เวลา ${deliverySlot} ยอดประมาณการ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} หรือไม่?\nหลังจากออกบิลแล้ว คำสั่งซื้อจะเข้าสู่ขั้นตอนชำระเงินโดยไม่ผ่านงานจัดส่ง`
       : chosenMerge
-        ? `สร้างคำสั่งซื้อใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} เพื่อจัดส่งร่วมกับกลุ่ม #${chosenMerge.orderNumber} ใช่หรือไม่?\nสินค้าใหม่จะผ่านการเช็คสต็อกและจัดสินค้าแยกต่างหาก แล้วออกบิลและจัดส่งรวมครั้งเดียว`
+        ? `สร้างคำสั่งซื้อใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} เพื่อจัดส่งร่วมกับกลุ่ม #${chosenMerge.orderNumber} รอบ ${selectedDeliverySlot} ใช่หรือไม่?\nสินค้าใหม่จะผ่านการเช็คสต็อกและจัดสินค้าแยกต่างหาก แล้วออกบิลและจัดส่งรวมครั้งเดียว`
         : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} หรือไม่?`;
     if (!window.confirm(confirmation)) return;
     if (chosenMerge && !mergeRequestIdRef.current) mergeRequestIdRef.current = crypto.randomUUID();
@@ -396,6 +396,10 @@ export default function MiniAppCheckoutPage() {
       });
       const data = (await response.json()) as CheckoutResponse;
       if (!response.ok) {
+        if (response.status === 409) {
+          mergeRequestIdRef.current = null;
+          setMergeRefreshTick(tick => tick + 1);
+        }
         if (data.deliveryOptions) {
           const freshOptions = data.deliveryOptions;
           setDeliveryOptions(freshOptions);
@@ -668,7 +672,7 @@ export default function MiniAppCheckoutPage() {
           <button
             type="button"
             onClick={() => void submitOrder()}
-            disabled={submitting || loadingMergeOptions || !deliveryDate || !deliverySlot || items.length === 0}
+            disabled={submitting || loadingMergeOptions || !deliveryDate || !selectedDeliverySlot || items.length === 0}
             className="miniapp-bottom-cta flex min-h-16 w-full items-center justify-between gap-2 rounded-2xl bg-[#02B0AF] px-3 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 disabled:cursor-not-allowed disabled:opacity-40 sm:gap-3 sm:px-5"
           >
             <span>
