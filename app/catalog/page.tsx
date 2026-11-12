@@ -4077,7 +4077,7 @@ export default function CatalogPage() {
                 จัดการข้อมูลสินค้า
               </h1>
               <p className="mt-1.5 text-sm leading-6 text-[#647782]">
-                ราคาและต้นทุน · สินค้าที่แสดง · รูปสินค้า · ราคาพิเศษ
+                สินค้าหมดชั่วคราว · ราคาและต้นทุน · สินค้าที่แสดง · รูปสินค้า · ราคาพิเศษ
               </p>
             </div>
             <div className="hidden shrink-0 items-center gap-2 rounded-full bg-[#EAF9F8] px-3 py-2 text-xs font-bold text-[#007F80] sm:flex">
@@ -4118,7 +4118,7 @@ export default function CatalogPage() {
         </section>
 
         <nav aria-label="ไปยังหมวดจัดการข้อมูล" className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <a href="#catalog-master" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#007F80]">01</span> ราคาและต้นทุน</a>
+          <a href="#catalog-master" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#007F80]">01</span> สินค้าหมด / ราคา</a>
           <a href="#catalog-visible" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#007F80]">02</span> สินค้าที่แสดง</a>
           <a href="#catalog-pictures" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#007F80]">03</span> รูปสินค้า</a>
           <a href="#catalog-special" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#D8E7E7] bg-white px-3 py-2.5 text-sm font-bold text-[#294D53] shadow-sm transition hover:border-[#00A6A6] hover:bg-[#F1FBFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00A6A6]"><span className="text-xs font-extrabold text-[#007F80]">04</span> ราคาพิเศษ</a>
@@ -4168,7 +4168,7 @@ export default function CatalogPage() {
 
                 <p className="text-sm text-gray-500 mt-1">
 
-                  จัดการชื่อสินค้า หน่วย ราคาปกติ และต้นทุนราย SKU ทั้งแบบ Excel และรายสินค้า
+                  จัดการสินค้าหมดชั่วคราว (Out of Stock) ราคา และต้นทุนราย SKU
 
                 </p>
 
@@ -4187,6 +4187,19 @@ export default function CatalogPage() {
 
 
           <div className="p-4 sm:p-5">
+            {/* Always-visible manual SKU controls, including Out of Stock. */}
+            <div id="catalog-master-availability" className="scroll-mt-24">
+              <ManualMasterPriceEditor
+                disabled={readingMaster || importingMaster || resettingProducts}
+                refreshToken={masterAdjustRevision}
+              />
+            </div>
+            <div className="mb-4 border-t border-[#DEEBE8] pt-5">
+              <h3 className="text-base font-extrabold text-[#007F80]">จัดการ Product Master ผ่าน Excel</h3>
+              <p className="mt-1 text-xs leading-5 text-[#69818A]">
+                ดาวน์โหลดข้อมูลล่าสุด แก้ไขไฟล์ แล้วอัปโหลดเพื่อปรับปรุงสินค้าหลายรายการ
+              </p>
+            </div>
 
 
 
@@ -5101,18 +5114,6 @@ export default function CatalogPage() {
           </div>
 
 
-
-            <details className="mt-6 rounded-xl border border-[#D8E7E7] bg-[#F4FBFB]">
-              <summary className="cursor-pointer px-4 py-4 text-sm font-bold text-[#007F80]">
-                ต้องการแก้ไขเพียงสินค้าเดียว? เปิดตัวแก้ไขราคาและต้นทุนราย SKU
-              </summary>
-              <div className="px-4 pb-4">
-            <ManualMasterPriceEditor
-              disabled={readingMaster || importingMaster || resettingProducts}
-              refreshToken={masterAdjustRevision}
-            />
-              </div>
-            </details>
 
             <details className="mt-6 rounded-xl border border-amber-200 bg-amber-50/50">
               <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-amber-800">
