@@ -2869,56 +2869,91 @@ export default function MiniAppShopPage() {
 
 
 
+  // Differentiate an expired LINE session from an ordinary loading error.
+  // Re-entering via the official LIFF URL starts the normal LINE launch flow.
+  const lineSessionExpired = message.includes("เซสชัน LINE หมดอายุ");
+  const configuredLiffId = process.env.NEXT_PUBLIC_LINE_LIFF_ID;
+  const lineMiniAppUrl = lineSessionExpired && configuredLiffId
+    ? `https://liff.line.me/${encodeURIComponent(configuredLiffId)}`
+    : null;
+
   if (!customer) {
-
     return (
+      <main className="min-h-screen bg-[#F2F8F6] text-[#173E31]">
+        <header className="border-b border-[#DEECE6] bg-white/95">
+          <div className="mx-auto grid max-w-lg grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-3">
+            <button
+              type="button"
+              onClick={goCustomerHome}
+              className="inline-flex min-h-11 items-center gap-1 justify-self-start rounded-xl px-2 text-sm font-bold text-[#477367] hover:bg-[#EDF8F4]"
+              aria-label="กลับหน้าหลัก"
+            >
+              <span aria-hidden="true" className="text-2xl leading-none">‹</span>
+              หน้าแรก
+            </button>
+            <LotusBrand size="sm" align="center" />
+            <span aria-hidden="true" />
+          </div>
+        </header>
 
-      <main className="min-h-screen bg-gray-50 p-5">
-
-        <div className="max-w-md mx-auto">
-
-          <button
-
-            type="button"
-
-            onClick={
-
-              goCustomerHome
-
-            }
-
-            className="text-gray-500"
-
-          >
-
-            ← กลับหน้าหลัก
-
-          </button>
-
-
-
-          <div className="bg-white border rounded-2xl p-6 mt-5">
-
-            <h1 className="text-xl font-bold">
-
-              ไม่สามารถโหลดสินค้าได้
-
-            </h1>
-
-            <p className="text-red-600 mt-3">
-
-              {message}
-
+        <div className="mx-auto max-w-lg px-4 pb-16 pt-10 sm:px-6 sm:pt-14">
+          <section className="rounded-[26px] border border-[#CFE7DF] bg-white px-6 py-8 shadow-[0_12px_32px_rgba(13,87,76,0.08)] sm:px-8">
+            <div className="mx-auto grid h-[68px] w-[68px] place-items-center rounded-[22px] bg-[#FFF1BF] text-[#087E79]">
+              <svg aria-hidden="true" width="33" height="33" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3a9 9 0 1 0 9 9" />
+                <path d="M12 7v5l3 2" />
+                <path d="M16 3h5v5" />
+                <path d="m21 3-4 4" />
+              </svg>
+            </div>
+            <p className="mt-5 text-center text-xs font-extrabold tracking-wide text-[#008F8D]">LOTUS’S B2B MINI APP</p>
+            <h1 className="mt-2 text-center text-[23px] font-black leading-9">โหลดสินค้าไม่สำเร็จ</h1>
+            <p className="mt-3 text-center text-sm font-semibold leading-7 text-[#4D7468]">
+              {lineSessionExpired
+                ? "เซสชัน LINE ของคุณหมดอายุ กรุณาเปิด Lotus’s B2B MINI App ผ่าน LINE อีกครั้ง"
+                : message || "ไม่สามารถโหลดข้อมูลสินค้าได้ กรุณาลองใหม่อีกครั้ง"}
             </p>
 
-          </div>
+            <div className="mt-7 space-y-3">
+              {lineMiniAppUrl ? (
+                <a
+                  href={lineMiniAppUrl}
+                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFBE16] px-5 py-4 text-base font-extrabold text-[#174739] shadow-[0_5px_14px_rgba(173,123,0,0.12)] transition active:scale-[0.99]"
+                >
+                  <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3a9 9 0 1 0 9 9" />
+                    <path d="M16 3h5v5" />
+                    <path d="m21 3-4 4" />
+                  </svg>
+                  เปิดผ่าน LINE อีกครั้ง
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#FFBE16] px-5 py-4 text-base font-extrabold text-[#174739] shadow-[0_5px_14px_rgba(173,123,0,0.12)]"
+                >
+                  ลองโหลดอีกครั้ง
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={goCustomerHome}
+                className="flex min-h-12 w-full items-center justify-center rounded-2xl border-2 border-[#B7DFD7] bg-[#F5FBF9] px-5 py-3 text-sm font-extrabold text-[#008F8D]"
+              >
+                กลับหน้าหลัก
+              </button>
+            </div>
+          </section>
 
+          {lineSessionExpired && (
+            <p className="mx-auto mt-5 max-w-sm px-3 text-center text-xs leading-6 text-[#819A90]">
+              หาก LINE เปิดหน้าเดิมที่ยังใช้งานไม่ได้ กรุณาปิดหน้าต่างนี้ แล้วเข้าใหม่จาก LINE Official Account
+            </p>
+          )}
         </div>
-
       </main>
-
     );
-
   }
 
 
