@@ -59,6 +59,7 @@ type LineVerifyResponse = {
 
 
 type CatalogueProduct = {
+  isOutOfStock: boolean;
 
 
 
@@ -3027,6 +3028,24 @@ export async function POST(
 
 
 
+    // Manager availability applies consistently to search, favourites, and cart.
+    const outOfStockIds = new Set<string>();
+    if (allProductIds.length > 0) {
+      const { data: availabilityRows, error: availabilityError } =
+        await supabaseAdmin.from("products")
+          .select("id, is_customer_out_of_stock")
+          .in("id", allProductIds);
+      if (availabilityError) {
+        return NextResponse.json(
+          { error: "Could not load product availability: " + availabilityError.message },
+          { status: 500 }
+        );
+      }
+      for (const row of availabilityRows ?? []) {
+        if (row.is_customer_out_of_stock) outOfStockIds.add(row.id);
+      }
+    }
+
     const priceMap =
 
 
@@ -3136,6 +3155,7 @@ export async function POST(
 
 
       return {
+        isOutOfStock: outOfStockIds.has(product.id),
 
 
 
