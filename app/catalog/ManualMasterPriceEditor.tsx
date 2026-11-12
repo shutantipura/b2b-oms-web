@@ -248,9 +248,9 @@ export default function ManualMasterPriceEditor({
     <div className="mb-6 rounded-2xl border border-[#BFDCD3] bg-[#F7FBF9] p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-bold text-[#17453F]">จัดการสถานะสินค้าหมดชั่วคราว / ราคาและต้นทุน</h3>
+          <h3 className="text-lg font-extrabold text-[#17453F]">สินค้าหมดชั่วคราว (Out of Stock)</h3>
           <p className="mt-1 text-xs text-[#648278]">
-            ค้นหาสินค้าแล้วเลือกกำหนดสถานะขายหรือปรับราคาและต้นทุน
+            ค้นหาด้วย SKU หรือชื่อสินค้า เพื่อปิด/เปิดการสั่งซื้อชั่วคราว และปรับราคา/ต้นทุนราย SKU ได้ในที่เดียว
           </p>
         </div>
         <span className="rounded-full bg-[#DDEFE7] px-3 py-1 text-xs font-semibold text-[#28604E]">
