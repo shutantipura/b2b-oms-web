@@ -216,8 +216,8 @@ export default function ManualMasterPriceEditor({
     const nextState = !outOfStock;
     if (!window.confirm(
       (nextState ? "ยืนยันทำเครื่องหมายสินค้าหมดชั่วคราว?" : "ยืนยันเปิดให้ลูกค้าสั่งสินค้านี้อีกครั้ง?") +
-      "\\n" + selected.product_name + " (SKU " + selected.sku + ")" +
-      "\\nมีผลเฉพาะคำสั่งซื้อใหม่ ไม่แก้ไขออเดอร์เดิม"
+      "\n" + selected.product_name + " (SKU " + selected.sku + ")" +
+      "\nมีผลเฉพาะคำสั่งซื้อใหม่ ไม่แก้ไขออเดอร์เดิม"
     )) return;
     setAvailabilitySaving(true);
     setErrorMessage("");
