@@ -3244,7 +3244,16 @@ export default function MiniAppShopPage() {
                         <p className="text-sm font-bold leading-5 text-[#274937]">{product.productName}</p>
                         <p className="mt-1 text-xs text-[#8E9D91]"><span className={(product.hasSpecialPrice && product.effectivePrice < product.normalPrice) ? "font-bold text-[#DC2626]" : ""}>฿{formatPrice(product.effectivePrice)}</span> / {product.unit}</p>
                         <p className="mt-1 text-xs font-bold text-[#608073]">สั่ง {formatQuantity(product.quantity)} {pieceProductIds.includes(product.id) ? "ชิ้น" : product.unit}</p>
-                        {product.isOutOfStock && <p role="status" className="mt-1 text-xs font-bold text-[#B94730]">สินค้าหมดชั่วคราว · กรุณานำออกจากตะกร้า</p>}
+                        {product.isOutOfStock && <div className="mt-1">
+                          <p role="status" className="text-xs font-bold text-[#B94730]">สินค้าหมดชั่วคราว · ไม่สามารถสั่งซื้อได้</p>
+                          <button type="button" onClick={() => {
+                            const nextCart = { ...cart };
+                            delete nextCart[product.id];
+                            saveCart(nextCart);
+                          }} className="mt-2 rounded-lg border border-[#F3BDB2] bg-[#FFF4F0] px-3 py-2 text-xs font-extrabold text-[#A44636]">
+                            นำออกจากตะกร้า
+                          </button>
+                        </div>}
                         {pieceProductIds.includes(product.id) && <p className="mt-1 text-[11px] text-[#92671B]">คิดราคาเมื่อชั่งน้ำหนักจริง</p>}
                         <div className="mt-3 inline-flex h-9 items-center overflow-hidden rounded-lg border border-[#D3E7D9]">
                           <button type="button" onClick={() => changeQuantity(product, -1)} aria-label={`ลดจำนวน ${product.productName}`} className="h-full w-9 bg-[#EEF7EF] text-lg font-bold text-[#0D8466]">−</button>
