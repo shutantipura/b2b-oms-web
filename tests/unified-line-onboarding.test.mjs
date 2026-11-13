@@ -74,6 +74,13 @@ test("all four named mixed accounts stay Managers with all task stages",()=>{
  const block=sql.slice(sql.indexOf("DO $keep_four_managers$"),sql.indexOf("END $keep_four_managers$"));
  assert.doesNotMatch(block,/account_type='staff'/);
 });
+test("dedicated Android terminals and legacy non-LINE staff remain authorized",()=>{
+ assert.match(sql,/CREATE OR REPLACE FUNCTION public\.current_staff_id/);
+ assert.match(sql,/s\.account_type='staff' AND NOT EXISTS/);
+ assert.match(sql,/SELECT 1 FROM public\.staff_line_users previous_link/);
+ assert.match(sql,/slu\.is_authorized AND lu\.is_active/);
+ assert.match(sql,/lu\.assigned_role=s\.account_type/);
+});
 test("legacy shared staff accounts are split without deleting past task history",()=>{
  assert.match(sql,/One staff identity per authorized LINE account/);
  assert.match(sql,/new_staff,stage FROM public.staff_task_permissions/);
