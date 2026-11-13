@@ -52,6 +52,6 @@ test("customer Excel includes cancelled requests and not supplier quantities", (
   assert.match(scoped, /รวมออเดอร์ยกเลิก\/ขายได้ไม่ครบ/);
   assert.match(scoped, /ไม่รวมลูกค้าทดสอบ/);
   assert.match(scoped, /พรุ่งนี้ขอสั่งแล้ว/);
-  assert.match(scoped, /row\.yesterdayRequestedQty, row\.todayRequestedQty/);
+  assert.match(scoped, /row\.twoDaysAgoRequestedQty, row\.yesterdayRequestedQty, row\.todayRequestedQty/);
   assert.doesNotMatch(scoped, /recommendedOrderKg|sharedPurchaseDrafts/);
 });
