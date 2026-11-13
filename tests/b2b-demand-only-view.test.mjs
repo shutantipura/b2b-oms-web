@@ -62,7 +62,8 @@ test("SKU forecast retains all customer contributions and keeps units separate",
     yesterdayRequestedQty: 0, todayRequestedQty: 0,
     days: dates.map((date, i) => ({
       date, knownQty: i === 1 ? known : 0, projectedQty: i === 1 ? projected : 0,
-      totalQty: i === 1 ? known + projected : 0,\n      projectedProbability: i === 1 ? 1 : 0, possibleQty: i === 1 ? projected : 0,
+      totalQty: i === 1 ? known + projected : 0,
+      projectedProbability: i === 1 ? 1 : 0, possibleQty: i === 1 ? projected : 0,
     })),
   });
   const [product] = aggregateForecastByProduct([
