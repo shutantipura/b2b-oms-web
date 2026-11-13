@@ -119,15 +119,15 @@ DECLARE
  line_record public.line_users%ROWTYPE;
  mgr_id uuid; target_staff_id uuid; previous_staff_id uuid; previous_role text;
  stage text; stage_count integer; customer_count integer;
- new_code text; n integer; display_name text;
+ new_code text; n integer; v_internal_name text;
 BEGIN
  IF NOT public.is_current_manager() THEN RAISE EXCEPTION 'Manager account required'; END IF;
  SELECT id INTO mgr_id FROM public.staff WHERE auth_user_id=(SELECT auth.uid())
   AND account_type='manager' AND is_active LIMIT 1;
  IF p_role IS NOT NULL AND p_role NOT IN ('manager','staff','salesman','customer') THEN
   RAISE EXCEPTION 'Invalid LINE role'; END IF;
- display_name := nullif(btrim(coalesce(p_name,'')),'');
- IF display_name IS NULL OR length(display_name)>120 THEN
+ v_internal_name := nullif(btrim(coalesce(p_name,'')),'');
+ IF v_internal_name IS NULL OR length(v_internal_name)>120 THEN
   RAISE EXCEPTION 'Internal name must have 1 to 120 characters'; END IF;
  IF coalesce(array_length(p_stages,1),0)>5 OR
     EXISTS(SELECT 1 FROM unnest(coalesce(p_stages,'{}'::text[])) x
@@ -177,14 +177,14 @@ BEGIN
        INTO n FROM public.staff WHERE staff_code ~ '^S[0-9]+$';
      new_code := 'S'||lpad(n::text,3,'0');
      INSERT INTO public.staff(staff_code,staff_name,account_type,is_active)
-       VALUES(new_code,display_name,p_role,true) RETURNING id INTO target_staff_id;
+       VALUES(new_code,v_internal_name,p_role,true) RETURNING id INTO target_staff_id;
    ELSE
-     UPDATE public.staff SET staff_name=display_name,account_type=p_role,
+     UPDATE public.staff SET staff_name=v_internal_name,account_type=p_role,
        is_active=true,updated_at=now() WHERE id=target_staff_id;
    END IF;
    INSERT INTO public.staff_line_users(staff_id,line_user_id,display_name,is_authorized,
     authorized_at,authorized_by,deauthorized_at,deauthorized_by)
-   VALUES(target_staff_id,line_record.line_user_id,display_name,true,now(),mgr_id,null,null)
+   VALUES(target_staff_id,line_record.line_user_id,v_internal_name,true,now(),mgr_id,null,null)
    ON CONFLICT(line_user_id) DO UPDATE SET staff_id=excluded.staff_id,
      display_name=excluded.display_name,is_authorized=true,
      authorized_at=now(),authorized_by=mgr_id,
@@ -212,7 +212,7 @@ BEGIN
    END IF;
  END IF;
 
- UPDATE public.line_users SET internal_name=display_name,assigned_role=p_role,
+ UPDATE public.line_users SET internal_name=v_internal_name,assigned_role=p_role,
   all_customers_access=false,updated_at=now()
  WHERE id=p_line_user_row_id;
 
