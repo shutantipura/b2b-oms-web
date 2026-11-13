@@ -379,22 +379,16 @@ export async function POST(request: NextRequest) {
     const existing = await officialSnapshot(admin, today);
     if (existing) return NextResponse.json({ snapshotDate: today, capturedAt: existing.captured_at, alreadyRecorded: true });
     const inputs = await loadForecast(admin);
-    const stockPlanningHorizon = extendForecastForExpiry(inputs.noonForecast, inputs.noonPlanningHorizon);
-    const skuList = [...new Set(stockPlanningHorizon.rows
-      .filter((row) => row.freshMeat && row.unit === "กก.").map((row) => row.sku))];
-    const [economics, sharedStockInputs] = await Promise.all([
-      masterEconomicsBySku(admin, skuList), loadSharedStockInputs(admin, skuList, today, inputs.noonForecast.dates),
-    ]);
-    const stockOrderPlan = optimizeFreshMeatOrders(stockPlanningHorizon, economics);
-    const sharedPurchaseDrafts = buildPurchasingDrafts(inputs.noonForecast, sharedStockInputs);
+    // B2B-only mode: retain demand snapshots, but stop creating incomplete
+    // supplier purchasing recommendations until shared inventory data is ready.
     const { error } = await admin.from("b2b_demand_forecast_snapshots").insert({
       snapshot_date: today,
       target_delivery_date: inputs.noonForecast.dates[1],
       cutoff_at: cutoffAt.toISOString(),
       captured_at: now.toISOString(),
       is_late: now.getTime() - cutoffAt.getTime() > 120_000,
-      model_version: "shared-stock-2doh-10am-v3",
-      forecast: { ...inputs.noonForecast, stockPlanningHorizon, stockOrderPlan, sharedStockInputs, sharedPurchaseDrafts },
+      model_version: "b2b-demand-only-10am-v1",
+      forecast: inputs.noonForecast,
     });
     // A simultaneous retry must never replace the snapshot that won the race.
     if (error?.code === "23505") return NextResponse.json({ snapshotDate: today, alreadyRecorded: true });
@@ -576,6 +570,13 @@ export async function GET(request: NextRequest) {
         { headers: { "Cache-Control": "private, no-store, max-age=0" } }
       );
     }
+    // B2B demand only: no B2C history, stock counts, cost inputs or buying plan.
+    if (format === "b2b-demand") {
+      return NextResponse.json(inputs.forecast, {
+        headers: { "Cache-Control": "private, no-store, max-age=0" },
+      });
+    }
+    if (format === "b2b-demand-xlsx") return b2bDemandExcelResponse(inputs.forecast);
     const today = bangkokDateKey(inputs.now);
     const snapshot = await officialSnapshot(admin, today);
     const savedForecast = snapshot?.forecast ?? inputs.noonForecast;
