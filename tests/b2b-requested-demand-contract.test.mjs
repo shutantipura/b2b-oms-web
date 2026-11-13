@@ -18,6 +18,15 @@ test("forecast API fetches requested quantities from all orders without sales-st
   assert.match(route, /isTest: customer\.is_test_customer === true/);
 });
 
+test("grouped B2B order source identifies first child so the original parent is not counted twice", () => {
+  assert.match(route, /group_root_order_id, group_sequence, status/);
+  assert.match(route, /groupSequence: order\.group_sequence/);
+  assert.match(model, /groupSequence\?: number \| null/);
+  assert.match(model, /const representedParents = new Set\(orders/);
+  assert.match(model, /o\.groupRootOrderId && o\.groupSequence === 1/);
+  assert.match(model, /!representedParents\.has\(o\.id\)/);
+});
+
 test("forecast model treats all statuses as demand but excludes the Test restaurant", () => {
   const start = model.indexOf("export function buildStockForecast(");
   const run = model.slice(start);
