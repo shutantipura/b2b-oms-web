@@ -107,6 +107,10 @@ BEGIN
          (v_text IS NULL OR v_text='') THEN RAISE EXCEPTION 'Delivery location name required'; END IF;
       IF v_field IN ('delivery_map_url','delivery_map_url_2') AND v_text <> '' AND
          v_text !~ '^https?://' THEN RAISE EXCEPTION 'Invalid delivery URL'; END IF;
+      -- The audit must record the actual stored value, including trimming and
+      -- empty text -> NULL normalization, otherwise a review can never match.
+      v_val := CASE WHEN v_text IS NULL OR v_text='' THEN 'null'::jsonb
+                    ELSE to_jsonb(v_text) END;
     END IF;
     v_old := to_jsonb(v_customer) -> v_field;
     IF v_old IS NOT DISTINCT FROM v_val THEN CONTINUE; END IF;
