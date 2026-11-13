@@ -1,3 +1,4 @@
+import { loadAuthorizedLineCustomerLinks } from "@/lib/server/lineCustomerAccess";
 import {
   NextRequest,
   NextResponse,
@@ -158,32 +159,8 @@ async function getAuthorizedContext(
     );
   }
 
-  const {
-    data: linkData,
-    error: linkError,
-  } =
-    await supabase
-      .from(
-        "customer_line_users"
-      )
-      .select(`
-        customer_id,
-        can_order,
-        customers (
-          id,
-          customer_code,
-          customer_name,
-          is_active
-        )
-      `)
-      .eq(
-        "line_user_id",
-        lineUser.id
-      )
-      .eq(
-        "can_order",
-        true
-      );
+  const { data: linkData, error: linkError } =
+      await loadAuthorizedLineCustomerLinks(supabase, lineData.sub, lineUser.id);
 
   if (linkError) {
     throw new Error(
