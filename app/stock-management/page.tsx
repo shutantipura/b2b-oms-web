@@ -207,6 +207,7 @@ export default function StockManagementPage() {
           <div className="mt-4 rounded-xl border border-[#D5EAE4] bg-white/85 p-3 text-xs leading-6 text-[#476C63]">
             <strong className="text-[#007F7F]">B2B Demand Only</strong>
             {" · "}คำนวณจากจำนวนที่ลูกค้าขอสั่ง ไม่ใช่จำนวนที่ขายหรือส่งมอบ (รวมคำสั่งซื้อที่ยกเลิก)
+            {" · "}ตัวเลขคาดการณ์ใช้ค่าที่มีโอกาสเกิดขึ้นมากที่สุด (Mode) ไม่ใช่ค่าเฉลี่ย (Mean)
             {" · "}ยังไม่รวม B2C, สต็อกคงเหลือ หรือคำแนะนำสั่งซัพพลายเออร์
           </div>
         </header>
@@ -295,7 +296,7 @@ export default function StockManagementPage() {
 
                         <div className="mt-4 rounded-xl border border-[#C8EAE3] bg-[#E7F8F4] p-4">
                           <p className="text-xs font-extrabold text-[#47766A]">
-                            พรุ่งนี้ {tomorrow?.date ?? ""} · คาดความต้องการ B2B
+                            พรุ่งนี้ {tomorrow?.date ?? ""} · คาดความต้องการ B2B (Mode)
                           </p>
                           <p className="mt-1 text-3xl font-black tabular-nums text-[#008B8B]">
                             {oneDay(tomorrow, "totalQty")}
@@ -352,7 +353,7 @@ export default function StockManagementPage() {
                                   <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
                                     <div>
                                       <p className="text-xs font-extrabold text-[#4A3900]">
-                                        พรุ่งนี้ {forecast.dates[1].slice(5)} · คาดความต้องการ
+                                        พรุ่งนี้ {forecast.dates[1].slice(5)} · คาดความต้องการ (Mode)
                                       </p>
                                       <p className="mt-1 text-[27px] font-black leading-8 tabular-nums text-[#17453F]">
                                         {oneDay(day, "totalQty")} <span className="text-sm font-bold">{product.unitName}</span>
@@ -405,8 +406,8 @@ export default function StockManagementPage() {
 
               <p className="mt-5 rounded-xl bg-[#FFF8E7] p-3 text-xs leading-6 text-[#82651E]">
                 ยอดขอสั่งคือจำนวนที่ลูกค้าขอใน OMS รวมถึงออเดอร์ที่ยกเลิกหรือขายได้ไม่ครบ · ไม่รวมลูกค้าทดสอบ · จัดตามวันส่ง ไม่ใช่วันที่กดสั่ง
-                {" · "}คาดรวม = ขอสั่งแล้ว + ปริมาณที่คาดว่าจะมีการสั่งเพิ่ม
-                {" · "}ตัวเลขรวมระดับ SKU คำนวณก่อนปัดเศษ จึงอาจต่างจากการบวกตัวเลขรายลูกค้าที่แสดง 1 ตำแหน่ง
+                {" · "}คาดรวม = ขอสั่งแล้ว + ปริมาณที่จะสั่งเพิ่มที่มีโอกาสเกิดขึ้นมากที่สุด (Mode)
+                {" · "}Mode รวมทั้ง SKU คำนวณจากความน่าจะเป็นของลูกค้าทุกราย ไม่ใช่ผลบวกของ Mode รายลูกค้า จึงอาจต่างกัน
                 {" · "}หน่วย กก. และชิ้นจะไม่บวกรวมกัน
               </p>
             </>

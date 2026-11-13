@@ -62,14 +62,51 @@ test("product-level modal demand combines small probabilities from many customer
 test("shortage-sensitive planning reports expectation and the true aggregate 90th percentile", () => {
   assert.equal(STOCK_PLANNING_PERCENTILE, 0.9);
   assert.deepEqual(aggregateDemandDistribution([{ probability: 0.4, quantity: 20 }]),
-    { expected: 8, upper: 20, approximate: false });
+    { expected: 8, mode: 0, upper: 20, approximate: false });
   assert.deepEqual(aggregateDemandDistribution([
     { probability: 0.6, quantity: 10 }, { probability: 0.6, quantity: 10 },
-  ]), { expected: 12, upper: 20, approximate: false });
+  ]), { expected: 12, mode: 10, upper: 20, approximate: false });
   assert.deepEqual(aggregateDemandDistribution([{ probability: 0.2, quantity: 10 }]),
-    { expected: 2, upper: 10, approximate: false });
+    { expected: 2, mode: 0, upper: 10, approximate: false });
   assert.deepEqual(aggregateDemandDistribution([{ probability: 0.1, quantity: 10 }]),
-    { expected: 1, upper: 0, approximate: false });
+    { expected: 1, mode: 0, upper: 0, approximate: false });
+});
+
+test("modal forecasts differ from the probability-weighted mean for a single customer", () => {
+  const unlikely = aggregateDemandDistribution([{ probability: 0.2, quantity: 10 }]);
+  assert.equal(unlikely.expected, 2);
+  assert.equal(unlikely.mode, 0, "20% chance of 10 kg means most likely demand is 0, not 2");
+  const likely = aggregateDemandDistribution([{ probability: 0.8, quantity: 10 }]);
+  assert.equal(likely.expected, 8);
+  assert.equal(likely.mode, 10, "80% chance of 10 kg means most likely demand is 10, not 8");
+  const tied = aggregateDemandDistribution([{ probability: 0.5, quantity: 10 }]);
+  assert.equal(tied.mode, 0, "ties prefer the lower quantity");
+});
+
+test("aggregate modal SKU forecast is not the sum of customer modes or their means", () => {
+  const distribution = aggregateDemandDistribution(
+    Array.from({ length: 10 }, () => ({ probability: 0.4, quantity: 1 }))
+  );
+  assert.equal(distribution.expected, 4);
+  assert.equal(distribution.mode, 4);
+  const two = aggregateDemandDistribution([
+    { probability: 0.4, quantity: 1 },
+    { probability: 0.4, quantity: 1 },
+  ]);
+  assert.equal(two.expected, 0.8);
+  assert.equal(two.mode, 1, "each customer mode is zero, but the SKU total mode is 1");
+});
+
+test("order-size uncertainty changes the most likely quantity", () => {
+  const d = aggregateDemandDistribution([{
+    probability: 0.9, quantity: 12,
+    sizeOptions: [{ quantity: 10, weight: 1 }, { quantity: 30, weight: 3 }],
+  }]);
+  assert.equal(d.mode, 30, "high-probability 30 kg order dominates a 10 kg typical value");
+  assert.equal(mostLikelyAggregateQty([{
+    probability: 0.9, quantity: 12,
+    sizeOptions: [{ quantity: 10, weight: 1 }, { quantity: 30, weight: 3 }],
+  }]), 30);
 });
 
 test("planning explicitly models size variation instead of assuming every next order has the median quantity", () => {
@@ -103,7 +140,7 @@ test("typical requested quantity remains an observed size despite unusual large 
   assert.equal(recencyWeightedMedian([10, 10, 10, 10, 100]), 10);
 });
 
-test("product expected demand adds independent uncertain customers, including when their individual modes are zero", () => {
+test("product modal demand combines independent uncertain customers, even when each individual mode is zero", () => {
   const day = "2026-11-04";
   const rows = Array.from({ length: 10 }, (_, i) => ({
     customerId: `c${i}`, customerCode: `${i}`, customerName: `Restaurant ${i}`,
@@ -118,7 +155,7 @@ test("product expected demand adds independent uncertain customers, including wh
   assert.ok(product.units[0].customers.every((c) => c.days[0].projectedQty === 0));
 });
 
-test("product aggregation uses the customer's uncertain order size for the protective plan", () => {
+test("product aggregation uses modal order size for display and a separate upper bound for planning", () => {
   const date = "2026-11-04";
   const [product] = aggregateForecastByProduct([{
     customerId: "c1", customerCode: "001", customerName: "Restaurant A",
@@ -129,8 +166,9 @@ test("product aggregation uses the customer's uncertain order size for the prote
       possibleSizes: smoothedOrderSizeOptions([10, 10, 10, 100]) }],
   }], [date]);
   assert.equal(product.units[0].days[0].knownQty, 10);
-  assert.equal(product.units[0].days[0].projectedQty, 26);
-  assert.equal(product.units[0].days[0].planningQty, 110);
+  assert.equal(product.units[0].days[0].projectedQty, 10, "modal order size, not expected 26 kg");
+  assert.equal(product.units[0].days[0].totalQty, 20, "10 known + 10 modal additional");
+  assert.equal(product.units[0].days[0].planningQty, 110, "planning retains the separate risk-sensitive upper quantile");
 });
 
 test("three-day ordering cadence changes probability as days pass without a new order", () => {
@@ -162,7 +200,9 @@ test("ordering another SKU yesterday resets the customer clock for all other SKU
   assert.equal(originalSku.customerCadenceDays, 3);
   assert.ok(originalSku.days[0].projectedQty < overdue.rows.find((row) => row.sku === "dry").days[0].projectedQty);
   assert.ok(originalSku.days[1].projectedQty < originalSku.days[2].projectedQty);
-  assert.ok(originalSku.days[2].projectedQty < 12, "expected demand must reflect the order probability");
+  assert.ok(originalSku.days[2].projectedProbability < 1, "remaining order chance must reflect uncertainty");
+  assert.ok([0, 12].includes(originalSku.days[2].projectedQty),
+    "a modal single-size forecast is either 0 or the full likely 12 kg order");
 });
 
 test("a known different-SKU basket today is counted but does not generate another speculative basket", () => {
@@ -204,7 +244,12 @@ test("historically observed top-ups remain possible after the customer books an 
   assert.equal(original.knownQty, 20);
   assert.equal(original.projectedQty, 0);
   assert.equal(learned.knownQty, 20);
-  assert.ok(learned.projectedQty > 0 && learned.projectedQty < 5);
+  assert.ok(learned.projectedProbability > 0, "historical top-ups remain possible");
+  assert.ok(learned.possibleQty > 0, "the model retains a plausible positive top-up size");
+  assert.equal(learned.projectedQty, aggregateDemandDistribution([{
+    probability: learned.projectedProbability, quantity: learned.possibleQty,
+    sizeOptions: learned.possibleSizes,
+  }]).mode, "the displayed top-up is modal, even if zero is most probable");
   assert.ok(learned.planningQty >= 25);
 
   const currentTopup = { ...makeOrder("current-topup", "2026-11-04", "awaiting_picking"), createdAt: "2026-11-04T11:00:00+07:00" };

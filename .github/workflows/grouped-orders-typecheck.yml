@@ -30,6 +30,7 @@ jobs:
       - run: node --experimental-strip-types --test tests/sku-demand-card-layout.test.mjs
       - run: node --experimental-strip-types --test tests/customer-demand-yellow-layout.test.mjs
       - run: node --experimental-strip-types --test tests/b2b-requested-demand-contract.test.mjs
+      - run: node --experimental-strip-types --test tests/b2b-modal-demand.test.mjs
       - run: npx next typegen
       - run: npx tsc --noEmit --pretty false
       - run: npm run build
