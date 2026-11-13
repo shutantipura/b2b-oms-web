@@ -45,7 +45,7 @@ test("customer change records are lightweight, field-based and safe to reject af
 
 test("salesmen cannot alter activation or bypass approvals",()=>{
  assert.match(auth,/admin\.auth\.getUser\(token\)/);
- assert.match(auth,/\.eq\("is_active",true\)/);
+ assert.match(auth,/staff\?\.is_active/);
  assert.match(cust,/requireSalesRole\(request, \["salesman"\]\)/);
  assert.match(prices,/requireSalesRole\(request, \["salesman"\]\)/);
  assert.match(cust,/requireSalesRole\(request, \["manager"\]\)/);
