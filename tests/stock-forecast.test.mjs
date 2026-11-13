@@ -517,6 +517,61 @@ test("historical modal quantity and order cadence use unfulfilled requests, not 
   assert.ok(result.rows[0].days.every((day) => day.projectedProbability >= 0));
 });
 
+test("grouped parent and /1 are the same request: count only /1, plus every other /x", () => {
+  const root = makeOrder("parent-300", "2026-11-04", "awaiting_billing");
+  const first = { ...makeOrder("child-300-1", "2026-11-04", "cancelled"),
+    groupRootOrderId: root.id, groupSequence: 1 };
+  const second = { ...makeOrder("child-300-2", "2026-11-04", "awaiting_picking"),
+    groupRootOrderId: root.id, groupSequence: 2 };
+  const third = { ...makeOrder("child-300-3", "2026-11-04", "cancelled"),
+    groupRootOrderId: root.id, groupSequence: 3 };
+  const orders = [root, first, second, third];
+  const items = [
+    makeItem(root.id, "pork", 20, "Fresh Meat", "หมูสด"),
+    makeItem(first.id, "pork", 20, "Fresh Meat", "หมูสด"),
+    makeItem(second.id, "pork", 7, "Fresh Meat", "หมูสด"),
+    makeItem(third.id, "pork", 5, "Fresh Meat", "หมูสด"),
+  ];
+  const forecast = buildStockForecast(orders, items, [customer], now);
+  const row = forecast.rows.find((entry) => entry.sku === "pork");
+  assert.ok(row);
+  assert.equal(row.todayRequestedQty, 32, "20 from /1 + 7 from /2 + cancelled 5 from /3, never 52");
+  assert.equal(row.days[0].knownQty, 32);
+  const reference = buildStockForecast([first, second, third], items.slice(1), [customer], now);
+  assert.deepEqual(forecast, reference, "billing parent must have zero influence once /1 exists");
+});
+
+test("ungrouped originals remain in demand when /1 has not been generated", () => {
+  const root = makeOrder("parent-301", "2026-11-04", "cancelled");
+  const second = { ...makeOrder("child-301-2", "2026-11-04"),
+    groupRootOrderId: root.id, groupSequence: 2 };
+  const forecast = buildStockForecast(
+    [root, second],
+    [
+      makeItem(root.id, "pork", 9, "Fresh Meat", "หมูสด"),
+      makeItem(second.id, "pork", 3, "Fresh Meat", "หมูสด"),
+    ], [customer], now,
+  );
+  assert.equal(forecast.rows[0].todayRequestedQty, 12);
+});
+
+test("duplicate billing parents do not inflate historical frequency or forecast size", () => {
+  const originalOrders = historicDays.map((day, i) => makeOrder("parent-hist-" + i, day, "cancelled"));
+  const children = originalOrders.map((parent, i) => ({
+    ...makeOrder("child-hist-" + i, historicDays[i], "cancelled"),
+    groupRootOrderId: parent.id, groupSequence: 1,
+  }));
+  const allOrders = [...originalOrders, ...children];
+  const allItems = [
+    ...originalOrders.map((order) => makeItem(order.id, "pork", 20, "Fresh Meat", "หมูสด")),
+    ...children.map((order) => makeItem(order.id, "pork", 20, "Fresh Meat", "หมูสด")),
+  ];
+  const forecast = buildStockForecast(allOrders, allItems, [customer], now);
+  const reference = buildStockForecast(children, allItems.slice(originalOrders.length), [customer], now);
+  assert.deepEqual(forecast, reference);
+  assert.equal(forecast.rows[0].skuCadenceDays, 4);
+});
+
 test("cancelled orders count as requested demand, even with zero fulfilled sales", () => {
   const orders = [makeOrder("valid", "2026-11-04", "awaiting_picking"), makeOrder("void", "2026-11-04", "cancelled")];
   const items = [
