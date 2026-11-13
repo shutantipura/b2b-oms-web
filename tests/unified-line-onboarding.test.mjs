@@ -18,6 +18,11 @@ test("LINE authorization is the sole onboarding menu; old staff page redirects",
  assert.match(ui, /set_line_account_role/);
  assert.doesNotMatch(ui, /set_line_staff_access|set_line_customer_access|set_line_all_customer_access/);
 });
+test("all legacy staff and customer access management URLs redirect to unified LINE authorization",()=>{
+ for(const path of ["../app/staff/page.tsx","../app/staff-access/page.tsx","../app/customer-line-access/page.tsx"]){
+   assert.match(read(path),/redirect\("\/line-access"\)/);
+ }
+});
 test("LINE activation/deactivation remains available without deleting history",()=>{
  assert.match(ui,/async function setLineActive/);
  assert.match(ui,/set_line_user_active_status/);
