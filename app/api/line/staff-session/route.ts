@@ -91,6 +91,15 @@ export async function POST(request: NextRequest) {
       return respond({ error: "Staff account is inactive." }, 403);
     }
 
+    // Enforce the single role selected in LINE Authorization, independently
+    // of old staff links or cached authentication sessions.
+    const { data: lineIdentity, error: lineIdentityError } = await supabase
+      .from("line_users").select("assigned_role, is_active")
+      .eq("line_user_id",lineData.sub).maybeSingle();
+    if (lineIdentityError || !lineIdentity?.is_active ||
+        lineIdentity.assigned_role !== staff.account_type) {
+      return respond({ error: "This LINE account does not have the selected staff role." },403);
+    }
     const authEmail = (staff.email ?? "").trim() || `staff-${staff.id}@line-login.invalid`;
     let authUserId: string | null = staff.auth_user_id ?? null;
     let tokenHash: string | null = null;
