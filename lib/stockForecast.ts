@@ -38,6 +38,8 @@ export type ForecastOrderInput = {
   deliveryDate: string | null;
   status: string;
   groupRootOrderId: string | null;
+  /** /1 is a copy of the original request; parent is retained for billing only. */
+  groupSequence?: number | null;
 };
 
 export type ForecastItemInput = {
@@ -764,9 +766,17 @@ export function buildStockForecast(
   const historyStartDate = addDays(today, -FORECAST_HISTORY_DAYS);
   const customerById = new Map(customers.filter((c) => !c.isTest).map((c) => [c.id, c]));
   const ordersWithDemand = new Set(items.filter((item) => item.requestedQty !== null && Number.isFinite(item.requestedQty) && item.requestedQty > 0).map((item) => item.orderId));
-  // Every genuine order request is demand, including canceled or unfulfilled
-  // orders. Exclude test-restaurant requests via the isTest customer flag.
+  // Grouped orders retain a billing parent alongside a /1 copy of its
+  // original requested items. Once /1 exists, the parent must not be
+  // counted a second time. Every actual /x child request still counts,
+  // including cancelled children. When no /1 exists, keep the parent.
+  const representedParents = new Set(orders
+    .filter((o) => o.groupRootOrderId && o.groupSequence === 1)
+    .map((o) => o.groupRootOrderId!));
+  // Every genuine request is demand regardless of fulfillment/cancellation.
+  // Exclude Test restaurant via the isTest customer flag.
   const activeOrders = orders.filter((o) =>
+    !representedParents.has(o.id) &&
     customerById.has(o.customerId) &&
     ordersWithDemand.has(o.id) &&
     o.deliveryDate !== null &&
