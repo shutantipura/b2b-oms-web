@@ -528,11 +528,13 @@ test("known future demand is included once and resets the cycle", () => {
   assert.ok(meat.days[2].projectedQty < 10);
 });
 
-test("one-off SKUs do not create speculative forecasts; test customers excluded", () => {
+test("a two-days-ago one-off SKU is visible without speculative demand; test customers excluded", () => {
   const orders = [makeOrder("one", "2026-11-02")];
   const items = [makeItem("one", "meat", 10, "Fresh Meat", "หมูสด")];
   const result = buildStockForecast(orders, items, [customer], now);
-  assert.equal(result.rows.length, 0);
+  assert.equal(result.rows.length, 1, "recent historical demand must remain visible in the six-point timeline");
+  assert.equal(result.rows[0].twoDaysAgoRequestedQty, 10);
+  assert.ok(result.rows[0].days.every((day) => day.totalQty === 0), "a one-off must not invent future demand");
   const hidden = buildStockForecast(orders, items, [{ ...customer, isTest: true }], now);
   assert.equal(hidden.rows.length, 0);
 });
@@ -840,4 +842,46 @@ test("product list is prioritised by tomorrow's forecast volume, highest first",
     days: dates.map((date, i) => ({ date, knownQty: 0, projectedQty: i === 1 ? tomorrow : 0, totalQty: i === 1 ? tomorrow : 0 })),
   });
   assert.deepEqual(aggregateForecastByProduct([row("001", 1), row("999", 9)], dates).map((p) => p.sku), ["999", "001"]);
+});
+
+test("two-days-ago B2B requested demand counts cancelled and unfulfilled orders at customer and SKU level", () => {
+  const asOf = new Date("2026-11-04T05:00:00Z"); // 12:00 Bangkok, 4 Nov
+  const orders = [
+    makeOrder("two-days-cancelled", "2026-11-02", "cancelled"),
+    makeOrder("two-days-pending", "2026-11-02", "awaiting_billing"),
+    makeOrder("yesterday", "2026-11-03", "completed"),
+    makeOrder("today", "2026-11-04", "awaiting_stock_check"),
+  ];
+  const items = [
+    { ...makeItem("two-days-cancelled", "meat", 5, "Fresh Meat", "หมูสด"), confirmedQty: 0, actualQty: 0 },
+    { ...makeItem("two-days-pending", "meat", 7, "Fresh Meat", "หมูสด"), confirmedQty: 0, actualQty: 0 },
+    makeItem("yesterday", "meat", 9, "Fresh Meat", "หมูสด"),
+    { ...makeItem("today", "meat", 11, "Fresh Meat", "หมูสด"), confirmedQty: 0, actualQty: 0 },
+  ];
+  const forecast = buildStockForecast(orders, items, [customer], asOf);
+  assert.equal(forecast.twoDaysAgoDate, "2026-11-02");
+  assert.equal(forecast.yesterdayDate, "2026-11-03");
+  const row = forecast.rows.find((value) => value.sku === "meat");
+  assert.ok(row);
+  assert.equal(row.twoDaysAgoRequestedQty, 12);
+  assert.equal(row.yesterdayRequestedQty, 9);
+  assert.equal(row.todayRequestedQty, 11);
+  assert.equal(row.days[0].knownQty, 11);
+  const product = aggregateForecastByProduct(forecast.rows, forecast.dates)[0];
+  assert.equal(product.units[0].twoDaysAgoRequestedQty, 12);
+  assert.equal(product.units[0].yesterdayRequestedQty, 9);
+  assert.equal(product.units[0].todayRequestedQty, 11);
+});
+
+test("a SKU ordered only two days ago remains visible, even with no forward prediction", () => {
+  const forecast = buildStockForecast(
+    [makeOrder("old-one-off", "2026-11-02", "cancelled")],
+    [makeItem("old-one-off", "pork", 4, "Fresh Meat", "หมูสด")],
+    [customer], new Date("2026-11-04T05:00:00Z"),
+  );
+  assert.equal(forecast.rows.length, 1);
+  assert.equal(forecast.rows[0].twoDaysAgoRequestedQty, 4);
+  assert.equal(forecast.rows[0].yesterdayRequestedQty, 0);
+  assert.equal(forecast.rows[0].todayRequestedQty, 0);
+  assert.equal(aggregateForecastByProduct(forecast.rows, forecast.dates)[0].units[0].twoDaysAgoRequestedQty, 4);
 });
