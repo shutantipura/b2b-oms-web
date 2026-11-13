@@ -220,6 +220,7 @@ export default function StockManagementPage() {
                   timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric",
                   hour: "2-digit", minute: "2-digit",
                 }) : "กำลังโหลดข้อมูลล่าสุด"}
+                {" · "}รีเฟรชอัตโนมัติทุก 1 นาที ไม่ผูกกับเวลา cut-off ซัพพลายเออร์
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
