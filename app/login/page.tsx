@@ -31,6 +31,7 @@ const MANAGER_NAVIGATION: NavigationItem[] = [
   { name: "งาน", href: "/tasks", description: "คิวงานปฏิบัติการ" },
   { name: "คำสั่งซื้อ", href: "/orders", description: "ดูและติดตามคำสั่งซื้อ" },
   { name: "ลูกค้า", href: "/customers", description: "จัดการบัญชีลูกค้า B2B" },
+  { name: "ตรวจสอบฝ่ายขาย", href: "/salesman/reviews", description: "ยืนยันหรือคืนข้อมูลลูกค้า และอนุมัติราคาพิเศษ GP ≤7%" },
   { name: "สินค้าและราคา", href: "/catalog", description: "สินค้า รูปภาพ และราคาพิเศษ" },
   { name: "จัดการสต็อก", href: "/stock-management", description: "ดาวน์โหลดรายงานปริมาณขายสินค้า 14 วัน" },
   { name: "พนักงาน", href: "/staff", description: "บัญชีและข้อมูลพนักงาน" },
@@ -41,7 +42,7 @@ const MANAGER_NAVIGATION: NavigationItem[] = [
 
 const STAFF_NAVIGATION = MANAGER_NAVIGATION.slice(0, 2);
 const SALESMAN_NAVIGATION: NavigationItem[] = [
-  { name: "ลูกค้าและการขาย", href: "/salesman", description: "ข้อมูลลูกค้าและติดตามคำสั่งซื้อแบบอ่านอย่างเดียว" },
+  { name: "ลูกค้าและการขาย", href: "/salesman", description: "แก้ข้อมูลลูกค้า เสนอราคาพิเศษ และติดตามคำสั่งซื้อ" },
   { name: "คำสั่งซื้อ", href: "/orders", description: "ดูสถานะคำสั่งซื้อและการส่งมอบ" },
 ];
 

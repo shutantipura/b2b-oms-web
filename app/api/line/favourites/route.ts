@@ -1,3 +1,4 @@
+import { hasAutomaticLineCustomerAccess } from "@/lib/server/lineCustomerAccess";
 import {
   NextRequest,
   NextResponse,
@@ -226,28 +227,13 @@ export async function POST(
     // VERIFY CUSTOMER ACCESS
     // =====================================================
 
-    const {
-      data: membership,
-      error: membershipError,
-    } =
-      await supabase
-        .from(
-          "customer_line_users"
-        )
-        .select("id")
-        .eq(
-          "line_user_id",
-          lineUser.id
-        )
-        .eq(
-          "customer_id",
-          customer.id
-        )
-        .eq(
-          "can_order",
-          true
-        )
-        .maybeSingle();
+    const roleMayOrder = await hasAutomaticLineCustomerAccess(supabase, lineData.sub);
+    const { data: membership, error: membershipError } = roleMayOrder
+      ? { data: { id: "automatic-role-access" }, error: null }
+      : await supabase.from("customer_line_users").select("id")
+          .eq("line_user_id",lineUser.id)
+          .eq("customer_id",customer.id)
+          .eq("can_order",true).maybeSingle();
 
     if (
       membershipError ||
