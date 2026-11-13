@@ -120,6 +120,25 @@ export default function LineAccessPage(){
     }catch(e){setMessage(e instanceof Error?e.message:"บันทึกสิทธิ์ไม่สำเร็จ");}
     finally{setBusy("");}
   }
+  async function setLineActive(user:LineAccount,active:boolean){
+    if(busy)return;
+    if(!active&&user.role){
+      setMessage("กรุณายกเลิกบทบาทและสิทธิ์ก่อนนำบัญชี LINE ออกจากรายการ");
+      return;
+    }
+    const action=active?"เปิดใช้งาน":"ปิดใช้งาน";
+    if(!window.confirm(`${action}บัญชี ${user.name||user.displayName||"LINE"} หรือไม่?`))return;
+    setBusy(user.id);setMessage("");
+    try{
+      const {error}=await supabase.rpc("set_line_user_active_status",{
+        p_line_user_row_id:user.id,p_active:active,
+      });
+      if(error)throw error;
+      setUsers(previous=>previous.map(item=>item.id===user.id?{...item,active}:item));
+      setMessage(`${action} LINE สำเร็จ · ประวัติการใช้งานยังคงอยู่`);
+    }catch(e){setMessage(e instanceof Error?e.message:"ไม่สามารถเปลี่ยนสถานะ LINE");}
+    finally{setBusy("");}
+  }
   if(loading)return <LotusLoading message="กำลังโหลดบัญชี LINE และสิทธิ์การใช้งาน..."/>;
   return <main className="min-h-screen bg-[#F3F8F7] px-3 pb-24 pt-5 text-[#184D43] sm:px-6">
     <div className="mx-auto max-w-5xl space-y-4">
@@ -253,9 +272,17 @@ export default function LineAccessPage(){
                 ยกเลิกสิทธิ์
               </button>}
             </div>
+            <div className="flex justify-end">
+              <button type="button" onClick={()=>void setLineActive(user,!user.active)}
+                disabled={isBusy||Boolean(user.active&&user.role)}
+                className="rounded-lg border border-[#E3D1CC] px-3 py-2 text-xs font-bold text-[#806458] disabled:opacity-40">
+                {user.active?"ปิดใช้งานบัญชี LINE":"เปิดใช้งานบัญชี LINE"}
+              </button>
+            </div>
             <p className="text-xs text-[#6A8378]">
               {user.staffCode? `รหัสพนักงาน: ${user.staffCode} · `:""}
               เปลี่ยนบทบาทแล้วสิทธิ์เดิมจะถูกเพิกถอน · เก็บประวัติการทำงานไว้
+              {user.active&&user.role?" · หากต้องการปิดบัญชี ให้ยกเลิกสิทธิ์ก่อน":""}
             </p>
           </div>}
         </article>;
