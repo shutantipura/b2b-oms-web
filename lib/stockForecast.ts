@@ -705,7 +705,7 @@ export function estimatePieceWeights(
 ) {
   const validCustomers = new Set(customers.filter((customer) => !customer.isTest).map((customer) => customer.id));
   const validOrders = new Map(orders.filter((order) =>
-    order.status !== "cancelled" && validCustomers.has(order.customerId) &&
+    validCustomers.has(order.customerId) &&
     Number.isFinite(Date.parse(order.createdAt)) && Date.parse(order.createdAt) <= asOf.getTime()
   ).map((order) => [order.id, order]));
   const weightSkus = new Set(items.filter((item) => normalizeDemandUnit(item.masterUnit ?? item.unit) === "กก." ||
@@ -764,8 +764,9 @@ export function buildStockForecast(
   const historyStartDate = addDays(today, -FORECAST_HISTORY_DAYS);
   const customerById = new Map(customers.filter((c) => !c.isTest).map((c) => [c.id, c]));
   const ordersWithDemand = new Set(items.filter((item) => item.requestedQty !== null && Number.isFinite(item.requestedQty) && item.requestedQty > 0).map((item) => item.orderId));
+  // Every genuine order request is demand, including canceled or unfulfilled
+  // orders. Exclude test-restaurant requests via the isTest customer flag.
   const activeOrders = orders.filter((o) =>
-    o.status !== "cancelled" &&
     customerById.has(o.customerId) &&
     ordersWithDemand.has(o.id) &&
     o.deliveryDate !== null &&
