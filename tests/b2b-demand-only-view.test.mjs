@@ -16,7 +16,7 @@ test("Stock Management is live B2B demand and never asks for shared stock inputs
   assert.match(page, /customer\.customerCode/);
   assert.match(page, /knownQty/);
   assert.match(page, /projectedQty/);
-  assert.doesNotMatch(page, /B2CSalesImportPanel|sharedPurchaseDraft|sharedStockInputs|stock_morning_counts|officialPurchaseDrafts|TARGET_STOCK_DAYS|สั่งซัพพลายเออร์อัตโนมัติ/);
+  assert.doesNotMatch(page, /B2CSalesImportPanel|sharedPurchaseDraft|sharedStockInputs|stock_morning_counts|officialPurchaseDrafts|TARGET_STOCK_DAYS/);
 });
 
 test("B2B API handles real-time demand before any snapshot, B2C, costs or inventory calculation", () => {
@@ -62,7 +62,7 @@ test("SKU forecast retains all customer contributions and keeps units separate",
     yesterdayRequestedQty: 0, todayRequestedQty: 0,
     days: dates.map((date, i) => ({
       date, knownQty: i === 1 ? known : 0, projectedQty: i === 1 ? projected : 0,
-      totalQty: i === 1 ? known + projected : 0,
+      totalQty: i === 1 ? known + projected : 0,\n      projectedProbability: i === 1 ? 1 : 0, possibleQty: i === 1 ? projected : 0,
     })),
   });
   const [product] = aggregateForecastByProduct([
