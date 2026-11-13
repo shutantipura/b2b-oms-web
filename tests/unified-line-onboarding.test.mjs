@@ -65,13 +65,14 @@ test("staff sessions and manager privileges require current LINE role",()=>{
  assert.match(lineCustomer,/lineUser.assigned_role === staff.account_type/);
  assert.match(sql,/REVOKE EXECUTE ON FUNCTION public.set_line_staff_access/);
 });
-test("four previously mixed accounts become Staff only after another Manager exists, without changing tasks",()=>{
+test("all four named mixed accounts stay Managers with all task stages",()=>{
  assert.match(sql,/S001','S005','S006','S021/);
- assert.match(sql,/remaining_managers < 1/);
- assert.match(sql,/Cannot convert all four accounts to Staff without another authorized Manager/);
- assert.match(sql,/UPDATE public\.staff SET account_type='staff'/);
- const block = sql.slice(sql.indexOf("DO $convert_four_to_staff$"),sql.indexOf("END $convert_four_to_staff$"));
- assert.doesNotMatch(block,/DELETE FROM public\.staff_task_permissions|UPDATE public\.staff_task_permissions/);
+ assert.match(sql,/DO \$keep_four_managers\$/);
+ assert.match(sql,/All four named Manager LINE accounts are required/);
+ assert.match(sql,/UPDATE public\.staff SET account_type='manager'/);
+ assert.match(sql,/ON CONFLICT DO NOTHING/);
+ const block=sql.slice(sql.indexOf("DO $keep_four_managers$"),sql.indexOf("END $keep_four_managers$"));
+ assert.doesNotMatch(block,/account_type='staff'/);
 });
 test("legacy shared staff accounts are split without deleting past task history",()=>{
  assert.match(sql,/One staff identity per authorized LINE account/);
