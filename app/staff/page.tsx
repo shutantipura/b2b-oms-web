@@ -45,7 +45,8 @@ type StaffRow = {
   phone: string | null;
   accountType:
     | "staff"
-    | "manager";
+    | "manager"
+    | "salesman";
   authUserId:
     | string
     | null;
@@ -71,10 +72,7 @@ type CreateStaffResponse = {
 function accountLabel(
   accountType: string
 ) {
-  return accountType ===
-    "manager"
-    ? "Manager"
-    : "Staff";
+  return accountType === "manager" ? "Manager" : accountType === "salesman" ? "Salesman" : "Staff";
 }
 
 function formatDateTime(
@@ -195,6 +193,7 @@ export default function StaffManagementPage() {
     useState<
       | "staff"
       | "manager"
+      | "salesman"
     >("staff");
 
   const [
@@ -228,6 +227,7 @@ export default function StaffManagementPage() {
     useState<
       | "staff"
       | "manager"
+      | "salesman"
     >("staff");
 
   const [
@@ -453,7 +453,7 @@ export default function StaffManagementPage() {
                   accountType:
                     createRole,
                   taskPermissions:
-                    createPermissions,
+                    createRole === "salesman" ? [] : createPermissions,
                 }
               ),
           }
@@ -568,7 +568,7 @@ export default function StaffManagementPage() {
                   accountType:
                     editRole,
                   taskPermissions:
-                    editPermissions,
+                    editRole === "salesman" ? [] : editPermissions,
                   isActive:
                     item.isActive,
                 }
@@ -861,6 +861,7 @@ export default function StaffManagementPage() {
                       event.target.value as
                         | "staff"
                         | "manager"
+                        | "salesman"
                     )
                   }
                   className="w-full border rounded-xl px-4 py-3 bg-white"
@@ -871,6 +872,9 @@ export default function StaffManagementPage() {
 
                   <option value="manager">
                     Manager
+                  </option>
+                  <option value="salesman">
+                    Salesman (ฝ่ายขาย)
                   </option>
                 </select>
               </label>
@@ -888,7 +892,7 @@ export default function StaffManagementPage() {
                 </p>
 
                 <p className="text-sm text-gray-500 mt-1">
-                  เลือกงานที่พร้อมรับและให้เพื่อนร่วมงานเรียกได้ (Manager เลือกงานของตัวเองได้)
+                  {createRole === "salesman" ? "Salesman ไม่มีสิทธิ์ทำงานปฏิบัติการ ใช้ดูแลลูกค้าและติดตามออเดอร์เท่านั้น" : "เลือกงานที่พร้อมรับและให้เพื่อนร่วมงานเรียกได้ (Manager เลือกงานของตัวเองได้)"}
                 </p>
 
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
@@ -900,6 +904,7 @@ export default function StaffManagementPage() {
                         >
                           <input
                             type="checkbox"
+                            disabled={createRole === "salesman"}
                             checked={
                               createPermissions.includes(
                                 option.stage
@@ -1152,6 +1157,7 @@ export default function StaffManagementPage() {
                                   event.target.value as
                                     | "staff"
                                     | "manager"
+                                    | "salesman"
                                 )
                               }
                               disabled={
@@ -1165,6 +1171,9 @@ export default function StaffManagementPage() {
 
                               <option value="manager">
                                 Manager
+                              </option>
+                              <option value="salesman">
+                                Salesman (ฝ่ายขาย)
                               </option>
                             </select>
                           </label>
@@ -1208,7 +1217,7 @@ export default function StaffManagementPage() {
 
                           <div className="md:col-span-3 border rounded-xl p-4">
                             <p className="text-sm font-semibold">
-                              งานที่พร้อมรับ / ให้เรียกพนักงาน
+                              {editRole === "salesman" ? "ฝ่ายขายไม่มีสิทธิ์ทำงานปฏิบัติการ" : "งานที่พร้อมรับ / ให้เรียกพนักงาน"}
                             </p>
 
                             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
@@ -1220,6 +1229,7 @@ export default function StaffManagementPage() {
                                     >
                                       <input
                                         type="checkbox"
+                                        disabled={editRole === "salesman"}
                                         checked={
                                           editPermissions.includes(
                                             option.stage
