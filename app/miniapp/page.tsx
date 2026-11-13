@@ -1297,9 +1297,9 @@ export default function MiniAppHomePage() {
                   <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#FDBC16]" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-lg font-black leading-6 text-[#17453F]">พนักงาน / ผู้จัดการ</span>
+                  <span className="block text-lg font-black leading-6 text-[#17453F]">พนักงาน / ผู้จัดการ / ฝ่ายขาย</span>
                   <span className="mt-1 block break-words text-sm leading-5 text-[#718F84]">
-                    {access.staff.staffName} · {access.staff.accountType === "manager" ? "ผู้จัดการ" : "พนักงาน"}
+                    {access.staff.staffName} · {access.staff.accountType === "manager" ? "ผู้จัดการ" : access.staff.accountType === "salesman" ? "ฝ่ายขาย" : "พนักงาน"}
                   </span>
                   <span className="mt-2 block text-xs font-extrabold text-[#008F8D]">
                     {openingStaff ? (staffLoginStep || "กำลังเข้าสู่ระบบ...") : "เข้าสู่ระบบจัดการคำสั่งซื้อ"}
@@ -1422,7 +1422,7 @@ export default function MiniAppHomePage() {
 
                 ? (staffLoginStep || "กำลังเข้าสู่ระบบ...")
 
-                : "เข้าสู่ระบบพนักงาน"}
+                : access.staff.accountType === "salesman" ? "เข้าสู่พื้นที่ทำงานฝ่ายขาย" : "เข้าสู่ระบบพนักงาน"}
 
             </button>
 

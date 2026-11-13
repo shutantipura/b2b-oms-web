@@ -76,17 +76,13 @@ export default function TasksLayout({
     checking,
     setChecking,
   ] =
-    useState(
-      Boolean(stage)
-    );
+    useState(true);
 
   const [
     allowed,
     setAllowed,
   ] =
-    useState(
-      !stage
-    );
+    useState(false);
 
   const [
     message,
@@ -99,13 +95,6 @@ export default function TasksLayout({
       false;
 
     async function checkAccess() {
-      if (!stage) {
-        setAllowed(true);
-        setChecking(false);
-        setMessage("");
-        return;
-      }
-
       setChecking(true);
       setAllowed(false);
       setMessage("");
@@ -124,6 +113,27 @@ export default function TasksLayout({
         setMessage(
           "กรุณาเข้าสู่ระบบ OMS ก่อน"
         );
+        setChecking(false);
+        return;
+      }
+
+      // Salesmen can track orders but must never enter the operational task queue.
+      const { data: account, error: accountError } = await supabase
+        .from("staff")
+        .select("account_type, is_active")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+      if (accountError || !account?.is_active || account.account_type === "salesman") {
+        setMessage(account?.account_type === "salesman"
+          ? "บัญชีฝ่ายขายไม่มีสิทธิ์เข้าถึงงานปฏิบัติการ"
+          : "บัญชีนี้ไม่มีสิทธิ์เข้าถึงงานปฏิบัติการ");
+        setChecking(false);
+        return;
+      }
+      if (!stage) {
+        setAllowed(true);
         setChecking(false);
         return;
       }
@@ -196,10 +206,10 @@ export default function TasksLayout({
           </p>
 
           <Link
-            href="/tasks"
+            href="/login"
             className="inline-block mt-6 underline font-semibold"
           >
-            ← กลับไปหน้างาน
+            ← กลับหน้าหลัก
           </Link>
         </div>
       </main>

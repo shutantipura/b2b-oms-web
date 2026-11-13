@@ -16,6 +16,7 @@ export const runtime =
 
 type AccountType =
   | "staff"
+  | "salesman"
   | "manager";
 
 type TaskStage =
@@ -215,6 +216,7 @@ function normalizeAccountType(
 ): AccountType | null {
   if (
     value === "staff" ||
+    value === "salesman" ||
     value === "manager"
   ) {
     return value;
@@ -827,11 +829,10 @@ export async function POST(
         body.accountType
       );
 
-    const taskPermissions =
-      normalizeTaskPermissions(
-        body.taskPermissions,
-        ALL_TASK_STAGES
-      );
+    // Salesmen do not handle stock checks, picking, billing, delivery or payment.
+    // Enforce the role boundary server-side regardless of client-submitted permissions.
+    const taskPermissions = accountType === "salesman" ? [] :
+      normalizeTaskPermissions(body.taskPermissions, ALL_TASK_STAGES);
 
     if (!staffName) {
       return NextResponse.json(
@@ -1166,7 +1167,9 @@ export async function PATCH(
         )
       );
 
-    const finalPermissions = normalizeTaskPermissions(body.taskPermissions, currentPermissions);
+    // A salesman must never inherit operational permissions after a role change.
+    const finalPermissions = accountType === "salesman" ? [] :
+      normalizeTaskPermissions(body.taskPermissions, currentPermissions);
 
     const isSelf =
       target.auth_user_id ===

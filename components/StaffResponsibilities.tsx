@@ -16,7 +16,7 @@ type StaffSummary = {
   id: string;
   staffCode: string;
   staffName: string;
-  accountType: "staff" | "manager";
+  accountType: "staff" | "manager" | "salesman";
   isActive: boolean;
 };
 
