@@ -5,38 +5,31 @@ ALTER TABLE public.line_users DROP CONSTRAINT IF EXISTS line_users_assigned_role
 ALTER TABLE public.line_users ADD CONSTRAINT line_users_assigned_role_check
  CHECK (assigned_role IS NULL OR assigned_role IN ('manager','salesman','staff','customer'));
 
--- Latest user decision: all four former mixed LINE accounts must be Staff.
--- Preserve their previously selected task stages and historical staff codes.
--- Never remove the last authorized Manager: this requires a new Manager outside
--- S001, S005, S006, S021 to be authorized BEFORE running the migration.
-DO $convert_four_to_staff$
-DECLARE target_count integer;
-DECLARE remaining_managers integer;
+-- Final user decision: all four named mixed LINE accounts remain Managers.
+-- This is also the only currently authorized Manager group: fail closed if
+-- a future database state does not contain all four active LINE identities.
+DO $keep_four_managers$
+DECLARE matches integer;
 BEGIN
-  SELECT count(DISTINCT s.staff_code) INTO target_count
+  SELECT count(DISTINCT s.staff_code) INTO matches
   FROM public.staff s
   JOIN public.staff_line_users slu ON slu.staff_id=s.id AND slu.is_authorized
   JOIN public.line_users lu ON lu.line_user_id=slu.line_user_id AND lu.is_active
   WHERE s.staff_code IN ('S001','S005','S006','S021') AND s.is_active;
-  IF target_count<>4 THEN
-    RAISE EXCEPTION 'Expected four active authorized target accounts, found %',target_count;
+  IF matches<>4 THEN
+    RAISE EXCEPTION 'All four named Manager LINE accounts are required; found %', matches;
   END IF;
-
-  SELECT count(DISTINCT s.id) INTO remaining_managers
-  FROM public.staff s
-  JOIN public.staff_line_users slu ON slu.staff_id=s.id AND slu.is_authorized
-  JOIN public.line_users lu ON lu.line_user_id=slu.line_user_id AND lu.is_active
-  WHERE s.account_type='manager' AND s.is_active
-    AND s.staff_code NOT IN ('S001','S005','S006','S021');
-  IF remaining_managers < 1 THEN
-    RAISE EXCEPTION 'Cannot convert all four accounts to Staff without another authorized Manager';
-  END IF;
-
-  UPDATE public.staff SET account_type='staff', updated_at=now()
-  WHERE staff_code IN ('S001','S005','S006','S021') AND is_active;
-  -- Intentionally leave public.staff_task_permissions untouched.
-  -- Preserve each individual's previously selected five task stages exactly.
-END $convert_four_to_staff$;
+  UPDATE public.staff SET account_type='manager', updated_at=now()
+    WHERE staff_code IN ('S001','S005','S006','S021')
+      AND is_active AND account_type IS DISTINCT FROM 'manager';
+  INSERT INTO public.staff_task_permissions(staff_id,stage)
+    SELECT s.id, t.stage FROM public.staff s
+    CROSS JOIN unnest(ARRAY[
+      'confirmation','picking','billing','delivery','payment_verification'
+    ]::text[]) AS t(stage)
+    WHERE s.staff_code IN ('S001','S005','S006','S021') AND s.is_active
+    ON CONFLICT DO NOTHING;
+END $keep_four_managers$;
 
 -- In old mixed accounts, staff authorization takes precedence. Preserve
 -- customer link history, but disable its grants for non-customer roles.
