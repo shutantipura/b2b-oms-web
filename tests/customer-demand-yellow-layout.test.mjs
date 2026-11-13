@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 const page = readFileSync(new URL("../app/stock-management/page.tsx", import.meta.url), "utf8");
 const productStart = page.indexOf('{visibleProducts.map((product) =>');
 const customerStart = page.indexOf('const day = customer.days[1];', productStart);
-const customerEnd = page.indexOf('<div className="mt-2 grid grid-cols-4', customerStart);
+const customerEnd = page.indexOf('<DemandTimeline forecast={forecast} data={customer}', customerStart);
 const productArea = page.slice(productStart, customerStart);
 const customerArea = page.slice(customerStart, customerEnd);
 
@@ -30,6 +30,6 @@ test("customer data and confidence remain unchanged", () => {
   assert.match(customerArea, /oneDay\(day, "totalQty"\)/);
   assert.match(customerArea, /oneDay\(day, "knownQty"\)/);
   assert.match(customerArea, /oneDay\(day, "projectedQty"\)/);
-  assert.match(page, /customer\.yesterdayRequestedQty/);
-  assert.match(page, /customer\.todayRequestedQty/);
+  assert.match(page, /data\.yesterdayRequestedQty/);
+  assert.match(page, /data\.todayRequestedQty/);
 });
