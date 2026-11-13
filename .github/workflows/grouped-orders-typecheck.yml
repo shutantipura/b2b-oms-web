@@ -25,6 +25,7 @@ jobs:
       - run: npm ci
       - run: node --experimental-strip-types --test tests/oms-regressions.test.mjs
       - run: node --experimental-strip-types --test tests/stock-sales.test.mjs tests/stock-forecast.test.mjs
+      - run: node --experimental-strip-types --test tests/b2b-demand-only-view.test.mjs
       - run: npx next typegen
       - run: npx tsc --noEmit --pretty false
       - run: npm run build
