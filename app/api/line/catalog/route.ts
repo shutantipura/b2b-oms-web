@@ -1,3 +1,4 @@
+import { loadAuthorizedLineCustomerLinks } from "@/lib/server/lineCustomerAccess";
 import {
 
 
@@ -1295,111 +1296,8 @@ export async function POST(
 
 
 
-    const {
-
-
-
-      data: links,
-
-
-
-      error: linkError,
-
-
-
-    } =
-
-
-
-      await supabaseAdmin
-
-
-
-        .from(
-
-
-
-          "customer_line_users"
-
-
-
-        )
-
-
-
-        .select(`
-
-
-
-          customer_id,
-
-
-
-          can_order,
-
-
-
-          customers (
-
-
-
-            id,
-
-
-
-            customer_code,
-
-
-
-            customer_name,
-
-
-
-            delivery_address,
-
-
-
-            is_active
-
-
-
-          )
-
-
-
-        `)
-
-
-
-        .eq(
-
-
-
-          "line_user_id",
-
-
-
-          lineUser.id
-
-
-
-        )
-
-
-
-        .eq(
-
-
-
-          "can_order",
-
-
-
-          true
-
-
-
-        );
+    const { data: links, error: linkError } =
+      await loadAuthorizedLineCustomerLinks(supabaseAdmin, lineProfile.sub, lineUser.id);
 
 
 
