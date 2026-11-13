@@ -14,11 +14,10 @@ const migration = read("../sql/2026-11-13_salesman_role_prototype.sql");
 test("salesman is a separate staff account type, editable by managers", () => {
   assert.match(admin, /type AccountType =[\s\S]*?\| "salesman"/);
   assert.match(admin, /value === "salesman"/);
-  assert.match(staff, /<option value="salesman">/);
-  assert.match(staff, /Salesman \(ฝ่ายขาย\)/);
-  assert.match(staff, /accountType === "salesman"/);
-  assert.match(staff, /disabled=\{createRole === "salesman"\}/);
-  assert.match(staff, /disabled=\{editRole === "salesman"\}/);
+  assert.match(staff, /redirect/);
+  const lineAccess = read("../app/line-access/page.tsx");
+  assert.match(lineAccess, /id:"salesman"/);
+  assert.match(lineAccess, /selectedRole==="staff"/);
 });
 
 test("backend clears all task permissions for salesman on create and role updates", () => {
