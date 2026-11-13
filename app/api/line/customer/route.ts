@@ -195,7 +195,8 @@ export async function POST(
           id,
           line_user_id,
           display_name,
-          is_active
+          is_active,
+          assigned_role
         `)
         .eq(
           "line_user_id",
@@ -247,7 +248,8 @@ export async function POST(
             id,
             line_user_id,
             display_name,
-            is_active
+            is_active,
+            assigned_role
           `)
           .single();
 
@@ -488,7 +490,8 @@ export async function POST(
 
       if (
         staff &&
-        staff.is_active
+        staff.is_active &&
+        lineUser.assigned_role === staff.account_type
       ) {
         staffAccess = {
           staffId:
