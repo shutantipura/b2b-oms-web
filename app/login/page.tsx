@@ -40,6 +40,10 @@ const MANAGER_NAVIGATION: NavigationItem[] = [
 ];
 
 const STAFF_NAVIGATION = MANAGER_NAVIGATION.slice(0, 2);
+const SALESMAN_NAVIGATION: NavigationItem[] = [
+  { name: "ลูกค้าและการขาย", href: "/salesman", description: "ข้อมูลลูกค้าและติดตามคำสั่งซื้อแบบอ่านอย่างเดียว" },
+  { name: "คำสั่งซื้อ", href: "/orders", description: "ดูสถานะคำสั่งซื้อและการส่งมอบ" },
+];
 
 function goToLineLogin() {
   window.location.assign(new URL("/miniapp?portal=access", window.location.origin).toString());
@@ -184,7 +188,8 @@ export default function OmsHomePage() {
   }
 
   const isManager = staff.account_type === "manager";
-  const navigation = isManager ? MANAGER_NAVIGATION : STAFF_NAVIGATION;
+  const isSalesman = staff.account_type === "salesman";
+  const navigation = isManager ? MANAGER_NAVIGATION : isSalesman ? SALESMAN_NAVIGATION : STAFF_NAVIGATION;
   // Alarm now lives in the fourth bottom tab on dedicated Android terminals,
   // so do not duplicate that control as a dashboard card.
   const shortcuts = [
@@ -204,7 +209,7 @@ export default function OmsHomePage() {
                 สวัสดี {staff.staff_name}
               </h1>
               <p className="mt-2 text-sm text-[#6B8880]">
-                {staff.staff_code} · {isManager ? "ผู้จัดการ" : "พนักงาน"}
+                {staff.staff_code} · {isManager ? "ผู้จัดการ" : isSalesman ? "ฝ่ายขาย (Salesman)" : "พนักงาน"}
               </p>
             </div>
             {!fixedTerminal && (
@@ -220,13 +225,13 @@ export default function OmsHomePage() {
         </section>
 
         <Link
-          href="/tasks"
+          href={isSalesman ? "/salesman" : "/tasks"}
           className="mt-5 flex min-h-[128px] items-center justify-between gap-4 rounded-[22px] bg-[#02B0AF] p-5 text-white shadow-[0_9px_22px_rgba(0,153,150,0.17)] transition hover:bg-[#009A9A] sm:p-6"
         >
           <div>
-            <p className="text-xs font-bold text-white/80">งานที่ต้องดำเนินการ</p>
-            <p className="mt-2 text-3xl font-black">{activeOrderCount} <span className="text-base font-semibold">คำสั่งซื้อ</span></p>
-            <p className="mt-2 text-sm font-semibold text-white/90">เปิดคิวงานและตรวจสอบสถานะ</p>
+            <p className="text-xs font-bold text-white/80">{isSalesman ? "พื้นที่ทำงานฝ่ายขาย" : "งานที่ต้องดำเนินการ"}</p>
+            {isSalesman ? <p className="mt-2 text-2xl font-black">ลูกค้าและคำสั่งซื้อ</p> : <p className="mt-2 text-3xl font-black">{activeOrderCount} <span className="text-base font-semibold">คำสั่งซื้อ</span></p>}
+            <p className="mt-2 text-sm font-semibold text-white/90">{isSalesman ? "ค้นหาลูกค้า ติดตามสถานะ และสลับไปสั่งสินค้าในนามลูกค้า" : "เปิดคิวงานและตรวจสอบสถานะ"}</p>
           </div>
           <div aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/20">
             <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -238,7 +243,7 @@ export default function OmsHomePage() {
         <div className="mt-8 mb-3 flex items-center justify-between">
           <h2 className="text-xl font-black text-[#17453F]">เมนูจัดการ</h2>
           <span className="rounded-full bg-[#E5F6F2] px-3 py-1 text-xs font-bold text-[#008C8C]">
-            {isManager ? "Manager" : "Staff"}
+            {isManager ? "Manager" : isSalesman ? "Salesman" : "Staff"}
           </span>
         </div>
         <div className={shortcuts.length === 1 ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3 sm:grid-cols-3"}>
