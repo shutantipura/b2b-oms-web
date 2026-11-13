@@ -120,7 +120,13 @@ export default function SalesmanCustomerEditor() {
       const refreshed=await supabase.from("customers")
         .select("id,customer_code,has_no_cv,customer_name,customer_type,contact_name,phone,notes,rider_note,delivery_address,delivery_map_url,delivery_map_url_2,delivery_location_1_name,delivery_location_2_name")
         .eq("id",customer.id).single();
-      if(refreshed.data)setCustomer(refreshed.data as CustomerRecord);
+      if(refreshed.data) {
+        setCustomer(refreshed.data as CustomerRecord);
+        const normalized: Record<string,string|boolean>={};
+        for(const field of FIELDS) normalized[field.key]=refreshed.data[field.key]??"";
+        normalized.has_no_cv=refreshed.data.has_no_cv;
+        setValues(normalized);
+      }
       setMessage(`บันทึกแล้ว ${response.changedCount} รายการ · มีผลทันทีและส่งให้ Manager ตรวจสอบ`);
     } catch(e) {setMessage(e instanceof Error?e.message:"ไม่สามารถบันทึกได้");}
     finally {setSaving(false);}
