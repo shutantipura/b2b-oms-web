@@ -10,7 +10,7 @@ test("SKU and customer use the same grouped six-point demand timeline", () => {
   assert.match(product, /<DemandTimeline forecast=\{forecast\} data=\{product\.unit\} unit=\{product\.unitName\} \/>/);
   assert.match(page, /<DemandTimeline forecast=\{forecast\} data=\{customer\} unit=\{product\.unitName\} \/>/);
   assert.match(timeline, /grid grid-cols-3/);
-  assert.match(timeline, /grid grid-cols-1 gap-1\.5 md:grid-cols-2/);
+  assert.match(timeline, /grid grid-cols-1 gap-1 md:grid-cols-2/);
   assert.doesNotMatch(product, /grid-cols-4 gap-1\.5/);
   assert.doesNotMatch(product, /<SmallMetric/);
 });
