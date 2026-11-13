@@ -100,6 +100,7 @@ export type ForecastRow = {
   /** Typical order creation time in minutes relative to midnight on the delivery date (Bangkok). */
   customerUsualOrderOffsetMinutes: number | null;
   customerOrderTimingSamples: number;
+  twoDaysAgoRequestedQty: number;
   yesterdayRequestedQty: number;
   todayRequestedQty: number;
   days: ForecastDay[];
@@ -107,6 +108,7 @@ export type ForecastRow = {
 
 export type StockForecast = {
   asOf: string;
+  twoDaysAgoDate: string;
   yesterdayDate: string;
   dates: string[];
   historyDays: number;
@@ -147,6 +149,7 @@ export type ProductForecastRow = {
 
 export type ProductForecastUnitRow = {
   unit: string;
+  twoDaysAgoRequestedQty: number;
   yesterdayRequestedQty: number;
   todayRequestedQty: number;
   customers: ForecastRow[];
@@ -311,6 +314,7 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
     if (!unitRow) {
       unitRow = {
         unit: row.unit,
+        twoDaysAgoRequestedQty: 0,
         yesterdayRequestedQty: 0,
         todayRequestedQty: 0,
         customers: [],
@@ -320,6 +324,7 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
     }
     unitRow.customers.push(row);
     product.freshMeat ||= row.freshMeat;
+    unitRow.twoDaysAgoRequestedQty += row.twoDaysAgoRequestedQty ?? 0;
     unitRow.yesterdayRequestedQty += row.yesterdayRequestedQty ?? 0;
     unitRow.todayRequestedQty += row.todayRequestedQty ?? 0;
     for (const day of row.days) {
@@ -344,6 +349,7 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
     product.customerCount = new Set(product.units.flatMap((unit) => unit.customers.map((row) => row.customerId))).size;
     product.units.sort((a, b) => a.unit.localeCompare(b.unit, "th"));
     for (const unit of product.units) {
+      unit.twoDaysAgoRequestedQty = clampQty(unit.twoDaysAgoRequestedQty);
       unit.yesterdayRequestedQty = clampQty(unit.yesterdayRequestedQty);
       unit.todayRequestedQty = clampQty(unit.todayRequestedQty);
       unit.customers.sort((a, b) => a.customerName.localeCompare(b.customerName, "th") || a.customerCode.localeCompare(b.customerCode));
@@ -796,6 +802,7 @@ export function buildStockForecast(
   horizonDays = FORECAST_DAYS
 ): StockForecast {
   const today = bangkokDateKey(asOf);
+  const twoDaysAgoDate = addDays(today, -2);
   const yesterdayDate = addDays(today, -1);
   const dates = Array.from({ length: horizonDays }, (_, i) => addDays(today, i));
   const historyStartDate = addDays(today, -FORECAST_HISTORY_DAYS);
@@ -964,6 +971,7 @@ export function buildStockForecast(
     const unitShares = conditionalUnitShares(series);
     const topupPattern = topupPatterns.get(series.customerId);
     for (const unitSeries of series.units.values()) {
+      const twoDaysAgoRequestedQty = clampQty(unitSeries.requestedByDay.get(twoDaysAgoDate) ?? 0);
       const yesterdayRequestedQty = clampQty(unitSeries.requestedByDay.get(yesterdayDate) ?? 0);
       const todayRequestedQty = clampQty(unitSeries.requestedByDay.get(today) ?? 0);
       const observedAmounts = [...unitSeries.requestedByDay.entries()]
@@ -1005,7 +1013,7 @@ export function buildStockForecast(
       // Keep unlikely candidates for product-level convolution, but don't
       // display dormant historical units without any plausible demand.
       if (forecastDays.every((day) => day.totalQty === 0 && (day.projectedProbability ?? 0) < 0.01) &&
-          yesterdayRequestedQty === 0 && todayRequestedQty === 0) continue;
+          twoDaysAgoRequestedQty === 0 && yesterdayRequestedQty === 0 && todayRequestedQty === 0) continue;
       rows.push({
         customerId: series.customerId,
         customerCode: customer.code,
@@ -1022,6 +1030,7 @@ export function buildStockForecast(
         conditionalUnitShare: unitShare,
         customerUsualOrderOffsetMinutes: median(orderOffsets),
         customerOrderTimingSamples: orderOffsets.length,
+        twoDaysAgoRequestedQty,
         yesterdayRequestedQty,
         todayRequestedQty,
         days: forecastDays,
@@ -1031,7 +1040,7 @@ export function buildStockForecast(
 
   rows.sort((a, b) => a.customerName.localeCompare(b.customerName, "th") || a.sku.localeCompare(b.sku, "en"));
   return {
-    asOf: asOf.toISOString(), yesterdayDate, dates, historyDays: FORECAST_HISTORY_DAYS, rows,
+    asOf: asOf.toISOString(), twoDaysAgoDate, yesterdayDate, dates, historyDays: FORECAST_HISTORY_DAYS, rows,
     planningPercentile: STOCK_PLANNING_PERCENTILE,
     weightConversions, originalPieceDemand, missingWeightConversions,
   };
