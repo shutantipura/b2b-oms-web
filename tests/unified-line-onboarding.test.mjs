@@ -65,11 +65,13 @@ test("staff sessions and manager privileges require current LINE role",()=>{
  assert.match(lineCustomer,/lineUser.assigned_role === staff.account_type/);
  assert.match(sql,/REVOKE EXECUTE ON FUNCTION public.set_line_staff_access/);
 });
-test("four existing mixed accounts are explicitly promoted to Manager",()=>{
+test("four previously mixed accounts become Staff only after another Manager exists, without changing tasks",()=>{
  assert.match(sql,/S001','S005','S006','S021/);
- assert.match(sql,/Four named LINE Manager accounts must be present/);
- assert.match(sql,/UPDATE public\.staff SET account_type='manager'/);
- assert.match(sql,/CROSS JOIN unnest\(ARRAY\['confirmation','picking','billing','delivery','payment_verification'/);
+ assert.match(sql,/remaining_managers < 1/);
+ assert.match(sql,/Cannot convert all four accounts to Staff without another authorized Manager/);
+ assert.match(sql,/UPDATE public\.staff SET account_type='staff'/);
+ const block = sql.slice(sql.indexOf("DO $convert_four_to_staff$"),sql.indexOf("END $convert_four_to_staff$"));
+ assert.doesNotMatch(block,/DELETE FROM public\.staff_task_permissions|UPDATE public\.staff_task_permissions/);
 });
 test("legacy shared staff accounts are split without deleting past task history",()=>{
  assert.match(sql,/One staff identity per authorized LINE account/);
