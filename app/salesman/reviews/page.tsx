@@ -129,6 +129,9 @@ export default function SalesReviewPage(){
                 <p className="mb-1 text-xs font-bold text-[#00817B]">ใช้งานอยู่</p>{format(change.proposed_value)}
               </div>
             </div>
+            {JSON.stringify(change.approved_baseline)!==JSON.stringify(change.previous_value)&&<p className="mt-2 rounded-lg bg-[#FFF4DB] p-2 text-xs leading-5 text-[#86640D]">
+              หากปฏิเสธ ระบบจะคืนค่าที่อนุมัติครั้งล่าสุด: {format(change.approved_baseline)}
+            </p>}
             {actionButtons("customer",change.id)}
           </article>)}
           {changes.length===0&&<p className="rounded-xl bg-white p-4 text-sm text-[#6B8178]">ไม่มีรายการข้อมูลลูกค้าที่รอตรวจสอบ</p>}
