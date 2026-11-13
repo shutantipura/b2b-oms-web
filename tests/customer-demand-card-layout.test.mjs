@@ -19,7 +19,7 @@ test("the customer card uses the same six-metric timeline as the SKU card", () =
   assert.match(breakdown, /<DemandTimeline forecast=\{forecast\} data=\{customer\} unit=\{product\.unitName\} \/>/);
   assert.match(page, /<DemandTimeline forecast=\{forecast\} data=\{product\.unit\} unit=\{product\.unitName\} \/>/);
   assert.match(timeline, /grid grid-cols-3 gap-1\.5/);
-  assert.match(timeline, /grid grid-cols-1 gap-1\.5 md:grid-cols-2/);
+  assert.match(timeline, /grid grid-cols-1 gap-1 md:grid-cols-2/);
   assert.match(timeline, /title: "ย้อนหลัง"/);
   assert.match(timeline, /title: "วันนี้"/);
   assert.match(timeline, /title: "ล่วงหน้า"/);
@@ -44,6 +44,9 @@ test("all six labels and quantities have distinct meanings and use the product u
   assert.match(timeline, /มะรืน/);
   assert.match(timeline, /<CustomerMiniMetric/);
   assert.match(timeline, /unit=\{unit\}/);
+  assert.match(page, /min-h-6 text-\[10px\] font-bold leading-\[13px\]/);
+  assert.match(page, /rounded-lg px-1 py-1\.5 text-center/);
+  assert.match(timeline, /rounded-xl border p-1 sm:p-1\.5/);
   assert.match(breakdown, /customer\.effectiveCadenceDays/);
   assert.match(breakdown, /describeCustomerOrderTime/);
 });

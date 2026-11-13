@@ -20,7 +20,7 @@ test("SKU tomorrow total stays teal while each customer contribution is Lotus's 
 });
 
 test("customer panel is slightly shorter and contains accessible dark-colored copy", () => {
-  assert.match(customerArea, /px-3 py-2\.5/);
+  assert.match(customerArea, /px-3 py-2/);
   assert.match(customerArea, /text-\[#4A3900\]/);
   assert.match(customerArea, /text-\[#594400\]/);
 });
