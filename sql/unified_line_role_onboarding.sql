@@ -282,3 +282,10 @@ GRANT EXECUTE ON FUNCTION public.set_line_account_role(uuid,text,text,text[],tex
 REVOKE EXECUTE ON FUNCTION public.set_line_staff_access(uuid,text,boolean) FROM PUBLIC,anon,authenticated;
 REVOKE EXECUTE ON FUNCTION public.set_line_customer_access(uuid,text,boolean) FROM PUBLIC,anon,authenticated;
 REVOKE EXECUTE ON FUNCTION public.set_line_all_customer_access(uuid,boolean) FROM PUBLIC,anon,authenticated;
+-- Retire other back doors to mixed LINE/staff permissions. Read-only history
+-- RPCs and the independent customer-record management remain available.
+REVOKE EXECUTE ON FUNCTION public.link_staff_line_user(uuid,text,text) FROM PUBLIC,anon,authenticated;
+REVOKE EXECUTE ON FUNCTION public.set_staff_line_authorization(uuid,boolean) FROM PUBLIC,anon,authenticated;
+REVOKE EXECUTE ON FUNCTION public.authorize_customer_line_user(text,uuid) FROM PUBLIC,anon,authenticated;
+REVOKE EXECUTE ON FUNCTION public.revoke_customer_line_user(text,uuid) FROM PUBLIC,anon,authenticated;
+REVOKE EXECUTE ON FUNCTION public.set_line_user_internal_name(uuid,text) FROM PUBLIC,anon,authenticated;
