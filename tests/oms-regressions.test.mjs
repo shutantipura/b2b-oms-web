@@ -834,8 +834,10 @@ test("No CV customer displays hide internal identifiers without changing custome
   assert.match(home, /displayCustomerCode\(customer\.customerCode, customer\.hasNoCv\)/);
   assert.match(tracking, /displayCustomerCode\(option\.customerCode, option\.hasNoCv\)/);
   assert.match(legacy, /displayCustomerCode\(customer\.customer_code, customer\.has_no_cv\)/);
-  assert.match(access, /has_no_cv,/);
-  assert.match(orders, /has_no_cv,/);
+  const customerAccess = readFileSync(new URL("../lib/server/lineCustomerAccess.ts", import.meta.url), "utf8");
+  assert.match(access, /loadAuthorizedLineCustomerLinks/);
+  assert.match(orders, /loadAuthorizedLineCustomerLinks/);
+  assert.match(customerAccess, /has_no_cv/);
   assert.match(home, /\`\/miniapp\/shop\?customer=\$\{selectedCustomer\.customerCode\}\`/);
 });
 
