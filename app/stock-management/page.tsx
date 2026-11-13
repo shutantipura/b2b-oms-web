@@ -53,9 +53,9 @@ function CustomerMiniMetric({ label, value, unit, tone }: {
     future: "bg-white text-[#805900]",
   };
   return (
-    <div className={`min-w-0 rounded-lg px-1 py-2 text-center sm:px-2 ${colors[tone]}`}>
-      <p className="min-h-8 text-[10px] font-bold leading-4 text-[#59786E] sm:text-[11px]">{label}</p>
-      <p className="mt-1 break-words text-[clamp(0.82rem,2.8vw,1.1rem)] font-black tabular-nums leading-6">
+    <div className={`min-w-0 rounded-lg px-1 py-1.5 text-center sm:px-2 ${colors[tone]}`}>
+      <p className="min-h-6 text-[10px] font-bold leading-[13px] text-[#59786E] sm:text-[11px]">{label}</p>
+      <p className="mt-0.5 break-words text-[clamp(0.82rem,2.8vw,1.1rem)] font-black tabular-nums leading-5">
         {amount(value)} <span className="whitespace-nowrap text-[9px] font-bold">{unit}</span>
       </p>
     </div>
@@ -92,12 +92,12 @@ function DemandTimeline({ forecast, data, unit }: {
     },
   ];
   return (
-    <div className="mt-2 grid grid-cols-3 gap-1.5 sm:gap-2"
+    <div className="mt-1.5 grid grid-cols-3 gap-1.5 sm:gap-2"
       aria-label="ความต้องการ 6 ช่วง: 2 วันก่อน เมื่อวาน วันนี้ขอสั่งแล้ว วันนี้คาดรวม พรุ่งนี้ และมะรืน">
       {groups.map((group) => (
-        <section key={group.title} className={`min-w-0 rounded-xl border p-1.5 sm:p-2 ${group.color}`}>
-          <p className="mb-1.5 text-center text-[11px] font-extrabold">{group.title}</p>
-          <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
+        <section key={group.title} className={`min-w-0 rounded-xl border p-1 sm:p-1.5 ${group.color}`}>
+          <p className="mb-1 text-center text-[11px] font-extrabold">{group.title}</p>
+          <div className="grid grid-cols-1 gap-1 md:grid-cols-2">
             {group.metrics.map((metric) => (
               <CustomerMiniMetric key={metric.label} label={metric.label}
                 value={metric.value} unit={unit} tone={group.tone} />
@@ -339,7 +339,7 @@ export default function StockManagementPage() {
                   const tomorrow = product.unit.days[1];
                   return (
                     <article key={product.key} className="overflow-hidden rounded-2xl border border-[#D5E9E3] bg-white shadow-sm">
-                      <div className="p-4 sm:p-5">
+                      <div className="p-3 sm:p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <p className="text-base font-black leading-6">{product.name}</p>
@@ -350,7 +350,7 @@ export default function StockManagementPage() {
                           {product.freshMeat && <span className="rounded-full bg-[#E8F8F1] px-3 py-1 text-[11px] font-bold text-[#288063]">เนื้อสด</span>}
                         </div>
 
-                        <div className="mt-4 rounded-xl border border-[#C8EAE3] bg-[#E7F8F4] p-4">
+                        <div className="mt-3 rounded-xl border border-[#C8EAE3] bg-[#E7F8F4] p-3">
                           <p className="text-xs font-extrabold text-[#47766A]">
                             พรุ่งนี้ {tomorrow?.date ?? ""} · คาดความต้องการ B2B (Mode)
                           </p>
@@ -373,7 +373,7 @@ export default function StockManagementPage() {
                       </div>
 
                       <details className="group border-t border-[#DDEEE8]">
-                        <summary className="cursor-pointer bg-[#F8FCFA] px-4 py-3 text-sm font-extrabold text-[#008B8B] sm:px-5">
+                        <summary className="cursor-pointer bg-[#F8FCFA] px-4 py-2.5 text-sm font-extrabold text-[#008B8B] sm:px-5">
                           ดูที่มาจากลูกค้าทุกราย ({product.unit.customers.length})
                         </summary>
                         <div className="space-y-2 p-3 sm:p-4">
@@ -384,7 +384,7 @@ export default function StockManagementPage() {
                             const confidence = CONFIDENCE[customer.confidence] ?? CONFIDENCE.insufficient;
                             return (
                               <div key={customer.customerId + ":" + customer.unit}
-                                className="rounded-xl border border-[#E1EEE9] bg-white p-3 sm:p-4">
+                                className="rounded-xl border border-[#E1EEE9] bg-white p-2.5 sm:p-3">
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                   <div className="min-w-0 flex-1">
                                     <p className="font-black text-[#17453F]">{customer.customerName}</p>
@@ -394,7 +394,7 @@ export default function StockManagementPage() {
                                     {confidence.label}
                                   </span>
                                 </div>
-                                <div className="mt-3 rounded-xl border border-[#E1A100] bg-[#FFBE16] px-3 py-2.5">
+                                <div className="mt-2 rounded-xl border border-[#E1A100] bg-[#FFBE16] px-3 py-2">
                                   <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
                                     <div>
                                       <p className="text-xs font-extrabold text-[#4A3900]">
@@ -411,7 +411,7 @@ export default function StockManagementPage() {
                                   </div>
                                 </div>
                                 <DemandTimeline forecast={forecast} data={customer} unit={product.unitName} />
-                                <p className="mt-2 text-[11px] leading-5 text-[#739085]">
+                                <p className="mt-1.5 text-[11px] leading-5 text-[#739085]">
                                   รอบสั่ง SKU {customer.effectiveCadenceDays === null
                                     ? "ยังไม่ทราบ" : "ประมาณทุก " + amount(customer.effectiveCadenceDays) + " วัน"}
                                   {" · "}เวลาที่มักสั่ง: {describeCustomerOrderTime(
