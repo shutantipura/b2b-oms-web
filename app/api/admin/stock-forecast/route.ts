@@ -379,22 +379,16 @@ export async function POST(request: NextRequest) {
     const existing = await officialSnapshot(admin, today);
     if (existing) return NextResponse.json({ snapshotDate: today, capturedAt: existing.captured_at, alreadyRecorded: true });
     const inputs = await loadForecast(admin);
-    const stockPlanningHorizon = extendForecastForExpiry(inputs.noonForecast, inputs.noonPlanningHorizon);
-    const skuList = [...new Set(stockPlanningHorizon.rows
-      .filter((row) => row.freshMeat && row.unit === "กก.").map((row) => row.sku))];
-    const [economics, sharedStockInputs] = await Promise.all([
-      masterEconomicsBySku(admin, skuList), loadSharedStockInputs(admin, skuList, today, inputs.noonForecast.dates),
-    ]);
-    const stockOrderPlan = optimizeFreshMeatOrders(stockPlanningHorizon, economics);
-    const sharedPurchaseDrafts = buildPurchasingDrafts(inputs.noonForecast, sharedStockInputs);
+    // B2B-only mode: retain demand snapshots, but stop creating incomplete
+    // supplier purchasing recommendations until shared inventory data is ready.
     const { error } = await admin.from("b2b_demand_forecast_snapshots").insert({
       snapshot_date: today,
       target_delivery_date: inputs.noonForecast.dates[1],
       cutoff_at: cutoffAt.toISOString(),
       captured_at: now.toISOString(),
       is_late: now.getTime() - cutoffAt.getTime() > 120_000,
-      model_version: "shared-stock-2doh-10am-v3",
-      forecast: { ...inputs.noonForecast, stockPlanningHorizon, stockOrderPlan, sharedStockInputs, sharedPurchaseDrafts },
+      model_version: "b2b-demand-only-10am-v1",
+      forecast: inputs.noonForecast,
     });
     // A simultaneous retry must never replace the snapshot that won the race.
     if (error?.code === "23505") return NextResponse.json({ snapshotDate: today, alreadyRecorded: true });
@@ -404,6 +398,69 @@ export async function POST(request: NextRequest) {
     console.error("Stock forecast 10:00 snapshot capture failed", error);
     return NextResponse.json({ error: "Snapshot could not be recorded" }, { status: 500 });
   }
+}
+
+/** B2B demand only: SKU totals and customer contribution. No purchase plans. */
+function b2bDemandExcelResponse(forecast: StockForecast) {
+  const products = aggregateForecastByProduct(forecast.rows, forecast.dates);
+  const summaryRows: (string | number)[][] = [
+    ["Lotus’s B2B · ความต้องการตามสินค้า (ไม่ใช่ปริมาณสั่งซัพพลายเออร์)"],
+    ["อ้างอิงจำนวนที่ลูกค้าขอสั่งตามวันส่งจาก OMS เท่านั้น ไม่รวม B2C หรือสต็อก"],
+    [],
+    ["SKU", "สินค้า", "หน่วย", "จำนวนลูกค้า", "ขอสั่งเมื่อวาน", "ขอสั่งวันนี้", "คาดปิดวันนี้",
+      "พรุ่งนี้สั่งแล้ว", "พรุ่งนี้คาดเพิ่ม", "พรุ่งนี้คาดรวม", "มะรืนคาดรวม"],
+    ...products.flatMap((product) => product.units.map((unit) => [
+      product.sku, product.productName, unit.unit, unit.customers.length,
+      unit.yesterdayRequestedQty, unit.todayRequestedQty, unit.days[0]?.totalQty ?? 0,
+      unit.days[1]?.knownQty ?? 0, unit.days[1]?.projectedQty ?? 0,
+      unit.days[1]?.totalQty ?? 0, unit.days[2]?.totalQty ?? 0,
+    ])),
+  ];
+  const customerRows: (string | number)[][] = [
+    ["Lotus’s B2B · ที่มาของความต้องการจากลูกค้าทุกราย"],
+    ["การคาดการณ์ตามวันส่ง = รับออเดอร์แล้ว + คาดว่าจะสั่งเพิ่ม · ไม่ใช่คำสั่งซื้อซัพพลายเออร์"],
+    [],
+    ["SKU", "สินค้า", "หน่วย", "รหัสลูกค้า", "ชื่อลูกค้า", "ความเชื่อมั่น",
+      "ขอสั่งเมื่อวาน", "ขอสั่งวันนี้", "คาดปิดวันนี้",
+      "พรุ่งนี้รับแล้ว", "พรุ่งนี้คาดเพิ่ม", "พรุ่งนี้คาดรวม", "มะรืนคาดรวม",
+      "รอบสั่ง SKU (วัน)", "เวลาที่มักสั่ง"],
+    ...forecast.rows.map((row) => [
+      row.sku, row.productName, row.unit, row.customerCode, row.customerName, row.confidence,
+      row.yesterdayRequestedQty, row.todayRequestedQty, row.days[0]?.totalQty ?? 0,
+      row.days[1]?.knownQty ?? 0, row.days[1]?.projectedQty ?? 0,
+      row.days[1]?.totalQty ?? 0, row.days[2]?.totalQty ?? 0,
+      row.effectiveCadenceDays ?? "",
+      describeCustomerOrderTime(row.customerUsualOrderOffsetMinutes, row.customerOrderTimingSamples),
+    ]),
+  ];
+  const workbook = XLSX.utils.book_new();
+  for (const [name, rows] of [["รวมตาม SKU", summaryRows], ["แยกรายลูกค้า", customerRows]] as const) {
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    sheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: rows[3].length - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: rows[3].length - 1 } },
+    ];
+    sheet["!cols"] = rows[3].map((_, column) =>
+      ({ wch: column === 1 || (name === "แยกรายลูกค้า" && column === 4) ? 38 : 20 }));
+    for (let row = 4; row < rows.length; row++) {
+      for (let column = 0; column < rows[row].length; column++) {
+        const cell = sheet[XLSX.utils.encode_cell({ r: row, c: column })];
+        if (cell && typeof cell.v === "number" &&
+            column >= (name === "รวมตาม SKU" ? 4 : 7)) cell.z = "#,##0.0";
+      }
+    }
+    XLSX.utils.book_append_sheet(workbook, sheet, name);
+  }
+  const bytes = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" });
+  return new NextResponse(new Uint8Array(bytes), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": 'attachment; filename="b2b_demand_' + forecast.dates[0] + '.xlsx"',
+      "Cache-Control": "private, no-store, max-age=0",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
 }
 
 function excelResponse(forecast: StockForecast, recommendations: StockOrderRecommendation[] = []) {
@@ -576,6 +633,13 @@ export async function GET(request: NextRequest) {
         { headers: { "Cache-Control": "private, no-store, max-age=0" } }
       );
     }
+    // B2B demand only: no B2C history, stock counts, cost inputs or buying plan.
+    if (format === "b2b-demand") {
+      return NextResponse.json(inputs.forecast, {
+        headers: { "Cache-Control": "private, no-store, max-age=0" },
+      });
+    }
+    if (format === "b2b-demand-xlsx") return b2bDemandExcelResponse(inputs.forecast);
     const today = bangkokDateKey(inputs.now);
     const snapshot = await officialSnapshot(admin, today);
     const savedForecast = snapshot?.forecast ?? inputs.noonForecast;
