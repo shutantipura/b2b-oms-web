@@ -62,14 +62,51 @@ test("product-level modal demand combines small probabilities from many customer
 test("shortage-sensitive planning reports expectation and the true aggregate 90th percentile", () => {
   assert.equal(STOCK_PLANNING_PERCENTILE, 0.9);
   assert.deepEqual(aggregateDemandDistribution([{ probability: 0.4, quantity: 20 }]),
-    { expected: 8, upper: 20, approximate: false });
+    { expected: 8, mode: 0, upper: 20, approximate: false });
   assert.deepEqual(aggregateDemandDistribution([
     { probability: 0.6, quantity: 10 }, { probability: 0.6, quantity: 10 },
-  ]), { expected: 12, upper: 20, approximate: false });
+  ]), { expected: 12, mode: 10, upper: 20, approximate: false });
   assert.deepEqual(aggregateDemandDistribution([{ probability: 0.2, quantity: 10 }]),
-    { expected: 2, upper: 10, approximate: false });
+    { expected: 2, mode: 0, upper: 10, approximate: false });
   assert.deepEqual(aggregateDemandDistribution([{ probability: 0.1, quantity: 10 }]),
-    { expected: 1, upper: 0, approximate: false });
+    { expected: 1, mode: 0, upper: 0, approximate: false });
+});
+
+test("modal forecasts differ from the probability-weighted mean for a single customer", () => {
+  const unlikely = aggregateDemandDistribution([{ probability: 0.2, quantity: 10 }]);
+  assert.equal(unlikely.expected, 2);
+  assert.equal(unlikely.mode, 0, "20% chance of 10 kg means most likely demand is 0, not 2");
+  const likely = aggregateDemandDistribution([{ probability: 0.8, quantity: 10 }]);
+  assert.equal(likely.expected, 8);
+  assert.equal(likely.mode, 10, "80% chance of 10 kg means most likely demand is 10, not 8");
+  const tied = aggregateDemandDistribution([{ probability: 0.5, quantity: 10 }]);
+  assert.equal(tied.mode, 0, "ties prefer the lower quantity");
+});
+
+test("aggregate modal SKU forecast is not the sum of customer modes or their means", () => {
+  const distribution = aggregateDemandDistribution(
+    Array.from({ length: 10 }, () => ({ probability: 0.4, quantity: 1 }))
+  );
+  assert.equal(distribution.expected, 4);
+  assert.equal(distribution.mode, 4);
+  const two = aggregateDemandDistribution([
+    { probability: 0.4, quantity: 1 },
+    { probability: 0.4, quantity: 1 },
+  ]);
+  assert.equal(two.expected, 0.8);
+  assert.equal(two.mode, 1, "each customer mode is zero, but the SKU total mode is 1");
+});
+
+test("order-size uncertainty changes the most likely quantity", () => {
+  const d = aggregateDemandDistribution([{
+    probability: 0.9, quantity: 12,
+    sizeOptions: [{ quantity: 10, weight: 1 }, { quantity: 30, weight: 3 }],
+  }]);
+  assert.equal(d.mode, 30, "high-probability 30 kg order dominates a 10 kg typical value");
+  assert.equal(mostLikelyAggregateQty([{
+    probability: 0.9, quantity: 12,
+    sizeOptions: [{ quantity: 10, weight: 1 }, { quantity: 30, weight: 3 }],
+  }]), 30);
 });
 
 test("planning explicitly models size variation instead of assuming every next order has the median quantity", () => {
