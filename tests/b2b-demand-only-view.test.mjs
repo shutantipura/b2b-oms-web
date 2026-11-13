@@ -39,6 +39,9 @@ test("B2B-only Excel has product and customer sheets without purchasing plans", 
   assert.match(excel, /รวมตาม SKU/);
   assert.match(excel, /แยกรายลูกค้า/);
   assert.match(excel, /row\.customerCode, row\.customerName/);
+  assert.match(excel, /unit\.twoDaysAgoRequestedQty/);
+  assert.match(excel, /row\.twoDaysAgoRequestedQty/);
+  assert.match(excel, /2 วันก่อนขอสั่ง/);
   assert.match(excel, /row\.days\[1\]\?\.knownQty/);
   assert.match(excel, /row\.days\[1\]\?\.projectedQty/);
   assert.doesNotMatch(excel, /stockOrderPlans|sharedPurchaseDrafts|recommendedOrderKg/);
