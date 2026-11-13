@@ -100,10 +100,27 @@ AS $fn$ SELECT public.is_current_manager(); $fn$;
 CREATE OR REPLACE FUNCTION public.current_staff_id()
 RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
 AS $fn$
- SELECT s.id FROM public.staff s JOIN public.staff_line_users slu ON slu.staff_id=s.id
- JOIN public.line_users lu ON lu.line_user_id=slu.line_user_id
- WHERE s.auth_user_id=(SELECT auth.uid()) AND s.is_active AND slu.is_authorized
- AND lu.is_active AND lu.assigned_role=s.account_type
+ SELECT s.id FROM public.staff s
+ WHERE s.auth_user_id=(SELECT auth.uid()) AND s.is_active
+ AND (
+   -- LINE-linked roles require a live, matching authorization. Historical
+   -- deauthorized links can never regain access through an old Auth session.
+   EXISTS (
+     SELECT 1 FROM public.staff_line_users slu
+     JOIN public.line_users lu ON lu.line_user_id=slu.line_user_id
+     WHERE slu.staff_id=s.id AND slu.is_authorized AND lu.is_active
+       AND lu.assigned_role=s.account_type
+   )
+   OR
+   -- Keep legacy email-password staff and dedicated Android terminal accounts
+   -- usable during migration. These accounts have NEVER had a LINE link.
+   -- Crucially, a revoked LINE account has an existing historical link row,
+   -- so it cannot qualify for this compatibility exception.
+   (s.account_type='staff' AND NOT EXISTS (
+     SELECT 1 FROM public.staff_line_users previous_link
+     WHERE previous_link.staff_id=s.id
+   ))
+ )
  LIMIT 1;
 $fn$;
 
