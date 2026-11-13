@@ -162,23 +162,41 @@ export type ProductForecastUnitRow = {
  * aggregate to one decimal. Rounding each customer's 0.05kg basket first would
  * distort the most likely total. Bound states for unusually broad baskets.
  */
-export function mostLikelyAggregateQty(candidates: { probability: number; quantity: number }[]) {
+export function mostLikelyAggregateQty(candidates: {
+  probability: number; quantity: number; sizeOptions?: DemandSizeOption[];
+}[]) {
   let states = new Map<number, number>([[0, 1]]);
   for (const candidate of candidates) {
     const probability = Math.min(1, Math.max(0, candidate.probability));
-    const quantity = Math.max(0, Math.round(candidate.quantity * 1000));
-    if (!quantity || probability <= 0) continue;
+    if (!(probability > 0)) continue;
+    // Conditional order sizes are part of the distribution. Using only a
+    // typical size could select the wrong modal customer or SKU quantity.
+    const options = candidate.sizeOptions?.length
+      ? candidate.sizeOptions
+      : [{ quantity: candidate.quantity, weight: 1 }];
+    const mergedOptions = new Map<number, number>();
+    for (const option of options) {
+      const units = Math.max(0, Math.round(option.quantity * 1000));
+      if (units > 0 && Number.isFinite(option.weight) && option.weight > 0) {
+        mergedOptions.set(units, (mergedOptions.get(units) ?? 0) + option.weight);
+      }
+    }
+    const totalWeight = [...mergedOptions.values()].reduce((sum, weight) => sum + weight, 0);
+    if (totalWeight <= 0) continue;
     const next = new Map<number, number>();
     for (const [total, mass] of states) {
       next.set(total, (next.get(total) ?? 0) + mass * (1 - probability));
-      next.set(total + quantity, (next.get(total + quantity) ?? 0) + mass * probability);
+      for (const [units, weight] of mergedOptions) {
+        const value = total + units;
+        next.set(value, (next.get(value) ?? 0) + mass * probability * weight / totalWeight);
+      }
     }
     if (next.size <= MAX_AGGREGATE_STATES) {
       states = next;
     } else {
-      // Retain the most likely totals, then renormalise. This bound prevents
-      // rare, highly variable demand from exhausting memory in a serverless run.
-      const top = [...next.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_AGGREGATE_STATES);
+      // Approximate the MODE using the most likely states under a memory cap,
+      // rather than silently returning the expected value.
+      const top = [...next.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, MAX_AGGREGATE_STATES);
       const retainedMass = top.reduce((sum, [, mass]) => sum + mass, 0);
       states = new Map(top.map(([total, mass]) => [total, mass / retainedMass]));
     }
@@ -193,13 +211,14 @@ export function mostLikelyAggregateQty(candidates: { probability: number; quanti
   }
   return Math.round(bestTotal / 100) / 10;
 }
-
 /**
  * Independent uncertain baskets. Each event can have an empirical conditional
  * order-size distribution; absent sufficient history, its size is fixed. The
  * product-level upper quantile is NOT the sum of individual upper quantiles.
- * Keep full probability states when feasible; fall back to the conservative
- * Cantelli bound for unusually large state spaces.
+ * The displayed modal demand is also computed from the convolved outcomes,
+ * not by adding customer modes or expectations. Retain exact probability
+ * states when feasible; use a bounded modal approximation and conservative
+ * Cantelli upper bound when state counts become too broad.
  */
 export function aggregateDemandDistribution(
   candidates: { probability: number; quantity: number; sizeOptions?: DemandSizeOption[] }[], percentile = STOCK_PLANNING_PERCENTILE
@@ -242,7 +261,7 @@ export function aggregateDemandDistribution(
       // bound; preferable to silently throwing away unlikely high-demand tails.
       const maximum = probabilities.reduce((sum, entry) => sum + Math.max(...entry.options.map((option) => option.units)), 0) / 1000;
       const upper = Math.min(maximum, expected + Math.sqrt(Math.max(0, variance) * percentile / (1 - percentile)));
-      return { expected: clampQty(expected), upper: clampQty(upper), approximate: true };
+      return { expected: clampQty(expected), mode: mostLikelyAggregateQty(candidates), upper: clampQty(upper), approximate: true };
     }
     states = next;
   }
@@ -253,7 +272,23 @@ export function aggregateDemandDistribution(
     upper = amount / 1000;
     if (cumulative + 1e-10 >= percentile) break;
   }
-  return { expected: clampQty(expected), upper: clampQty(upper), approximate: false };
+  // Pick the largest probability mass at 0.001-unit precision, before the
+  // one-decimal UI rounding. If two outcomes tie, prefer the lower quantity.
+  let modalAmount = 0;
+  let modalMass = -1;
+  for (const [amount, mass] of states) {
+    if (mass > modalMass + 1e-12 ||
+        (Math.abs(mass - modalMass) <= 1e-12 && amount < modalAmount)) {
+      modalAmount = amount;
+      modalMass = mass;
+    }
+  }
+  return {
+    expected: clampQty(expected),
+    mode: Math.round(modalAmount / 100) / 10,
+    upper: clampQty(upper),
+    approximate: false,
+  };
 }
 
 /** Demand totals sum original requested quantities across customers, keeping each unit separate. */
@@ -317,7 +352,7 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
         const candidates = candidatesByUnitDate.get(JSON.stringify([product.sku, unit.unit]))?.get(day.date);
         if (candidates) {
           const distribution = aggregateDemandDistribution(candidates);
-          day.projectedQty = distribution.expected;
+          day.projectedQty = distribution.mode;
           day.planningQty = clampQty(day.knownQty + distribution.upper);
         }
         day.projectedQty = clampQty(day.projectedQty);
@@ -326,10 +361,10 @@ export function aggregateForecastByProduct(rows: ForecastRow[], dates: string[])
       }
     }
   }
-  // Prioritise procurement risk, but never compare kg and pieces by adding them.
+  // Order by tomorrow modal demand, keeping kg and piece units separate.
   return [...products.values()].sort((a, b) =>
-    Math.max(0, ...b.units.map((unit) => unit.days[1]?.planningQty ?? 0)) -
-    Math.max(0, ...a.units.map((unit) => unit.days[1]?.planningQty ?? 0)) ||
+    Math.max(0, ...b.units.map((unit) => unit.days[1]?.totalQty ?? 0)) -
+    Math.max(0, ...a.units.map((unit) => unit.days[1]?.totalQty ?? 0)) ||
     a.sku.localeCompare(b.sku, "en")
   );
 }
@@ -569,7 +604,7 @@ function dailyDemandForecast(
     ageStates = nextStates;
     const distribution = aggregateDemandDistribution([{ probability: projectedProbability, quantity: typicalQty }]);
     return {
-      date, knownQty: 0, projectedQty: distribution.expected, totalQty: distribution.expected,
+      date, knownQty: 0, projectedQty: distribution.mode, totalQty: distribution.mode,
       planningQty: distribution.upper, projectedProbability, possibleQty: clampQty(typicalQty),
     };
   });
@@ -960,7 +995,7 @@ export function buildStockForecast(
           projectedProbability = (event.projectedProbability ?? 0) * unitShare;
         }
         const distribution = aggregateDemandDistribution([{ probability: projectedProbability, quantity: possibleQty, sizeOptions: possibleSizes }]);
-        const projectedQty = distribution.expected;
+        const projectedQty = distribution.mode;
         return {
           date: event.date, knownQty, projectedQty, totalQty: clampQty(knownQty + projectedQty),
           planningQty: clampQty(knownQty + distribution.upper),
