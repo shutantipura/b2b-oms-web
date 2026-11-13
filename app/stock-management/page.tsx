@@ -54,6 +54,20 @@ function SmallMetric({ label, value, unit, note }: {
   );
 }
 
+/** Four compact historical/forecast figures below each customer's primary demand. */
+function CustomerMiniMetric({ label, value, unit, forecast = false }: {
+  label: string; value: number; unit: string; forecast?: boolean;
+}) {
+  return (
+    <div className={`min-w-0 rounded-lg px-1.5 py-2 text-center sm:px-2 ${forecast ? "bg-[#F0F9F5]" : "bg-[#F3F6F5]"}`}>
+      <p className="min-h-8 text-[10px] font-bold leading-4 text-[#54796E] sm:text-[11px]">{label}</p>
+      <p className="mt-1 whitespace-nowrap text-[clamp(0.8rem,3.2vw,1.15rem)] font-black tabular-nums leading-6 text-[#21665B]">
+        {amount(value)} <span className="text-[9px] font-bold">{unit}</span>
+      </p>
+    </div>
+  );
+}
+
 export default function StockManagementPage() {
   const [access, setAccess] = useState<Access>("loading");
   const [forecast, setForecast] = useState<StockForecast | null>(null);
@@ -347,20 +361,31 @@ export default function StockManagementPage() {
                                     {confidence.label}
                                   </span>
                                 </div>
-                                <div className="mt-3 grid grid-cols-3 gap-2">
-                                  <SmallMetric label="พรุ่งนี้รับแล้ว" value={day?.knownQty ?? 0} unit={product.unitName} />
-                                  <SmallMetric label="พรุ่งนี้คาดเพิ่ม" value={day?.projectedQty ?? 0} unit={product.unitName} />
-                                  <div className="min-w-0 rounded-xl bg-[#E6F7F2] px-3 py-3">
-                                    <p className="text-[11px] font-bold text-[#46796E]">พรุ่งนี้คาดรวม</p>
-                                    <p className="mt-1 text-lg font-black tabular-nums text-[#008B8B] sm:text-xl">
-                                      {oneDay(day, "totalQty")} <span className="text-[11px]">{product.unitName}</span>
+                                <div className="mt-3 rounded-xl border border-[#CDE9E0] bg-[#E7F8F4] px-3 py-3">
+                                  <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+                                    <div>
+                                      <p className="text-xs font-extrabold text-[#46796E]">
+                                        พรุ่งนี้ {forecast.dates[1].slice(5)} · คาดความต้องการ
+                                      </p>
+                                      <p className="mt-1 text-[27px] font-black leading-8 tabular-nums text-[#008B8B]">
+                                        {oneDay(day, "totalQty")} <span className="text-sm font-bold">{product.unitName}</span>
+                                      </p>
+                                    </div>
+                                    <p className="text-[11px] leading-5 text-[#507C70]">
+                                      รับแล้ว <strong>{oneDay(day, "knownQty")}</strong>
+                                      {" + "}คาดเพิ่ม <strong>{oneDay(day, "projectedQty")}</strong>
                                     </p>
                                   </div>
                                 </div>
-                                <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-[#54796D]">
-                                  <div>วันนี้รับแล้ว <strong>{amount(customer.todayRequestedQty)}</strong></div>
-                                  <div>คาดปิดวันนี้ <strong>{oneDay(customer.days[0], "totalQty")}</strong></div>
-                                  <div>มะรืนคาด <strong>{oneDay(customer.days[2], "totalQty")}</strong></div>
+                                <div className="mt-2 grid grid-cols-4 gap-1.5 sm:gap-2" aria-label="ยอดสั่งจริง 2 วันล่าสุดและคาดการณ์อีก 2 ช่วง">
+                                  <CustomerMiniMetric label={`เมื่อวาน ${forecast.yesterdayDate.slice(5)} สั่งแล้ว`}
+                                    value={customer.yesterdayRequestedQty} unit={product.unitName} />
+                                  <CustomerMiniMetric label={`วันนี้ ${forecast.dates[0].slice(5)} สั่งแล้ว`}
+                                    value={customer.todayRequestedQty} unit={product.unitName} />
+                                  <CustomerMiniMetric label="คาดปิดวันนี้"
+                                    value={customer.days[0]?.totalQty ?? 0} unit={product.unitName} forecast />
+                                  <CustomerMiniMetric label={`มะรืน ${forecast.dates[2].slice(5)} คาดรวม`}
+                                    value={customer.days[2]?.totalQty ?? 0} unit={product.unitName} forecast />
                                 </div>
                                 <p className="mt-2 text-[11px] leading-5 text-[#739085]">
                                   รอบสั่ง SKU {customer.effectiveCadenceDays === null
