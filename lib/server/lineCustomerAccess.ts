@@ -9,6 +9,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export async function hasAutomaticLineCustomerAccess(
   admin: SupabaseClient, verifiedLineUserId: string,
 ): Promise<boolean> {
+  const { data: identity, error: identityError } = await admin.from("line_users")
+    .select("assigned_role,is_active")
+    .eq("line_user_id",verifiedLineUserId).maybeSingle();
+  if (identityError) throw new Error("Could not verify LINE role");
+  if (!identity?.is_active ||
+    !["manager","salesman"].includes(identity.assigned_role ?? "")) return false;
   const { data: link, error: linkError } = await admin
     .from("staff_line_users")
     .select("staff_id")
@@ -57,7 +63,16 @@ export async function loadAuthorizedLineCustomerLinks(
   admin: SupabaseClient, verifiedLineUserId: string, lineUserRowId: string,
 ): Promise<{ data: LineCustomerAccessLink[] | null; error: Error | null }> {
   try {
-    if (await hasAutomaticLineCustomerAccess(admin, verifiedLineUserId)) {
+    const { data: identity, error: identityError } = await admin
+      .from("line_users").select("assigned_role,is_active")
+      .eq("id",lineUserRowId).eq("line_user_id",verifiedLineUserId).maybeSingle();
+    if (identityError) throw identityError;
+    if (!identity?.is_active || !identity.assigned_role ||
+      identity.assigned_role === "staff") return { data: [], error: null };
+    if (identity.assigned_role !== "customer") {
+      if (!await hasAutomaticLineCustomerAccess(admin, verifiedLineUserId)) {
+        return { data: [], error: null };
+      }
       const { data, error } = await admin.from("customers")
         .select("id,customer_code,customer_name,has_no_cv,is_active,delivery_address,delivery_map_url,delivery_map_url_2,delivery_location_1_name,delivery_location_2_name").eq("is_active", true)
         .order("customer_name", { ascending: true });
