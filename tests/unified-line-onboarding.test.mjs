@@ -18,6 +18,13 @@ test("LINE authorization is the sole onboarding menu; old staff page redirects",
  assert.match(ui, /set_line_account_role/);
  assert.doesNotMatch(ui, /set_line_staff_access|set_line_customer_access|set_line_all_customer_access/);
 });
+test("LINE activation/deactivation remains available without deleting history",()=>{
+ assert.match(ui,/async function setLineActive/);
+ assert.match(ui,/set_line_user_active_status/);
+ assert.match(ui,/if\(!active&&user.role\)/);
+ assert.match(ui,/ปิดใช้งานบัญชี LINE/);
+ assert.match(ui,/เปิดใช้งานบัญชี LINE/);
+});
 test("one role selector, with staff records created automatically",()=>{
  for(const role of ["manager","salesman","staff","customer"]) {
    assert.ok(ui.includes('id:"'+role+'"'));
