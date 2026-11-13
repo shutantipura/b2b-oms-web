@@ -40,16 +40,71 @@ const CONFIDENCE: Record<string, { label: string; color: string }> = {
   insufficient: { label: "ข้อมูลยังน้อย", color: "bg-[#F0F3F2] text-[#657A73]" },
 };
 
-/** Four compact historical/forecast figures below each SKU or customer forecast. */
-function CustomerMiniMetric({ label, value, unit, forecast = false }: {
-  label: string; value: number; unit: string; forecast?: boolean;
+/** The same six-point timeline is shared by SKU totals and customer demand cards. */
+type DemandTimelineData = Pick<ProductForecastUnitRow,
+  "twoDaysAgoRequestedQty" | "yesterdayRequestedQty" | "todayRequestedQty" | "days">;
+
+function CustomerMiniMetric({ label, value, unit, tone }: {
+  label: string; value: number; unit: string; tone: "past" | "today" | "future";
 }) {
+  const colors = {
+    past: "bg-white text-[#315F56]",
+    today: "bg-white text-[#007F7F]",
+    future: "bg-white text-[#805900]",
+  };
   return (
-    <div className={`min-w-0 rounded-lg px-1.5 py-2 text-center sm:px-2 ${forecast ? "bg-[#F0F9F5]" : "bg-[#F3F6F5]"}`}>
-      <p className="min-h-8 text-[10px] font-bold leading-4 text-[#54796E] sm:text-[11px]">{label}</p>
-      <p className="mt-1 whitespace-nowrap text-[clamp(0.8rem,3.2vw,1.15rem)] font-black tabular-nums leading-6 text-[#21665B]">
-        {amount(value)} <span className="text-[9px] font-bold">{unit}</span>
+    <div className={`min-w-0 rounded-lg px-1 py-2 text-center sm:px-2 ${colors[tone]}`}>
+      <p className="min-h-8 text-[10px] font-bold leading-4 text-[#59786E] sm:text-[11px]">{label}</p>
+      <p className="mt-1 break-words text-[clamp(0.82rem,2.8vw,1.1rem)] font-black tabular-nums leading-6">
+        {amount(value)} <span className="whitespace-nowrap text-[9px] font-bold">{unit}</span>
       </p>
+    </div>
+  );
+}
+
+function DemandTimeline({ forecast, data, unit }: {
+  forecast: StockForecast; data: DemandTimelineData; unit: string;
+}) {
+  const groups = [
+    {
+      title: "ย้อนหลัง", tone: "past" as const,
+      color: "border-[#E3EAE7] bg-[#F2F5F3] text-[#536F65]",
+      metrics: [
+        { label: `2 วันก่อน ${forecast.twoDaysAgoDate.slice(5)}`, value: data.twoDaysAgoRequestedQty },
+        { label: `เมื่อวาน ${forecast.yesterdayDate.slice(5)}`, value: data.yesterdayRequestedQty },
+      ],
+    },
+    {
+      title: "วันนี้", tone: "today" as const,
+      color: "border-[#CBE8E4] bg-[#E6F6F3] text-[#007F7F]",
+      metrics: [
+        { label: "ขอสั่งแล้ว", value: data.todayRequestedQty },
+        { label: "คาดรวม (Mode)", value: data.days[0]?.totalQty ?? 0 },
+      ],
+    },
+    {
+      title: "ล่วงหน้า", tone: "future" as const,
+      color: "border-[#F6E4AA] bg-[#FFF5DC] text-[#9A6A00]",
+      metrics: [
+        { label: `พรุ่งนี้ ${forecast.dates[1].slice(5)}`, value: data.days[1]?.totalQty ?? 0 },
+        { label: `มะรืน ${forecast.dates[2].slice(5)}`, value: data.days[2]?.totalQty ?? 0 },
+      ],
+    },
+  ];
+  return (
+    <div className="mt-2 grid grid-cols-3 gap-1.5 sm:gap-2"
+      aria-label="ความต้องการ 6 ช่วง: 2 วันก่อน เมื่อวาน วันนี้ขอสั่งแล้ว วันนี้คาดรวม พรุ่งนี้ และมะรืน">
+      {groups.map((group) => (
+        <section key={group.title} className={`min-w-0 rounded-xl border p-1.5 sm:p-2 ${group.color}`}>
+          <p className="mb-1.5 text-center text-[11px] font-extrabold">{group.title}</p>
+          <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
+            {group.metrics.map((metric) => (
+              <CustomerMiniMetric key={metric.label} label={metric.label}
+                value={metric.value} unit={unit} tone={group.tone} />
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -215,7 +270,7 @@ export default function StockManagementPage() {
         <section className="mt-4 rounded-[22px] border border-[#D1E7E2] bg-white p-4 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black">ความต้องการสินค้าใน 3 วัน</h2>
+              <h2 className="text-lg font-black">ความต้องการย้อนหลังและคาดการณ์ล่วงหน้า</h2>
               <p className="mt-1 text-xs leading-5 text-[#6B8A80]">
                 {forecast ? "อัปเดตล่าสุด " + new Date(forecast.asOf).toLocaleString("th-TH", {
                   timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric",
@@ -275,6 +330,7 @@ export default function StockManagementPage() {
               <p className="mt-3 text-xs leading-5 text-[#64857B]">
                 แสดง {visibleProducts.length} จาก {filtered.length} SKU/หน่วย
                 {" · "}เรียงจากความต้องการพรุ่งนี้สูงสุดภายในหน่วยเดียวกัน
+                {" · "}ย้อนหลัง = ยอดขอสั่งตามวันส่ง · วันนี้ขอสั่งแล้ว = ออเดอร์ที่ได้รับ · คาดรวม = ขอสั่งแล้ว + Mode คาดเพิ่ม
                 {" · "}กด “ดูที่มาจากลูกค้า” เพื่อดูทุกราย
               </p>
 
@@ -307,18 +363,7 @@ export default function StockManagementPage() {
                             {" + "}คาดว่าจะสั่งเพิ่ม <strong>{oneDay(tomorrow, "projectedQty")}</strong> {product.unitName}
                           </p>
                         </div>
-
-                        <div className="mt-2 grid grid-cols-4 gap-1.5 sm:gap-2"
-                          aria-label="ความต้องการ SKU เมื่อวาน วันนี้ คาดปิดวันนี้ และมะรืน">
-                          <CustomerMiniMetric label={`เมื่อวาน ${forecast.yesterdayDate.slice(5)} สั่งแล้ว`}
-                            value={product.unit.yesterdayRequestedQty} unit={product.unitName} />
-                          <CustomerMiniMetric label={`วันนี้ ${forecast.dates[0].slice(5)} สั่งแล้ว`}
-                            value={product.unit.todayRequestedQty} unit={product.unitName} />
-                          <CustomerMiniMetric label="คาดปิดวันนี้"
-                            value={product.unit.days[0]?.totalQty ?? 0} unit={product.unitName} forecast />
-                          <CustomerMiniMetric label={`มะรืน ${forecast.dates[2].slice(5)} คาดรวม`}
-                            value={product.unit.days[2]?.totalQty ?? 0} unit={product.unitName} forecast />
-                        </div>
+                         <DemandTimeline forecast={forecast} data={product.unit} unit={product.unitName} />
 
                         {forecast.missingWeightConversions.includes(product.sku) && (
                           <p className="mt-3 rounded-lg bg-[#FFF8E4] p-2.5 text-xs text-[#87631B]">
@@ -365,16 +410,7 @@ export default function StockManagementPage() {
                                     </p>
                                   </div>
                                 </div>
-                                <div className="mt-2 grid grid-cols-4 gap-1.5 sm:gap-2" aria-label="ยอดสั่งจริง 2 วันล่าสุดและคาดการณ์อีก 2 ช่วง">
-                                  <CustomerMiniMetric label={`เมื่อวาน ${forecast.yesterdayDate.slice(5)} สั่งแล้ว`}
-                                    value={customer.yesterdayRequestedQty} unit={product.unitName} />
-                                  <CustomerMiniMetric label={`วันนี้ ${forecast.dates[0].slice(5)} สั่งแล้ว`}
-                                    value={customer.todayRequestedQty} unit={product.unitName} />
-                                  <CustomerMiniMetric label="คาดปิดวันนี้"
-                                    value={customer.days[0]?.totalQty ?? 0} unit={product.unitName} forecast />
-                                  <CustomerMiniMetric label={`มะรืน ${forecast.dates[2].slice(5)} คาดรวม`}
-                                    value={customer.days[2]?.totalQty ?? 0} unit={product.unitName} forecast />
-                                </div>
+                                <DemandTimeline forecast={forecast} data={customer} unit={product.unitName} />
                                 <p className="mt-2 text-[11px] leading-5 text-[#739085]">
                                   รอบสั่ง SKU {customer.effectiveCadenceDays === null
                                     ? "ยังไม่ทราบ" : "ประมาณทุก " + amount(customer.effectiveCadenceDays) + " วัน"}
