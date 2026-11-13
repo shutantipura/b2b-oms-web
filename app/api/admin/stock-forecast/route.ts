@@ -407,10 +407,10 @@ function b2bDemandExcelResponse(forecast: StockForecast) {
   const products = aggregateForecastByProduct(forecast.rows, forecast.dates);
   const summaryRows: (string | number)[][] = [
     ["Lotus’s B2B · ความต้องการตามสินค้า (ไม่ใช่ปริมาณสั่งซัพพลายเออร์)"],
-    ["อ้างอิงจำนวนที่ลูกค้าขอสั่งตามวันส่งจาก OMS เท่านั้น ไม่รวม B2C หรือสต็อก"],
+    ["อ้างอิงจำนวนที่ลูกค้าขอสั่งตามวันส่งจาก OMS รวมออเดอร์ยกเลิก/ขายได้ไม่ครบ · ไม่รวมลูกค้าทดสอบ B2C หรือสต็อก"],
     [],
     ["SKU", "สินค้า", "หน่วย", "จำนวนลูกค้า", "ขอสั่งเมื่อวาน", "ขอสั่งวันนี้", "คาดปิดวันนี้",
-      "พรุ่งนี้สั่งแล้ว", "พรุ่งนี้คาดเพิ่ม", "พรุ่งนี้คาดรวม", "มะรืนคาดรวม"],
+      "พรุ่งนี้ขอสั่งแล้ว", "พรุ่งนี้คาดเพิ่ม", "พรุ่งนี้คาดรวม", "มะรืนคาดรวม"],
     ...products.flatMap((product) => product.units.map((unit) => [
       product.sku, product.productName, unit.unit, unit.customers.length,
       unit.yesterdayRequestedQty, unit.todayRequestedQty, unit.days[0]?.totalQty ?? 0,
@@ -420,11 +420,11 @@ function b2bDemandExcelResponse(forecast: StockForecast) {
   ];
   const customerRows: (string | number)[][] = [
     ["Lotus’s B2B · ที่มาของความต้องการจากลูกค้าทุกราย"],
-    ["การคาดการณ์ตามวันส่ง = รับออเดอร์แล้ว + คาดว่าจะสั่งเพิ่ม · ไม่ใช่คำสั่งซื้อซัพพลายเออร์"],
+    ["การคาดการณ์ตามวันส่ง = ยอดขอสั่งแล้ว (รวมยกเลิก) + คาดว่าจะสั่งเพิ่ม · ไม่ใช่ยอดขายหรือคำสั่งซื้อซัพพลายเออร์"],
     [],
     ["SKU", "สินค้า", "หน่วย", "รหัสลูกค้า", "ชื่อลูกค้า", "ความเชื่อมั่น",
       "ขอสั่งเมื่อวาน", "ขอสั่งวันนี้", "คาดปิดวันนี้",
-      "พรุ่งนี้รับแล้ว", "พรุ่งนี้คาดเพิ่ม", "พรุ่งนี้คาดรวม", "มะรืนคาดรวม",
+      "พรุ่งนี้ขอสั่งแล้ว", "พรุ่งนี้คาดเพิ่ม", "พรุ่งนี้คาดรวม", "มะรืนคาดรวม",
       "รอบสั่ง SKU (วัน)", "เวลาที่มักสั่ง"],
     ...forecast.rows.map((row) => [
       row.sku, row.productName, row.unit, row.customerCode, row.customerName, row.confidence,
