@@ -31,6 +31,7 @@ type DbOrder = {
   created_at: string;
   delivery_date: string | null;
   group_root_order_id: string | null;
+  group_sequence: number | null;
   status: string;
 };
 type DbItem = {
@@ -94,7 +95,7 @@ async function ordersForDeliveryDates(admin: SupabaseClient, startDate: string, 
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await admin
       .from("orders")
-      .select("id, customer_id, created_at, delivery_date, group_root_order_id, status")
+      .select("id, customer_id, created_at, delivery_date, group_root_order_id, group_sequence, status")
       .gte("delivery_date", startDate)
       .lte("delivery_date", endDate)
       .order("delivery_date", { ascending: true })
@@ -209,6 +210,7 @@ async function loadForecast(admin: SupabaseClient, extraHistoryDays = 0) {
     createdAt: order.created_at,
     deliveryDate: order.delivery_date,
     groupRootOrderId: order.group_root_order_id,
+    groupSequence: order.group_sequence,
     status: order.status,
   }));
   const inputItems: ForecastItemInput[] = items.map((item) => {
