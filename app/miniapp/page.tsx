@@ -858,40 +858,6 @@ export default function MiniAppHomePage() {
 
         // ===============================================
 
-        // EXPLICIT ACCESS CHOOSER
-
-        // ===============================================
-
-        if (
-
-          requestedPortal ===
-
-            "access" &&
-
-          data.hasCustomerAccess &&
-
-          data.hasStaffAccess
-
-        ) {
-
-          setPortal(
-
-            "choose"
-
-          );
-
-          setLoading(
-
-            false
-
-          );
-
-          return;
-
-        }
-
-        // ===============================================
-
         // EXPLICIT STAFF
 
         // ===============================================
@@ -928,8 +894,9 @@ export default function MiniAppHomePage() {
 
         // ===============================================
 
-        // Both customer and staff access: always show the account-type
-        // chooser by default. Explicit portal links are handled above.
+        // A LINE account has one role. Managers and Salesmen may access
+        // all customers, but their default workspace is their *staff* role.
+        // Entering the customer ordering portal is an explicit action.
         if (
 
           data.hasCustomerAccess &&
@@ -938,7 +905,7 @@ export default function MiniAppHomePage() {
 
         ) {
 
-          setPortal("choose");
+          setPortal("staff");
 
         } else if (
 
