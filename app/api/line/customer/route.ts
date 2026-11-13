@@ -1,3 +1,4 @@
+import { loadAuthorizedLineCustomerLinks } from "@/lib/server/lineCustomerAccess";
 import {
   NextRequest,
   NextResponse,
@@ -295,35 +296,8 @@ export async function POST(
     // 4. CUSTOMER ACCESS
     // ===================================================
 
-    const {
-      data:
-        customerLinkData,
-      error:
-        customerLinkError,
-    } =
-      await supabase
-        .from(
-          "customer_line_users"
-        )
-        .select(`
-          customer_id,
-          can_order,
-          customers (
-            id,
-            customer_code,
-            customer_name,
-             has_no_cv,
-            is_active
-          )
-        `)
-        .eq(
-          "line_user_id",
-          lineUser.id
-        )
-        .eq(
-          "can_order",
-          true
-        );
+    const { data: customerLinkData, error: customerLinkError } =
+      await loadAuthorizedLineCustomerLinks(supabase, lineData.sub, lineUser.id);
 
     if (
       customerLinkError
