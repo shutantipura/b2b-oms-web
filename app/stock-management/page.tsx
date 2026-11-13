@@ -206,7 +206,7 @@ export default function StockManagementPage() {
           </div>
           <div className="mt-4 rounded-xl border border-[#D5EAE4] bg-white/85 p-3 text-xs leading-6 text-[#476C63]">
             <strong className="text-[#007F7F]">B2B Demand Only</strong>
-            {" · "}หน้านี้แสดงเพียงความต้องการที่ลูกค้าขอสั่งแล้วและคาดว่าจะสั่งเพิ่ม
+            {" · "}คำนวณจากจำนวนที่ลูกค้าขอสั่ง ไม่ใช่จำนวนที่ขายหรือส่งมอบ (รวมคำสั่งซื้อที่ยกเลิก)
             {" · "}ยังไม่รวม B2C, สต็อกคงเหลือ หรือคำแนะนำสั่งซัพพลายเออร์
           </div>
         </header>
@@ -302,7 +302,7 @@ export default function StockManagementPage() {
                             <span className="ml-1 text-sm font-bold">{product.unitName}</span>
                           </p>
                           <p className="mt-2 text-xs leading-5 text-[#557D72]">
-                            รับออเดอร์แล้ว <strong>{oneDay(tomorrow, "knownQty")}</strong>
+                            ขอสั่งแล้ว <strong>{oneDay(tomorrow, "knownQty")}</strong>
                             {" + "}คาดว่าจะสั่งเพิ่ม <strong>{oneDay(tomorrow, "projectedQty")}</strong> {product.unitName}
                           </p>
                         </div>
@@ -359,7 +359,7 @@ export default function StockManagementPage() {
                                       </p>
                                     </div>
                                     <p className="text-[11px] leading-5 text-[#594400]">
-                                      รับแล้ว <strong>{oneDay(day, "knownQty")}</strong>
+                                      ขอสั่งแล้ว <strong>{oneDay(day, "knownQty")}</strong>
                                       {" + "}คาดเพิ่ม <strong>{oneDay(day, "projectedQty")}</strong>
                                     </p>
                                   </div>
@@ -404,8 +404,8 @@ export default function StockManagementPage() {
               )}
 
               <p className="mt-5 rounded-xl bg-[#FFF8E7] p-3 text-xs leading-6 text-[#82651E]">
-                ยอดขอสั่งคือปริมาณที่ลูกค้าร้องขอใน OMS (ไม่นับออเดอร์ยกเลิก) จัดตามวันส่ง ไม่ใช่วันที่กดสั่ง
-                {" · "}คาดรวม = รับออเดอร์แล้ว + ปริมาณที่คาดว่าจะมีการสั่งเพิ่ม
+                ยอดขอสั่งคือจำนวนที่ลูกค้าขอใน OMS รวมถึงออเดอร์ที่ยกเลิกหรือขายได้ไม่ครบ · ไม่รวมลูกค้าทดสอบ · จัดตามวันส่ง ไม่ใช่วันที่กดสั่ง
+                {" · "}คาดรวม = ขอสั่งแล้ว + ปริมาณที่คาดว่าจะมีการสั่งเพิ่ม
                 {" · "}ตัวเลขรวมระดับ SKU คำนวณก่อนปัดเศษ จึงอาจต่างจากการบวกตัวเลขรายลูกค้าที่แสดง 1 ตำแหน่ง
                 {" · "}หน่วย กก. และชิ้นจะไม่บวกรวมกัน
               </p>
