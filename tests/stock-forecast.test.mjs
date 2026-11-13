@@ -528,11 +528,13 @@ test("known future demand is included once and resets the cycle", () => {
   assert.ok(meat.days[2].projectedQty < 10);
 });
 
-test("one-off SKUs do not create speculative forecasts; test customers excluded", () => {
+test("a two-days-ago one-off SKU is visible without speculative demand; test customers excluded", () => {
   const orders = [makeOrder("one", "2026-11-02")];
   const items = [makeItem("one", "meat", 10, "Fresh Meat", "หมูสด")];
   const result = buildStockForecast(orders, items, [customer], now);
-  assert.equal(result.rows.length, 0);
+  assert.equal(result.rows.length, 1, "recent historical demand must remain visible in the six-point timeline");
+  assert.equal(result.rows[0].twoDaysAgoRequestedQty, 10);
+  assert.ok(result.rows[0].days.every((day) => day.totalQty === 0), "a one-off must not invent future demand");
   const hidden = buildStockForecast(orders, items, [{ ...customer, isTest: true }], now);
   assert.equal(hidden.rows.length, 0);
 });
