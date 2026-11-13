@@ -140,7 +140,7 @@ test("typical requested quantity remains an observed size despite unusual large 
   assert.equal(recencyWeightedMedian([10, 10, 10, 10, 100]), 10);
 });
 
-test("product expected demand adds independent uncertain customers, including when their individual modes are zero", () => {
+test("product modal demand combines independent uncertain customers, even when each individual mode is zero", () => {
   const day = "2026-11-04";
   const rows = Array.from({ length: 10 }, (_, i) => ({
     customerId: `c${i}`, customerCode: `${i}`, customerName: `Restaurant ${i}`,
@@ -155,7 +155,7 @@ test("product expected demand adds independent uncertain customers, including wh
   assert.ok(product.units[0].customers.every((c) => c.days[0].projectedQty === 0));
 });
 
-test("product aggregation uses the customer's uncertain order size for the protective plan", () => {
+test("product aggregation uses modal order size for display and a separate upper bound for planning", () => {
   const date = "2026-11-04";
   const [product] = aggregateForecastByProduct([{
     customerId: "c1", customerCode: "001", customerName: "Restaurant A",
@@ -166,8 +166,9 @@ test("product aggregation uses the customer's uncertain order size for the prote
       possibleSizes: smoothedOrderSizeOptions([10, 10, 10, 100]) }],
   }], [date]);
   assert.equal(product.units[0].days[0].knownQty, 10);
-  assert.equal(product.units[0].days[0].projectedQty, 26);
-  assert.equal(product.units[0].days[0].planningQty, 110);
+  assert.equal(product.units[0].days[0].projectedQty, 10, "modal order size, not expected 26 kg");
+  assert.equal(product.units[0].days[0].totalQty, 20, "10 known + 10 modal additional");
+  assert.equal(product.units[0].days[0].planningQty, 110, "planning retains the separate risk-sensitive upper quantile");
 });
 
 test("three-day ordering cadence changes probability as days pass without a new order", () => {
@@ -199,7 +200,9 @@ test("ordering another SKU yesterday resets the customer clock for all other SKU
   assert.equal(originalSku.customerCadenceDays, 3);
   assert.ok(originalSku.days[0].projectedQty < overdue.rows.find((row) => row.sku === "dry").days[0].projectedQty);
   assert.ok(originalSku.days[1].projectedQty < originalSku.days[2].projectedQty);
-  assert.ok(originalSku.days[2].projectedQty < 12, "expected demand must reflect the order probability");
+  assert.ok(originalSku.days[2].projectedProbability < 1, "remaining order chance must reflect uncertainty");
+  assert.ok([0, 12].includes(originalSku.days[2].projectedQty),
+    "a modal single-size forecast is either 0 or the full likely 12 kg order");
 });
 
 test("a known different-SKU basket today is counted but does not generate another speculative basket", () => {
@@ -241,7 +244,12 @@ test("historically observed top-ups remain possible after the customer books an 
   assert.equal(original.knownQty, 20);
   assert.equal(original.projectedQty, 0);
   assert.equal(learned.knownQty, 20);
-  assert.ok(learned.projectedQty > 0 && learned.projectedQty < 5);
+  assert.ok(learned.projectedProbability > 0, "historical top-ups remain possible");
+  assert.ok(learned.possibleQty > 0, "the model retains a plausible positive top-up size");
+  assert.equal(learned.projectedQty, aggregateDemandDistribution([{
+    probability: learned.projectedProbability, quantity: learned.possibleQty,
+    sizeOptions: learned.possibleSizes,
+  }]).mode, "the displayed top-up is modal, even if zero is most probable");
   assert.ok(learned.planningQty >= 25);
 
   const currentTopup = { ...makeOrder("current-topup", "2026-11-04", "awaiting_picking"), createdAt: "2026-11-04T11:00:00+07:00" };
