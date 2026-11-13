@@ -144,7 +144,8 @@ async function customersById(admin: SupabaseClient, ids: string[]) {
       .in("id", chunk);
     if (error) throw error;
     for (const customer of (data ?? []) as DbCustomer[]) {
-      if (customer.is_active === false) continue;
+      // Keep historical requests from real customers, even after account deactivation.
+      // The model excludes is_test_customer accounts from learning and display.
       result.push({
         id: customer.id,
         code: customer.customer_code ?? "",
@@ -195,13 +196,14 @@ async function loadForecast(admin: SupabaseClient, extraHistoryDays = 0) {
   // meat batch needs tomorrow PLUS two more days to assess its expiry.
   const endDate = new Date(dateMillis + FORECAST_DAYS * 86_400_000).toISOString().slice(0, 10);
   const orders = await ordersForDeliveryDates(admin, startDate, endDate);
-  const liveOrders = orders.filter((order) => order.status !== "cancelled");
+  // Cancelled requests are still demand, even when none of the goods were sold.
+  const demandOrders = orders;
   const [items, customers] = await Promise.all([
-    itemsForOrders(admin, liveOrders.map((order) => order.id)),
-    customersById(admin, [...new Set(liveOrders.map((order) => order.customer_id))]),
+    itemsForOrders(admin, demandOrders.map((order) => order.id)),
+    customersById(admin, [...new Set(demandOrders.map((order) => order.customer_id))]),
   ]);
   const products = await productsById(admin, [...new Set(items.map((item) => item.product_id))]);
-  const inputOrders: ForecastOrderInput[] = liveOrders.map((order) => ({
+  const inputOrders: ForecastOrderInput[] = demandOrders.map((order) => ({
     id: order.id,
     customerId: order.customer_id,
     createdAt: order.created_at,
