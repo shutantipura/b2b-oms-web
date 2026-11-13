@@ -348,17 +348,17 @@ export default function StockManagementPage() {
                                     {confidence.label}
                                   </span>
                                 </div>
-                                <div className="mt-3 rounded-xl border border-[#CDE9E0] bg-[#E7F8F4] px-3 py-3">
+                                <div className="mt-3 rounded-xl border border-[#E1A100] bg-[#FFBE16] px-3 py-2.5">
                                   <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
                                     <div>
-                                      <p className="text-xs font-extrabold text-[#46796E]">
+                                      <p className="text-xs font-extrabold text-[#4A3900]">
                                         พรุ่งนี้ {forecast.dates[1].slice(5)} · คาดความต้องการ
                                       </p>
-                                      <p className="mt-1 text-[27px] font-black leading-8 tabular-nums text-[#008B8B]">
+                                      <p className="mt-1 text-[27px] font-black leading-8 tabular-nums text-[#17453F]">
                                         {oneDay(day, "totalQty")} <span className="text-sm font-bold">{product.unitName}</span>
                                       </p>
                                     </div>
-                                    <p className="text-[11px] leading-5 text-[#507C70]">
+                                    <p className="text-[11px] leading-5 text-[#594400]">
                                       รับแล้ว <strong>{oneDay(day, "knownQty")}</strong>
                                       {" + "}คาดเพิ่ม <strong>{oneDay(day, "projectedQty")}</strong>
                                     </p>
