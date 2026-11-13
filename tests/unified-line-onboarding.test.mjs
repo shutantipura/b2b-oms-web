@@ -88,13 +88,13 @@ test("dedicated Android terminals and legacy non-LINE staff remain authorized",(
 });
 test("legacy direct RPCs cannot bypass unified LINE permission rules",()=>{
  for(const func of [
-   "link_staff_line_user\(uuid,text,text\)",
-   "set_staff_line_authorization\(uuid,boolean\)",
-   "authorize_customer_line_user\(text,uuid\)",
-   "revoke_customer_line_user\(text,uuid\)",
-   "set_line_user_internal_name\(uuid,text\)"
+   "link_staff_line_user(uuid,text,text)",
+   "set_staff_line_authorization(uuid,boolean)",
+   "authorize_customer_line_user(text,uuid)",
+   "revoke_customer_line_user(text,uuid)",
+   "set_line_user_internal_name(uuid,text)"
  ]){
-   assert.match(sql,new RegExp("REVOKE EXECUTE ON FUNCTION public\\."+func+" FROM PUBLIC,anon,authenticated"));
+   assert.ok(sql.includes("REVOKE EXECUTE ON FUNCTION public."+func+" FROM PUBLIC,anon,authenticated"));
  }
 });
 test("legacy shared staff accounts are split without deleting past task history",()=>{
