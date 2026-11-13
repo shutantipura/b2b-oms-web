@@ -153,7 +153,7 @@ export default function SalesmanPage() {
 
         <section className="rounded-2xl border border-[#D6E9E3] bg-white p-4">
           <h2 className="text-lg font-black">รายชื่อลูกค้า</h2>
-          <p className="mt-1 text-xs text-[#718E82]">ดูข้อมูลติดต่อได้ แต่ไม่สามารถแก้ข้อมูลลูกค้าหรือราคาพิเศษ</p>
+          <p className="mt-1 text-xs text-[#718E82]">Salesman แก้ข้อมูลได้ทันที (Manager ตรวจสอบย้อนหลัง) และเสนอราคาตามเกณฑ์ GP 7%</p>
           <input type="search" value={search} onChange={(event) => setSearch(event.target.value)}
             placeholder="ค้นหาชื่อลูกค้า รหัสลูกค้า ผู้ติดต่อ หรือเบอร์โทร"
             className="mt-3 min-h-11 w-full rounded-xl border border-[#D4E8E2] px-3 text-sm outline-none focus:border-[#02B0AF]"
@@ -173,6 +173,7 @@ export default function SalesmanPage() {
                     {customer.phone && <a href={`tel:${customer.phone.replace(/[^+\d]/g, "")}`}
                       className="rounded-lg border border-[#B7E3DA] bg-white px-3 py-2 text-xs font-bold text-[#008C87]">โทรหาลูกค้า</a>}
                   </div>
+                  <Link href={`/salesman/customer/${customer.id}`} className="mt-2 inline-flex min-h-9 items-center rounded-lg bg-[#E7F8F3] px-3 text-xs font-black text-[#007F7F]">แก้ข้อมูล / เสนอราคาพิเศษ</Link>
                   <p className="mt-2 text-xs text-[#6F8E83]">
                     {lastOrder ? `ออเดอร์ล่าสุด #${lastOrder.order_number} · ส่ง ${displayDate(lastOrder.delivery_date)} · ${STATUS[lastOrder.status] ?? lastOrder.status}`
                       : "ยังไม่พบออเดอร์ในรายการล่าสุด"}
@@ -205,7 +206,7 @@ export default function SalesmanPage() {
             {orders.length === 0 && <p className="py-6 text-center text-sm text-[#718E82]">ยังไม่มีคำสั่งซื้อ</p>}
           </div>
         </section>
-        <p className="text-center text-xs text-[#759187]">Salesman ดูข้อมูลลูกค้าและออเดอร์เท่านั้น · ไม่สามารถจัดการสต็อก งานบิล การเงินหรือสิทธิ์ LINE</p>
+        <p className="text-center text-xs text-[#759187]">Salesman แก้ข้อมูลและเสนอราคาพิเศษได้ · ไม่สามารถจัดการสต็อก งานบิล การเงินหรือสิทธิ์ LINE</p>
       </div>
     </main>
   );
