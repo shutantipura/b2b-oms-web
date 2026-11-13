@@ -40,21 +40,7 @@ const CONFIDENCE: Record<string, { label: string; color: string }> = {
   insufficient: { label: "ข้อมูลยังน้อย", color: "bg-[#F0F3F2] text-[#657A73]" },
 };
 
-function SmallMetric({ label, value, unit, note }: {
-  label: string; value: number; unit: string; note?: string;
-}) {
-  return (
-    <div className="min-w-0 rounded-xl bg-[#F1F8F6] px-3 py-3">
-      <p className="text-[11px] font-bold leading-5 text-[#5B7B73]">{label}</p>
-      <p className="mt-1 text-lg font-black tabular-nums text-[#1D6258] sm:text-xl">
-        {amount(value)} <span className="text-[11px] font-bold">{unit}</span>
-      </p>
-      {note && <p className="mt-1 text-[10px] text-[#6E8D83]">{note}</p>}
-    </div>
-  );
-}
-
-/** Four compact historical/forecast figures below each customer's primary demand. */
+/** Four compact historical/forecast figures below each SKU or customer forecast. */
 function CustomerMiniMetric({ label, value, unit, forecast = false }: {
   label: string; value: number; unit: string; forecast?: boolean;
 }) {
@@ -321,15 +307,16 @@ export default function StockManagementPage() {
                           </p>
                         </div>
 
-                        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                          <SmallMetric label={"เมื่อวาน " + forecast.yesterdayDate.slice(5)}
+                        <div className="mt-2 grid grid-cols-4 gap-1.5 sm:gap-2"
+                          aria-label="ความต้องการ SKU เมื่อวาน วันนี้ คาดปิดวันนี้ และมะรืน">
+                          <CustomerMiniMetric label={`เมื่อวาน ${forecast.yesterdayDate.slice(5)} สั่งแล้ว`}
                             value={product.unit.yesterdayRequestedQty} unit={product.unitName} />
-                          <SmallMetric label={"วันนี้สั่งแล้ว " + forecast.dates[0].slice(5)}
+                          <CustomerMiniMetric label={`วันนี้ ${forecast.dates[0].slice(5)} สั่งแล้ว`}
                             value={product.unit.todayRequestedQty} unit={product.unitName} />
-                          <SmallMetric label="คาดปิดวันนี้"
-                            value={product.unit.days[0]?.totalQty ?? 0} unit={product.unitName} />
-                          <SmallMetric label={"มะรืน " + forecast.dates[2].slice(5)}
-                            value={product.unit.days[2]?.totalQty ?? 0} unit={product.unitName} />
+                          <CustomerMiniMetric label="คาดปิดวันนี้"
+                            value={product.unit.days[0]?.totalQty ?? 0} unit={product.unitName} forecast />
+                          <CustomerMiniMetric label={`มะรืน ${forecast.dates[2].slice(5)} คาดรวม`}
+                            value={product.unit.days[2]?.totalQty ?? 0} unit={product.unitName} forecast />
                         </div>
 
                         {forecast.missingWeightConversions.includes(product.sku) && (
