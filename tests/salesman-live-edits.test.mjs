@@ -35,7 +35,7 @@ test("customer change records are lightweight, field-based and safe to reject af
  assert.match(sql,/status='superseded'/);
  assert.match(sql,/v_prior\.approved_baseline/);
  assert.match(sql,/to_jsonb\(v_customer\)->v_change\.field_name IS DISTINCT FROM v_change\.proposed_value/);
- assert.match(sql,/status='rejected'/);
+ assert.match(sql,/THEN 'approved' ELSE 'rejected'/);
  assert.match(sql,/updated_at=now/);
  assert.match(cust,/EDITABLE/);
  assert.doesNotMatch(cust,/is_active",?\s*false/);
