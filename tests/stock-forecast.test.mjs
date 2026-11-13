@@ -397,6 +397,64 @@ test("yesterday and today count requested quantities even when stock check or bi
   assert.equal(meat.days[0].totalQty, 10);
 });
 
+test("B2B demand does not depend on whether an order is picked, billed, delivered, or paid", () => {
+  const statuses = [
+    "awaiting_stock_check", "awaiting_picking", "awaiting_billing",
+    "awaiting_delivery", "awaiting_payment", "awaiting_payment_verification", "completed", "cancelled",
+  ];
+  const history = historicDays.map((day, i) => makeOrder(`history-${i}`, day));
+  const historyItems = history.map((order) => ({
+    ...makeItem(order.id, "pork", 20, "Fresh Meat", "หมูสด"),
+    confirmedQty: 0, actualQty: 0,
+  }));
+  const liveOrder = makeOrder("now-request", "2026-11-04", "awaiting_stock_check");
+  const futureOrder = makeOrder("tomorrow-request", "2026-11-04", "awaiting_picking", "2026-11-05");
+  const requestedItems = [
+    { ...makeItem("now-request", "pork", 50, "Fresh Meat", "หมูสด"), confirmedQty: 0, actualQty: 0 },
+    { ...makeItem("tomorrow-request", "pork", 75, "Fresh Meat", "หมูสด"), confirmedQty: 0, actualQty: 0 },
+  ];
+  const base = buildStockForecast(
+    [...history, liveOrder, futureOrder], [...historyItems, ...requestedItems], [customer], now,
+  );
+  const expected = base.rows.find((row) => row.sku === "pork");
+  assert.ok(expected);
+  assert.equal(expected.todayRequestedQty, 50);
+  assert.equal(expected.days[0].knownQty, 50);
+  assert.equal(expected.days[1].knownQty, 75);
+  for (const status of statuses) {
+    for (const actualQty of [0, 20, 50]) {
+      const orders = [...history,
+        { ...liveOrder, status }, { ...futureOrder, status }];
+      const items = [
+        ...historyItems,
+        { ...requestedItems[0], confirmedQty: Math.min(actualQty, 50), actualQty },
+        { ...requestedItems[1], confirmedQty: Math.min(actualQty, 75), actualQty },
+      ];
+      const forecast = buildStockForecast(orders, items, [customer], now);
+      const observed = forecast.rows.find((row) => row.sku === "pork");
+      assert.deepEqual(observed, expected,
+        `Demand must be invariant to fulfillment for status=${status}, soldQty=${actualQty}`);
+    }
+  }
+});
+
+test("requested quantity remains the demand baseline even when the customer bought nothing", () => {
+  const orders = [
+    makeOrder("zero-sale", "2026-11-04", "awaiting_stock_check"),
+    makeOrder("partial-sale", "2026-11-04", "completed", "2026-11-05"),
+  ];
+  const items = [
+    { ...makeItem("zero-sale", "pork", 50, "Fresh Meat", "หมูสด"), confirmedQty: 0, actualQty: 0 },
+    { ...makeItem("partial-sale", "pork", 40, "Fresh Meat", "หมูสด"), confirmedQty: 5, actualQty: 5 },
+  ];
+  const forecast = buildStockForecast(orders, items, [customer], now);
+  const pork = forecast.rows.find((row) => row.sku === "pork");
+  assert.ok(pork);
+  assert.equal(pork.todayRequestedQty, 50);
+  assert.equal(pork.days[0].knownQty, 50);
+  assert.equal(pork.days[1].knownQty, 40);
+});
+
 test("yesterday's one-off request remains visible even without a forward prediction", () => {
   const orders = [makeOrder("one", "2026-11-03")];
   const items = [makeItem("one", "meat", 5, "Fresh Meat", "หมูสด")];
@@ -459,11 +517,50 @@ test("historical modal quantity and order cadence use unfulfilled requests, not 
   assert.ok(result.rows[0].days.every((day) => day.projectedProbability >= 0));
 });
 
-test("cancelled requests never contribute to demand", () => {
+test("cancelled orders count as requested demand, even with zero fulfilled sales", () => {
   const orders = [makeOrder("valid", "2026-11-04", "awaiting_picking"), makeOrder("void", "2026-11-04", "cancelled")];
-  const items = [makeItem("valid", "meat", 3, "Fresh Meat", "หมูสด"), makeItem("void", "meat", 99, "Fresh Meat", "หมูสด")];
+  const items = [
+    { ...makeItem("valid", "meat", 3, "Fresh Meat", "หมูสด"), confirmedQty: 2, actualQty: 2 },
+    { ...makeItem("void", "meat", 99, "Fresh Meat", "หมูสด"), confirmedQty: 0, actualQty: 0 },
+  ];
   const result = buildStockForecast(orders, items, [customer], now);
-  assert.equal(result.rows[0].todayRequestedQty, 3);
+  assert.equal(result.rows[0].todayRequestedQty, 102);
+  assert.equal(result.rows[0].days[0].knownQty, 102);
+  assert.equal(result.rows[0].days[0].totalQty, 102);
+});
+
+test("Test restaurant orders are excluded even if cancelled or fully paid", () => {
+  const customers = [
+    customer,
+    { id: "test-restaurant", code: "0000000000", name: "Test", isTest: true },
+  ];
+  const orders = [
+    makeOrder("real-cancelled", "2026-11-04", "cancelled"),
+    { ...makeOrder("test-cancelled", "2026-11-04", "cancelled"), customerId: "test-restaurant" },
+    { ...makeOrder("test-completed", "2026-11-04", "completed"), customerId: "test-restaurant" },
+  ];
+  const items = [
+    makeItem("real-cancelled", "meat", 6, "Fresh Meat", "หมูสด"),
+    makeItem("test-cancelled", "meat", 9000, "Fresh Meat", "หมูสด"),
+    makeItem("test-completed", "meat", 7000, "Fresh Meat", "หมูสด"),
+  ];
+  const result = buildStockForecast(orders, items, customers, now);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].customerId, customer.id);
+  assert.equal(result.rows[0].days[0].knownQty, 6);
+  const [aggregate] = aggregateForecastByProduct(result.rows, result.dates);
+  assert.equal(aggregate.units[0].days[0].knownQty, 6);
+  assert.equal(aggregate.customerCount, 1);
+});
+
+test("cancelled historical requests teach order cadence and requested quantity", () => {
+  const orders = historicDays.map((day, i) => makeOrder("cancelled-history-" + i, day, "cancelled"));
+  const items = orders.map((order) => ({
+    ...makeItem(order.id, "meat", 20, "Fresh Meat", "หมูสด"), confirmedQty: 0, actualQty: 0,
+  }));
+  const result = buildStockForecast(orders, items, [customer], now);
+  assert.equal(result.rows[0].skuCadenceDays, 4);
+  assert.deepEqual(result.rows[0].days.map((day) => day.possibleQty), [20, 20, 20]);
 });
 
 test("product forecast sums all customers into the same SKU for each of three days", () => {
