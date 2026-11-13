@@ -58,6 +58,12 @@ test("staff sessions and manager privileges require current LINE role",()=>{
  assert.match(lineCustomer,/lineUser.assigned_role === staff.account_type/);
  assert.match(sql,/REVOKE EXECUTE ON FUNCTION public.set_line_staff_access/);
 });
+test("four existing mixed accounts are explicitly promoted to Manager",()=>{
+ assert.match(sql,/S001','S005','S006','S021/);
+ assert.match(sql,/Four named LINE Manager accounts must be present/);
+ assert.match(sql,/UPDATE public\.staff SET account_type='manager'/);
+ assert.match(sql,/CROSS JOIN unnest\(ARRAY\['confirmation','picking','billing','delivery','payment_verification'/);
+});
 test("legacy shared staff accounts are split without deleting past task history",()=>{
  assert.match(sql,/One staff identity per authorized LINE account/);
  assert.match(sql,/new_staff,stage FROM public.staff_task_permissions/);
