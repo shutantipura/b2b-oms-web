@@ -279,6 +279,7 @@ export default function MiniAppCheckoutPage() {
     setLoadingMergeOptions(true);
     setMergeOptionsError("");
     setMergeCandidates([]);
+    setSelectedMergeOrderNumber(null);
     mergeRequestIdRef.current = null;
 
     void (async () => {
@@ -701,82 +702,109 @@ export default function MiniAppCheckoutPage() {
           </p>
         </section>
 
-        {fulfillmentMethod === "delivery" && <section className={`${card} p-4 sm:p-5`}>
-          <div className="flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#E4F8F6] text-lg">📍</span>
-            <h2 className="text-base font-extrabold">ตำแหน่งจัดส่ง</h2>
-          </div>
-
-          <p className="mt-2 text-xs leading-5 text-[#82968D]">เลือก เพิ่ม เปลี่ยนชื่อ หรือลบจุดส่งได้ที่นี่ โดยข้อมูลจะอัปเดตถึงทีมงานทันที</p>
-          <div className="mt-3 grid gap-2">
-            {(customer.deliveryLocations ?? []).map((location, index) => (
-              <div key={location.url} className="rounded-xl border border-[#D5E8E2] p-2">
-                <button type="button" aria-pressed={deliveryAddress === location.url}
-                  disabled={savingLocations}
-                  onClick={() => {
-                    setDeliveryAddress(location.url);
-                    setSelectedMergeOrderNumber(null);
-                    mergeRequestIdRef.current = null;
-                    setMessage("");
-                  }}
-                  className={"flex min-h-14 w-full items-center justify-between gap-2 rounded-xl border-2 px-3 py-3 text-left text-sm font-bold transition " +
-                    (deliveryAddress === location.url
-                      ? "border-[#02B0AF] bg-[#E5F9F5] text-[#007A75]"
-                      : "border-[#D5E8E2] bg-white text-[#57786E]")}>
-                  <span className="min-w-0 truncate">📍 {location.label}</span>
-                  <span className="shrink-0">{deliveryAddress === location.url ? "✓ เลือกแล้ว" : "เลือก"}</span>
-                </button>
-                <div className="mt-1 flex justify-end gap-1">
-                  <button type="button" disabled={submitting || savingLocations} onClick={() => openLocationEditor(index)}
-                    className="min-h-10 px-3 text-xs font-bold text-[#008F8D] disabled:opacity-40">✎ แก้ไข</button>
-                  <button type="button" disabled={submitting || savingLocations} onClick={() => void deleteLocation(index)}
-                    className="min-h-10 px-3 text-xs font-bold text-red-600 disabled:opacity-40">ลบ</button>
+        {fulfillmentMethod === "delivery" && (
+          <section className={card + " p-4 sm:p-5"}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#E7F8F5] text-lg">📍</span>
+                <div>
+                  <h2 className="text-base font-extrabold leading-6">ตำแหน่งจัดส่ง</h2>
+                  <p className="text-[11px] text-[#81968E]">เลือกจุดส่งสำหรับคำสั่งซื้อนี้</p>
                 </div>
               </div>
-            ))}
-          </div>
-          {(customer.deliveryLocations ?? []).length < MAX_DELIVERY_LOCATIONS && locationEditIndex === null && (
-            <button type="button" disabled={savingLocations || submitting}
-              onClick={() => openLocationEditor((customer.deliveryLocations ?? []).length)}
-              className="mt-3 min-h-12 w-full rounded-xl border-2 border-dashed border-[#02B0AF] px-3 text-sm font-bold text-[#008F8D] disabled:opacity-40">
-              + เพิ่มจุดส่ง ({(customer.deliveryLocations ?? []).length}/{MAX_DELIVERY_LOCATIONS})
-            </button>
-          )}
-          {locationEditIndex !== null && (
-            <div className="mt-3 space-y-3 rounded-xl border border-[#B9E9E3] bg-[#F0FAF8] p-3">
-              <h3 className="text-sm font-extrabold">{locationEditIndex === (customer.deliveryLocations ?? []).length ? "เพิ่มจุดส่ง" : "แก้ไขจุดส่ง"}</h3>
-              <label className="block">
-                <span className="text-xs font-bold text-[#537566]">ชื่อจุดส่ง</span>
-                <input className={field} maxLength={60} value={locationName}
-                  onChange={(event) => setLocationName(event.target.value)}
-                  placeholder="เช่น หน้าร้าน หรือ คลังสินค้า" />
-              </label>
-              <label className="block">
-                <span className="text-xs font-bold text-[#537566]">ลิงก์ Google Maps</span>
-                <input className={field} type="url" inputMode="url" autoCapitalize="none"
-                  value={locationLink} onChange={(event) => setLocationLink(event.target.value)}
-                  placeholder="วาง https://maps.app.goo.gl/... หรือ https://www.google.com/maps/..." />
-              </label>
-              <div className="flex gap-2">
-                <button type="button" disabled={savingLocations} onClick={() => void saveLocation()}
-                  className="min-h-11 flex-1 rounded-xl bg-[#02B0AF] px-3 text-sm font-bold text-white disabled:opacity-40">
-                  {savingLocations ? "กำลังบันทึก..." : "บันทึกจุดส่ง"}
-                </button>
-                <button type="button" disabled={savingLocations} onClick={() => { setLocationEditIndex(null); setLocationError(""); }}
-                  className="min-h-11 rounded-xl border border-[#D5E8E2] bg-white px-4 text-sm font-bold text-[#537566]">ยกเลิก</button>
-              </div>
+              <span className="shrink-0 rounded-full bg-[#F0F7F4] px-2.5 py-1 text-[11px] font-bold text-[#56776D]">
+                {(customer.deliveryLocations ?? []).length}/{MAX_DELIVERY_LOCATIONS} จุด
+              </span>
             </div>
-          )}
-          {locationError && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-600">{locationError}</p>}
-          {isWebUrl(deliveryAddress) ? (
-            <a href={deliveryAddress} target="_blank" rel="noopener noreferrer"
-              className="mt-4 inline-flex min-h-11 items-center rounded-xl border-2 border-[#B9E9E3] bg-[#EFFAF8] px-4 py-2 text-sm font-extrabold text-[#008F8D]">ดูจุดส่งที่เลือกใน Google Maps ↗</a>
-          ) : (
-            <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-800">ยังไม่มีจุดส่ง กรุณาเพิ่มลิงก์ Google Maps ก่อนสั่งจัดส่ง</p>
-          )}
-        </section>}
+            <div className="mt-4 space-y-2">
+              {(customer.deliveryLocations ?? []).map((location, index) => {
+                const selected = deliveryAddress === location.url;
+                return (
+                  <div key={location.url} className={"rounded-2xl border-2 p-3 transition-colors " +
+                    (selected ? "border-[#02B0AF] bg-[#E9F9F5]" : "border-[#E1EAE5] bg-white")}>
+                    <div className="flex items-start gap-2">
+                      <button type="button" aria-pressed={selected} disabled={savingLocations || submitting}
+                        onClick={() => {
+                          setDeliveryAddress(location.url);
+                          setSelectedMergeOrderNumber(null);
+                          mergeRequestIdRef.current = null;
+                          setMessage("");
+                        }}
+                        className="flex min-h-10 min-w-0 flex-1 items-start gap-3 text-left disabled:opacity-50">
+                        <span aria-hidden="true" className={"mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 text-xs font-extrabold " +
+                          (selected ? "border-[#008F8D] bg-[#008F8D] text-white" : "border-[#ABBDB6] bg-white")}>
+                          {selected ? "✓" : ""}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block break-words text-sm font-extrabold leading-5 text-[#17453F]">{location.label}</span>
+                          <span className="mt-0.5 block text-[11px] font-medium text-[#759187]">
+                            {index === 0 ? "จุดส่งหลัก" : "จุดส่งเพิ่มเติม"}{selected ? " · เลือกแล้ว" : ""}
+                          </span>
+                        </span>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button type="button" aria-label={"แก้ไข " + location.label}
+                          disabled={submitting || savingLocations} onClick={() => openLocationEditor(index)}
+                          className="min-h-9 rounded-lg px-2 text-xs font-extrabold text-[#008F8D] hover:bg-white disabled:opacity-40">แก้ไข</button>
+                        <button type="button" aria-label={"ลบ " + location.label}
+                          disabled={submitting || savingLocations} onClick={() => void deleteLocation(index)}
+                          className="min-h-9 rounded-lg px-2 text-xs font-bold text-[#B95656] hover:bg-white disabled:opacity-40">ลบ</button>
+                      </div>
+                    </div>
+                    {selected && isWebUrl(location.url) && (
+                      <a href={location.url} target="_blank" rel="noopener noreferrer"
+                        className="ml-8 mt-1 inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-xs font-bold text-[#008F8D] underline-offset-4 hover:underline">
+                        ดูใน Google Maps <span aria-hidden="true">↗</span>
+                      </a>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {(customer.deliveryLocations ?? []).length < MAX_DELIVERY_LOCATIONS && locationEditIndex === null && (
+              <button type="button" disabled={savingLocations || submitting}
+                onClick={() => openLocationEditor((customer.deliveryLocations ?? []).length)}
+                className="mt-2 flex min-h-11 w-full items-center justify-center rounded-xl border border-dashed border-[#9BDDD5] bg-[#F6FCFA] px-3 py-2.5 text-sm font-bold text-[#008F8D] hover:bg-[#EAF8F4] disabled:opacity-40">
+                + เพิ่มจุดส่ง
+              </button>
+            )}
+            {locationEditIndex !== null && (
+              <div className="mt-3 space-y-3 rounded-xl border border-[#B8E4DB] bg-[#F6FCFA] p-3">
+                <h3 className="text-sm font-extrabold text-[#17453F]">
+                  {locationEditIndex === (customer.deliveryLocations ?? []).length ? "เพิ่มจุดส่ง" : "แก้ไขจุดส่ง"}
+                </h3>
+                <label className="block">
+                  <span className="text-xs font-bold text-[#537566]">ชื่อจุดส่ง</span>
+                  <input className={field} maxLength={60} value={locationName}
+                    onChange={(event) => setLocationName(event.target.value)}
+                    placeholder={locationEditIndex === 0 ? customer.customerName : "เช่น คลังสินค้า"} />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-bold text-[#537566]">ลิงก์ Google Maps</span>
+                  <input className={field} type="url" inputMode="url" autoCapitalize="none"
+                    value={locationLink} onChange={(event) => setLocationLink(event.target.value)}
+                    placeholder="วางลิงก์จาก Google Maps" />
+                </label>
+                <div className="flex gap-2">
+                  <button type="button" disabled={savingLocations} onClick={() => void saveLocation()}
+                    className="min-h-11 flex-1 rounded-xl bg-[#02B0AF] px-3 text-sm font-extrabold text-white disabled:opacity-40">
+                    {savingLocations ? "กำลังบันทึก..." : "บันทึกจุดส่ง"}
+                  </button>
+                  <button type="button" disabled={savingLocations} onClick={() => { setLocationEditIndex(null); setLocationError(""); }}
+                    className="min-h-11 rounded-xl border border-[#D5E8E2] bg-white px-4 text-sm font-bold text-[#537566]">ยกเลิก</button>
+                </div>
+              </div>
+            )}
+            {locationError && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-600">{locationError}</p>}
+            {!deliveryAddress && (
+              <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+                ยังไม่มีจุดส่ง กรุณาเพิ่มลิงก์ Google Maps ก่อนสั่งจัดส่ง
+              </p>
+            )}
+          </section>
+        )}
 
-        {fulfillmentMethod === "delivery" && (
+        {fulfillmentMethod === "delivery" && !loadingMergeOptions && !mergeOptionsError && eligibleMergeCandidates.length > 0 && (
           <section className="rounded-2xl border border-[#DFEAE4] bg-white p-4 shadow-sm sm:p-5">
             <h2 className="text-base font-extrabold">รวมคำสั่งซื้อ (ไม่บังคับ)</h2>
             <p className="mt-2 text-xs leading-5 text-[#82968D]">
@@ -807,17 +835,6 @@ export default function MiniAppCheckoutPage() {
                 </label>
               ))}
             </div>
-            {loadingMergeOptions && <p className="mt-3 text-xs text-[#718F83]">กำลังตรวจสอบคำสั่งซื้อเดิม...</p>}
-            {mergeOptionsError && (
-              <div role="alert" className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
-                <span>ตรวจสอบคำสั่งซื้อเดิมไม่ได้ แต่ยังสั่งซื้อแยกได้ตามปกติ</span>
-                <button type="button" className="shrink-0 rounded-lg border border-amber-300 px-3 py-2 font-bold"
-                  onClick={() => setMergeRefreshTick(tick => tick + 1)}>ลองใหม่</button>
-              </div>
-            )}
-            {!loadingMergeOptions && !mergeOptionsError && eligibleMergeCandidates.length === 0 && (
-              <p className="mt-3 text-xs text-[#718F83]">ไม่มีคำสั่งซื้อเดิมที่รวมได้สำหรับวันและจุดส่งนี้</p>
-            )}
             {chosenMerge && <p role="status" className="mt-3 rounded-xl bg-[#F0FAF8] p-3 text-xs font-bold leading-5 text-[#006F6A]">
               หากรวม เวลาจัดส่งจะเปลี่ยนเป็น {chosenMerge.deliverySlot} ตามคำสั่งซื้อเดิม
               และจะออกบิล จัดส่ง และชำระเงินร่วมกันหลังจากหยิบสินค้าทุกออเดอร์ครบ
