@@ -195,7 +195,7 @@ export default function AlarmStationsPage() {
                     <p className="mt-1">ช่วง 22:00–07:00 ระบบพักเสียง แต่ยังต้องส่งสถานะตามปกติ หากเครื่องไม่กลับมาออนไลน์ให้ตรวจสอบแอปบนเครื่องจริง</p>
                   </div>
                 )}
-                {station.last_error && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">ข้อผิดพลาด: {station.last_error}</p>
+                {station.last_error && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">ข้อผิดพลาด: {station.last_error}</p>}
                 {!station.revoked_at && (
                   <button type="button" disabled={busy} onClick={() => void revoke(station)}
                     className="mt-4 rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-40">ยกเลิกการจับคู่</button>
