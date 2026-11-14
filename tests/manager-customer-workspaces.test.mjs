@@ -17,8 +17,9 @@ test("Customer role supports multiple shops without misleading one-shop count", 
   assert.match(accessPage, /toggle\(user.id,"customerCodes",customer.code,e.target.checked\)/);
 });
 
-test("dual-workspace Manager/Salesman chooses between staff and customer ordering", () => {
-  assert.match(home, /data.hasCustomerAccess &&\s*data.hasStaffAccess\s*\)\s*\{\s*setPortal\("choose"\)/);
+test("Manager enters OMS directly, mixed Salesman retains choice, and explicit customer ordering works", () => {
+  assert.match(home, /const destination = defaultLinePortal\(data\)/);
+  assert.match(home, /shouldAutoOpenLineStaff\(access, portal\)/);
   assert.match(home, /setPortal\("choose"\);\s*router.replace\("\/miniapp"\)/);
   assert.match(home, /access.hasCustomerAccess && \(/);
   assert.match(home, /onClick=\{enterCustomerPortal\}/);
@@ -28,9 +29,8 @@ test("dual-workspace Manager/Salesman chooses between staff and customer orderin
 });
 
 test("Staff-only still auto-routes to OMS and customer-only auto-routes to their shop", () => {
-  assert.match(home, /access.hasCustomerAccess \|\|/);
-  assert.match(home, /data.hasCustomerAccess\s*\)\s*\{\s*setPortal/);
-  assert.match(home, /data.hasStaffAccess\s*\)\s*\{\s*setPortal/);
+  assert.match(home, /const destination = defaultLinePortal\(data\)/);
+  assert.match(home, /shouldAutoOpenLineStaff\(access, portal\)/);
   assert.match(home, /customers.length ===\s*1/);
 });
 
