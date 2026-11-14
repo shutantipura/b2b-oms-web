@@ -69,3 +69,20 @@ test("financial reporting is completed billing-date only with audit and bills",(
  assert.match(page,/Accountant/);
  assert.match(page,/ไม่สามารถยืนยันชำระเงิน/);
 });
+
+test("Financial GP needs historical evidence; current master costs remain reference-only",()=>{
+ assert.match(api,/const unitCost=billed\?\?assigned/);
+ assert.match(sql,/coalesce\(oi\.unit_cost_at_billing, ac\.unit_cost\)/);
+ assert.doesNotMatch(sql,/coalesce\(oi\.unit_cost_at_billing, ac\.unit_cost, pc\.cost\)/);
+ assert.match(sql,/historical_costs_missing/);
+ assert.match(sql,/CREATE TRIGGER accountant_cost_audit_immutable/);
+ assert.match(sql,/CREATE TRIGGER accountant_cost_entries_immutable/);
+});
+test("Manager bill changes use audited before/after events, not arbitrary subtotal differences",()=>{
+ assert.match(api,/event.action!=="manager_adjusted_final_amount"/);
+ assert.match(api,/old_amount/);
+ assert.match(api,/new_amount/);
+ assert.match(api,/otherBillDifference:unexplainedDifference/);
+ assert.match(page,/Manager bill adjustment/);
+ assert.match(page,/Other bill difference/);
+});
