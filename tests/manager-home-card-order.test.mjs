@@ -24,5 +24,5 @@ test("Manager home navigation prioritizes everyday work while keeping all cards"
   assert.match(source, /const STAFF_NAVIGATION = MANAGER_NAVIGATION.slice\(0, 2\)/);
   assert.match(source, /navigation.filter\(\(item\) => item.href === "\/orders"\)/);
   assert.match(source, /oms-dashboard-tile group relative flex min-h-\[130px\]/);
-  assert.match(source, /index === 0 \? "mb-3 h-1.5 w-9 rounded-full bg-\[#FDBC16\]"/);
+  assert.match(source, /index === 0 \? "h-1.5 w-9 rounded-full bg-\[#FDBC16\]"/);
 });
