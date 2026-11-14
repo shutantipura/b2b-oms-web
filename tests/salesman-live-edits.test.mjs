@@ -16,7 +16,8 @@ test("manager and salesman get dynamic all-customer access, revoked with their s
  assert.match(line,/staff_line_users/);
  assert.match(line,/is_authorized", true/);
  assert.match(line,/staff\?\.is_active/);
- assert.match(line,/staff\.account_type === "manager" \|\| staff\.account_type === "salesman"/);
+ assert.match(line,/staff\.account_type === identity\.assigned_role/);
+ assert.match(line,/\["manager", "salesman"\]\.includes\(staff\.account_type\)/);
  assert.match(line,/\.from\("customers"\)/);
  assert.match(line,/\.eq\("is_active", true\)/);
  assert.match(line,/\.from\("customer_line_users"\)/);
