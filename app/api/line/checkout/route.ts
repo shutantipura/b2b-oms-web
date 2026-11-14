@@ -9,6 +9,8 @@ import {
 } from "@supabase/supabase-js";
 
 import {
+  DELIVERY_RULES,
+  getBangkokToday,
   getDeliveryOptions,
   validateDeliverySelection,
 } from "../../../../lib/deliveryRules";
@@ -731,18 +733,36 @@ async function findMergeCandidates(supabase: Awaited<ReturnType<typeof verifyLin
     !order.group_root_order_id || order.group_root_order_id === order.id);
   const ids: string[] = roots.map((order: { id: string }) => order.id);
   if (!ids.length) return [];
+
+  // A grouped order can have a billing attempt on a /x member rather than
+  // its primary order. Check every member, not just the root, before offering.
+  const membersResult = await supabase.from("orders")
+    .select("id,group_root_order_id,status,final_amount")
+    .in("group_root_order_id", ids);
+  if (membersResult.error) throw new Error("Could not verify grouped-order status.");
+  const members = membersResult.data ?? [];
+  const memberRoot = new Map<string, string>(ids.map(id => [id, id]));
+  const blocked = new Set<string>();
+  const beforeBilling = new Set(["awaiting_confirmation", "awaiting_picking", "picking", "awaiting_billing"]);
+  for (const member of members) {
+    const rootId = member.group_root_order_id ?? member.id;
+    memberRoot.set(member.id, rootId);
+    if (member.id !== rootId && member.status !== "cancelled" &&
+        (!beforeBilling.has(member.status) || member.final_amount !== null)) {
+      blocked.add(rootId);
+    }
+  }
+  const allIds = [...new Set([...ids, ...members.map(member => member.id)])];
   const [claimResult, fileResult] = await Promise.all([
-    supabase.from("task_claims").select("order_id").in("order_id", ids).eq("stage", "billing"),
-    supabase.from("order_files").select("order_id").in("order_id", ids).in("file_type", ["bill", "payment_qr"]),
+    supabase.from("task_claims").select("order_id").in("order_id", allIds).eq("stage", "billing"),
+    supabase.from("order_files").select("order_id").in("order_id", allIds).in("file_type", ["bill", "payment_qr"]),
   ]);
   if (claimResult.error || fileResult.error) {
     throw new Error("Could not verify whether an existing order has entered billing.");
   }
-
-  const blocked = new Set<string>([
-    ...(claimResult.data ?? []).map((claim: { order_id: string }) => claim.order_id),
-    ...(fileResult.data ?? []).map((file: { order_id: string }) => file.order_id),
-  ]);
+  for (const record of [...(claimResult.data ?? []), ...(fileResult.data ?? [])]) {
+    blocked.add(memberRoot.get(record.order_id) ?? record.order_id);
+  }
 
   return roots.filter((order: { id: string; delivery_address: string }) => !blocked.has(order.id) && order.delivery_address === deliveryAddress).map(
     (order: { order_number: number; delivery_date: string; delivery_slot: string; status: string; delivery_address: string }) => ({
@@ -961,6 +981,23 @@ export async function POST(
       action ===
       "load"
     ) {
+      // When today's final ordinary delivery window has passed, retain today
+      // as a merge-only date *if* this shop has an eligible unfinished delivery.
+      // Do not make an expired slot available to standalone or pickup checkout.
+      const deliveryOptions = getDeliveryOptions();
+      const today = getBangkokToday();
+      if (!deliveryOptions.some(option => option.date === today)) {
+        try {
+          const locations = savedDeliveryLocations(customer);
+          const options = await Promise.all(locations.map(location =>
+            findMergeCandidates(supabase, customer.id, today, location.url)));
+          if (options.some(candidates => candidates.length > 0)) {
+            deliveryOptions.unshift({ date: today, slots: [] });
+          }
+        } catch {
+          // Merge suggestions are optional; never block standalone checkout.
+        }
+      }
       return NextResponse.json({
         customer: {
           id:
@@ -979,8 +1016,7 @@ export async function POST(
 
         items,
 
-        deliveryOptions:
-          getDeliveryOptions(),
+        deliveryOptions,
       });
     }
 
@@ -996,9 +1032,11 @@ export async function POST(
       const allowedAddresses = savedDeliveryLocations(customer).map((location) => location.url);
       if (!allowedAddresses.includes(chosenAddress))
         return NextResponse.json({ error: "กรุณาเลือกตำแหน่งจัดส่งที่บันทึกไว้" }, { status: 400 });
-      const availableSlots = getDeliveryOptions().find(o => o.date === date)?.slots.map(s => s.value) ?? [];
-      const mergeCandidates = (await findMergeCandidates(supabase, customer.id, date, chosenAddress))
-        .filter(candidate => availableSlots.includes(candidate.deliverySlot));
+      // Same-day groups remain mergeable even after their original slot ends.
+      // The database rechecks that billing has not begun under the root lock.
+      const mergeCandidates = date >= getBangkokToday()
+        ? await findMergeCandidates(supabase, customer.id, date, chosenAddress)
+        : [];
       return NextResponse.json({ mergeCandidates });
     }
 
@@ -1082,10 +1120,9 @@ export async function POST(
       return NextResponse.json({ error: "ตัวเลือกการรวมคำสั่งซื้อไม่ถูกต้อง" }, { status: 400 });
     }
     const requestedMergeNumber: number | null = hasMergeChoice ? rawMerge as number : null;
-    const availableSlots = getDeliveryOptions().find(o => o.date === deliveryDate)?.slots.map(s => s.value) ?? [];
-    const chosenMerge = requestedMergeNumber !== null
+    const chosenMerge = requestedMergeNumber !== null && deliveryDate >= getBangkokToday()
       ? findChosenMerge(await findMergeCandidates(supabase, customer.id, deliveryDate, deliveryAddress),
-          requestedMergeNumber, deliveryDate, deliveryAddress, availableSlots)
+          requestedMergeNumber, deliveryDate, deliveryAddress)
       : null;
     // The selected group may have a different slot from the original checkout
     // selection. That is deliberate: the customer explicitly chooses the
@@ -1095,11 +1132,14 @@ export async function POST(
       return NextResponse.json({ error: "คำสั่งซื้อที่เลือกไม่สามารถรวมได้แล้ว กรุณาเลือกใหม่" }, { status: 409 });
     }
     const effectiveDeliverySlot = chosenMerge?.deliverySlot ?? deliverySlot;
-    const validation =
-      validateDeliverySelection(
-        deliveryDate,
-        effectiveDeliverySlot
-      );
+    // Only an explicitly selected, verified same-day group can bypass the
+    // elapsed-slot restriction. Ordinary standalone/pickup orders cannot.
+    const existingSameDayMerge = chosenMerge !== null &&
+      deliveryDate === getBangkokToday() &&
+      DELIVERY_RULES.slots.some(slot => slot.value === effectiveDeliverySlot);
+    const validation = existingSameDayMerge
+      ? { valid: true, message: "" }
+      : validateDeliverySelection(deliveryDate, effectiveDeliverySlot);
 
     if (
       !validation.valid
