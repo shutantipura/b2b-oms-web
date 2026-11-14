@@ -42,6 +42,13 @@ function bangkokToday(now = new Date()): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+// Checkout may additionally offer today's expired slot for an explicitly
+// chosen, still-unbilled existing delivery. Ordinary new orders never bypass
+// validateDeliverySelection.
+export function getBangkokToday(now = new Date()): string {
+  return bangkokToday(now);
+}
+
 // Compare slot starts and current time in the same Bangkok wall-clock basis.
 // Keep milliseconds so a slot that has just started is no longer offered.
 function bangkokWallClockMs(now: Date): number {
