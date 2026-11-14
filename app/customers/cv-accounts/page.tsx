@@ -6,12 +6,13 @@ import {supabase} from "@/lib/supabase";
 
 type CV={id:string;cv_number:string;status:string;legacy_import:boolean;
   shop_photos:string[];id_card_path:string|null;registration_photos:string[];
-  created_at:string;updated_at:string};
+  cv_card_storage_path:string|null;created_at:string;updated_at:string};
 type Request={id:string;action:"create"|"amend";cv_account_id:string|null;cv_number:string;
-  shop_photos:string[];id_card_path:string|null;registration_photos:string[];status:string;
+  shop_photos:string[];id_card_path:string|null;registration_photos:string[];
+  cv_card_storage_path:string|null;status:string;
   created_by:string;created_at:string;reviewed_at:string|null};
-type Docs={shopPhotos:string[];idCardPath:string;registrationPhotos:string[]};
-const blank:Docs={shopPhotos:[],idCardPath:"",registrationPhotos:[]};
+type Docs={shopPhotos:string[];idCardPath:string;registrationPhotos:string[];cvCardStoragePath:string};
+const blank:Docs={shopPhotos:[],idCardPath:"",registrationPhotos:[],cvCardStoragePath:""};
 const field="w-full min-h-11 rounded-xl border border-[#CFE5DE] bg-white px-3 py-2 text-sm outline-none focus:border-[#02B0AF]";
 async function api(path:string,method:"GET"|"POST"|"PATCH"="GET",body?:unknown){
   const {data:{session}}=await supabase.auth.getSession();
@@ -46,7 +47,7 @@ export default function CVAccountsPage(){
   useEffect(()=>{void load();},[load]);
   const filtered=useMemo(()=>accounts.filter(a=>a.cv_number.includes(search.trim())),[accounts,search]);
   const pending=requests.filter(r=>r.status==="pending");
-  async function upload(files:FileList|null,key:"shopPhotos"|"registrationPhotos"|"idCardPath"){
+  async function upload(files:FileList|null,key:"shopPhotos"|"registrationPhotos"|"idCardPath"|"cvCardStoragePath"){
     if(!files?.length)return;
     const max=key==="shopPhotos"?3:key==="registrationPhotos"?2:1;
     const chosen=Array.from(files).slice(0,max);
@@ -64,7 +65,8 @@ export default function CVAccountsPage(){
         if(!response.ok)throw new Error(data.error??"อัปโหลดรูปไม่สำเร็จ");
         batch.push({path:data.path,url:data.url??null});
       }
-      setDocs(prev=>({...prev,[key]:key==="idCardPath"?batch[0].path:batch.map(x=>x.path)}));
+      setDocs(prev=>({...prev,[key]:(key==="idCardPath"||key==="cvCardStoragePath")
+        ?batch[0].path:batch.map(x=>x.path)}));
       setSigned(prev=>({...prev,...Object.fromEntries(batch.map(x=>[x.path,x.url]))}));
       setMessage("บีบอัดและอัปโหลดแล้ว "+batch.length+" รูป");
     }catch(e){setMessage(e instanceof Error?e.message:"อัปโหลดไม่สำเร็จ");}
@@ -88,8 +90,9 @@ export default function CVAccountsPage(){
     catch(e){setMessage(e instanceof Error?e.message:"ดำเนินการไม่สำเร็จ");}
     finally{setBusy(false);}
   }
-  const photoInput=(key:"shopPhotos"|"registrationPhotos"|"idCardPath",label:string,max:number,required=false)=>{
-    const values=key==="idCardPath"?(docs.idCardPath?[docs.idCardPath]:[]):docs[key];
+  const photoInput=(key:"shopPhotos"|"registrationPhotos"|"idCardPath"|"cvCardStoragePath",label:string,max:number,required=false)=>{
+    const values=key==="idCardPath"?(docs.idCardPath?[docs.idCardPath]:[])
+      :key==="cvCardStoragePath"?(docs.cvCardStoragePath?[docs.cvCardStoragePath]:[]):docs[key];
     return <div className="rounded-xl border border-[#D8EAE5] bg-[#FAFDFC] p-3">
       <label className="block text-sm font-bold">{label} {required&&<span className="text-[#CC8500]">*</span>}
         <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple={max>1}
@@ -141,6 +144,11 @@ export default function CVAccountsPage(){
         {photoInput("shopPhotos","รูปร้านค้า",3,mode==="create")}
         {photoInput("idCardPath","บัตรประชาชน",1,mode==="create")}
         {photoInput("registrationPhotos","ใบสมัคร CV (สร้างใหม่ต้องครบ 2 รูป)",2,mode==="create")}
+        <div className="rounded-xl border border-[#BCE9E0] bg-[#F0FAF7] p-3">
+          <p className="text-xs text-[#567D72]">CV Card ใช้แทน QR สำหรับงานออกบิล ไม่ใช่บัตรประชาชนหรือใบสมัคร CV</p>
+          {photoInput("cvCardStoragePath","CV Card สำหรับออกบิล",1)}
+          <p className="mt-1 text-xs text-[#66897F]">เปลี่ยนรูป CV Card ได้โดยส่งคำขอและรอ Manager อนุมัติ</p>
+        </div>
         <button disabled={busy} className="min-h-12 w-full rounded-xl bg-[#02B0AF] px-5 font-black text-white disabled:opacity-50">
           {busy?"กำลังบันทึก...":"ส่งคำขออนุมัติ"}
         </button>
@@ -155,6 +163,9 @@ export default function CVAccountsPage(){
             <div>รูปร้าน<PhotoSet paths={r.shop_photos} urls={signed}/></div>
             <div>บัตรประชาชน<PhotoSet paths={r.id_card_path?[r.id_card_path]:[]} urls={signed}/></div>
             <div>ใบสมัคร<PhotoSet paths={r.registration_photos} urls={signed}/></div>
+            <div className="col-span-3">CV Card สำหรับออกบิล
+              <PhotoSet paths={r.cv_card_storage_path?[r.cv_card_storage_path]:[]} urls={signed}/>
+            </div>
           </div>
           {isManager&&<div className="mt-3 flex gap-2">
             <button disabled={busy} onClick={()=>void action({operation:"approve",requestId:r.id})}
@@ -179,6 +190,11 @@ export default function CVAccountsPage(){
             <div>รูปร้าน<PhotoSet paths={cv.shop_photos} urls={signed}/></div>
             <div>บัตรประชาชน<PhotoSet paths={cv.id_card_path?[cv.id_card_path]:[]} urls={signed}/></div>
             <div>ใบสมัคร<PhotoSet paths={cv.registration_photos} urls={signed}/></div>
+            <div className="col-span-3 rounded-xl bg-[#F0FAF7] p-3">
+              <p className="font-black">CV Card สำหรับออกบิล</p>
+              <p className="mt-1 text-xs text-[#63877C]">ใช้เป็นภาพแทน QR เมื่อออกบิลด้วยวิธี CV Card</p>
+              <PhotoSet paths={cv.cv_card_storage_path?[cv.cv_card_storage_path]:[]} urls={signed}/>
+            </div>
           </div>
           {isManager&&<button disabled={busy}
             onClick={()=>void action({operation:cv.status==="approved"?"deactivate":"reactivate",cvAccountId:cv.id})}
