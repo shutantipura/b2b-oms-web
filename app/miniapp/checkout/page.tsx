@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
 import { lineApiFetch } from "../../../lib/lineSession";
-import { chooseAutomaticMerge } from "../../../lib/automaticOrderMerge";
+import { listEligibleMergeChoices } from "../../../lib/orderMergeChoices";
 import { isGoogleMapsUrl, MAX_DELIVERY_LOCATIONS, type DeliveryLocation } from "../../../lib/deliveryLocations";
 
 type Customer = {
@@ -126,6 +126,7 @@ export default function MiniAppCheckoutPage() {
   const [wasMerged, setWasMerged] = useState(false);
   const [createdDisplayNumber, setCreatedDisplayNumber] = useState<string | null>(null);
   const [mergeCandidates, setMergeCandidates] = useState<MergeCandidate[]>([]);
+  const [selectedMergeOrderNumber, setSelectedMergeOrderNumber] = useState<number | null>(null);
   const [loadingMergeOptions, setLoadingMergeOptions] = useState(false);
   const [mergeOptionsError, setMergeOptionsError] = useState("");
   const [mergeRefreshTick, setMergeRefreshTick] = useState(0);
@@ -315,16 +316,15 @@ export default function MiniAppCheckoutPage() {
     };
   }, [idToken, customer, deliveryDate, deliveryAddress, cart, pieceProductIds, mergeRefreshTick, fulfillmentMethod]);
 
-  // The first eligible group is automatically selected. Customers can still
-  // change delivery date, but cannot create a separate delivery on this date.
-  const automaticMerge = useMemo(() =>
+  // Candidates are suggestions, never selected without customer consent.
+  const eligibleMergeCandidates = useMemo(() =>
     fulfillmentMethod === "delivery"
-      ? chooseAutomaticMerge(mergeCandidates, deliveryDate, deliveryAddress, currentSlots.map(slot => slot.value))
-      : null,
+      ? listEligibleMergeChoices(mergeCandidates, deliveryDate, deliveryAddress, currentSlots.map(s => s.value))
+      : [],
     [mergeCandidates, deliveryDate, deliveryAddress, currentSlots, fulfillmentMethod]
   );
-  const selectedDeliverySlot = automaticMerge?.deliverySlot ?? deliverySlot;
-
+  const chosenMerge = eligibleMergeCandidates.find(c => c.orderNumber === selectedMergeOrderNumber) ?? null;
+  const selectedDeliverySlot = chosenMerge?.deliverySlot ?? deliverySlot;
   const hasPieceOrders = items.some(item => item.isPiece);
   const estimatedTotal = useMemo(
     () => items.reduce((total, item) => total + item.estimatedSubtotal, 0),
@@ -333,6 +333,7 @@ export default function MiniAppCheckoutPage() {
 
   function changeDate(value: string) {
     setDeliveryDate(value);
+    setSelectedMergeOrderNumber(null);
     mergeRequestIdRef.current = null;
     const option = deliveryOptions.find(item => item.date === value);
     setDeliverySlot(option?.slots[0]?.value ?? "");
@@ -368,6 +369,8 @@ export default function MiniAppCheckoutPage() {
       const locations = data.customer.deliveryLocations ?? [];
       setCustomer(data.customer);
       setDeliveryAddress(locations.find((item) => item.url === preferredUrl)?.url ?? locations[0]?.url ?? "");
+      setSelectedMergeOrderNumber(null);
+      mergeRequestIdRef.current = null;
       setLocationEditIndex(null);
       setMergeCandidates([]);
       setMergeRefreshTick((value) => value + 1);
@@ -439,16 +442,12 @@ export default function MiniAppCheckoutPage() {
       return;
     }
 
-    if (fulfillmentMethod === "delivery" && loadingMergeOptions) {
-      setMessage("กำลังตรวจสอบคำสั่งซื้อเดิม กรุณาลองอีกครั้ง");
+    // Independent orders remain available even when candidate lookup fails.
+    if (fulfillmentMethod === "delivery" && selectedMergeOrderNumber !== null &&
+        (loadingMergeOptions || mergeOptionsError || !chosenMerge)) {
+      setMessage("ไม่สามารถยืนยันการรวมคำสั่งซื้อได้ กรุณาเลือกใหม่หรือสั่งซื้อแยก");
       return;
     }
-    if (fulfillmentMethod === "delivery" && mergeOptionsError) {
-      setMessage("ไม่สามารถตรวจสอบคำสั่งซื้อเดิมได้ กรุณากดลองใหม่ก่อนยืนยันคำสั่งซื้อ");
-      return;
-    }
-    const chosenMerge = automaticMerge;
-
     const confirmation = fulfillmentMethod === "pickup"
       ? `ยืนยันรับสินค้าที่สาขา ${prettyDate(deliveryDate)} เวลา ${deliverySlot} ยอดประมาณการ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} หรือไม่?\nหลังจากออกบิลแล้ว คำสั่งซื้อจะเข้าสู่ขั้นตอนชำระเงินโดยไม่ผ่านงานจัดส่ง`
       : chosenMerge
@@ -481,6 +480,7 @@ export default function MiniAppCheckoutPage() {
       if (!response.ok) {
         if (response.status === 409) {
           mergeRequestIdRef.current = null;
+          setSelectedMergeOrderNumber(null);
           setMergeRefreshTick(tick => tick + 1);
         }
         if (data.deliveryOptions) {
@@ -651,6 +651,8 @@ export default function MiniAppCheckoutPage() {
                 onClick={() => {
                   setFulfillmentMethod(option.value);
                   setMessage("");
+                  setSelectedMergeOrderNumber(null);
+                  mergeRequestIdRef.current = null;
                   setMergeCandidates([]);
                 }}
                 className={`min-h-16 rounded-xl border-2 px-2 py-3 text-sm font-extrabold transition ${fulfillmentMethod === option.value
@@ -681,31 +683,13 @@ export default function MiniAppCheckoutPage() {
               {deliveryOptions.map((option) => <option key={option.date} value={option.date}>{prettyDate(option.date)}</option>)}
             </select>
           </label>
-          {fulfillmentMethod === "delivery" && loadingMergeOptions && (
-            <p className="mt-3 text-xs text-[#718F83]">กำลังตรวจสอบคำสั่งซื้อที่จัดส่งวันเดียวกัน...</p>
-          )}
-          {fulfillmentMethod === "delivery" && mergeOptionsError && (
-            <div role="alert" className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
-              <span>ยังตรวจสอบคำสั่งซื้อเดิมไม่ได้ กรุณาลองใหม่ก่อนยืนยันเพื่อป้องกันการสั่งซ้ำ</span>
-              <button type="button" className="shrink-0 rounded-lg border border-amber-300 px-3 py-2 font-bold" onClick={() => setMergeRefreshTick((tick) => tick + 1)}>ลองใหม่</button>
-            </div>
-          )}
-          {fulfillmentMethod === "delivery" && automaticMerge && !loadingMergeOptions && (
-             <div role="status" className="mt-4 rounded-2xl border-2 border-[#B8EAE5] bg-[#F0FAF8] p-4">
-               <p className="text-sm font-extrabold text-[#006F6A]">✓ จัดส่งร่วมกับคำสั่งซื้อเดิมอัตโนมัติ</p>
-               <p className="mt-2 text-sm leading-6 text-[#17453F]">
-                 คำสั่งซื้อใหม่นี้จะจัดส่งร่วมกับกลุ่ม #{automaticMerge.orderNumber}
-                 ในรอบ {automaticMerge.deliverySlot} ({mergeStatusLabel(automaticMerge.status)})
-               </p>
-               <p className="mt-2 text-xs leading-5 text-[#4D6F65]">
-                 สินค้าจะเช็คสต็อกและหยิบแยก ก่อนออกบิลรวมและจัดส่งพร้อมกัน
-                 หากต้องการจัดส่งคนละวัน สามารถเลือกวันที่อื่นด้านบนได้
-               </p>
-             </div>
-           )}
            <label className="mt-4 block">
             <span className="text-xs font-bold text-[#537566]">{fulfillmentMethod === "pickup" ? "ช่วงเวลารับสินค้า" : "ช่วงเวลาจัดส่ง"}</span>
-            <select value={selectedDeliverySlot} disabled={Boolean(automaticMerge)} onChange={(event) => setDeliverySlot(event.target.value)} className={field}>
+            <select value={selectedDeliverySlot} onChange={(event) => {
+              setDeliverySlot(event.target.value);
+              setSelectedMergeOrderNumber(null);
+              mergeRequestIdRef.current = null;
+            }} className={field}>
               {currentSlots.length === 0 && <option value="">ไม่มีช่วงเวลาที่ว่าง</option>}
               {currentSlots.map((slot) => <option key={slot.value} value={slot.value}>{slot.label}</option>)}
             </select>
@@ -728,7 +712,12 @@ export default function MiniAppCheckoutPage() {
               <div key={location.url} className="rounded-xl border border-[#D5E8E2] p-2">
                 <button type="button" aria-pressed={deliveryAddress === location.url}
                   disabled={savingLocations}
-                  onClick={() => { setDeliveryAddress(location.url); setMessage(""); }}
+                  onClick={() => {
+                    setDeliveryAddress(location.url);
+                    setSelectedMergeOrderNumber(null);
+                    mergeRequestIdRef.current = null;
+                    setMessage("");
+                  }}
                   className={"flex min-h-14 w-full items-center justify-between gap-2 rounded-xl border-2 px-3 py-3 text-left text-sm font-bold transition " +
                     (deliveryAddress === location.url
                       ? "border-[#02B0AF] bg-[#E5F9F5] text-[#007A75]"
@@ -786,6 +775,55 @@ export default function MiniAppCheckoutPage() {
           )}
         </section>}
 
+        {fulfillmentMethod === "delivery" && (
+          <section className="rounded-2xl border border-[#DFEAE4] bg-white p-4 shadow-sm sm:p-5">
+            <h2 className="text-base font-extrabold">รวมคำสั่งซื้อ (ไม่บังคับ)</h2>
+            <p className="mt-2 text-xs leading-5 text-[#82968D]">
+              เลือกสร้างคำสั่งซื้อแยกได้เสมอ หากต้องการรวมกับออเดอร์เดิม ให้เลือกเองด้านล่าง
+            </p>
+            <div className="mt-3 space-y-2">
+              <label className={"flex min-h-14 items-center gap-3 rounded-xl border-2 px-3 py-3 text-sm font-bold " +
+                (chosenMerge === null ? "border-[#02B0AF] bg-[#E5F9F5] text-[#007A75]" : "border-[#D5E8E2] bg-white text-[#57786E]")}>
+                <input type="radio" name="merge-choice" checked={chosenMerge === null}
+                  onChange={() => { setSelectedMergeOrderNumber(null); mergeRequestIdRef.current = null; }}
+                  className="h-5 w-5 accent-[#008F8D]" />
+                สร้างคำสั่งซื้อแยก (ค่าเริ่มต้น)
+              </label>
+              {eligibleMergeCandidates.map(candidate => (
+                <label key={candidate.orderNumber} className={"flex min-h-16 items-start gap-3 rounded-xl border-2 px-3 py-3 text-sm " +
+                  (chosenMerge?.orderNumber === candidate.orderNumber ? "border-[#02B0AF] bg-[#E5F9F5]" : "border-[#D5E8E2] bg-white")}>
+                  <input type="radio" name="merge-choice" checked={chosenMerge?.orderNumber === candidate.orderNumber}
+                    onChange={() => {
+                      setSelectedMergeOrderNumber(candidate.orderNumber);
+                      mergeRequestIdRef.current = null;
+                      setMessage("");
+                    }}
+                    className="mt-1 h-5 w-5 accent-[#008F8D]" />
+                  <span className="min-w-0">
+                    <span className="block font-extrabold text-[#17453F]">รวมกับคำสั่งซื้อ #{candidate.orderNumber}</span>
+                    <span className="mt-1 block text-xs text-[#57786E]">เวลา {candidate.deliverySlot} · {mergeStatusLabel(candidate.status)}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {loadingMergeOptions && <p className="mt-3 text-xs text-[#718F83]">กำลังตรวจสอบคำสั่งซื้อเดิม...</p>}
+            {mergeOptionsError && (
+              <div role="alert" className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
+                <span>ตรวจสอบคำสั่งซื้อเดิมไม่ได้ แต่ยังสั่งซื้อแยกได้ตามปกติ</span>
+                <button type="button" className="shrink-0 rounded-lg border border-amber-300 px-3 py-2 font-bold"
+                  onClick={() => setMergeRefreshTick(tick => tick + 1)}>ลองใหม่</button>
+              </div>
+            )}
+            {!loadingMergeOptions && !mergeOptionsError && eligibleMergeCandidates.length === 0 && (
+              <p className="mt-3 text-xs text-[#718F83]">ไม่มีคำสั่งซื้อเดิมที่รวมได้สำหรับวันและจุดส่งนี้</p>
+            )}
+            {chosenMerge && <p role="status" className="mt-3 rounded-xl bg-[#F0FAF8] p-3 text-xs font-bold leading-5 text-[#006F6A]">
+              หากรวม เวลาจัดส่งจะเปลี่ยนเป็น {chosenMerge.deliverySlot} ตามคำสั่งซื้อเดิม
+              และจะออกบิล จัดส่ง และชำระเงินร่วมกันหลังจากหยิบสินค้าทุกออเดอร์ครบ
+            </p>}
+          </section>
+        )}
+
         <section className={`${card} p-4 sm:p-5`}>
           <h2 className="text-base font-extrabold">📝 หมายเหตุถึงทีมงาน</h2>
           <p className="mt-1 text-xs text-[#82968D]">หากมีคำแนะนำเพิ่มเติม สามารถแจ้งได้ที่นี่ (ไม่บังคับ)</p>
@@ -800,12 +838,12 @@ export default function MiniAppCheckoutPage() {
           <button
             type="button"
             onClick={() => void submitOrder()}
-            disabled={submitting || savingLocations || locationEditIndex !== null || loadingMergeOptions || !deliveryDate || !selectedDeliverySlot || items.length === 0 || (fulfillmentMethod === "delivery" && !deliveryAddress)}
+            disabled={submitting || savingLocations || locationEditIndex !== null || (selectedMergeOrderNumber !== null && loadingMergeOptions) || !deliveryDate || !selectedDeliverySlot || items.length === 0 || (fulfillmentMethod === "delivery" && !deliveryAddress)}
             className="miniapp-bottom-cta flex min-h-16 w-full items-center justify-between gap-2 rounded-2xl bg-[#02B0AF] px-3 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 disabled:cursor-not-allowed disabled:opacity-40 sm:gap-3 sm:px-5"
           >
             <span>
-              <span className="block text-[13px] font-extrabold leading-5 sm:text-sm">{submitting ? "กำลังส่งคำสั่งซื้อ..." : automaticMerge ? "ยืนยันการจัดส่งร่วมกัน" : "ยืนยันคำสั่งซื้อ"}</span>
-              <span className="mt-1 hidden text-[11px] leading-4 text-white/80 min-[390px]:block">{submitting ? "กรุณารอสักครู่" : automaticMerge ? "สร้างคำสั่งซื้อย่อย →" : "ส่งรายการให้ทีมงานตรวจสอบ →"}</span>
+              <span className="block text-[13px] font-extrabold leading-5 sm:text-sm">{submitting ? "กำลังส่งคำสั่งซื้อ..." : chosenMerge ? "ยืนยันการจัดส่งร่วมกัน" : "ยืนยันคำสั่งซื้อ"}</span>
+              <span className="mt-1 hidden text-[11px] leading-4 text-white/80 min-[390px]:block">{submitting ? "กรุณารอสักครู่" : chosenMerge ? "สร้างคำสั่งซื้อย่อย →" : "ส่งรายการให้ทีมงานตรวจสอบ →"}</span>
             </span>
             <span className="miniapp-cta-price text-right text-[clamp(15px,4.9vw,21px)] font-black">{hasPieceOrders && estimatedTotal === 0 ? "รอชั่งน้ำหนัก" : `~฿${formatMoney(estimatedTotal)}`}</span>
           </button>

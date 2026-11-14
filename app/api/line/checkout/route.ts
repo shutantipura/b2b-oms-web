@@ -12,7 +12,7 @@ import {
   getDeliveryOptions,
   validateDeliverySelection,
 } from "../../../../lib/deliveryRules";
-import { chooseAutomaticMerge } from "../../../../lib/automaticOrderMerge";
+import { findChosenMerge } from "../../../../lib/orderMergeChoices";
 import { validateDeliveryLocations } from "@/lib/deliveryLocations";
 
 // =====================================================
@@ -717,10 +717,11 @@ async function findMergeCandidates(supabase: Awaited<ReturnType<typeof verifyLin
     .select("id, order_number, delivery_date, delivery_slot, delivery_address, status, group_root_order_id, group_sequence, created_at")
     .eq("customer_id", customerId)
     .eq("delivery_date", deliveryDate)
+    .eq("delivery_address", deliveryAddress)
     .in("status", ["awaiting_confirmation", "awaiting_picking", "picking", "awaiting_billing"])
     .is("final_amount", null)
     .order("created_at", { ascending: true })
-    .limit(20);
+    .limit(100);
 
   if (orderError) throw new Error("Could not check existing deliveries: " + orderError.message);
   if (!orders?.length) return [];
@@ -994,7 +995,9 @@ export async function POST(
       const allowedAddresses = savedDeliveryLocations(customer).map((location) => location.url);
       if (!allowedAddresses.includes(chosenAddress))
         return NextResponse.json({ error: "กรุณาเลือกตำแหน่งจัดส่งที่บันทึกไว้" }, { status: 400 });
-      const mergeCandidates = await findMergeCandidates(supabase, customer.id, date, chosenAddress);
+      const availableSlots = getDeliveryOptions().find(o => o.date === date)?.slots.map(s => s.value) ?? [];
+      const mergeCandidates = (await findMergeCandidates(supabase, customer.id, date, chosenAddress))
+        .filter(candidate => availableSlots.includes(candidate.deliverySlot));
       return NextResponse.json({ mergeCandidates });
     }
 
@@ -1068,20 +1071,23 @@ export async function POST(
     // the delivery rules.
     // -------------------------------------------------
 
-    // Always join the oldest eligible group for the selected delivery date.
-    // This check runs again on submission, independently of the customer's UI.
-    const availableSlots = getDeliveryOptions()
-      .find(option => option.date === deliveryDate)?.slots.map(slot => slot.value) ?? [];
-    const automaticMerge = fulfillmentMethod === "delivery"
-      ? chooseAutomaticMerge(
-          await findMergeCandidates(supabase, customer.id, deliveryDate, deliveryAddress),
-          deliveryDate,
-          deliveryAddress,
-          availableSlots,
-        )
+    // Optional consolidation: never group without an explicit chosen order.
+    const rawMerge = body.mergeIntoOrderNumber;
+    const hasMergeChoice = rawMerge !== null && rawMerge !== undefined;
+    if (hasMergeChoice && (typeof rawMerge !== "number" ||
+        !Number.isSafeInteger(rawMerge) || rawMerge <= 0 || fulfillmentMethod === "pickup")) {
+      return NextResponse.json({ error: "ตัวเลือกการรวมคำสั่งซื้อไม่ถูกต้อง" }, { status: 400 });
+    }
+    const requestedMergeNumber: number | null = hasMergeChoice ? rawMerge as number : null;
+    const availableSlots = getDeliveryOptions().find(o => o.date === deliveryDate)?.slots.map(s => s.value) ?? [];
+    const chosenMerge = requestedMergeNumber !== null
+      ? findChosenMerge(await findMergeCandidates(supabase, customer.id, deliveryDate, deliveryAddress),
+          requestedMergeNumber, deliveryDate, deliveryAddress, availableSlots)
       : null;
-    const effectiveDeliverySlot = automaticMerge?.deliverySlot ?? deliverySlot;
-
+    if (requestedMergeNumber !== null && (!chosenMerge || chosenMerge.deliverySlot !== deliverySlot)) {
+      return NextResponse.json({ error: "คำสั่งซื้อที่เลือกไม่สามารถรวมได้แล้ว กรุณาเลือกใหม่" }, { status: 409 });
+    }
+    const effectiveDeliverySlot = chosenMerge?.deliverySlot ?? deliverySlot;
     const validation =
       validateDeliverySelection(
         deliveryDate,
@@ -1132,19 +1138,9 @@ export async function POST(
     // already been verified as authorized for it.
     // -------------------------------------------------
 
-    // Grouping creates a new independent suborder; the original is not modified.
-    // LINE authorization above is compulsory for both code paths.
-    // Do not trust a merge choice sent by the browser. Old or manually
-    // modified clients cannot force a separate order on a merge-eligible date.
-    const requestedMergeNumber = Number(body.mergeIntoOrderNumber);
-    if (Number.isSafeInteger(requestedMergeNumber) && requestedMergeNumber > 0 &&
-        (fulfillmentMethod === "pickup" || requestedMergeNumber !== automaticMerge?.orderNumber)) {
-      return NextResponse.json({
-        error: "คำสั่งซื้อเดิมไม่สามารถรวมได้แล้ว กรุณาตรวจสอบวันที่และลองอีกครั้ง",
-      }, { status: 409 });
-    }
-
-    const mergeIntoOrderNumber = automaticMerge?.orderNumber ?? null;
+    // The server validates the explicit selection; the database locks the root
+    // and rechecks stage, date, slot and location inside create_group_suborder.
+    const mergeIntoOrderNumber = chosenMerge?.orderNumber ?? null;
     const merging = mergeIntoOrderNumber !== null;
     const suppliedRequestId = typeof body.requestId === "string" ? body.requestId : "";
     const requestId = suppliedRequestId || crypto.randomUUID();
