@@ -214,7 +214,7 @@ export default function OmsHomePage() {
                 {staff.staff_code} · {isManager ? "ผู้จัดการ" : isSalesman ? "ฝ่ายขาย (Salesman)" : "พนักงาน"}
               </p>
             </div>
-            {!fixedTerminal && (
+            {!fixedTerminal && !isManager && (
               <button
                 type="button"
                 onClick={handleSwitchMode}
