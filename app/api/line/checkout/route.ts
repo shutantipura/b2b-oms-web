@@ -1084,7 +1084,11 @@ export async function POST(
       ? findChosenMerge(await findMergeCandidates(supabase, customer.id, deliveryDate, deliveryAddress),
           requestedMergeNumber, deliveryDate, deliveryAddress, availableSlots)
       : null;
-    if (requestedMergeNumber !== null && (!chosenMerge || chosenMerge.deliverySlot !== deliverySlot)) {
+    // The selected group may have a different slot from the original checkout
+    // selection. That is deliberate: the customer explicitly chooses the
+    // group and sees its slot before confirming. The effective slot below
+    // must always come from the server-validated existing order.
+    if (requestedMergeNumber !== null && !chosenMerge) {
       return NextResponse.json({ error: "คำสั่งซื้อที่เลือกไม่สามารถรวมได้แล้ว กรุณาเลือกใหม่" }, { status: 409 });
     }
     const effectiveDeliverySlot = chosenMerge?.deliverySlot ?? deliverySlot;
