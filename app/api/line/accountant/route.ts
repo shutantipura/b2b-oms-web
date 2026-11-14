@@ -65,7 +65,7 @@ async function fullReport(admin: SupabaseClient) {
   const [orders, items, histories, customers, overrides, audit, actors] = await Promise.all([
     allRows(admin,"orders","id,order_number,customer_id,status,created_at,completed_at,delivery_date,delivery_slot,final_amount,group_root_order_id,group_sequence,fulfillment_method,delivery_address,cancellation_reason"),
     allRows(admin,"order_items","id,order_id,product_id,product_name_snapshot,unit_snapshot,unit_price_snapshot,piece_price_per_kg_snapshot,actual_qty,actual_piece_qty,unit_cost_at_billing,cost_recorded_at_billing"),
-    allRows(admin,"order_history","id,order_id,action,created_at"),
+    allRows(admin,"order_history","id,order_id,action,details,created_at"),
     allRows(admin,"customers","id,customer_code,customer_name"),
     allRows(admin,"accountant_order_item_costs","order_item_id,unit_cost,created_at,entered_by_line_user_id","order_item_id"),
     allRows(admin,"accountant_cost_entry_audit","id,batch_id,order_item_id,old_unit_cost,new_unit_cost,quantity_at_entry,entered_by_line_user_id,reason,created_at"),
@@ -103,6 +103,20 @@ async function fullReport(admin: SupabaseClient) {
     const root=txt(order.group_root_order_id)||txt(order.id);
     const members=membersByRoot.get(root)??[];
     members.push(order);membersByRoot.set(root,members);
+  }
+  // Manager final-bill adjustments are explicit audit events. Do not confuse
+  // their actual monetary impact with other differences between item subtotals
+  // and the final bill (e.g. discounts, rounding, tax or billing corrections).
+  const adjustmentByRoot=new Map<string,number>();
+  for(const event of histories) {
+    if(event.action!=="manager_adjusted_final_amount")continue;
+    const member=orderMap.get(txt(event.order_id));
+    if(!member)continue;
+    const root=txt(member.group_root_order_id)||txt(member.id);
+    const detail=event.details as Record<string,unknown>|null;
+    const before=money(detail?.old_amount),after=money(detail?.new_amount);
+    if(before===null||after===null||!Number.isFinite(before)||!Number.isFinite(after))continue;
+    adjustmentByRoot.set(root,(adjustmentByRoot.get(root)??0)+after-before);
   }
   const lineDetails=items.map(line=>{
     const product=productMap.get(txt(line.product_id));
@@ -143,6 +157,9 @@ async function fullReport(admin: SupabaseClient) {
     const knownCost=rootLines.reduce((s,l)=>s+(l.totalCost??0),0);
     const rootOrder=orderMap.get(root)??order;
     const finalAmount=money(rootOrder.final_amount);
+    const managerAdjustment=Math.round((adjustmentByRoot.get(root)??0)*100)/100;
+    const unexplainedDifference=finalAmount===null?null:
+      Math.round((finalAmount-productSales-managerAdjustment)*100)/100;
     const counted=Boolean(isRoot&&billAt&&order.status==="completed"&&finalAmount!==null&&members.every(m=>m.status==="completed"));
     const customer=customerMap.get(txt(order.customer_id));
     return {
@@ -153,7 +170,7 @@ async function fullReport(admin: SupabaseClient) {
       fulfillmentMethod:txt(order.fulfillment_method),
       createdAt:txt(order.created_at),completedAt:txt(order.completed_at),
       billingAt:billAt,finalAmount:money(order.final_amount),counted,
-      billedProductSales:productSales,netBillAdjustment:finalAmount===null?null:Math.round((finalAmount-productSales)*100)/100,
+      billedProductSales:productSales,netBillAdjustment:managerAdjustment,otherBillDifference:unexplainedDifference,
       recordedCost:Math.round(knownCost*100)/100,missingCostLines,
       costsComplete, grossProfit:counted&&costsComplete?Math.round((finalAmount!-knownCost)*100)/100:null,
       gpPercent:counted&&costsComplete&&finalAmount!>0?Math.round(10000*(finalAmount!-knownCost)/finalAmount!)/100:null,
