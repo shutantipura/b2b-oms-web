@@ -8,6 +8,7 @@ import LotusBrand from "@/components/LotusBrand";
 import { lineApiFetch } from "../../../lib/lineSession";
 import { isMergeWindowOverdue, listEligibleMergeChoices } from "../../../lib/orderMergeChoices";
 import { isGoogleMapsUrl, MAX_DELIVERY_LOCATIONS, type DeliveryLocation } from "../../../lib/deliveryLocations";
+import { cartHasPositiveQuantity } from "../../../lib/customerCart";
 
 type Customer = {
   id: string;
@@ -118,6 +119,8 @@ export default function MiniAppCheckoutPage() {
   const [locationError, setLocationError] = useState("");
   const [idToken, setIdToken] = useState("");
   const [cart, setCart] = useState<Cart>({});
+  const [emptyCart, setEmptyCart] = useState(false);
+  const [checkoutCustomerCode, setCheckoutCustomerCode] = useState("");
   const [pieceProductIds, setPieceProductIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -141,9 +144,16 @@ export default function MiniAppCheckoutPage() {
           new URLSearchParams(window.location.search).get("customer") ?? ""
         ).trim().toUpperCase();
         if (!customerCode) throw new Error("ไม่ได้เลือกลูกค้า");
+        if (!cancelled) setCheckoutCustomerCode(customerCode);
 
         const stored = localStorage.getItem(`b2b-cart-${customerCode}`);
-        if (!stored) throw new Error("ตะกร้าสินค้าว่าง");
+        // Visiting checkout with an empty basket is normal (e.g. revisiting a
+        // completed-order link, opening checkout on a different device).
+        // Do not initialize LIFF or report a failed order in that case.
+        if (!stored) {
+          if (!cancelled) setEmptyCart(true);
+          return;
+        }
 
         const savedPieceIds = localStorage.getItem(`b2b-cart-pieces-${customerCode}`);
         let pieceIds: string[] = [];
@@ -158,8 +168,9 @@ export default function MiniAppCheckoutPage() {
           throw new Error("ไม่สามารถอ่านข้อมูลตะกร้าสินค้าได้");
         }
 
-        if (!Object.values(loadedCart).some((quantity) => Number(quantity) > 0)) {
-          throw new Error("ตะกร้าสินค้าว่าง");
+        if (!cartHasPositiveQuantity(loadedCart)) {
+          if (!cancelled) setEmptyCart(true);
+          return;
         }
 
         const liffModule = await import("@line/liff");
@@ -193,6 +204,12 @@ export default function MiniAppCheckoutPage() {
         }
         if (!data.customer) throw new Error("ไม่สามารถโหลดข้อมูลลูกค้าได้");
         if (cancelled) return;
+        // Products can be removed from the catalogue after they were saved
+        // locally. If none remains orderable, show the same empty-cart UI.
+        if (!data.items?.length) {
+          setEmptyCart(true);
+          return;
+        }
 
         setIdToken(token);
         setCart(loadedCart);
@@ -422,11 +439,14 @@ export default function MiniAppCheckoutPage() {
   }
 
   function goShop() {
-    if (!customer) {
+    // Checkout may not need to load a customer session when the cart is empty.
+    // Preserve the selected shop from the URL for the "เลือกสินค้า" action.
+    const code = customer?.customerCode ?? checkoutCustomerCode;
+    if (!code) {
       router.push("/miniapp?portal=customer");
       return;
     }
-    router.push(`/miniapp/shop?customer=${encodeURIComponent(customer.customerCode)}`);
+    router.push(`/miniapp/shop?customer=${encodeURIComponent(code)}`);
   }
 
   async function submitOrder() {
@@ -526,6 +546,34 @@ export default function MiniAppCheckoutPage() {
 
   if (loading) {
     return <LotusLoading message="กำลังตรวจสอบรายการสินค้า..." />;
+  }
+
+  if (emptyCart) {
+    return (
+      <main className="min-h-screen bg-[#F7FAFA] px-4 py-6 text-[#173E31]">
+        <div className="mx-auto max-w-md">
+          <button type="button" onClick={() => router.push("/miniapp?portal=customer")}
+            className="min-h-11 text-sm font-bold text-[#008F8D]">‹ หน้าแรก</button>
+          <section className={`${card} mt-5 px-5 py-10 text-center`} aria-label="ตะกร้าสินค้า">
+            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#EAF8F5] text-[#008F8D]" aria-hidden="true">
+              <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+                <path d="M1 1h4l2.4 12.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 2-1.6L23 6H6" />
+              </svg>
+            </div>
+            <h1 className="mt-5 text-2xl font-extrabold">ตะกร้าสินค้า</h1>
+            <p className="mt-3 text-sm leading-6 text-[#738D82]">
+              ยังไม่มีสินค้าในตะกร้า
+            </p>
+            <button type="button" onClick={goShop}
+              className="mt-6 min-h-12 w-full rounded-xl bg-[#02B0AF] px-5 py-3 text-sm font-extrabold text-white">
+              เลือกสินค้า
+            </button>
+          </section>
+        </div>
+      </main>
+    );
   }
 
   if (!customer) {
