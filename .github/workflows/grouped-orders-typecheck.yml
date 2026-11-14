@@ -33,6 +33,7 @@ jobs:
       - run: node --experimental-strip-types --test tests/b2b-modal-demand.test.mjs
       - run: node --experimental-strip-types --test tests/salesman-role.test.mjs
       - run: node --experimental-strip-types --test tests/salesman-live-edits.test.mjs
+      - run: node --experimental-strip-types --test tests/customer-delivery-locations.test.mjs
       - run: npx next typegen
       - run: npx tsc --noEmit --pretty false
       - run: npm run build
