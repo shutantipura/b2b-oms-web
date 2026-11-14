@@ -347,13 +347,14 @@ test("unpairing revokes the old station and clears the Android OMS session", () 
 });
 
 test("No CV customer profiles use internal IDs and default billing to B2B Barcode", () => {
-  const create = readFileSync(new URL("../app/customers/new/page.tsx", import.meta.url), "utf8");
-  const edit = readFileSync(new URL("../app/customers/[customerCode]/page.tsx", import.meta.url), "utf8");
+  const legacy = readFileSync(new URL("../app/customers/new/page.tsx", import.meta.url), "utf8");
+  const create = readFileSync(new URL("../app/api/customer-registry/shops/route.ts", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../sql/shop_cv_account_registry.sql", import.meta.url), "utf8");
   const billing = readFileSync(new URL("../app/tasks/billing/[orderNumber]/page.tsx", import.meta.url), "utf8");
-  assert.match(create, /"NCV-" \+ crypto\.randomUUID\(\)/);
-  assert.match(create, /has_no_cv: noCv/);
-  assert.match(edit, /setNoCv\(Boolean\(loadedCustomer\.has_no_cv\)\)/);
-  assert.match(edit, /has_no_cv: noCv/);
+  assert.match(legacy, /redirect\("\/customers\/shops"\)/);
+  assert.match(create, /"SHOP-" \+ crypto\.randomUUID\(\)/);
+  assert.match(create, /has_no_cv:true/);
+  assert.match(migration, /UPDATE public\.customers c SET cv_account_id/);
   assert.match(billing, /setBillingMode\(loadedOrder\.customers\?\.has_no_cv \? "no_cv" : "normal"\)/);
 });
 
@@ -427,15 +428,16 @@ test("historical customer order lines use actual picked quantities and saved uni
 
 test("customer delivery locations are saved, selectable, and validated during checkout", () => {
   const edit = readFileSync(new URL("../app/customers/[customerCode]/page.tsx", import.meta.url), "utf8");
-  const create = readFileSync(new URL("../app/customers/new/page.tsx", import.meta.url), "utf8");
+  const create = readFileSync(new URL("../app/api/customer-registry/shops/route.ts", import.meta.url), "utf8");
   const checkout = readFileSync(new URL("../app/miniapp/checkout/page.tsx", import.meta.url), "utf8");
   const api = readFileSync(new URL("../app/api/line/checkout/route.ts", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../supabase/migrations/20261030100000_customer_dual_delivery_locations.sql", import.meta.url), "utf8");
-  for (const page of [edit, create]) {
-    assert.match(page, /delivery_map_url_2:/);
-    assert.match(page, /delivery_location_1_name:/);
-    assert.match(page, /delivery_location_2_name:/);
-  }
+  assert.match(edit, /delivery_map_url_2:/);
+  assert.match(edit, /delivery_location_1_name:/);
+  assert.match(edit, /delivery_location_2_name:/);
+  assert.match(create, /delivery_map_url_2:extraMap/);
+  assert.match(create, /delivery_location_1_name:s\(body.locationName1/);
+  assert.match(create, /delivery_location_2_name:s\(body.locationName2/);
   assert.match(checkout, /deliveryLocations\?\.\[0\]\?\.url/);
   assert.match(checkout, /const selected = deliveryAddress === location\.url/);
   assert.match(checkout, /aria-pressed=\{selected\}/);
