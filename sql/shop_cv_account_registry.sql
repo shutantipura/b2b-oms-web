@@ -96,7 +96,7 @@ REVOKE ALL ON public.cv_account_events FROM anon, authenticated;
 CREATE OR REPLACE FUNCTION public.enforce_shop_cv_integrity()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, pg_temp
-AS $
+AS $cv_trigger$
 DECLARE v_status text;
 BEGIN
   IF TG_OP='UPDATE' AND NEW.customer_code IS DISTINCT FROM OLD.customer_code THEN
@@ -127,7 +127,7 @@ BEGIN
     IF NEW.has_no_cv THEN NEW.active_cv_number := NULL; END IF;
   END IF;
   RETURN NEW;
-END $;
+END $cv_trigger$;
 -- The trigger must inspect CV status even when a legacy customer editor uses an
 -- authenticated user (which correctly cannot SELECT private CV document tables).
 -- No client can execute the function directly; only the table trigger calls it.
