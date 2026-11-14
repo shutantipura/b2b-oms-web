@@ -5,29 +5,29 @@ ALTER TABLE public.line_users DROP CONSTRAINT IF EXISTS line_users_assigned_role
 ALTER TABLE public.line_users ADD CONSTRAINT line_users_assigned_role_check
  CHECK (assigned_role IS NULL OR assigned_role IN ('manager','salesman','staff','customer'));
 
--- Final user decision: all four named mixed LINE accounts remain Managers.
--- This is also the only currently authorized Manager group: fail closed if
--- a future database state does not contain all four active LINE identities.
+-- The four designated accounts retain the Manager role. Activation status
+-- is independent: a previously deactivated Manager must STAY deactivated.
+-- Preserve the exact user-selected roles without silently re-enabling S021.
 DO $keep_four_managers$
 DECLARE matches integer;
 BEGIN
   SELECT count(DISTINCT s.staff_code) INTO matches
   FROM public.staff s
   JOIN public.staff_line_users slu ON slu.staff_id=s.id AND slu.is_authorized
-  JOIN public.line_users lu ON lu.line_user_id=slu.line_user_id AND lu.is_active
-  WHERE s.staff_code IN ('S001','S005','S006','S021') AND s.is_active;
+  JOIN public.line_users lu ON lu.line_user_id=slu.line_user_id
+  WHERE s.staff_code IN ('S001','S005','S006','S021');
   IF matches<>4 THEN
     RAISE EXCEPTION 'All four named Manager LINE accounts are required; found %', matches;
   END IF;
   UPDATE public.staff SET account_type='manager', updated_at=now()
     WHERE staff_code IN ('S001','S005','S006','S021')
-      AND is_active AND account_type IS DISTINCT FROM 'manager';
+      AND account_type IS DISTINCT FROM 'manager';
   INSERT INTO public.staff_task_permissions(staff_id,stage)
     SELECT s.id, t.stage FROM public.staff s
     CROSS JOIN unnest(ARRAY[
       'confirmation','picking','billing','delivery','payment_verification'
     ]::text[]) AS t(stage)
-    WHERE s.staff_code IN ('S001','S005','S006','S021') AND s.is_active
+    WHERE s.staff_code IN ('S001','S005','S006','S021')
     ON CONFLICT DO NOTHING;
 END $keep_four_managers$;
 
@@ -43,6 +43,15 @@ UPDATE public.line_users lu SET assigned_role=COALESCE(
    WHERE clu.line_user_id=lu.id AND clu.can_order)
  THEN 'customer' ELSE NULL END)
 WHERE lu.assigned_role IS NULL;
+
+-- An inactive staff account may not have been inferred above. All four
+-- designated Managers still retain their assigned_role; only live active
+-- links can authenticate, and no activation flag is changed here.
+UPDATE public.line_users lu SET assigned_role='manager'
+FROM public.staff_line_users slu JOIN public.staff s ON s.id=slu.staff_id
+WHERE lu.line_user_id=slu.line_user_id AND slu.is_authorized
+  AND s.staff_code IN ('S001','S005','S006','S021')
+  AND lu.assigned_role IS DISTINCT FROM 'manager';
 
 UPDATE public.customer_line_users clu SET can_order=false
  FROM public.line_users lu WHERE clu.line_user_id=lu.id
