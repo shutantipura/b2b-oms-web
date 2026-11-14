@@ -437,7 +437,8 @@ test("customer delivery locations are saved, selectable, and validated during ch
     assert.match(page, /delivery_location_2_name:/);
   }
   assert.match(checkout, /deliveryLocations\?\.\[0\]\?\.url/);
-  assert.match(checkout, /aria-pressed=\{deliveryAddress === location\.url\}/);
+  assert.match(checkout, /const selected = deliveryAddress === location\.url/);
+  assert.match(checkout, /aria-pressed=\{selected\}/);
   assert.match(checkout, /deliveryAddress,\s*cart,/);
   assert.match(api, /allowedAddresses\.includes\(chosenAddress\)/);
   assert.match(api, /allowedAddresses\.includes\(deliveryAddress\)/);
