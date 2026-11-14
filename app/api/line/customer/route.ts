@@ -524,11 +524,13 @@ export async function POST(
     return NextResponse.json({
       linked:
         hasCustomerAccess ||
-        hasStaffAccess,
+        hasStaffAccess ||
+        lineUser.assigned_role === "accountant",
 
       pendingAuthorization:
         !hasCustomerAccess &&
-        !hasStaffAccess,
+        !hasStaffAccess &&
+        lineUser.assigned_role !== "accountant",
 
       lineUserId:
         lineData.sub,
@@ -541,6 +543,8 @@ export async function POST(
       hasCustomerAccess,
 
       hasStaffAccess,
+
+      accountRole: lineUser.assigned_role,
 
       customers,
 

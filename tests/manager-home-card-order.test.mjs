@@ -17,6 +17,7 @@ test("Manager home navigation prioritizes everyday work while keeping all cards"
     "/stock-management",
     "/salesman/reviews",
     "/kpi",
+    ...(hrefs.includes("/miniapp?portal=accountant") ? ["/miniapp?portal=accountant"] : []),
     "/line-access",
     "/terminals",
   ]);
