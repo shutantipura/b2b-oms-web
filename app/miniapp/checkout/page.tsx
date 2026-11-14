@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
 import { lineApiFetch } from "../../../lib/lineSession";
-import { listEligibleMergeChoices } from "../../../lib/orderMergeChoices";
+import { isMergeWindowOverdue, listEligibleMergeChoices } from "../../../lib/orderMergeChoices";
 import { isGoogleMapsUrl, MAX_DELIVERY_LOCATIONS, type DeliveryLocation } from "../../../lib/deliveryLocations";
 
 type Customer = {
@@ -242,9 +242,12 @@ export default function MiniAppCheckoutPage() {
         const firstLocation = data.customer.deliveryLocations?.[0]?.url
           ?? data.customer.deliveryAddress ?? "";
         setDeliveryAddress(firstLocation);
-        if (options[0]) {
-          setDeliveryDate(options[0].date);
-          setDeliverySlot(options[0].slots[0]?.value ?? "");
+        // A merge-only overdue date has zero standalone slots. Keep the next
+        // valid normal delivery as default until the customer explicitly merges.
+        const firstAvailable = options.find(option => option.slots.length > 0) ?? options[0];
+        if (firstAvailable) {
+          setDeliveryDate(firstAvailable.date);
+          setDeliverySlot(firstAvailable.slots[0]?.value ?? "");
         }
       } catch (error) {
         if (cancelled) return;
@@ -320,9 +323,9 @@ export default function MiniAppCheckoutPage() {
   // Candidates are suggestions, never selected without customer consent.
   const eligibleMergeCandidates = useMemo(() =>
     fulfillmentMethod === "delivery"
-      ? listEligibleMergeChoices(mergeCandidates, deliveryDate, deliveryAddress, currentSlots.map(s => s.value))
+      ? listEligibleMergeChoices(mergeCandidates, deliveryDate, deliveryAddress)
       : [],
-    [mergeCandidates, deliveryDate, deliveryAddress, currentSlots, fulfillmentMethod]
+    [mergeCandidates, deliveryDate, deliveryAddress, fulfillmentMethod]
   );
   const chosenMerge = eligibleMergeCandidates.find(c => c.orderNumber === selectedMergeOrderNumber) ?? null;
   const selectedDeliverySlot = chosenMerge?.deliverySlot ?? deliverySlot;
@@ -452,7 +455,7 @@ export default function MiniAppCheckoutPage() {
     const confirmation = fulfillmentMethod === "pickup"
       ? `ยืนยันรับสินค้าที่สาขา ${prettyDate(deliveryDate)} เวลา ${deliverySlot} ยอดประมาณการ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} หรือไม่?\nหลังจากออกบิลแล้ว คำสั่งซื้อจะเข้าสู่ขั้นตอนชำระเงินโดยไม่ผ่านงานจัดส่ง`
       : chosenMerge
-        ? `สร้างคำสั่งซื้อใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} เพื่อจัดส่งร่วมกับกลุ่ม #${chosenMerge.orderNumber} รอบ ${selectedDeliverySlot} ใช่หรือไม่?\nสินค้าใหม่จะผ่านการเช็คสต็อกและจัดสินค้าแยกต่างหาก แล้วออกบิลและจัดส่งรวมครั้งเดียว`
+        ? `สร้างคำสั่งซื้อใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} เพื่อจัดส่งร่วมกับกลุ่ม #${chosenMerge.orderNumber} รอบ ${selectedDeliverySlot} ใช่หรือไม่?\nสินค้าใหม่จะผ่านการเช็คสต็อกและจัดสินค้าแยกต่างหาก แล้วออกบิลและจัดส่งรวมครั้งเดียว${isMergeWindowOverdue(chosenMerge) ? "\nหมายเหตุ: รอบเดิมเลยเวลาจัดส่งแล้ว เวลาจัดส่งจริงอาจล่าช้า" : ""}`
         : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} หรือไม่?`;
     if (!window.confirm(confirmation)) return;
     if (chosenMerge && !mergeRequestIdRef.current) mergeRequestIdRef.current = crypto.randomUUID();
@@ -656,6 +659,11 @@ export default function MiniAppCheckoutPage() {
                   setSelectedMergeOrderNumber(null);
                   mergeRequestIdRef.current = null;
                   setMergeCandidates([]);
+                  if (option.value === "pickup" && currentSlots.length === 0) {
+                    const next = deliveryOptions.find(date => date.slots.length > 0);
+                    setDeliveryDate(next?.date ?? "");
+                    setDeliverySlot(next?.slots[0]?.value ?? "");
+                  }
                 }}
                 className={`min-h-16 rounded-xl border-2 px-2 py-3 text-sm font-extrabold transition ${fulfillmentMethod === option.value
                   ? "border-[#02B0AF] bg-[#E3F9F4] text-[#007C78]"
@@ -682,7 +690,8 @@ export default function MiniAppCheckoutPage() {
             <span className="text-xs font-bold text-[#537566]">{fulfillmentMethod === "pickup" ? "วันที่รับสินค้า" : "วันที่จัดส่ง"}</span>
             <select value={deliveryDate} onChange={(event) => changeDate(event.target.value)} className={field}>
               {deliveryOptions.length === 0 && <option value="">ไม่มีวันที่จัดส่งให้เลือก</option>}
-              {deliveryOptions.map((option) => <option key={option.date} value={option.date}>{prettyDate(option.date)}</option>)}
+              {deliveryOptions.filter(option => fulfillmentMethod === "delivery" || option.slots.length > 0)
+                .map((option) => <option key={option.date} value={option.date}>{prettyDate(option.date)}{option.slots.length === 0 ? " · รวมกับออเดอร์ค้างเท่านั้น" : ""}</option>)}
             </select>
           </label>
            <label className="mt-4 block">
@@ -692,13 +701,15 @@ export default function MiniAppCheckoutPage() {
               setSelectedMergeOrderNumber(null);
               mergeRequestIdRef.current = null;
             }} className={field}>
-              {currentSlots.length === 0 && <option value="">ไม่มีช่วงเวลาที่ว่าง</option>}
+              {currentSlots.length === 0 && !chosenMerge && <option value="">ไม่มีช่วงเวลาที่ว่าง</option>}
               {currentSlots.map((slot) => <option key={slot.value} value={slot.value}>{slot.label}</option>)}
+              {chosenMerge && !currentSlots.some(slot => slot.value === chosenMerge.deliverySlot) &&
+                <option value={chosenMerge.deliverySlot}>{chosenMerge.deliverySlot} (รอบของออเดอร์เดิม)</option>}
             </select>
           </label>
-          {currentSlots.length === 0 && <p className="mt-3 text-xs font-medium text-red-600">ไม่มีช่วงเวลาที่ว่างสำหรับวันที่เลือก</p>}
+          {currentSlots.length === 0 && !chosenMerge && <p className="mt-3 text-xs font-medium text-amber-700">ไม่มีรอบจัดส่งใหม่สำหรับวันนี้ · เลือกรวมกับออเดอร์ที่ยังไม่เริ่มออกบิลได้ หากมีตัวเลือกด้านล่าง</p>}
           <p className="mt-3 text-[11px] leading-5 text-[#718F83]">
-            สั่งซื้อได้ตลอด 24 ชั่วโมง · เลือกช่วงเวลา{fulfillmentMethod === "pickup" ? "รับสินค้า" : "จัดส่ง"}ที่ยังไม่เริ่ม (เวลาไทย)
+            สั่งซื้อได้ตลอด 24 ชั่วโมง · เลือกช่วงเวลา{fulfillmentMethod === "pickup" ? "รับสินค้า" : "จัดส่ง"}ที่ยังไม่เริ่ม (เวลาไทย) · ยกเว้นการรวมกับออเดอร์เดิมที่ยังไม่เริ่มออกบิล
           </p>
         </section>
 
@@ -830,14 +841,18 @@ export default function MiniAppCheckoutPage() {
                     className="mt-1 h-5 w-5 accent-[#008F8D]" />
                   <span className="min-w-0">
                     <span className="block font-extrabold text-[#17453F]">รวมกับคำสั่งซื้อ #{candidate.orderNumber}</span>
-                    <span className="mt-1 block text-xs text-[#57786E]">เวลา {candidate.deliverySlot} · {mergeStatusLabel(candidate.status)}</span>
+                    <span className="mt-1 block text-xs text-[#57786E]">เวลา {candidate.deliverySlot} · {mergeStatusLabel(candidate.status)}
+                      {isMergeWindowOverdue(candidate) && <span className="ml-2 font-bold text-amber-700">เลยรอบจัดส่งแล้ว · ยังรวมได้</span>}</span>
                   </span>
                 </label>
               ))}
             </div>
             {chosenMerge && <p role="status" className="mt-3 rounded-xl bg-[#F0FAF8] p-3 text-xs font-bold leading-5 text-[#006F6A]">
-              หากรวม เวลาจัดส่งจะเปลี่ยนเป็น {chosenMerge.deliverySlot} ตามคำสั่งซื้อเดิม
+              หากรวม จะใช้รอบเดิม {chosenMerge.deliverySlot} ตามคำสั่งซื้อที่เลือก
               และจะออกบิล จัดส่ง และชำระเงินร่วมกันหลังจากหยิบสินค้าทุกออเดอร์ครบ
+              {isMergeWindowOverdue(chosenMerge) && <span className="mt-1 block text-amber-700">
+                รอบเดิมเลยเวลาแล้ว เวลาจัดส่งจริงอาจล่าช้า
+              </span>}
             </p>}
           </section>
         )}
