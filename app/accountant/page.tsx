@@ -17,7 +17,7 @@ type Audit={id:number;batchId:string;orderItemId:string;newCost:number;quantity:
  createdAt:string;accountantName:string;sku:string;productName:string};
 type Report={orders:Order[];lines:Item[];audit:Audit[];asOf:string;todayBangkok:string;
  role:"manager"|"accountant";accountantName:string};
-type Price={customer_id:string;product_id:string;agreed_price:number};
+type Price={customer_id:string;product_id:string;agreed_price:number;customerName:string;customerCode:string};
 type Product={id:string;sku:string;product_name:string;unit:string;normal_price:number;masterCost:number|null};
 type Photo={id:string;fileType:string;createdAt:string;url:string|null};
 type Tab="orders"|"finance"|"reports"|"costs";
@@ -329,7 +329,9 @@ export default function AccountantPage(){
      {products.map(p=><div key={p.id} className="mt-2 rounded-xl border border-[#E2EFE7] p-3 text-xs">
       <strong>{p.sku} · {p.product_name}</strong>
       <p className="mt-1">ราคาปกติ {cash(p.normal_price)} · ต้นทุนมาสเตอร์ {cash(p.masterCost)} / {p.unit}</p>
-      <p>ราคาพิเศษที่ใช้งาน {specials.filter(x=>x.product_id===p.id).length} รายการ</p>
+      <p className="mt-1 font-bold">ราคาพิเศษลูกค้า {specials.filter(x=>x.product_id===p.id).length} รายการ</p>
+      {specials.filter(x=>x.product_id===p.id).map(sp=>
+       <p key={sp.customer_id} className="mt-1 text-[#687F74]">{sp.customerName} ({sp.customerCode}) · {cash(sp.agreed_price)} / {p.unit}</p>)}
      </div>)}
     </div>
    </div>}
