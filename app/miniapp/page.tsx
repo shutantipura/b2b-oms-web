@@ -640,7 +640,12 @@ export default function MiniAppHomePage() {
         if (!liff.isLoggedIn()) {
           // Desktop browsers must authenticate through the LIFF endpoint,
           // not the miniapp.line.me mobile-only launch URL.
-          liff.login({ redirectUri: window.location.origin + "/miniapp" });
+          liff.login({
+            // Preserve the explicit customer-order shortcut when a new LINE
+            // login or a desktop reauthentication round trip is required.
+            redirectUri: window.location.origin + "/miniapp" +
+              (requestedPortal === "customer" ? window.location.search : ""),
+          });
           return;
         }
 
@@ -703,7 +708,12 @@ export default function MiniAppHomePage() {
           ) {
             window.sessionStorage.setItem(retryKey, "1");
             liff.logout();
-            liff.login({ redirectUri: window.location.origin + "/miniapp" });
+            liff.login({
+            // Preserve the explicit customer-order shortcut when a new LINE
+            // login or a desktop reauthentication round trip is required.
+            redirectUri: window.location.origin + "/miniapp" +
+              (requestedPortal === "customer" ? window.location.search : ""),
+          });
             return;
           }
           if (
