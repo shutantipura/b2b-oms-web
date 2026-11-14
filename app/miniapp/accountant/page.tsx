@@ -12,7 +12,7 @@ type Item={id:string;orderId:string;productId:string;sku:string;name:string;unit
 type Order={id:string;rootId:string;orderNumber:number;customerId:string;customerName:string;customerCode:string;
  status:string;isRoot:boolean;createdAt:string;completedAt:string;billingAt:string|null;finalAmount:number|null;
  deliveryDate:string;deliverySlot:string;counted:boolean;billedProductSales:number;netBillAdjustment:number|null;
- recordedCost:number;missingCostLines:number;costsComplete:boolean;grossProfit:number|null;gpPercent:number|null;lines:Item[]};
+ recordedCost:number;missingCostLines:number;costsComplete:boolean;grossProfit:number|null;gpPercent:number|null;otherBillDifference:number|null;lines:Item[]};
 type Audit={id:number;batchId:string;orderItemId:string;newCost:number;quantity:number|null;reason:string;
  createdAt:string;accountantName:string;sku:string;productName:string};
 type Report={orders:Order[];lines:Item[];audit:Audit[];asOf:string;todayBangkok:string;
@@ -174,7 +174,7 @@ export default function AccountantPage(){
     "Order":row.orderNumber,"Customer":row.customerName,"CV":row.customerCode,
     "Billing date TH":bangkokDate(row.billingAt),"Completed at":row.completedAt,
     "Final bill THB":row.finalAmount,"Product sales before adjustment":row.billedProductSales,
-    "Manager bill adjustment":row.netBillAdjustment,
+    "Manager bill adjustment":row.netBillAdjustment,"Other bill difference":row.otherBillDifference,
     "GP THB":row.grossProfit,"GP percent":row.gpPercent,
     "Missing cost lines":row.missingCostLines,"As of":report.asOf
    }));
@@ -236,7 +236,7 @@ export default function AccountantPage(){
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
      {([["Completed sales",cash(financial.sales)],["Total bills",String(financial.bills)],
       ["Average sales/bill",cash(financial.bills?financial.sales/financial.bills:null)],
-      ["Bill adjustments",cash(financial.adjustments)],
+      ["Manager bill adjustments",cash(financial.adjustments)],
       ["Gross profit",cash(financial.allGP)],
       ["GP%",financial.percent===null?"N/A":financial.percent.toFixed(2)+"%"]]).map(([label,value])=>
        <div key={label} className="rounded-xl bg-white p-4">
@@ -350,7 +350,7 @@ export default function AccountantPage(){
     <p className="mt-2 text-xs">Billing {timestamp(order.billingAt)} · Completed {timestamp(order.completedAt)}</p>
     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
      {[["Final bill",cash(order.finalAmount)],["Product sales",cash(order.billedProductSales)],
-       ["Bill adjustment",cash(order.netBillAdjustment)],["Order GP",cash(order.grossProfit)]]
+       ["Manager adjustment",cash(order.netBillAdjustment)],["Other bill difference",cash(order.otherBillDifference)],["Order GP",cash(order.grossProfit)]]
       .map(([label,val])=><div key={label} className="rounded-lg bg-[#F3FAF6] p-3">
        <span>{label}</span><strong className="mt-1 block">{val}</strong></div>)}
     </div>
