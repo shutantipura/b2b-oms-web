@@ -15,8 +15,9 @@ type StaffProfile = {
 };
 
 type OperationalHealth = {
-  unhealthyStations: { label: string; status: "offline" | "degraded"; minutesSinceSeen: number | null }[];
+  unhealthyStations: { label: string; status: "offline" | "degraded" | "disabled" | "awaiting"; minutesSinceSeen: number | null }[];
   missingBillCount: number;
+  recentMissingBillCount: number;
   missingBillOrders: { orderNumber: number; completedAt: string | null }[];
 };
 
@@ -241,8 +242,8 @@ export default function OmsHomePage() {
 
         {isManager && (healthError || (operationalHealth &&
             (operationalHealth.unhealthyStations.length > 0 || operationalHealth.missingBillCount > 0))) && (
-          <section aria-label="การแจ้งเตือนการปฏิบัติงาน" className="mt-4 rounded-2xl border border-[#F1D99E] bg-[#FFFBF0] p-4 text-[#624B19] sm:p-5">
-            <h2 className="text-sm font-black">รายการที่ผู้จัดการควรตรวจสอบ</h2>
+          <section aria-label="การแจ้งเตือนการปฏิบัติงาน" className={`mt-4 rounded-2xl border p-4 sm:p-5 ${operationalHealth && operationalHealth.unhealthyStations.length === 0 && operationalHealth.recentMissingBillCount === 0 ? "border-[#D5E8E1] bg-white text-[#466F65]" : "border-[#F1D99E] bg-[#FFFBF0] text-[#624B19]"}`}>
+            <h2 className="text-sm font-black">{operationalHealth && operationalHealth.unhealthyStations.length === 0 && operationalHealth.recentMissingBillCount === 0 ? "บิลย้อนหลังที่ควรตรวจสอบ" : "รายการที่ผู้จัดการควรตรวจสอบ"}</h2>
             {healthError && <p role="status" className="mt-2 text-sm">{healthError}</p>}
             {operationalHealth && (
               <div className="mt-3 space-y-3 text-sm">
@@ -251,7 +252,7 @@ export default function OmsHomePage() {
                     <p className="font-extrabold">อุปกรณ์แจ้งเตือนมีปัญหา ({operationalHealth.unhealthyStations.length})</p>
                     <p className="mt-1 leading-6">
                       {operationalHealth.unhealthyStations.map(device =>
-                        `${device.label}: ${device.status === "offline" ? "ไม่ออนไลน์" : "เชื่อม OMS ไม่สำเร็จ"}${device.minutesSinceSeen === null ? "" : ` (${device.minutesSinceSeen} นาที)`}`
+                        `${device.label}: ${device.status === "offline" ? "ไม่ออนไลน์" : device.status === "disabled" ? "หยุดเฝ้าระวังออเดอร์" : device.status === "awaiting" ? "ยังไม่เคยเชื่อมต่อ" : "เชื่อม OMS ไม่สำเร็จ"}${device.minutesSinceSeen === null ? "" : ` (${device.minutesSinceSeen} นาที)`}`
                       ).join(" · ")}
                     </p>
                     <Link href="/alarm-stations" className="mt-1 inline-block font-extrabold underline underline-offset-4">ตรวจสอบสถานะเครื่อง</Link>
@@ -260,7 +261,7 @@ export default function OmsHomePage() {
                 {operationalHealth.missingBillCount > 0 && (
                   <div>
                     <p className="font-extrabold">คำสั่งซื้อที่ปิดงานแล้วแต่ไม่มีข้อมูลยอดบิล ({operationalHealth.missingBillCount})</p>
-                    <p className="mt-1 text-xs">ตรวจสอบเอกสารย้อนหลัง ไม่แก้ยอดอัตโนมัติ</p>
+                    <p className="mt-1 text-xs">{operationalHealth.recentMissingBillCount > 0 ? `มี ${operationalHealth.recentMissingBillCount} คำสั่งซื้อใน 14 วันที่ผ่านมา · ` : "เป็นข้อมูลย้อนหลัง · "}ตรวจสอบหลักฐานก่อนดำเนินการ ไม่แก้ยอดอัตโนมัติ</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {operationalHealth.missingBillOrders.map(order => (
                         <Link key={order.orderNumber} href={`/orders/${order.orderNumber}`}

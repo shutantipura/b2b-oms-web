@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { classifyAlarmStation } from "@/lib/alarmStationHealth";
 
 type Station = {
   id: string;
@@ -42,14 +43,14 @@ function ago(iso: string | null, now: number) {
 }
 
 function statusOf(station: Station, now: number) {
-  if (station.revoked_at) return { text: "ยกเลิกการจับคู่", style: "bg-gray-100 text-gray-700" };
-  if (!station.last_seen_at) return { text: "รออุปกรณ์เชื่อมต่อ", style: "bg-amber-100 text-amber-800" };
-  const lastSeen = new Date(station.last_seen_at).getTime();
-  const lastOk = station.last_success_at ? new Date(station.last_success_at).getTime() : 0;
-  if (now - lastSeen > 90_000) return { text: "ไม่ออนไลน์ / ไม่ส่งสถานะ", style: "bg-red-100 text-red-700" };
-  if (!station.monitor_active) return { text: "ออนไลน์ แต่ปิดเสียงเตือน", style: "bg-amber-100 text-amber-800" };
-  if (now - lastOk > 120_000) return { text: "ออนไลน์ แต่เชื่อม OMS ไม่สำเร็จ", style: "bg-amber-100 text-amber-800" };
-  return { text: "ออนไลน์ · ตรวจสอบออเดอร์ได้", style: "bg-emerald-100 text-emerald-800" };
+  switch (classifyAlarmStation(station, now)) {
+    case "revoked": return { text: "ยกเลิกการจับคู่", style: "bg-gray-100 text-gray-700" };
+    case "awaiting": return { text: "รออุปกรณ์เชื่อมต่อ", style: "bg-amber-100 text-amber-800" };
+    case "offline": return { text: "ไม่ออนไลน์ / ไม่ส่งสถานะ", style: "bg-red-100 text-red-700" };
+    case "disabled": return { text: "ออนไลน์ แต่หยุดเฝ้าระวังออเดอร์", style: "bg-red-100 text-red-700" };
+    case "degraded": return { text: "ออนไลน์ แต่เชื่อม OMS ไม่สำเร็จ", style: "bg-amber-100 text-amber-800" };
+    case "healthy": return { text: "ออนไลน์ · ตรวจสอบออเดอร์ได้", style: "bg-emerald-100 text-emerald-800" };
+  }
 }
 
 export default function AlarmStationsPage() {
@@ -103,7 +104,7 @@ export default function AlarmStationsPage() {
   }
 
   async function revoke(station: Station) {
-    if (!window.confirm(`ยกเลิกการจับคู่กับ ${station.label}?\nการส่งสถานะเครื่องจะถูกยกเลิก แต่เสียงเตือน OMS ยังทำงานบนเครื่องได้เหมือนเดิม`)) return;
+    if (!window.confirm(`ยกเลิกการจับคู่กับ ${station.label}?\nเครื่องนี้จะไม่สามารถยืนยันรับทราบออเดอร์ร่วมกันได้อีก จนกว่าจะจับคู่ใหม่ กรุณาหยุดเฝ้าระวังบนเครื่องก่อนยกเลิก ยืนยันหรือไม่?`)) return;
     setBusy(true);
     try {
       const response = await authenticated("/api/admin/alarm-stations", {
@@ -129,14 +130,14 @@ export default function AlarmStationsPage() {
             หากไม่มีสัญญาณเกิน 90 วินาที จะแสดงว่าไม่ออนไลน์
           </p>
           <div className="mt-4 rounded-xl bg-[#FFF7E4] p-3 text-sm leading-6 text-[#865F12]">
-            การจับคู่เป็นทางเลือกเท่านั้น ไม่ใช่การเข้าสู่ระบบพนักงาน
-            เครื่องที่ไม่ได้จับคู่ยังสามารถเปิดเสียงเตือนออเดอร์ได้ตามปกติ
-            สถานะออนไลน์ไม่รับประกันว่า Android จะเล่นเสียงได้ทุกครั้ง
+            แอป Android Alarm รุ่นปัจจุบันต้องจับคู่เครื่องด้วยรหัส 6 หลักก่อนเริ่มเฝ้าระวังเบื้องหลัง
+            การจับคู่ไม่ใช่การเข้าสู่ระบบพนักงาน และไม่จำเป็นต้องให้สิทธิ์งานแก่เครื่อง
+            สถานะออนไลน์ไม่รับประกันว่าเครื่องเล่นเสียงได้ ต้องทดลองแจ้งเตือนและกดรับทราบด้วย
           </div>
         </section>
 
         <section className="rounded-3xl border border-[#CFE6DE] bg-white p-5 shadow-sm sm:p-7">
-          <h2 className="text-lg font-extrabold">เพิ่มเครื่องติดตามสุขภาพ Alarm</h2>
+          <h2 className="text-lg font-extrabold">จับคู่เครื่องแจ้งเตือน Android</h2>
           <p className="mt-1 text-sm text-[#6B867B]">ตั้งชื่อเครื่อง แล้วสร้างรหัสจับคู่ใช้ครั้งเดียว (หมดอายุภายใน 15 นาที)</p>
           <label className="mt-4 block text-sm font-bold" htmlFor="station-name">ชื่ออุปกรณ์</label>
           <input id="station-name" value={name} maxLength={80} onChange={e => setName(e.target.value)}
@@ -185,6 +186,15 @@ export default function AlarmStationsPage() {
                   <p>ออเดอร์รอรับทราบบนเครื่อง: {station.pending_count}</p>
                   <p>เวอร์ชัน: {station.app_version ?? "—"}</p>
                 </div>
+                {!station.revoked_at && ["offline", "disabled", "degraded", "awaiting"].includes(classifyAlarmStation(station, now)) && (
+                  <div className="mt-3 rounded-xl border border-[#F4DEAA] bg-[#FFFAEA] p-3 text-xs leading-5 text-[#805E1B]">
+                    <p className="font-black">วิธีตรวจสอบเครื่อง</p>
+                    <p>เปิดเครื่องและเชื่อมต่ออินเทอร์เน็ต → เปิดแอป Lotus’s B2B → ตรวจสอบว่าเริ่มเฝ้าระวังอยู่
+                      และมีแจ้งเตือนระบบค้างอยู่บนหน้าจอ → ปิดการจำกัดแบตเตอรี่หรือโหมดพักแอป
+                      → ทดลองแจ้งเตือนและกดรับทราบบนเครื่อง</p>
+                    <p className="mt-1">ช่วง 22:00–07:00 ระบบพักเสียง แต่ยังต้องส่งสถานะตามปกติ หากเครื่องไม่กลับมาออนไลน์ให้ตรวจสอบแอปบนเครื่องจริง</p>
+                  </div>
+                )}
                 {station.last_error && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">ข้อผิดพลาด: {station.last_error}</p>}
                 {!station.revoked_at && (
                   <button type="button" disabled={busy} onClick={() => void revoke(station)}
