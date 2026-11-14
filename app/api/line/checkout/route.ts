@@ -1190,9 +1190,13 @@ export async function POST(
     const mergeIntoOrderNumber = chosenMerge?.orderNumber ?? null;
     const merging = mergeIntoOrderNumber !== null;
     const suppliedRequestId = typeof body.requestId === "string" ? body.requestId : "";
-    const requestId = suppliedRequestId || crypto.randomUUID();
-    if (merging && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)) {
-      return NextResponse.json({ error: "Invalid merge request reference. Please try again." }, { status: 400 });
+    const requestId = suppliedRequestId;
+    // A client-generated key is required for every order: without it a
+    // network retry can create two deliveries or pickups.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)) {
+      return NextResponse.json({
+        error: "กรุณาโหลดหน้าสั่งซื้อใหม่ก่อนยืนยัน เพื่อป้องกันการสั่งซื้อซ้ำ"
+      }, { status: 400 });
     }
 
     const { data: orderData, error: orderError } = merging
@@ -1207,22 +1211,18 @@ export async function POST(
           p_line_user_id: verifiedLineUserId,
           p_request_id: requestId,
         })
-      : fulfillmentMethod === "pickup"
-        ? await supabase.rpc("create_customer_pickup_order", {
-            p_customer_code: customer.customer_code,
-            p_delivery_date: deliveryDate,
-            p_delivery_slot: effectiveDeliverySlot,
-            p_customer_notes: notes,
-            p_items: orderItems,
-          })
-        : await supabase.rpc("create_customer_order", {
-            p_customer_code: customer.customer_code,
-            p_delivery_date: deliveryDate,
-            p_delivery_slot: effectiveDeliverySlot,
-            p_delivery_address: deliveryAddress,
-            p_customer_notes: notes,
-            p_items: orderItems,
-          });
+      : await supabase.rpc("create_checkout_order_once", {
+          p_customer_id: customer.id,
+          p_line_user_id: verifiedLineUserId,
+          p_customer_code: customer.customer_code,
+          p_delivery_date: deliveryDate,
+          p_delivery_slot: effectiveDeliverySlot,
+          p_delivery_address: fulfillmentMethod === "pickup" ? "" : deliveryAddress,
+          p_customer_notes: notes,
+          p_items: orderItems,
+          p_request_id: requestId,
+          p_is_pickup: fulfillmentMethod === "pickup",
+        });
 
     if (orderError) {
       console.error(
