@@ -34,9 +34,8 @@ const MANAGER_NAVIGATION: NavigationItem[] = [
   { name: "ตรวจสอบฝ่ายขาย", href: "/salesman/reviews", description: "ยืนยันหรือคืนข้อมูลลูกค้า และอนุมัติราคาพิเศษ GP ≤7%" },
   { name: "สินค้าและราคา", href: "/catalog", description: "สินค้า รูปภาพ และราคาพิเศษ" },
   { name: "จัดการสต็อก", href: "/stock-management", description: "ดาวน์โหลดรายงานปริมาณขายสินค้า 14 วัน" },
-  { name: "พนักงาน", href: "/staff", description: "บัญชีและข้อมูลพนักงาน" },
   { name: "อุปกรณ์หน้าร้าน", href: "/terminals", description: "ลงทะเบียนอุปกรณ์ จัดการบัญชี และดูสถานะ" },
-  { name: "สิทธิ์ LINE", href: "/line-access", description: "จัดการสิทธิ์ผู้ใช้ LINE" },
+  { name: "สิทธิ์ LINE", href: "/line-access", description: "เพิ่มบัญชี กำหนดบทบาทพนักงานและลูกค้า และสิทธิ์การใช้งาน" },
   { name: "KPI", href: "/kpi", description: "ติดตามผลการดำเนินงาน" },
 ];
 

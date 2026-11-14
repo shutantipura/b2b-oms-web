@@ -390,23 +390,11 @@ export default function MiniAppHomePage() {
 
   function showAccessChooser() {
 
-    setSelectedCustomer(
-
-      null
-
-    );
-
-    setPortal(
-
-      "choose"
-
-    );
-
-    router.replace(
-
-      "/miniapp?portal=access"
-
-    );
+    // One LINE role. Staff-side accounts can enter customer ordering
+    // deliberately, but do not choose a second *account type*.
+    setSelectedCustomer(null);
+    setPortal("staff");
+    router.replace("/miniapp?portal=staff");
 
   }
 
@@ -858,40 +846,6 @@ export default function MiniAppHomePage() {
 
         // ===============================================
 
-        // EXPLICIT ACCESS CHOOSER
-
-        // ===============================================
-
-        if (
-
-          requestedPortal ===
-
-            "access" &&
-
-          data.hasCustomerAccess &&
-
-          data.hasStaffAccess
-
-        ) {
-
-          setPortal(
-
-            "choose"
-
-          );
-
-          setLoading(
-
-            false
-
-          );
-
-          return;
-
-        }
-
-        // ===============================================
-
         // EXPLICIT STAFF
 
         // ===============================================
@@ -928,8 +882,9 @@ export default function MiniAppHomePage() {
 
         // ===============================================
 
-        // Both customer and staff access: always show the account-type
-        // chooser by default. Explicit portal links are handled above.
+        // A LINE account has one role. Managers and Salesmen may access
+        // all customers, but their default workspace is their *staff* role.
+        // Entering the customer ordering portal is an explicit action.
         if (
 
           data.hasCustomerAccess &&
@@ -938,7 +893,7 @@ export default function MiniAppHomePage() {
 
         ) {
 
-          setPortal("choose");
+          setPortal("staff");
 
         } else if (
 
@@ -1348,7 +1303,7 @@ export default function MiniAppHomePage() {
 
               onClick={
 
-                showAccessChooser
+                enterCustomerPortal
 
               }
 
@@ -1356,7 +1311,7 @@ export default function MiniAppHomePage() {
 
             >
 
-              ← เลือกประเภทการใช้งาน
+              เลือกลูกค้าเพื่อสั่งสินค้า
 
             </button>
 
@@ -1652,7 +1607,7 @@ export default function MiniAppHomePage() {
 
               >
 
-                เปลี่ยนประเภทการใช้งาน
+                กลับหน้าพนักงาน
 
               </button>
 
