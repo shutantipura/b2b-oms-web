@@ -89,7 +89,7 @@ test("shop rows are collapsed by default with only name, CV status and LINE stat
   assert.match(shopUI,/เชื่อม CV แล้ว/);
   assert.match(shopUI,/เชื่อม LINE แล้ว/);
   assert.match(shopUI,/ยังไม่เชื่อม LINE/);
-  assert.match(shopUI,/beingEdited\?\s*<form/);
+  assert.match(shopUI,/beingEdited&&draft\?/);
   assert.match(shopUI,/aria-label=\{`แก้ไขร้าน/);
   assert.match(shop,/lineLinked:/);
   assert.match(shop,/lineAccounts:/);
