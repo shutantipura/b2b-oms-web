@@ -56,6 +56,11 @@ test("financial reporting is completed billing-date only with audit and bills",(
  assert.match(api,/members.every\(m=>m.status==="completed"\)/);
  assert.match(api,/timeZone:"Asia\/Bangkok"/);
  assert.match(api,/createSignedUrl\(file.storage_path,600\)/);
+ assert.match(api,/memberIds=\[\.\.\.new Set\(\[root,orderId/);
+ assert.match(api,/\.in\("order_id",memberIds\)/);
+ assert.match(api,/const unitCost=billed\?\?assigned/);
+ assert.doesNotMatch(api,/const unitCost=billed\?\?assigned\?\?money\(currentCost/);
+ assert.match(api,/piece_price_per_kg_snapshot\)!==null\?"กก."/);
  assert.match(api,/file_type",\["bill","bill_2","payment_slip","payment_slip_2"\]/);
  assert.match(page,/idToken,action/);
  assert.match(page,/cash\(financial.allGP\)/);
