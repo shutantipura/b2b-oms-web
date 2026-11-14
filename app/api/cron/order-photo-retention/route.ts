@@ -73,9 +73,11 @@ export async function GET(request: Request) {
       }, { onConflict: "storage_path" });
       if (error) throw error;
     };
-    // Expired files first; unfinished order groups can never reach delete candidates.
+    // Reconcile already-missing expired references FIRST, before any large
+    // compression backlog. This is metadata-only: it never removes storage
+    // objects and still uses the DB's age/group eligibility safeguards.
     for (const [action, limit] of [
-      ["delete", 70], ["compress", 120], ["finalize_delete", 70]
+      ["finalize_delete", 100], ["delete", 70], ["compress", 120]
     ] as const) {
       if (Date.now() - start > maxTime) break;
       const candidates = await read(action, limit);
