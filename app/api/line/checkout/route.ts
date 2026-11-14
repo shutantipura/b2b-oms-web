@@ -972,12 +972,13 @@ export async function POST(
     let retryRequestId: string | null = null;
     let checkoutIntentHash: string | null = null;
     if (action === "submit") {
-      retryRequestId = typeof body.requestId === "string" ? body.requestId : "";
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(retryRequestId)) {
+      const suppliedId = typeof body.requestId === "string" ? body.requestId : "";
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(suppliedId)) {
         return NextResponse.json({
           error: "กรุณาโหลดหน้าสั่งซื้อใหม่ก่อนยืนยัน เพื่อป้องกันการสั่งซื้อซ้ำ"
         }, { status: 400 });
       }
+      retryRequestId = suppliedId;
       // Fingerprint only the customer's confirmed checkout intent, never
       // volatile product prices, stock, or the current clock time.
       const intent = {
