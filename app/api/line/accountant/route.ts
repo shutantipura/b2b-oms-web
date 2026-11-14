@@ -21,7 +21,7 @@ async function allRows(admin: SupabaseClient, table: string, fields: string, sor
     const { data, error } = await admin.from(table).select(fields)
       .order(sort, { ascending: true }).range(offset, offset + PAGE_SIZE - 1);
     if (error) throw new Error("Could not load " + table + ": " + error.message);
-    all.push(...((data ?? []) as Row[]));
+    all.push(...((data ?? []) as unknown as Row[]));
     if (!data || data.length < PAGE_SIZE) return all;
   }
   throw new Error("Report too large to load safely");
