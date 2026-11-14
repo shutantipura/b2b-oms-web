@@ -215,7 +215,19 @@ export async function POST(req:NextRequest) {
       ]);
       if(costs.error||prices.error)throw new Error("Could not load reference prices");
       const byCost=new Map((costs.data??[]).map(r=>[r.product_id,r]));
-      return response({products:(data??[]).map(p=>({...p,masterCost:byCost.get(p.id)?.cost??null})),prices:prices.data??[]});
+      const customerIds=[...new Set((prices.data??[]).map(p=>p.customer_id))];
+      const {data:shopNames,error:shopError}=customerIds.length
+        ? await admin.from("customers").select("id,customer_name,customer_code").in("id",customerIds)
+        : {data:[],error:null};
+      if(shopError)throw new Error("Could not load customer names for special prices");
+      const shopMap=new Map((shopNames??[]).map(c=>[c.id,c]));
+      return response({
+        products:(data??[]).map(p=>({...p,masterCost:byCost.get(p.id)?.cost??null})),
+        prices:(prices.data??[]).map(p=>({
+          ...p,customerName:shopMap.get(p.customer_id)?.customer_name??"",
+          customerCode:shopMap.get(p.customer_id)?.customer_code??"",
+        })),
+      });
     }
     if(action==="order-files") {
       const orderId=txt(body.orderId);
