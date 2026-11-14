@@ -70,6 +70,7 @@ test("deactivation blocks new CV links, preserves audit and uses No CV billing m
   assert.match(sql,/NEW.has_no_cv := \(v_status IS DISTINCT FROM 'approved'\)/);
   assert.match(sql,/UPDATE public.customers SET cv_account_id=cv_account_id WHERE cv_account_id=p_cv_id/);
   assert.match(sql,/A shop may only link an approved active CV account/);
+  assert.match(sql,/REVOKE ALL ON FUNCTION public.enforce_shop_cv_integrity\(\)/);
   assert.match(shopUI,/CV ระงับ/);
   const detail=read("app/customers/[customerCode]/page.tsx");
   assert.match(detail,/CV Card สำหรับออกบิล/);

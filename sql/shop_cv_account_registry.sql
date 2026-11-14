@@ -88,9 +88,9 @@ REVOKE ALL ON public.cv_account_events FROM anon, authenticated;
 
 -- Guard legacy direct customer edits: a CV is a separate approved account.
 CREATE OR REPLACE FUNCTION public.enforce_shop_cv_integrity()
-RETURNS trigger LANGUAGE plpgsql
-SET search_path = public
-AS $$
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $
 DECLARE v_status text;
 BEGIN
   IF TG_OP='UPDATE' AND NEW.customer_code IS DISTINCT FROM OLD.customer_code THEN
@@ -118,7 +118,11 @@ BEGIN
     NEW.has_no_cv := (v_status IS DISTINCT FROM 'approved');
   END IF;
   RETURN NEW;
-END $$;
+END $;
+-- The trigger must inspect CV status even when a legacy customer editor uses an
+-- authenticated user (which correctly cannot SELECT private CV document tables).
+-- No client can execute the function directly; only the table trigger calls it.
+REVOKE ALL ON FUNCTION public.enforce_shop_cv_integrity() FROM PUBLIC,anon,authenticated;
 DROP TRIGGER IF EXISTS enforce_shop_cv_integrity_trg ON public.customers;
 CREATE TRIGGER enforce_shop_cv_integrity_trg BEFORE INSERT OR UPDATE ON public.customers
 FOR EACH ROW EXECUTE FUNCTION public.enforce_shop_cv_integrity();
