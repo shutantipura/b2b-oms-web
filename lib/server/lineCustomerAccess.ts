@@ -29,9 +29,10 @@ export async function hasAutomaticLineCustomerAccess(
     .eq("id", link.staff_id)
     .maybeSingle();
   if (staffError) throw new Error("Could not verify staff account");
-  return Boolean(staff?.is_active && (
-    staff.account_type === "manager" || staff.account_type === "salesman"
-  ));
+  // Reject stale LINE-to-staff role mismatches as well as revoked links.
+  return Boolean(staff?.is_active &&
+    staff.account_type === identity.assigned_role &&
+    ["manager", "salesman"].includes(staff.account_type));
 }
 
 export type LineCustomerAccessRow = {

@@ -389,13 +389,10 @@ export default function MiniAppHomePage() {
   }
 
   function showAccessChooser() {
-
-    // One LINE role. Staff-side accounts can enter customer ordering
-    // deliberately, but do not choose a second *account type*.
+    // One assigned LINE role, but Managers/Salesmen can enter both workspaces.
     setSelectedCustomer(null);
-    setPortal("staff");
-    router.replace("/miniapp?portal=staff");
-
+    setPortal("choose");
+    router.replace("/miniapp");
   }
 
   function changeCustomer() {
@@ -882,9 +879,8 @@ export default function MiniAppHomePage() {
 
         // ===============================================
 
-        // A LINE account has one role. Managers and Salesmen may access
-        // all customers, but their default workspace is their *staff* role.
-        // Entering the customer ordering portal is an explicit action.
+        // Manager/Salesman LINE identities have one role and two workspaces.
+        // Show both choices by default without changing staff-only routing.
         if (
 
           data.hasCustomerAccess &&
@@ -893,7 +889,7 @@ export default function MiniAppHomePage() {
 
         ) {
 
-          setPortal("staff");
+          setPortal("choose");
 
         } else if (
 
@@ -1201,8 +1197,7 @@ export default function MiniAppHomePage() {
               เลือกประเภทการใช้งาน
             </h1>
             <p className="mt-2 text-sm leading-6 text-[#6D8D7E]">
-              บัญชี LINE ของคุณสามารถเข้าใช้งานได้มากกว่าหนึ่งประเภท
-              เลือกหน้าที่ต้องการเข้าสู่ระบบ
+              เลือกพื้นที่ทำงานที่ต้องการ · บัญชี LINE ยังคงมีบทบาทเดียว
             </p>
             {access.displayName && (
               <div className="mt-4 inline-flex max-w-full items-center gap-2 rounded-full bg-[#ECF8F5] px-3 py-1.5 text-xs font-bold text-[#478174]">
@@ -1229,7 +1224,7 @@ export default function MiniAppHomePage() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-lg font-black leading-6 text-[#17453F]">ลูกค้า</span>
-                  <span className="mt-1 block text-sm leading-5 text-[#718F84]">สั่งสินค้า ดูราคา และติดตามคำสั่งซื้อ</span>
+                  <span className="mt-1 block text-sm leading-5 text-[#718F84]">เลือกบัญชีลูกค้าที่ได้รับสิทธิ์ เพื่อสั่งสินค้า ดูราคา และติดตามคำสั่งซื้อ</span>
                   <span className="mt-2 block text-xs font-extrabold text-[#008F8D]">เข้าสู่หน้าลูกค้า</span>
                 </span>
                 <span className="shrink-0 transition group-hover:translate-x-0.5"><NavigationArrow /></span>
@@ -1252,7 +1247,7 @@ export default function MiniAppHomePage() {
                   <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#FDBC16]" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-lg font-black leading-6 text-[#17453F]">พนักงาน / ผู้จัดการ / ฝ่ายขาย</span>
+                  <span className="block text-lg font-black leading-6 text-[#17453F]">{access.staff.accountType === "manager" ? "พื้นที่ผู้จัดการ" : access.staff.accountType === "salesman" ? "พื้นที่ฝ่ายขาย" : "พื้นที่พนักงาน"}</span>
                   <span className="mt-1 block break-words text-sm leading-5 text-[#718F84]">
                     {access.staff.staffName} · {access.staff.accountType === "manager" ? "ผู้จัดการ" : access.staff.accountType === "salesman" ? "ฝ่ายขาย" : "พนักงาน"}
                   </span>
