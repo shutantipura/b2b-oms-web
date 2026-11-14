@@ -35,6 +35,9 @@ test("explicit Manager customer-order portal and Manager home shortcut remain av
   assert.match(page, /requestedPortal ===[\s\S]*?"customer" &&[\s\S]*?data.hasCustomerAccess/);
   assert.match(page, /const destination = defaultLinePortal\(data\)/);
   assert.match(page, /shouldAutoOpenLineStaff\(access, portal\)/);
+  // A Manager opening customer ordering must not lose that query parameter if
+  // LIFF requires a fresh authentication round trip.
+  assert.match(page, /requestedPortal === "customer" \? window.location.search : ""/);
   assert.match(page, /router.replace\("\/miniapp\?portal=staff"\)/);
   assert.match(home, /name: "สั่งสินค้าแทนลูกค้า", href: "\/miniapp\?portal=customer"/);
   assert.match(home, /const navigation = isManager \? MANAGER_NAVIGATION/);
