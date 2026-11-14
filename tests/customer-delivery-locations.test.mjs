@@ -67,11 +67,11 @@ test("allows removal of all locations and rejects invalid batches", () => {
 
 test("primary location defaults to the shop name, without overwriting customized names", () => {
   const api = readFileSync("app/api/line/checkout/route.ts", "utf8");
-  const create = readFileSync("app/customers/new/page.tsx", "utf8");
+  const create = readFileSync("app/api/customer-registry/shops/route.ts", "utf8");
   const managerEdit = readFileSync("app/customers/[customerCode]/page.tsx", "utf8");
   const checkout = readFileSync("app/miniapp/checkout/page.tsx", "utf8");
   assert.match(api, /customer\.customer_name : customer\.delivery_location_1_name\.trim\(\)/);
-  assert.match(create, /delivery_location_1_name: locationName1\.trim\(\) \|\| name/);
+  assert.match(create, /delivery_location_1_name:s\(body.locationName1,60\)\|\|shopName/);
   assert.match(managerEdit, /delivery_location_1_name: locationName1\.trim\(\) \|\| customerName\.trim\(\)/);
   assert.match(checkout, /placeholder=\{locationEditIndex === 0 \? customer\.customerName/);
 });

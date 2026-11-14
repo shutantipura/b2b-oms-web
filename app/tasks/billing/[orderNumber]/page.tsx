@@ -42,6 +42,7 @@ type OrderDetails = {
 
     customer_name: string;
     customer_code: string;
+    active_cv_number: string | null;
     has_no_cv: boolean;
     cv_card_storage_path: string | null;
 
@@ -243,6 +244,7 @@ export default function BillingPage() {
 
           customer_name,
           customer_code,
+          active_cv_number,
           has_no_cv,
           cv_card_storage_path,
 
@@ -1515,6 +1517,11 @@ export default function BillingPage() {
                 ? "CV Card: ไม่บังคับรูปบิล และใช้ CV Card ของลูกค้าแทนรูป QR"
                 : "พักบิล: ต้องแนบรูปพักบิลจาก POS เท่านั้น ไม่ต้องแนบ QR"}
           </p>
+          {order.customers?.active_cv_number && (
+            <p className="mt-2 rounded-lg bg-white px-3 py-2 text-sm font-black text-[#008F8D]">
+              เลขบัญชี CV ที่อนุมัติแล้ว: {order.customers.active_cv_number}
+            </p>
+          )}
           {order.customers?.has_no_cv && (
             <p className="mt-2 text-xs font-semibold text-[#007F79]">ลูกค้าไม่มีเลข CV — เลือก B2B Barcode ให้อัตโนมัติ</p>
           )}
