@@ -239,8 +239,8 @@ export default function LineAccessPage(){
             </section>}
 
             {selectedRole==="customer"&&<section className="rounded-xl border border-[#D7EAE2] bg-[#F8FCFA] p-3">
-              <p className="font-black">สิทธิ์ลูกค้า ({draft.customerCodes.length} ร้าน)</p>
-              <p className="mt-1 text-xs leading-5 text-[#718A7D]">เลือกเฉพาะร้านที่ LINE บัญชีนี้สามารถสั่งสินค้าได้</p>
+              <p className="font-black">สิทธิ์ลูกค้า</p>
+              <p className="mt-1 text-xs leading-5 text-[#718A7D]">เลือกได้หลายร้าน · LINE บัญชีนี้จะสั่งซื้อได้เฉพาะร้านที่เลือก</p>
               <input type="search" placeholder="ค้นหาร้านหรือเลข CV" value={customerSearch[user.id]??""}
                 onChange={e=>setCustomerSearch(prev=>({...prev,[user.id]:e.target.value}))}
                 className="mt-3 min-h-11 w-full rounded-xl border border-[#D5E5DE] bg-white px-3 text-sm"/>
