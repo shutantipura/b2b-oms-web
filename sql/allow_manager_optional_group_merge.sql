@@ -148,7 +148,7 @@ BEGIN
    'grouped',true
  );
 END;
-$function$
+$function$;
 
 REVOKE ALL ON FUNCTION public.create_group_suborder(uuid,bigint,date,text,text,text,jsonb,uuid,uuid)
   FROM PUBLIC,anon,authenticated;
