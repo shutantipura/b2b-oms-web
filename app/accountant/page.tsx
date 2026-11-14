@@ -184,6 +184,9 @@ export default function AccountantPage(){
     "Quantity":line.quantity,"Sales per unit":line.sellingPricePerUnit,
     "Product sales":line.productSales,"Cost at billing":line.billedCostPerUnit,
     "Accountant cost":line.assignedCostPerUnit,"Current master cost":line.currentCostPerUnit,
+    "Effective historical cost/unit":line.missingHistorical?null:line.effectiveCostPerUnit,
+    "Total product cost":line.missingHistorical?null:line.totalCost,
+    "Product GP":line.missingHistorical||line.productSales===null||line.totalCost===null?null:line.productSales-line.totalCost,
     "Historical cost complete":!line.missingHistorical
    })));
    const m=missing.map(line=>({SKU:line.sku,Product:line.name,OrderItem:line.id,Unit:line.unit,
