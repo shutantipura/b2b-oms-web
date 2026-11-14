@@ -110,14 +110,16 @@ async function fullReport(admin: SupabaseClient) {
     const correction=overrideMap.get(txt(line.id));
     const billed=money(line.unit_cost_at_billing);
     const assigned=money(correction?.unit_cost);
-    const unitCost=billed??assigned??money(currentCost?.cost);
+    // Current master costs are reference-only; never turn an unknown
+    // historical cost into a seemingly confirmed financial number.
+    const unitCost=billed??assigned;
     const quantity=money(line.actual_qty);
     const unitPrice=money(line.piece_price_per_kg_snapshot)??num(line.unit_price_snapshot);
     const missingHistorical=quantity===null || (quantity>0&&billed===null&&assigned===null);
     return {
       id:txt(line.id),orderId:txt(line.order_id),productId:txt(line.product_id),
       sku:txt(product?.sku),name:txt(line.product_name_snapshot)||txt(product?.product_name),
-      unit:txt(line.unit_snapshot),quantity,
+      unit:money(line.piece_price_per_kg_snapshot)!==null?"กก.":txt(line.unit_snapshot),quantity,
       sellingPricePerUnit:unitPrice,productSales:quantity===null?null:Math.round(quantity*unitPrice*100)/100,
       billedCostPerUnit:billed,assignedCostPerUnit:assigned,currentCostPerUnit:money(currentCost?.cost),
       effectiveCostPerUnit:unitCost,totalCost:quantity===null||unitCost===null?null:Math.round(quantity*unitCost*100)/100,
@@ -235,9 +237,14 @@ export async function POST(req:NextRequest) {
       const {data:orders,error:oerr}=await admin.from("orders").select("id,group_root_order_id").eq("id",orderId).maybeSingle();
       if(oerr||!orders)return response({error:"Order not found"},404);
       const root=orders.group_root_order_id??orders.id;
+      // A grouped commercial bill may hold images on any /x member.
+      const {data:members,error:memberError}=await admin.from("orders")
+        .select("id").or("id.eq."+root+",group_root_order_id.eq."+root);
+      if(memberError)throw new Error("Could not load grouped order members");
+      const memberIds=[...new Set([root,orderId,...(members??[]).map(m=>m.id)])];
       const {data:files,error:ferr}=await admin.from("order_files")
         .select("id,order_id,file_type,storage_path,created_at,is_current")
-        .in("order_id",[root,orderId]).eq("is_current",true)
+        .in("order_id",memberIds).eq("is_current",true)
         .in("file_type",["bill","bill_2","payment_slip","payment_slip_2"])
         .order("created_at",{ascending:true});
       if(ferr)throw new Error("Could not load files");
