@@ -31,12 +31,18 @@ ON CONFLICT (cv_number) DO NOTHING;
 
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS cv_account_id uuid REFERENCES public.cv_accounts(id) ON DELETE RESTRICT;
+-- Billing staff need the approved CV number rather than the independent
+-- internal shop ID used by OMS for newly created shops.
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS active_cv_number text;
 CREATE INDEX IF NOT EXISTS customers_cv_account_idx
   ON public.customers(cv_account_id);
 UPDATE public.customers c SET cv_account_id = cv.id
 FROM public.cv_accounts cv
 WHERE c.customer_code = cv.cv_number AND c.has_no_cv = false
   AND c.cv_account_id IS NULL;
+UPDATE public.customers c SET active_cv_number=cv.cv_number
+FROM public.cv_accounts cv WHERE c.cv_account_id=cv.id AND cv.status='approved'
+  AND c.active_cv_number IS DISTINCT FROM cv.cv_number;
 
 CREATE TABLE IF NOT EXISTS public.cv_account_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -113,9 +119,12 @@ BEGIN
   -- for new billing, so such shops temporarily behave as No CV.
   IF NEW.cv_account_id IS NULL THEN
     NEW.has_no_cv := true;
+    NEW.active_cv_number := NULL;
   ELSE
-    SELECT status INTO v_status FROM public.cv_accounts WHERE id=NEW.cv_account_id;
+    SELECT status,cv_number INTO v_status,NEW.active_cv_number
+      FROM public.cv_accounts WHERE id=NEW.cv_account_id;
     NEW.has_no_cv := (v_status IS DISTINCT FROM 'approved');
+    IF NEW.has_no_cv THEN NEW.active_cv_number := NULL; END IF;
   END IF;
   RETURN NEW;
 END $;

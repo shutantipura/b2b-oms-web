@@ -37,6 +37,10 @@ test("legacy 10-digit CV numbers become approved blank records, preserving OMS s
   assert.match(sql,/legacy_import/);
   assert.match(sql,/INSERT INTO public.cv_accounts/);
   assert.match(sql,/UPDATE public.customers c SET cv_account_id/);
+  assert.match(sql,/ADD COLUMN IF NOT EXISTS active_cv_number text/);
+  assert.match(sql,/NEW.active_cv_number := NULL/);
+  const billing=read("app/tasks/billing/[orderNumber]/page.tsx");
+  assert.match(billing,/เลขบัญชี CV ที่อนุมัติแล้ว/);
   assert.match(sql,/Shop ID is permanent/);
   assert.match(oldRoute,/redirect\("\/customers\/shops"\)/);
   assert.doesNotMatch(oldSalesRoute,/customer_code", "has_no_cv"/);
