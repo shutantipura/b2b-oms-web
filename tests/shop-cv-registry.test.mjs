@@ -15,11 +15,12 @@ const edit=read("app/salesman/customer/[customerId]/page.tsx");
 const oldRoute=read("app/customers/new/page.tsx");
 const oldSalesRoute=read("app/api/sales/customer-changes/route.ts");
 
-test("customer sidebar and salesman offer the new distinct Shop and CV submenus",()=>{
-  for(const page of [manager,salesman]){
-    assert.match(page,/href="\/customers\/shops"/);
-    assert.match(page,/href="\/customers\/cv-accounts"/);
-  }
+test("Customers menu opens Shops list; Shop and CV tabs remain for Manager and Salesman",()=>{
+  assert.match(manager,/redirect\("\/customers\/shops"\)/);
+  assert.match(salesman,/href="\/customers\/shops"/);
+  assert.match(salesman,/href="\/customers\/cv-accounts"/);
+  assert.match(shopUI,/href="\/customers\/shops"/);
+  assert.match(shopUI,/href="\/customers\/cv-accounts"/);
   assert.match(shopUI,/ร้านค้า/);
   assert.match(cvUI,/บัญชี CV/);
 });
@@ -79,4 +80,45 @@ test("deactivation blocks new CV links, preserves audit and uses No CV billing m
   const detail=read("app/customers/[customerCode]/page.tsx");
   assert.match(detail,/CV Card สำหรับออกบิล/);
   assert.match(detail,/เปิดเมนูบัญชี CV/);
+});
+
+
+test("shop rows are collapsed by default with only name, CV status and LINE status",()=>{
+  assert.match(shopUI,/aria-expanded=\{open\}/);
+  assert.match(shopUI,/expanded===shop.id/);
+  assert.match(shopUI,/เชื่อม CV แล้ว/);
+  assert.match(shopUI,/เชื่อม LINE แล้ว/);
+  assert.match(shopUI,/ยังไม่เชื่อม LINE/);
+  assert.match(shopUI,/beingEdited\?\s*<form/);
+  assert.match(shopUI,/aria-label=\{`แก้ไขร้าน/);
+  assert.match(shop,/lineLinked:/);
+  assert.match(shop,/lineAccounts:/);
+  assert.match(shop,/shopDetails/);
+  assert.match(shop,/customer_line_users/);
+});
+
+test("existing CV Card image references are moved to CV Accounts without deleting stored photos",()=>{
+  const migration=read("sql/cv_card_in_cv_accounts_20261114.sql");
+  const detail=read("app/customers/[customerCode]/page.tsx");
+  assert.match(migration,/ALTER TABLE public.cv_accounts\s+ADD COLUMN IF NOT EXISTS cv_card_storage_path/);
+  assert.match(migration,/UPDATE public.cv_accounts cv\s+SET cv_card_storage_path = c.cv_card_storage_path/);
+  assert.match(migration,/NEW.cv_card_storage_path := v_card/);
+  assert.match(migration,/UPDATE public.customers SET cv_account_id=cv_account_id WHERE cv_account_id=v_cv/);
+  assert.match(cv,/path.startsWith\("customer-cv\/"\)\?"order-files":"cv-documents"/);
+  assert.match(cv,/cv_card_storage_path/);
+  assert.match(cvUI,/CV Card สำหรับออกบิล/);
+  assert.match(cvUI,/cvCardStoragePath/);
+  assert.doesNotMatch(detail,/uploadCvCard\(/);
+  assert.doesNotMatch(detail,/removeCvCard\(/);
+  assert.match(detail,/เปิดเมนูบัญชี CV/);
+});
+
+test("CV Card replacements are compressed and manager-approved, never directly updated by a shop",()=>{
+  const migration=read("sql/cv_card_in_cv_accounts_20261114.sql");
+  assert.match(cv,/paths\(\[body.cvCardStoragePath\],1,staff.id\)/);
+  assert.match(migration,/v_req.cv_card_storage_path/);
+  assert.match(migration,/cv_card_storage_path=COALESCE/);
+  assert.match(migration,/p_manager_id AND account_type='manager' AND is_active/);
+  assert.match(migration,/length\(nullif\(cv_card_storage_path,''\)\)>0/);
+  assert.match(upload,/\.webp\(\{quality:75/);
 });
