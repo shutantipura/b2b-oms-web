@@ -27,10 +27,17 @@ export async function GET(request:NextRequest){
     // National ID photos are sensitive. Salesmen only receive signed
     // previews of their own requests; approved records are Manager-only.
     const entries=[...(staff.account_type==="manager"?(accounts.data??[]):[]),...visibleRequests];
-    const allPaths=[...new Set(entries.flatMap(x=>[
-      ...(x.shop_photos??[]),...(x.id_card_path?[x.id_card_path]:[]),...(x.registration_photos??[]),
-      ...(x.cv_card_storage_path?[x.cv_card_storage_path]:[])
-    ]))];
+    // Salesmen may view billing CV Cards to request a replacement, but never
+    // receive signed URLs for other customers' national ID/registration files.
+    const salesmanCards=staff.account_type==="manager"?[]:
+      (accounts.data??[]).flatMap(x=>x.cv_card_storage_path?[x.cv_card_storage_path]:[]);
+    const allPaths=[...new Set([
+      ...entries.flatMap(x=>[
+        ...(x.shop_photos??[]),...(x.id_card_path?[x.id_card_path]:[]),
+        ...(x.registration_photos??[]),...(x.cv_card_storage_path?[x.cv_card_storage_path]:[])
+      ]),
+      ...salesmanCards
+    ])];
     const signed=await Promise.all(allPaths.map(async path=>{
       const bucket=path.startsWith("customer-cv/")?"order-files":"cv-documents";
       const {data,error}=await admin.storage.from(bucket).createSignedUrl(path,300);
