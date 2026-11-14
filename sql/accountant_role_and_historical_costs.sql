@@ -36,6 +36,25 @@ GRANT ALL ON public.accountant_order_item_costs TO service_role;
 GRANT ALL ON public.accountant_cost_entry_audit TO service_role;
 GRANT USAGE, SELECT ON SEQUENCE public.accountant_cost_entry_audit_id_seq TO service_role;
 
+-- Neither a historical cost assignment nor its audit history may be silently
+-- revised or removed. Corrections, if ever needed, require a separate
+-- explicitly reviewed and audited reversal process.
+CREATE OR REPLACE FUNCTION public.reject_accountant_history_mutation()
+RETURNS trigger LANGUAGE plpgsql SET search_path TO ''
+AS $fn$
+BEGIN
+ RAISE EXCEPTION 'Accountant cost history is immutable';
+END $fn$;
+REVOKE ALL ON FUNCTION public.reject_accountant_history_mutation() FROM PUBLIC,anon,authenticated;
+DROP TRIGGER IF EXISTS accountant_cost_entries_immutable ON public.accountant_order_item_costs;
+CREATE TRIGGER accountant_cost_entries_immutable
+ BEFORE UPDATE OR DELETE ON public.accountant_order_item_costs
+ FOR EACH ROW EXECUTE FUNCTION public.reject_accountant_history_mutation();
+DROP TRIGGER IF EXISTS accountant_cost_audit_immutable ON public.accountant_cost_entry_audit;
+CREATE TRIGGER accountant_cost_audit_immutable
+ BEFORE UPDATE OR DELETE ON public.accountant_cost_entry_audit
+ FOR EACH ROW EXECUTE FUNCTION public.reject_accountant_history_mutation();
+
 -- A batch is all-or-nothing. Missing billing snapshots only; never overwrite
 -- an existing billing snapshot, previously entered cost or master SKU cost.
 CREATE OR REPLACE FUNCTION public.accountant_fill_missing_costs(
@@ -277,10 +296,10 @@ begin
     from billed b
     left join lateral (
       select
-        coalesce(sum(oi.actual_qty * coalesce(oi.unit_cost_at_billing, ac.unit_cost, pc.cost)), 0) as known_cost,
+        coalesce(sum(oi.actual_qty * coalesce(oi.unit_cost_at_billing, ac.unit_cost)), 0) as known_cost,
         count(*) filter (
           where oi.actual_qty is null
-            or (oi.actual_qty > 0 and coalesce(oi.unit_cost_at_billing, ac.unit_cost, pc.cost) is null)
+            or (oi.actual_qty > 0 and coalesce(oi.unit_cost_at_billing, ac.unit_cost) is null)
         ) as missing_cost_lines,
         count(*) filter (
           where oi.actual_qty > 0 and oi.unit_cost_at_billing is null and ac.unit_cost is null
@@ -291,7 +310,7 @@ begin
         ) as unsnapshotted_cost_lines,
         count(*) filter (
           where oi.actual_qty > 0
-            and coalesce(oi.unit_cost_at_billing, ac.unit_cost, pc.cost) >
+            and coalesce(oi.unit_cost_at_billing, ac.unit_cost) >
                 (10 * coalesce(oi.piece_price_per_kg_snapshot, oi.unit_price_snapshot))
             and coalesce(oi.piece_price_per_kg_snapshot, oi.unit_price_snapshot) > 0
         ) as suspicious_cost_lines
@@ -337,8 +356,8 @@ begin
     'changed_after_bill_lines', changed_after_bill_lines,
     'unsnapshotted_cost_lines', unsnapshotted_cost_lines,
     'suspicious_cost_lines', suspicious_cost_lines,
-    'cost_basis', case when unsnapshotted_cost_lines = 0 then 'billing_time_snapshots'
-                       else 'mixed_historical_estimate' end
+    'cost_basis', case when unsnapshotted_cost_lines = 0 then 'historical_costs_complete'
+                       else 'historical_costs_missing' end
   )
   from summary
   into v_result;
