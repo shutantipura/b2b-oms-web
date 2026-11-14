@@ -40,6 +40,7 @@ type OrderDetails = {
 
   customers: {
 
+    id: string;
     customer_name: string;
     customer_code: string;
     active_cv_number: string | null;
@@ -242,6 +243,7 @@ export default function BillingPage() {
 
         customers (
 
+          id,
           customer_name,
           customer_code,
           active_cv_number,
@@ -288,14 +290,21 @@ export default function BillingPage() {
     setCvCardUrl(null);
     setCvCardPreviewError("");
     const cvCardPath = loadedOrder.customers?.cv_card_storage_path;
-    if (cvCardPath) {
-      const { data: cvSigned, error: cvError } = await supabase.storage
-        .from("order-files")
-        .createSignedUrl(cvCardPath, 3600);
-      if (cvError || !cvSigned?.signedUrl) {
-        setCvCardPreviewError("ไม่สามารถแสดง CV Card ได้ กรุณาตรวจสอบรูปในข้อมูลลูกค้า");
+    if (cvCardPath && loadedOrder.customers?.id) {
+      // Old cards are stored in order-files, new approved compressed cards in
+      // cv-documents. Billing staff cannot browse private registration/ID files.
+      // Obtain a single signed card URL via a staff/billing-authorized server route.
+      const {data:{session}}=await supabase.auth.getSession();
+      if(session?.access_token){
+        const response=await fetch(
+          `/api/billing/cv-card?customerId=${encodeURIComponent(loadedOrder.customers.id)}`,
+          {headers:{Authorization:"Bearer "+session.access_token},cache:"no-store"}
+        );
+        const result=await response.json();
+        if(response.ok && result.url)setCvCardUrl(result.url);
+        else setCvCardPreviewError("ไม่สามารถแสดง CV Card ได้ กรุณาตรวจสอบรูปในบัญชี CV");
       } else {
-        setCvCardUrl(cvSigned.signedUrl);
+        setCvCardPreviewError("กรุณาเข้าสู่ระบบพนักงานอีกครั้ง");
       }
     }
 
@@ -787,7 +796,7 @@ export default function BillingPage() {
     }
 
     if (billingMode === "suspended" && (!order?.customers?.cv_card_storage_path || !cvCardUrl)) {
-      setMessage("ต้องบันทึกรูป CV Card ในข้อมูลลูกค้าให้สำเร็จก่อนปิดงานแบบCV Card");
+      setMessage("ต้องมีรูป CV Card ที่อนุมัติแล้วในเมนูบัญชี CV ก่อนปิดงานแบบ CV Card");
       return;
     }
 
@@ -1527,7 +1536,7 @@ export default function BillingPage() {
           )}
           {billingMode === "suspended" && !order.customers?.cv_card_storage_path && (
             <p className="mt-3 rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800">
-              ยังไม่มี CV Card สำหรับลูกค้ารายนี้ กรุณาอัปโหลดจาก{" "}
+              ยังไม่มี CV Card สำหรับลูกค้ารายนี้ กรุณาเพิ่มรูปที่บัญชี CV จาก{" "}
               <Link href={`/customers/${order.customers?.customer_code ?? ""}`} className="underline">
                 ข้อมูลลูกค้า
               </Link>{" "}ก่อนปิดงาน
@@ -1631,7 +1640,7 @@ export default function BillingPage() {
 
             <p className="text-sm text-gray-500 mt-1 mb-4">
 
-              {billingMode === "suspended" ? "ใช้รูป CV Card ที่บันทึกไว้ในข้อมูลลูกค้าโดยอัตโนมัติ"
+              {billingMode === "suspended" ? "ใช้รูป CV Card ที่อนุมัติแล้วจากบัญชี CV โดยอัตโนมัติ"
                 : billingMode === "no_cv" ? "ไม่ต้องอัปโหลด QR ชำระเงินสำหรับพักบิล"
                 : "อัปโหลด QR ชำระเงินสำหรับให้ลูกค้าใช้ชำระเงิน"}
 
