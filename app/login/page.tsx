@@ -30,15 +30,15 @@ const TASK_STATUS_MAP: Record<string, string[]> = {
 const MANAGER_NAVIGATION: NavigationItem[] = [
   { name: "งาน", href: "/tasks", description: "คิวงานปฏิบัติการ" },
   { name: "คำสั่งซื้อ", href: "/orders", description: "ดูและติดตามคำสั่งซื้อ" },
-  { name: "ลูกค้า", href: "/customers", description: "จัดการบัญชีลูกค้า B2B" },
   { name: "สั่งสินค้าแทนลูกค้า", href: "/miniapp?portal=customer", description: "เลือกบัญชีลูกค้าที่ต้องการเพื่อสั่งสินค้าและดูราคา" },
-  { name: "ตรวจสอบฝ่ายขาย", href: "/salesman/reviews", description: "ยืนยันหรือคืนข้อมูลลูกค้า และอนุมัติราคาพิเศษ GP ≤7%" },
+  { name: "ลูกค้า", href: "/customers", description: "จัดการบัญชีลูกค้า B2B" },
   { name: "สินค้าและราคา", href: "/catalog", description: "สินค้า รูปภาพ และราคาพิเศษ" },
   { name: "จัดการสต็อก", href: "/stock-management", description: "ดาวน์โหลดรายงานปริมาณขายสินค้า 14 วัน" },
-  { name: "อุปกรณ์หน้าร้าน", href: "/terminals", description: "ลงทะเบียนอุปกรณ์ จัดการบัญชี และดูสถานะ" },
-  { name: "จัดการบัญชีและสิทธิ์", href: "/line-access", description: "ดูและกำหนดบทบาท LINE รวมถึงสิทธิ์ Manager, Staff, Customer และ Accountant" },
-  { name: "การเงินและบัญชี", href: "/miniapp?portal=accountant", description: "ดูยอดขาย บิล สลิป ต้นทุนและ GP" },
+  { name: "ตรวจสอบฝ่ายขาย", href: "/salesman/reviews", description: "ยืนยันหรือคืนข้อมูลลูกค้า และอนุมัติราคาพิเศษ GP ≤7%" },
   { name: "KPI", href: "/kpi", description: "ติดตามผลการดำเนินงาน" },
+  { name: "การเงินและบัญชี", href: "/miniapp?portal=accountant", description: "ดูยอดขาย บิล สลิป ต้นทุนและ GP" },
+  { name: "จัดการบัญชีและสิทธิ์", href: "/line-access", description: "ดูและกำหนดบทบาท LINE รวมถึงสิทธิ์ Manager, Staff, Customer และ Accountant" },
+  { name: "อุปกรณ์หน้าร้าน", href: "/terminals", description: "ลงทะเบียนอุปกรณ์ จัดการบัญชี และดูสถานะ" },
 ];
 
 const STAFF_NAVIGATION = MANAGER_NAVIGATION.slice(0, 2);
