@@ -10,10 +10,11 @@ type LinePortalAccess = {
 // workspace by default. Entering customer ordering requires the explicit link
 // on the Manager home or the explicit ?portal=customer URL.
 export function defaultLinePortal(access: LinePortalAccess): LinePortal {
-  if (access.hasStaffAccess && access.staff?.accountType === "manager") return "staff";
-  if (access.hasStaffAccess && access.hasCustomerAccess) return "choose";
-  if (access.hasCustomerAccess) return "customer";
+  // Each LINE account has one assigned role. OMS staff, including mixed-
+  // access Managers and Salesmen, enter their own operational home by default.
+  // Customer ordering remains available via explicit ?portal=customer links.
   if (access.hasStaffAccess) return "staff";
+  if (access.hasCustomerAccess) return "customer";
   return "choose";
 }
 
@@ -24,6 +25,6 @@ export function shouldAutoOpenLineStaff(
   return Boolean(
     access?.hasStaffAccess &&
     portal === "staff" &&
-    (access.staff?.accountType === "manager" || !access.hasCustomerAccess)
+    Boolean(access.staff)
   );
 }

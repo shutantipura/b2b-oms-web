@@ -25,8 +25,9 @@ test("Customer, Staff, and mixed Salesman flows stay unchanged", () => {
   assert.equal(shouldAutoOpenLineStaff(staffOnly, "staff"), true);
   assert.equal(defaultLinePortal(customerOnly), "customer");
   assert.equal(shouldAutoOpenLineStaff(customerOnly, "customer"), false);
-  assert.equal(defaultLinePortal(mixedSalesman), "choose");
-  assert.equal(shouldAutoOpenLineStaff(mixedSalesman, "staff"), false);
+  assert.equal(defaultLinePortal(mixedSalesman), "staff");
+  assert.equal(shouldAutoOpenLineStaff(mixedSalesman, "staff"), true);
+  assert.equal(shouldAutoOpenLineStaff(mixedSalesman, "customer"), false);
 });
 
 test("explicit Manager customer-order portal and Manager home shortcut remain available", () => {
@@ -41,6 +42,8 @@ test("explicit Manager customer-order portal and Manager home shortcut remain av
   assert.match(page, /router.replace\("\/miniapp\?portal=staff"\)/);
   assert.match(home, /name: "สั่งสินค้าแทนลูกค้า", href: "\/miniapp\?portal=customer"/);
   assert.match(home, /const navigation = isManager \? MANAGER_NAVIGATION/);
-  assert.match(home, /!fixedTerminal && !isManager/);
+  assert.doesNotMatch(home, /เปลี่ยนประเภทการใช้งาน/);
+  assert.match(page, /if \(portal === "staff" && access.hasStaffAccess && access.staff\)/);
+  assert.match(page, /กำลังเปิดหน้าหลักตามสิทธิ์ของคุณ/);
   assert.match(page, /"กลับหน้าผู้จัดการ"/);
 });

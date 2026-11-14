@@ -17,10 +17,11 @@ test("Customer role supports multiple shops without misleading one-shop count", 
   assert.match(accessPage, /toggle\(user.id,"customerCodes",customer.code,e.target.checked\)/);
 });
 
-test("Manager enters OMS directly, mixed Salesman retains choice, and explicit customer ordering works", () => {
+test("Managers and Salesmen enter OMS directly; customer ordering remains explicit", () => {
   assert.match(home, /const destination = defaultLinePortal\(data\)/);
   assert.match(home, /shouldAutoOpenLineStaff\(access, portal\)/);
-  assert.match(home, /setPortal\("choose"\);\s*router.replace\("\/miniapp"\)/);
+  assert.match(home, /if \(access\?\.hasStaffAccess\)/);
+  assert.match(home, /router.replace\("\/miniapp\?portal=staff"\)/);
   assert.match(home, /access.hasCustomerAccess && \(/);
   assert.match(home, /onClick=\{enterCustomerPortal\}/);
   assert.match(home, /onClick=\{openStaffOms\}/);
