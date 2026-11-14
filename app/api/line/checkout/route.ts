@@ -1,4 +1,5 @@
 import { loadAuthorizedLineCustomerLinks } from "@/lib/server/lineCustomerAccess";
+import { createHash } from "node:crypto";
 import {
   NextRequest,
   NextResponse,
@@ -965,6 +966,70 @@ export async function POST(
       ? body.pieceProductIds.filter((id: unknown): id is string =>
           typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200)
       : [];
+    // Recover a previously committed order BEFORE stock, prices, locations,
+    // delivery cutoffs or a group's billing state are checked again. A lost
+    // response must never turn a successful order into an apparent failure.
+    let retryRequestId: string | null = null;
+    let checkoutIntentHash: string | null = null;
+    if (action === "submit") {
+      const suppliedId = typeof body.requestId === "string" ? body.requestId : "";
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(suppliedId)) {
+        return NextResponse.json({
+          error: "กรุณาโหลดหน้าสั่งซื้อใหม่ก่อนยืนยัน เพื่อป้องกันการสั่งซื้อซ้ำ"
+        }, { status: 400 });
+      }
+      retryRequestId = suppliedId;
+      // Fingerprint only the customer's confirmed checkout intent, never
+      // volatile product prices, stock, or the current clock time.
+      const intent = {
+        customerId: customer.id,
+        cart: Object.entries(cart).sort(([a], [b]) => a.localeCompare(b)),
+        pieceProductIds: [...new Set(pieceProductIds)].sort(),
+        deliveryDate: typeof body.deliveryDate === "string" ? body.deliveryDate : "",
+        deliverySlot: typeof body.deliverySlot === "string" ? body.deliverySlot : "",
+        deliveryAddress: body.fulfillmentMethod === "pickup" ? "" :
+          (typeof body.deliveryAddress === "string" ? body.deliveryAddress.trim() : ""),
+        fulfillmentMethod: body.fulfillmentMethod === "pickup" ? "pickup" : "delivery",
+        notes: typeof body.notes === "string" ? body.notes.trim() : "",
+        mergeIntoOrderNumber: body.mergeConsent === true ? body.mergeIntoOrderNumber ?? null : null,
+      };
+      checkoutIntentHash = createHash("sha256").update(JSON.stringify(intent)).digest("hex");
+      const { data: replay, error: replayError } = await supabase.rpc(
+        "lookup_checkout_order_retry", {
+          p_request_id: retryRequestId, p_customer_id: customer.id,
+          p_line_user_id: verifiedLineUserId, p_intent_hash: checkoutIntentHash,
+        }
+      );
+      if (replayError) {
+        const conflicting = replayError.message.includes("different order details");
+        if (!conflicting) console.error("Checkout replay lookup:", replayError);
+        return NextResponse.json({
+          error: conflicting
+            ? "คำขอเดิมถูกใช้กับรายการสินค้าอื่นแล้ว กรุณาลองส่งคำสั่งซื้อใหม่"
+            : "ไม่สามารถตรวจสอบสถานะคำสั่งซื้อเดิมได้ กรุณาลองอีกครั้ง",
+        }, { status: conflicting ? 409 : 503 });
+      }
+      if (replay && typeof replay === "object") {
+        const saved = replay as Record<string, unknown>;
+        const replayOrderNumber = extractOrderNumber(saved);
+        if (replayOrderNumber === null) {
+          return NextResponse.json({ error: "ไม่สามารถอ่านหมายเลขคำสั่งซื้อเดิมได้" },
+            { status: 503 });
+        }
+        return NextResponse.json({
+          success: true, orderNumber: replayOrderNumber,
+          fulfillmentMethod: saved.fulfillment_method === "pickup" ? "pickup" : "delivery",
+          grouped: saved.grouped === true,
+          merged: false,
+          displayNumber: typeof saved.display_number === "string"
+            ? saved.display_number : String(replayOrderNumber),
+          groupRootNumber: typeof saved.group_root_number === "number"
+            ? saved.group_root_number : null,
+          alreadyProcessed: true,
+        }, { headers: { "Cache-Control": "no-store" } });
+      }
+    }
+
     const items =
       await buildCart(
         supabase,
@@ -1189,18 +1254,11 @@ export async function POST(
     // and rechecks stage, date, slot and location inside create_group_suborder.
     const mergeIntoOrderNumber = chosenMerge?.orderNumber ?? null;
     const merging = mergeIntoOrderNumber !== null;
-    const suppliedRequestId = typeof body.requestId === "string" ? body.requestId : "";
-    const requestId = suppliedRequestId;
-    // A client-generated key is required for every order: without it a
-    // network retry can create two deliveries or pickups.
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)) {
-      return NextResponse.json({
-        error: "กรุณาโหลดหน้าสั่งซื้อใหม่ก่อนยืนยัน เพื่อป้องกันการสั่งซื้อซ้ำ"
-      }, { status: 400 });
-    }
+    const requestId = retryRequestId!;
+    const intentHash = checkoutIntentHash!;
 
     const { data: orderData, error: orderError } = merging
-      ? await supabase.rpc("create_group_suborder", {
+      ? await supabase.rpc("create_group_suborder_v2", {
           p_customer_id: customer.id,
           p_primary_order_number: mergeIntoOrderNumber,
           p_delivery_date: deliveryDate,
@@ -1210,8 +1268,9 @@ export async function POST(
           p_items: orderItems,
           p_line_user_id: verifiedLineUserId,
           p_request_id: requestId,
+          p_intent_hash: intentHash,
         })
-      : await supabase.rpc("create_checkout_order_once", {
+      : await supabase.rpc("create_checkout_order_once_v2", {
           p_customer_id: customer.id,
           p_line_user_id: verifiedLineUserId,
           p_customer_code: customer.customer_code,
@@ -1222,6 +1281,7 @@ export async function POST(
           p_items: orderItems,
           p_request_id: requestId,
           p_is_pickup: fulfillmentMethod === "pickup",
+          p_intent_hash: intentHash,
         });
 
     if (orderError) {

@@ -14,6 +14,12 @@ type StaffProfile = {
   is_active: boolean;
 };
 
+type OperationalHealth = {
+  unhealthyStations: { label: string; status: "offline" | "degraded"; minutesSinceSeen: number | null }[];
+  missingBillCount: number;
+  missingBillOrders: { orderNumber: number; completedAt: string | null }[];
+};
+
 type NavigationItem = {
   name: string;
   href: string;
@@ -58,6 +64,8 @@ export default function OmsHomePage() {
   const [activeOrderCount, setActiveOrderCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [operationalHealth, setOperationalHealth] = useState<OperationalHealth | null>(null);
+  const [healthError, setHealthError] = useState("");
 
   const loadStaff = useCallback(async () => {
     setLoading(true);
@@ -136,6 +144,31 @@ export default function OmsHomePage() {
     return () => window.clearTimeout(initial);
   }, [loadStaff]);
 
+  const loadOperationalHealth = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Missing Manager session");
+      const response = await fetch("/api/admin/operational-health", {
+        headers: { Authorization: "Bearer " + session.access_token },
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Health check unavailable");
+      const summary = await response.json() as OperationalHealth;
+      setOperationalHealth(summary);
+      setHealthError("");
+    } catch {
+      setOperationalHealth(null);
+      setHealthError("ไม่สามารถตรวจสอบสถานะอุปกรณ์และบิลได้");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (staff?.account_type !== "manager") return;
+    const initial = window.setTimeout(() => void loadOperationalHealth(), 0);
+    const interval = window.setInterval(() => void loadOperationalHealth(), 60_000);
+    return () => { window.clearTimeout(initial); window.clearInterval(interval); };
+  }, [staff?.account_type, loadOperationalHealth]);
+
   if (loading) {
     return <LotusLoading message="กำลังเปิดระบบจัดการคำสั่งซื้อ..." />;
   }
@@ -205,6 +238,43 @@ export default function OmsHomePage() {
 
           </div>
         </section>
+
+        {isManager && (healthError || (operationalHealth &&
+            (operationalHealth.unhealthyStations.length > 0 || operationalHealth.missingBillCount > 0))) && (
+          <section aria-label="การแจ้งเตือนการปฏิบัติงาน" className="mt-4 rounded-2xl border border-[#F1D99E] bg-[#FFFBF0] p-4 text-[#624B19] sm:p-5">
+            <h2 className="text-sm font-black">รายการที่ผู้จัดการควรตรวจสอบ</h2>
+            {healthError && <p role="status" className="mt-2 text-sm">{healthError}</p>}
+            {operationalHealth && (
+              <div className="mt-3 space-y-3 text-sm">
+                {operationalHealth.unhealthyStations.length > 0 && (
+                  <div>
+                    <p className="font-extrabold">อุปกรณ์แจ้งเตือนมีปัญหา ({operationalHealth.unhealthyStations.length})</p>
+                    <p className="mt-1 leading-6">
+                      {operationalHealth.unhealthyStations.map(device =>
+                        `${device.label}: ${device.status === "offline" ? "ไม่ออนไลน์" : "เชื่อม OMS ไม่สำเร็จ"}${device.minutesSinceSeen === null ? "" : ` (${device.minutesSinceSeen} นาที)`}`
+                      ).join(" · ")}
+                    </p>
+                    <Link href="/alarm-stations" className="mt-1 inline-block font-extrabold underline underline-offset-4">ตรวจสอบสถานะเครื่อง</Link>
+                  </div>
+                )}
+                {operationalHealth.missingBillCount > 0 && (
+                  <div>
+                    <p className="font-extrabold">คำสั่งซื้อที่ปิดงานแล้วแต่ไม่มีข้อมูลยอดบิล ({operationalHealth.missingBillCount})</p>
+                    <p className="mt-1 text-xs">ตรวจสอบเอกสารย้อนหลัง ไม่แก้ยอดอัตโนมัติ</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {operationalHealth.missingBillOrders.map(order => (
+                        <Link key={order.orderNumber} href={`/orders/${order.orderNumber}`}
+                          className="rounded-lg border border-[#EAD7A4] bg-white px-2.5 py-1 text-xs font-black">
+                          #{order.orderNumber}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
         <Link
           href={isSalesman ? "/salesman" : "/tasks"}
