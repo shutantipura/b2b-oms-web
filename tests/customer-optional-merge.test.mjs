@@ -54,7 +54,8 @@ test("checkout offers separate-by-default radio and explicit grouping for each e
   assert.match(page,/mergeIntoOrderNumber: chosenMerge\?\.orderNumber \?\? null/);
   assert.match(page,/mergeConsent: chosenMerge !== null/);
   assert.doesNotMatch(page,/chooseAutomaticMerge|automaticMerge|จัดส่งร่วมกับคำสั่งซื้อเดิมอัตโนมัติ/);
-  assert.match(page,/ตรวจสอบคำสั่งซื้อเดิมไม่ได้ แต่ยังสั่งซื้อแยกได้ตามปกติ/);
+  assert.match(page,/!loadingMergeOptions && !mergeOptionsError && eligibleMergeCandidates.length > 0/);
+  assert.doesNotMatch(page,/ไม่มีคำสั่งซื้อเดิมที่รวมได้สำหรับวันและจุดส่งนี้/);
 });
 
 test("server still locks the order at billing and preserves independent picks", () => {

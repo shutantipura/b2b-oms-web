@@ -326,7 +326,8 @@ async function verifyLineAndCustomer(
 
 function savedDeliveryLocations(customer: CustomerRow) {
   return [
-    { label: customer.delivery_location_1_name?.trim() || "จุดส่ง 1",
+    { label: (!customer.delivery_location_1_name?.trim() || customer.delivery_location_1_name.trim() === "จุดส่ง 1")
+      ? customer.customer_name : customer.delivery_location_1_name.trim(),
       url: customer.delivery_map_url ?? customer.delivery_address ?? "" },
     ...(customer.delivery_map_url_2
       ? [{ label: customer.delivery_location_2_name?.trim() || "จุดส่ง 2",
@@ -904,7 +905,7 @@ export async function POST(
         .update({
           delivery_address: locations[0]?.url ?? null,
           delivery_map_url: locations[0]?.url ?? null,
-          delivery_location_1_name: locations[0]?.label ?? "จุดส่ง 1",
+          delivery_location_1_name: locations[0]?.label ?? customer.customer_name,
           delivery_map_url_2: locations[1]?.url ?? null,
           delivery_location_2_name: locations[1]?.label ?? "จุดส่ง 2",
           updated_at: new Date().toISOString(),

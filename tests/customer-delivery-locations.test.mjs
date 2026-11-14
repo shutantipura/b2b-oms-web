@@ -64,3 +64,24 @@ test("allows removal of all locations and rejects invalid batches", () => {
     {label:"C",url:"https://maps.app.goo.gl/Test3"},
   ]));
 });
+
+test("primary location defaults to the shop name, without overwriting customized names", () => {
+  const api = readFileSync("app/api/line/checkout/route.ts", "utf8");
+  const create = readFileSync("app/customers/new/page.tsx", "utf8");
+  const managerEdit = readFileSync("app/customers/[customerCode]/page.tsx", "utf8");
+  const checkout = readFileSync("app/miniapp/checkout/page.tsx", "utf8");
+  assert.match(api, /customer\.customer_name : customer\.delivery_location_1_name\.trim\(\)/);
+  assert.match(create, /delivery_location_1_name: locationName1\.trim\(\) \|\| name/);
+  assert.match(managerEdit, /delivery_location_1_name: locationName1\.trim\(\) \|\| customerName\.trim\(\)/);
+  assert.match(checkout, /placeholder=\{locationEditIndex === 0 \? customer\.customerName/);
+});
+
+test("compact delivery card has selection and separate edit, delete, maps actions", () => {
+  const checkout = readFileSync("app/miniapp/checkout/page.tsx", "utf8");
+  assert.match(checkout, /const selected = deliveryAddress === location\.url/);
+  assert.match(checkout, /aria-pressed=\{selected\}/);
+  assert.match(checkout, /ดูใน Google Maps/);
+  assert.match(checkout, /onClick=\{\(\) => openLocationEditor\(index\)\}/);
+  assert.match(checkout, /onClick=\{\(\) => void deleteLocation\(index\)\}/);
+  assert.match(checkout, /MAX_DELIVERY_LOCATIONS/);
+});

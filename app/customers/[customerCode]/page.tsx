@@ -428,7 +428,8 @@ export default function CustomerDetailPage() {
     setDeliveryMapUrl(loadedCustomer.delivery_map_url ??
       (loadedCustomer.delivery_address?.startsWith("http") ? loadedCustomer.delivery_address : ""));
     setDeliveryMapUrl2(loadedCustomer.delivery_map_url_2 ?? "");
-    setLocationName1(loadedCustomer.delivery_location_1_name || "จุดส่ง 1");
+    setLocationName1(!loadedCustomer.delivery_location_1_name || loadedCustomer.delivery_location_1_name === "จุดส่ง 1"
+      ? loadedCustomer.customer_name : loadedCustomer.delivery_location_1_name);
     setLocationName2(loadedCustomer.delivery_location_2_name || "จุดส่ง 2");
 
 
@@ -965,7 +966,7 @@ export default function CustomerDetailPage() {
 
             deliveryMapUrl.trim(),
           delivery_map_url_2: deliveryMapUrl2.trim() || null,
-          delivery_location_1_name: locationName1.trim() || "จุดส่ง 1",
+          delivery_location_1_name: locationName1.trim() || customerName.trim(),
           delivery_location_2_name: locationName2.trim() || "จุดส่ง 2",
 
 
@@ -2144,7 +2145,7 @@ export default function CustomerDetailPage() {
 
                 <p className="text-sm text-gray-500">
 
-                  ตำแหน่งจัดส่ง · {customer.delivery_location_1_name || "จุดส่ง 1"}
+                  ตำแหน่งจัดส่ง · {customer.delivery_location_1_name && customer.delivery_location_1_name !== "จุดส่ง 1" ? customer.delivery_location_1_name : customer.customer_name}
 
                 </p>
 

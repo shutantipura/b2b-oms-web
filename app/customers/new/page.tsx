@@ -74,7 +74,7 @@ export default function NewCustomerPage() {
     useState("");
 
   const [deliveryMapUrl2, setDeliveryMapUrl2] = useState("");
-  const [locationName1, setLocationName1] = useState("จุดส่ง 1");
+  const [locationName1, setLocationName1] = useState("");
   const [locationName2, setLocationName2] = useState("จุดส่ง 2");
   const [
     riderNote,
@@ -233,7 +233,7 @@ export default function NewCustomerPage() {
           delivery_map_url:
             mapUrl,
           delivery_map_url_2: deliveryMapUrl2.trim() || null,
-          delivery_location_1_name: locationName1.trim() || "จุดส่ง 1",
+          delivery_location_1_name: locationName1.trim() || name,
           delivery_location_2_name: locationName2.trim() || "จุดส่ง 2",
 
           rider_note:
@@ -445,9 +445,9 @@ export default function NewCustomerPage() {
 
             <div className="md:col-span-2 rounded-xl border border-[#D5EAE5] bg-[#F4FBF9] p-3">
               <p className="mb-3 font-bold text-[#006F69]">จุดจัดส่ง (สูงสุด 2 จุด)</p>
-              <label className="mb-1 block text-sm">ชื่อจุดส่งที่ 1</label>
-              <input value={locationName1} maxLength={50} onChange={e => setLocationName1(e.target.value)}
-                className="mb-3 w-full rounded-lg border px-3 py-2.5" placeholder="หน้าร้าน" />
+              <label className="mb-1 block text-sm">ชื่อจุดส่งที่ 1 (ค่าเริ่มต้นเป็นชื่อร้าน)</label>
+              <input value={locationName1} maxLength={60} onChange={e => setLocationName1(e.target.value)}
+                className="mb-3 w-full rounded-lg border px-3 py-2.5" placeholder={customerName.trim() || "ชื่อร้าน (ค่าเริ่มต้น)"} />
               <label className="mb-1 block text-sm">ชื่อจุดส่งที่ 2 (ไม่บังคับ)</label>
               <input value={locationName2} maxLength={50} onChange={e => setLocationName2(e.target.value)}
                 className="mb-3 w-full rounded-lg border px-3 py-2.5" placeholder="ครัวกลาง" />
