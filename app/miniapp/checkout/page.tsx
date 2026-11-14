@@ -473,6 +473,7 @@ export default function MiniAppCheckoutPage() {
           deliveryAddress: fulfillmentMethod === "pickup" ? "" : deliveryAddress.trim(),
           notes: notes.trim(),
           mergeIntoOrderNumber: chosenMerge?.orderNumber ?? null,
+          mergeConsent: chosenMerge !== null,
           requestId: chosenMerge ? mergeRequestIdRef.current : null,
         }),
       });

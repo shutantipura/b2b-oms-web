@@ -1072,7 +1072,9 @@ export async function POST(
     // -------------------------------------------------
 
     // Optional consolidation: never group without an explicit chosen order.
-    const rawMerge = body.mergeIntoOrderNumber;
+    // Previous LINE in-app pages may still run the former auto-merge UI.
+    // Without a new explicit user opt-in, ignore any legacy merge number.
+    const rawMerge = body.mergeConsent === true ? body.mergeIntoOrderNumber : null;
     const hasMergeChoice = rawMerge !== null && rawMerge !== undefined;
     if (hasMergeChoice && (typeof rawMerge !== "number" ||
         !Number.isSafeInteger(rawMerge) || rawMerge <= 0 || fulfillmentMethod === "pickup")) {

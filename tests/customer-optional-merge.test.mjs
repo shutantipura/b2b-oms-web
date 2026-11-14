@@ -27,7 +27,8 @@ test("never offer orders for a different location, date, or expired slot", () =>
 
 test("server only groups an explicitly chosen order and rejects stale choices", () => {
   const api=readFileSync(new URL("../app/api/line/checkout/route.ts",import.meta.url),"utf8");
-  assert.match(api,/rawMerge = body.mergeIntoOrderNumber/);
+  assert.match(api,/rawMerge = body.mergeConsent === true \? body.mergeIntoOrderNumber : null/);
+  assert.match(api,/Without a new explicit user opt-in/);
   assert.match(api,/rawMerge !== null && rawMerge !== undefined/);
   assert.match(api,/chosenMerge = requestedMergeNumber !== null/);
   assert.match(api,/findChosenMerge\(/);
@@ -51,6 +52,7 @@ test("checkout offers separate-by-default radio and explicit grouping for each e
   assert.match(page,/selectedDeliverySlot = chosenMerge\?\.deliverySlot \?\? deliverySlot/);
   assert.match(page,/setSelectedMergeOrderNumber\(null\)/);
   assert.match(page,/mergeIntoOrderNumber: chosenMerge\?\.orderNumber \?\? null/);
+  assert.match(page,/mergeConsent: chosenMerge !== null/);
   assert.doesNotMatch(page,/chooseAutomaticMerge|automaticMerge|จัดส่งร่วมกับคำสั่งซื้อเดิมอัตโนมัติ/);
   assert.match(page,/ตรวจสอบคำสั่งซื้อเดิมไม่ได้ แต่ยังสั่งซื้อแยกได้ตามปกติ/);
 });
