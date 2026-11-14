@@ -133,7 +133,8 @@ async function fullReport(admin: SupabaseClient) {
     return {
       id:txt(line.id),orderId:txt(line.order_id),productId:txt(line.product_id),
       sku:txt(product?.sku),name:txt(line.product_name_snapshot)||txt(product?.product_name),
-      unit:money(line.piece_price_per_kg_snapshot)!==null?"กก.":txt(line.unit_snapshot),quantity,
+      unit:money(line.piece_price_per_kg_snapshot)!==null?"กก.":txt(line.unit_snapshot),
+      billedUnit:txt(line.unit_snapshot),quantity,
       sellingPricePerUnit:unitPrice,productSales:quantity===null?null:Math.round(quantity*unitPrice*100)/100,
       billedCostPerUnit:billed,assignedCostPerUnit:assigned,currentCostPerUnit:money(currentCost?.cost),
       effectiveCostPerUnit:unitCost,totalCost:quantity===null||unitCost===null?null:Math.round(quantity*unitCost*100)/100,

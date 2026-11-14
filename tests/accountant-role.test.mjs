@@ -86,3 +86,13 @@ test("Manager bill changes use audited before/after events, not arbitrary subtot
  assert.match(page,/Manager bill adjustment/);
  assert.match(page,/Other bill difference/);
 });
+
+test("Accountant cost batches require fully completed bills and original billing UoM",()=>{
+ assert.match(sql,/commercial_bill.status='completed'/);
+ assert.match(sql,/commercial_bill.final_amount IS NOT NULL/);
+ assert.match(sql,/member_check.status IS DISTINCT FROM 'completed'/);
+ assert.match(api,/billedUnit:txt\(line.unit_snapshot\)/);
+ assert.match(page,/completedRoots=new Set/);
+ assert.match(page,/eligibleOrders.has\(l.orderId\)/);
+ assert.match(page,/const key=line.productId\+"\|"\+line.billedUnit/);
+});

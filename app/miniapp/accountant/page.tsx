@@ -6,7 +6,7 @@ import LotusBrand from "@/components/LotusBrand";
 import LotusLoading from "@/components/LotusLoading";
 import {lineApiFetch} from "@/lib/lineSession";
 
-type Item={id:string;orderId:string;productId:string;sku:string;name:string;unit:string;quantity:number|null;
+type Item={id:string;orderId:string;productId:string;sku:string;name:string;unit:string;billedUnit:string;quantity:number|null;
  sellingPricePerUnit:number;productSales:number|null;billedCostPerUnit:number|null;assignedCostPerUnit:number|null;
  currentCostPerUnit:number|null;effectiveCostPerUnit:number|null;totalCost:number|null;missingHistorical:boolean};
 type Order={id:string;rootId:string;orderNumber:number;customerId:string;customerName:string;customerCode:string;
@@ -121,15 +121,19 @@ export default function AccountantPage(){
   const term=query.trim().toLowerCase();
   return !term||[String(o.orderNumber),o.customerName,o.customerCode].some(s=>s.toLowerCase().includes(term));
  }).sort((a,b)=>b.orderNumber-a.orderNumber)??[],[report,status,query]);
- const missing=useMemo(()=>report?.lines.filter(l=>l.missingHistorical&&(l.quantity??0)>0&&
-  report.orders.some(o=>o.id===l.orderId&&o.status==="completed"))??[],[report]);
+ const missing=useMemo(()=>{
+   if(!report)return [];
+   const completedRoots=new Set(report.orders.filter(o=>o.counted).map(o=>o.id));
+   const eligibleOrders=new Set(report.orders.filter(o=>completedRoots.has(o.rootId)).map(o=>o.id));
+   return report.lines.filter(l=>l.missingHistorical&&(l.quantity??0)>0&&eligibleOrders.has(l.orderId));
+  },[report]);
  const groups=useMemo(()=>{
   const map=new Map<string,Item[]>();
   for(const line of missing){
-   const key=line.productId+"|"+line.unit;
+   const key=line.productId+"|"+line.billedUnit;
    map.set(key,[...(map.get(key)??[]),line]);
   }
-  return [...map.entries()].map(([key,lines])=>({key,lines,sku:lines[0].sku,name:lines[0].name,unit:lines[0].unit}))
+  return [...map.entries()].map(([key,lines])=>({key,lines,sku:lines[0].sku,name:lines[0].name,unit:lines[0].unit,billedUnit:lines[0].billedUnit}))
    .sort((a,b)=>b.lines.length-a.lines.length);
  },[missing]);
  const group=groups.find(g=>g.key===skuGroup);
@@ -291,7 +295,7 @@ export default function AccountantPage(){
      {report.role==="manager"&&<p className="mt-2 text-xs">Manager ดูข้อมูลได้ แต่กรอกต้นทุนย้อนหลังได้เฉพาะ Accountant</p>}
      <select className={field+" mt-3"} value={skuGroup} onChange={e=>{setSkuGroup(e.target.value);setSelectedIds([]);setUnitCost("");setReason("");}}>
       <option value="">เลือก SKU ที่ขาดต้นทุน</option>
-      {groups.map(g=><option key={g.key} value={g.key}>{g.sku} · {g.name} ({g.unit}) · {g.lines.length}</option>)}
+      {groups.map(g=><option key={g.key} value={g.key}>{g.sku} · {g.name} ({g.unit}; บิล: {g.billedUnit}) · {g.lines.length}</option>)}
      </select>
      {group&&<div className="mt-3 space-y-2">
       {group.lines.map(line=>{const o=report.orders.find(v=>v.id===line.orderId);return <label key={line.id}

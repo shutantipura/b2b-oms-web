@@ -88,6 +88,18 @@ BEGIN
  FROM public.order_items oi
  JOIN public.orders o ON o.id=oi.order_id
  WHERE oi.id=ANY(p_order_item_ids) AND o.status='completed'
+   -- A cost correction must belong to a fully completed commercial bill.
+   AND EXISTS (
+      SELECT 1 FROM public.orders commercial_bill
+      WHERE commercial_bill.id=coalesce(o.group_root_order_id,o.id)
+        AND commercial_bill.status='completed'
+        AND commercial_bill.final_amount IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM public.orders member_check
+          WHERE member_check.group_root_order_id=commercial_bill.id
+            AND member_check.status IS DISTINCT FROM 'completed'
+        )
+   )
    AND oi.actual_qty > 0
    AND oi.unit_cost_at_billing IS NULL
    AND NOT EXISTS (SELECT 1 FROM public.accountant_order_item_costs ac
