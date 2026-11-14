@@ -17,7 +17,8 @@ test("standalone and pickup orders use one atomic idempotent RPC",()=>{
  assert.match(sql,/ordered_by_line_user_id=p_line_user_id/);
  assert.match(sql,/REVOKE ALL ON FUNCTION public.create_checkout_order_once/);
  assert.match(sql,/TO service_role/);
- assert.match(api,/const requestId = suppliedRequestId;/);
+ assert.match(api,/const requestId = retryRequestId!/);
+ assert.match(api,/retryRequestId = suppliedId/);
  assert.match(api,/create_checkout_order_once/);
  assert.match(api,/p_is_pickup: fulfillmentMethod === "pickup"/);
  assert.match(api,/p_request_id: requestId/);
