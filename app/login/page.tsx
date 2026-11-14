@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import LotusLoading from "@/components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
+import { HomeMenuIcon } from "@/components/HomeMenuIcon";
 import { supabase } from "@/lib/supabase";
 
 type StaffProfile = {
@@ -230,7 +231,10 @@ export default function OmsHomePage() {
           className="mt-5 flex min-h-[128px] items-center justify-between gap-4 rounded-[22px] bg-[#02B0AF] p-5 text-white shadow-[0_9px_22px_rgba(0,153,150,0.17)] transition hover:bg-[#009A9A] sm:p-6"
         >
           <div>
-            <p className="text-xs font-bold text-white/80">{isSalesman ? "พื้นที่ทำงานฝ่ายขาย" : "งานที่ต้องดำเนินการ"}</p>
+            <p className="flex items-center gap-2 text-xs font-bold text-white/80">
+              <HomeMenuIcon href={isSalesman ? "/salesman" : "/tasks"} size={18} />
+              {isSalesman ? "พื้นที่ทำงานฝ่ายขาย" : "งานที่ต้องดำเนินการ"}
+            </p>
             {isSalesman ? <p className="mt-2 text-2xl font-black">ลูกค้าและคำสั่งซื้อ</p> : <p className="mt-2 text-3xl font-black">{activeOrderCount} <span className="text-base font-semibold">คำสั่งซื้อ</span></p>}
             <p className="mt-2 text-sm font-semibold text-white/90">{isSalesman ? "ค้นหาลูกค้า ติดตามสถานะ และสลับไปสั่งสินค้าในนามลูกค้า" : "เปิดคิวงานและตรวจสอบสถานะ"}</p>
           </div>
@@ -251,7 +255,12 @@ export default function OmsHomePage() {
           {shortcuts.map((item, index) => {
             const className = "oms-dashboard-tile group relative flex min-h-[130px] flex-col rounded-[20px] border border-[#D8E9E5] bg-white p-4 shadow-[0_4px_16px_rgba(18,96,89,0.05)] transition hover:border-[#90D6CF] sm:p-5";
             const tile = <>
-              <span aria-hidden="true" className={index === 0 ? "mb-3 h-1.5 w-9 rounded-full bg-[#FDBC16]" : "mb-3 h-1.5 w-9 rounded-full bg-[#75D9CE]"} />
+              <div className="mb-3 flex min-h-8 items-center justify-between gap-2">
+                <span aria-hidden="true" className={index === 0 ? "h-1.5 w-9 rounded-full bg-[#FDBC16]" : "h-1.5 w-9 rounded-full bg-[#75D9CE]"} />
+                <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#E8F8F5] text-[#009F9D]">
+                  <HomeMenuIcon href={item.href} />
+                </span>
+              </div>
               <span className="pr-5 text-base font-black leading-snug text-[#17453F]">{item.name}</span>
               <span className="mt-2 pr-9 text-xs leading-5 text-[#77918A]">{item.description}</span>
               <span
