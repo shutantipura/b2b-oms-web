@@ -25,7 +25,9 @@ export async function GET(request:NextRequest){
     const visibleRequests=(requests.data ?? []).filter(r=>staff.account_type==="manager" || r.created_by===staff.id);
     const storage=admin.storage.from("cv-documents");
     // Signed previews are short-lived and never exposed in a public bucket.
-    const entries=[...(accounts.data??[]),...visibleRequests];
+    // National ID photos are sensitive. Salesmen only receive signed
+    // previews of their own requests; approved records are Manager-only.
+    const entries=[...(staff.account_type==="manager"?(accounts.data??[]):[]),...visibleRequests];
     const allPaths=[...new Set(entries.flatMap(x=>[
       ...(x.shop_photos??[]),...(x.id_card_path?[x.id_card_path]:[]),...(x.registration_photos??[])
     ]))];
@@ -47,8 +49,8 @@ export async function POST(request:NextRequest){
     const shopPhotos=paths(body.shopPhotos??[],3,staff.id);
     const registrationPhotos=paths(body.registrationPhotos??[],2,staff.id);
     const idCardPath=body.idCardPath ? paths([body.idCardPath],1,staff.id)[0] : null;
-    if(action==="create" && (!shopPhotos.length||!registrationPhotos.length||!idCardPath))
-      return Response.json({error:"กรุณาแนบรูปร้าน บัตรประชาชน และใบสมัคร CV ก่อนส่งอนุมัติ"},{status:400});
+    if(action==="create" && (!shopPhotos.length||registrationPhotos.length!==2||!idCardPath))
+      return Response.json({error:"กรุณาแนบรูปร้าน บัตรประชาชน และใบสมัคร CV ครบ 2 รูปก่อนส่งอนุมัติ"},{status:400});
     if(action==="amend" && (!shopPhotos.length&&!registrationPhotos.length&&!idCardPath))
       return Response.json({error:"เลือกภาพที่ต้องการแก้ไขอย่างน้อยหนึ่งช่อง"},{status:400});
     const docs=[...shopPhotos,...registrationPhotos,...(idCardPath?[idCardPath]:[])];

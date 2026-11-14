@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const [shops, accounts, owners] = await Promise.all([
       admin.from("customers").select("id,customer_code,customer_name,contact_name,phone,has_no_cv,is_active,cv_account_id,delivery_map_url,created_at")
         .order("customer_name", { ascending: true }).limit(2000),
-      admin.from("cv_accounts").select("id,cv_number,status").eq("status","approved").order("cv_number"),
+      admin.from("cv_accounts").select("id,cv_number,status").order("cv_number"),
       admin.from("line_users").select("id,display_name,internal_name,is_active,assigned_role")
         .eq("assigned_role","customer").eq("is_active",true).limit(2000),
     ]);
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       shops: (shops.data ?? []).map(shop => ({
         ...shop, cvAccount: shop.cv_account_id ? cvById.get(shop.cv_account_id) ?? null : null,
       })),
-      approvedCV: accounts.data ?? [], customers: owners.data ?? [],
+      approvedCV: (accounts.data??[]).filter(c=>c.status==="approved"), customers: owners.data ?? [],
     },{ headers: {"Cache-Control":"no-store"}});
   } catch (error) { return salesApiError(error); }
 }

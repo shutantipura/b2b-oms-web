@@ -140,7 +140,7 @@ export default function CVAccountsPage(){
         </label>}
         {photoInput("shopPhotos","รูปร้านค้า",3,mode==="create")}
         {photoInput("idCardPath","บัตรประชาชน",1,mode==="create")}
-        {photoInput("registrationPhotos","ใบสมัคร CV",2,mode==="create")}
+        {photoInput("registrationPhotos","ใบสมัคร CV (สร้างใหม่ต้องครบ 2 รูป)",2,mode==="create")}
         <button disabled={busy} className="min-h-12 w-full rounded-xl bg-[#02B0AF] px-5 font-black text-white disabled:opacity-50">
           {busy?"กำลังบันทึก...":"ส่งคำขออนุมัติ"}
         </button>

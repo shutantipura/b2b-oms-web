@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS public.cv_account_requests (
   CONSTRAINT cv_request_docs CHECK (
     (action='create' AND cardinality(shop_photos)>=1
       AND length(nullif(id_card_path,''))>0
-      AND cardinality(registration_photos)>=1) OR
+      AND cardinality(registration_photos)=2) OR
     (action='amend' AND (cardinality(shop_photos)>0 OR
       length(nullif(id_card_path,''))>0 OR cardinality(registration_photos)>0))
   )
@@ -97,18 +97,19 @@ BEGIN
     RAISE EXCEPTION 'Shop ID is permanent; CV numbers are managed in CV Accounts';
   END IF;
   IF NEW.cv_account_id IS NOT NULL THEN
-    SELECT status INTO v_status FROM public.cv_accounts WHERE id=NEW.cv_account_id;
-    IF v_status IS DISTINCT FROM 'approved' THEN
-      RAISE EXCEPTION 'A shop may only link an approved active CV account';
+    IF TG_OP='INSERT' THEN
+      SELECT status INTO v_status FROM public.cv_accounts WHERE id=NEW.cv_account_id;
+      IF v_status IS DISTINCT FROM 'approved' THEN
+        RAISE EXCEPTION 'A shop may only link an approved active CV account'; END IF;
+    ELSIF NEW.cv_account_id IS DISTINCT FROM OLD.cv_account_id THEN
+      SELECT status INTO v_status FROM public.cv_accounts WHERE id=NEW.cv_account_id;
+      IF v_status IS DISTINCT FROM 'approved' THEN
+        RAISE EXCEPTION 'A shop may only link an approved active CV account'; END IF;
     END IF;
   END IF;
   -- A deactivation does not invalidate an existing shop's historical link;
   -- it only blocks newly linking or changing it to that inactive account.
-  IF TG_OP='UPDATE' AND NEW.cv_account_id IS NOT DISTINCT FROM OLD.cv_account_id THEN
-    NEW.has_no_cv := (NEW.cv_account_id IS NULL);
-  ELSE
-    NEW.has_no_cv := (NEW.cv_account_id IS NULL);
-  END IF;
+  NEW.has_no_cv := (NEW.cv_account_id IS NULL);
   RETURN NEW;
 END $$;
 DROP TRIGGER IF EXISTS enforce_shop_cv_integrity_trg ON public.customers;
