@@ -210,7 +210,10 @@ export default function AccountantPage(){
   <div className="mx-auto max-w-5xl space-y-3 px-3 pt-4 sm:px-6">
    <header className="rounded-2xl border border-[#D1E8DF] bg-white p-5">
     <div className="flex items-center justify-between">
-     <Link href="/miniapp" className="text-xs font-bold text-[#008F8D]">← กลับหน้าหลัก</Link>
+     {report.role==="manager"
+      ? <Link href="/miniapp" className="text-xs font-bold text-[#008F8D]">← กลับหน้าหลัก</Link>
+      : <button type="button" onClick={()=>void import("@line/liff").then(m=>m.default.closeWindow())}
+          className="text-xs font-bold text-[#008F8D]">✕ ปิดหน้าบัญชี</button>}
      <span className="rounded-full bg-[#E7F9F3] px-3 py-1 text-xs font-black text-[#008F8D]">{report.role==="accountant"?"Accountant":"Manager"}</span>
     </div>
     <p className="mt-3 text-[11px] font-extrabold tracking-widest text-[#008F8D]">LOTUS’S B2B · FINANCIAL</p>
