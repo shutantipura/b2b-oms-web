@@ -29,6 +29,7 @@ import LotusBrand from "@/components/LotusBrand";
 import { displayCustomerCode } from "../../lib/customerCodeDisplay";
 import { clearLineSessionReload, isLineIdTokenExpired, lineApiFetch, requestLineSessionReloadOnce, LINE_SESSION_EXPIRED_MESSAGE } from "../../lib/lineSession";
 import { summarizeOutstandingPayments, type PaymentReadyOrder } from "../../lib/customerPayNow";
+import { defaultLinePortal, shouldAutoOpenLineStaff } from "../../lib/linePortalRouting";
 
 type Customer = {
 
@@ -389,8 +390,15 @@ export default function MiniAppHomePage() {
   }
 
   function showAccessChooser() {
-    // One assigned LINE role, but Managers/Salesmen can enter both workspaces.
     setSelectedCustomer(null);
+    if (access?.staff?.accountType === "manager" && access.hasStaffAccess) {
+      // The Manager has a permanent customer-order shortcut on the OMS home.
+      // Return to that home directly instead of reopening account selection.
+      setPortal("staff");
+      router.replace("/miniapp?portal=staff");
+      return;
+    }
+    // Salesmen retain their choice between the two workspaces.
     setPortal("choose");
     router.replace("/miniapp");
   }
@@ -879,62 +887,17 @@ export default function MiniAppHomePage() {
 
         // ===============================================
 
-        // Manager/Salesman LINE identities have one role and two workspaces.
-        // Show both choices by default without changing staff-only routing.
-        if (
-
-          data.hasCustomerAccess &&
-
-          data.hasStaffAccess
-
-        ) {
-
-          setPortal("choose");
-
-        } else if (
-
-          data.hasCustomerAccess
-
-        ) {
-
-          setPortal(
-
-            "customer"
-
+        // Managers enter the operational OMS home automatically, even though
+        // they are authorized to order for all customers. The customer portal
+        // remains available explicitly through the Manager home shortcut.
+        // Mixed-role Salesmen still choose; Customer and Staff stay unchanged.
+        const destination = defaultLinePortal(data);
+        setPortal(destination);
+        if (destination === "customer" && customers.length === 1) {
+          setSelectedCustomer(customers[0]);
+          router.replace(
+            `/miniapp?portal=customer&customer=${encodeURIComponent(customers[0].customerCode)}`
           );
-
-          if (
-
-            customers.length ===
-
-            1
-
-          ) {
-
-            setSelectedCustomer(
-
-              customers[0]
-
-            );
-
-            router.replace(
-              `/miniapp?portal=customer&customer=${encodeURIComponent(customers[0].customerCode)}`
-            );
-
-          }
-
-        } else if (
-
-          data.hasStaffAccess
-
-        ) {
-
-          setPortal(
-
-            "staff"
-
-          );
-
         }
 
         setLoading(
@@ -993,23 +956,21 @@ export default function MiniAppHomePage() {
 
   }, [router]);
 
-  // Staff/manager-only LINE accounts enter OMS automatically.
-  // The guard avoids repeated login attempts after a timeout or failure.
+  // Managers and Staff enter OMS automatically; mixed Salesmen continue
+  // using the account-type chooser. A failed login is never auto-retried.
   const openCurrentStaffOms = useEffectEvent(() => { void openStaffOms(); });
 
   useEffect(() => {
     if (
       loading ||
-      !access?.hasStaffAccess ||
-      access.hasCustomerAccess ||
-      portal !== "staff" ||
+      !shouldAutoOpenLineStaff(access, portal) ||
       !lineIdToken ||
       autoStaffLoginAttempted.current
     ) return;
 
     autoStaffLoginAttempted.current = true;
     openCurrentStaffOms();
-  }, [loading, access?.hasStaffAccess, access?.hasCustomerAccess, portal, lineIdToken]);
+  }, [loading, access, portal, lineIdToken]);
 
   // =====================================================
 
