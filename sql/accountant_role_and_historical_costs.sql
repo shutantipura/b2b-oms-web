@@ -34,7 +34,7 @@ REVOKE ALL ON public.accountant_order_item_costs FROM PUBLIC, anon, authenticate
 REVOKE ALL ON public.accountant_cost_entry_audit FROM PUBLIC, anon, authenticated;
 GRANT ALL ON public.accountant_order_item_costs TO service_role;
 GRANT ALL ON public.accountant_cost_entry_audit TO service_role;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.accountant_cost_entry_audit_id_seq TO service_role;
 
 -- A batch is all-or-nothing. Missing billing snapshots only; never overwrite
 -- an existing billing snapshot, previously entered cost or master SKU cost.
@@ -61,6 +61,8 @@ BEGIN
    OR (SELECT count(DISTINCT x) FROM unnest(p_order_item_ids) x) <> cardinality(p_order_item_ids)
  THEN RAISE EXCEPTION 'Select 1–100 different order lines'; END IF;
  IF length(coalesce(p_reason,'')) > 500 THEN RAISE EXCEPTION 'Reason is too long'; END IF;
+ IF p_unit_cost=0 AND NULLIF(btrim(coalesce(p_reason,'')),'') IS NULL THEN
+  RAISE EXCEPTION 'A zero unit cost requires an explanation'; END IF;
  -- Serialize overlapping batch attempts and preserve original snapshots.
  PERFORM 1 FROM public.order_items WHERE id=ANY(p_order_item_ids)
  ORDER BY id FOR UPDATE;
