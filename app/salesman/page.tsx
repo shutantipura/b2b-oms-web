@@ -135,6 +135,14 @@ export default function SalesmanPage() {
               ติดตามคำสั่งซื้อ
             </Link>
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Link href="/customers/shops" className="rounded-xl border border-[#BDE5DB] bg-white px-3 py-3 text-center text-sm font-black text-[#008F8D]">
+              ร้านค้า
+            </Link>
+            <Link href="/customers/cv-accounts" className="rounded-xl border border-[#BDE5DB] bg-white px-3 py-3 text-center text-sm font-black text-[#008F8D]">
+              บัญชี CV
+            </Link>
+          </div>
           <p className="mt-3 text-xs leading-5 text-[#608176]">
             การสั่งแทนลูกค้าต้องได้รับสิทธิ์ลูกค้าผ่าน LINE จาก Manager ก่อน ระบบจะให้เลือกชื่อลูกค้าเอง
           </p>

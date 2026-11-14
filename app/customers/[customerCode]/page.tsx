@@ -1597,72 +1597,11 @@ export default function CustomerDetailPage() {
 
             <div className="grid md:grid-cols-2 gap-5">
 
-              <div className="md:col-span-2 rounded-xl border border-[#B8EAE5] bg-[#F4FBFA] p-4">
-                <label className="flex items-center gap-3 text-sm font-semibold text-[#173F3C]">
-                  <input
-                    type="checkbox"
-                    checked={noCv}
-                    onChange={(event) => {
-                      const checked = event.target.checked;
-                      setNoCv(checked);
-                      if (!checked && customer.has_no_cv) setCustomerCodeInput("");
-                    }}
-                    className="h-4 w-4 accent-[#00BCB4]"
-                  />
-                  ไม่มีเลข CV (No CV)
-                </label>
-                <p className="mt-2 text-xs text-[#52786F]">ระบบจะเก็บรหัสภายในไว้สำหรับ OMS โดยไม่แสดงเป็นเลข CV</p>
+              <div className="md:col-span-2 rounded-xl bg-[#EDF9F6] p-4 text-sm">
+                <p className="font-black">เลข CV เป็นบัญชีแยกจากร้านค้า</p>
+                <p className="mt-1 text-[#668277]">เชื่อมบัญชี CV ในเมนูร้านค้า · การแก้ไขเอกสาร CV ต้องรอ Manager อนุมัติ</p>
+                <Link href="/customers/shops" className="mt-2 inline-block font-bold text-[#008F8D]">ไปยังร้านค้า / บัญชี CV</Link>
               </div>
-
-              {!noCv && <div>
-
-                <label className="block text-sm font-medium mb-2">
-
-                  เลข CV
-
-                </label>
-
-
-
-                <input
-
-                  value={customerCodeInput}
-
-                  onChange={(event) =>
-
-                    setCustomerCodeInput(
-
-                      event.target.value
-
-                        .replace(/\D/g, "")
-
-                        .slice(0, 10)
-
-                    )
-
-                  }
-
-                  inputMode="numeric"
-
-                  maxLength={10}
-
-                  className="w-full border rounded-lg px-4 py-3"
-
-                  placeholder="เลข CV 10 หลัก"
-
-                />
-
-
-
-                <p className="text-xs text-gray-500 mt-2">
-
-                  เลข CV ของลูกค้าจริงต้องเป็นตัวเลข 10 หลัก ส่วนบัญชีทดสอบ ABC Restaurant สามารถใช้ C001 ต่อไปได้
-
-                </p>
-
-              </div>}
-
-
 
               <div>
 
@@ -2215,43 +2154,12 @@ export default function CustomerDetailPage() {
 
 
 
-        {/* Customer CV card - kept in private storage, available to billing workers. */}
-        <section className="bg-white border rounded-2xl p-6 mb-6">
-          <h2 className="font-bold text-lg">CV card (รูปบัตรลูกค้า)</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            รูปนี้จะถูกใช้แทน QR ในงานออกบิลเมื่อเลือก “บัญชีลูกค้าถูกระงับ”
-          </p>
-          {cvCardUrl ? (
-            <a href={cvCardUrl} target="_blank" rel="noreferrer"
-              className="mt-4 block max-w-sm rounded-xl border bg-gray-50 p-3">
-              <Image unoptimized src={cvCardUrl} alt="CV card ของลูกค้า" width={640} height={480} className="max-h-64 w-full object-contain" />
-            </a>
-          ) : (
-            <p className="mt-4 text-sm text-gray-500">
-              {customer.cv_card_storage_path ? "มีไฟล์บันทึกแล้ว แต่ไม่สามารถแสดงตัวอย่างได้" : "ยังไม่ได้อัปโหลด CV card"}
-            </p>
-          )}
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <label className={`inline-flex min-h-11 cursor-pointer items-center rounded-xl bg-[#00BCB4] px-4 py-2 text-sm font-bold text-[#173F3C] ${cvCardUploading ? "pointer-events-none opacity-50" : ""}`}>
-              {cvCardUploading ? "กำลังอัปโหลด..." : customer.cv_card_storage_path ? "เปลี่ยนรูป CV card" : "อัปโหลดรูป CV card"}
-              <input type="file" accept="image/jpeg,image/png,image/webp" disabled={cvCardUploading}
-                className="sr-only" onChange={(event) => {
-                  const selected = event.currentTarget.files?.[0];
-                  if (selected) void uploadCvCard(selected);
-                  event.currentTarget.value = "";
-                }} />
-            </label>
-            {customer.cv_card_storage_path && (
-              <button type="button" onClick={() => void removeCvCard()}
-                disabled={cvCardUploading}
-                className="min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50">
-                นำรูปออก
-              </button>
-            )}
-          </div>
-          <p className="mt-3 text-xs text-gray-500">
-            รองรับ JPG, PNG, WebP ไม่เกิน 10 MB · การเปลี่ยนรูปจะไม่แก้ไขภาพที่ใช้ในคำสั่งซื้อเก่า
-          </p>
+        {/* Historical billing CV-card paths are retained for existing orders.
+            New ID and registration documents belong only to the CV Registry. */}
+        <section className="mb-6 rounded-2xl border border-[#CDE8DF] bg-white p-5">
+          <h2 className="font-bold text-lg">บัญชี CV และเอกสาร</h2>
+          <p className="mt-2 text-sm text-[#6E8C82]">เปิดบัญชี CV หรือแก้ไขรูปร้าน บัตรประชาชน และใบสมัคร ต้องรอ Manager อนุมัติทุกครั้ง</p>
+          <Link href="/customers/cv-accounts" className="mt-3 inline-flex min-h-10 items-center rounded-xl bg-[#E8F8F5] px-4 text-sm font-black text-[#008F8D]">เปิดเมนูบัญชี CV</Link>
         </section>
 
         {/* LINE ACCOUNTS */}

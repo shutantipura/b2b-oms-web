@@ -335,13 +335,13 @@ const inactiveCount =
 
             <Link
 
-              href="/customers/new"
+              href="/customers/shops"
 
               className="bg-black text-white rounded-lg px-5 py-2 font-semibold"
 
             >
 
-              + สร้างลูกค้า
+              + สร้างร้านค้า
 
             </Link>
 
@@ -355,6 +355,14 @@ const inactiveCount =
 
 
 
+        <nav className="mb-6 grid grid-cols-2 gap-3">
+          <Link href="/customers/shops" className="rounded-2xl border border-[#BDE5DB] bg-white p-4 text-center font-black text-[#008F8D]">
+            ร้านค้า <span className="mt-1 block text-xs font-medium text-[#728B82]">ร้านและบัญชี LINE ลูกค้า</span>
+          </Link>
+          <Link href="/customers/cv-accounts" className="rounded-2xl border border-[#BDE5DB] bg-white p-4 text-center font-black text-[#008F8D]">
+            บัญชี CV <span className="mt-1 block text-xs font-medium text-[#728B82]">เลข 10 หลัก / เอกสาร / อนุมัติ</span>
+          </Link>
+        </nav>
         <div className="oms-customer-stats grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-8">
 
 
@@ -604,7 +612,7 @@ const inactiveCount =
                           {customer.customer_name}
                         </p>
                         <p className="mt-1 break-all text-xs text-gray-500 sm:text-sm">
-                          {customer.has_no_cv ? "No CV" : customer.customer_code}
+                          {customer.has_no_cv ? "ไม่มี CV" : customer.customer_code.startsWith("SHOP-") ? "มี CV · ดูในร้านค้า" : customer.customer_code}
                         </p>
                       </td>
                       <td className="px-2 py-3 align-top sm:px-4">

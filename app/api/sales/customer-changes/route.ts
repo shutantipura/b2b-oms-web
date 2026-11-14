@@ -3,7 +3,7 @@ import { requireSalesRole, salesApiError } from "@/lib/server/salesAuth";
 export const runtime = "nodejs";
 
 const EDITABLE = new Set([
-  "customer_code", "has_no_cv", "customer_name", "customer_type", "contact_name",
+  "customer_name", "customer_type", "contact_name",
   "phone", "delivery_address", "delivery_map_url", "delivery_map_url_2",
   "delivery_location_1_name", "delivery_location_2_name", "rider_note", "notes",
 ]);
@@ -20,8 +20,7 @@ export async function POST(request: NextRequest) {
     const keys = Object.keys(changes);
     if (!keys.length || keys.length > EDITABLE.size || keys.some(k => !EDITABLE.has(k)))
       return Response.json({ error: "One or more customer fields cannot be edited" }, { status: 400 });
-    if (keys.some(k => k === "has_no_cv" ? typeof changes[k] !== "boolean"
-      : changes[k] !== null && (typeof changes[k] !== "string" || (changes[k] as string).length > 1000)))
+    if (keys.some(k => changes[k] !== null && (typeof changes[k] !== "string" || (changes[k] as string).length > 1000)))
       return Response.json({ error: "Invalid customer field value" }, { status: 400 });
     const { data, error } = await admin.rpc("sales_submit_customer_changes", {
       p_customer_id: body.customerId,

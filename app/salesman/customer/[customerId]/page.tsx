@@ -26,7 +26,6 @@ type Product = { id: string; sku: string; product_name: string; unit: string; no
 
 const FIELDS: Array<{ key: keyof CustomerRecord; label: string; placeholder?: string }> = [
   { key: "customer_name", label: "ชื่อร้าน" },
-  { key: "customer_code", label: "เลข CV / รหัสลูกค้า" },
   { key: "customer_type", label: "ประเภทร้าน" },
   { key: "contact_name", label: "ชื่อผู้ติดต่อ" },
   { key: "phone", label: "เบอร์โทรศัพท์" },
@@ -100,7 +99,6 @@ export default function SalesmanCustomerEditor() {
       const old=String(customer[key]??"").trim();
       if(current!==old)result[key]=current||null;
     }
-    if(values.has_no_cv!==customer.has_no_cv) result.has_no_cv=Boolean(values.has_no_cv);
     if(Object.prototype.hasOwnProperty.call(result,"delivery_map_url")){
       result.delivery_address = result.delivery_map_url as string|null;
     }
@@ -110,9 +108,6 @@ export default function SalesmanCustomerEditor() {
   async function saveChanges(){
     if(!customer||saving)return;
     if(!Object.keys(dirty).length){setMessage("ไม่มีข้อมูลที่เปลี่ยนแปลง");return;}
-    if(!values.has_no_cv&&!/^\d{10}$/.test(String(values.customer_code??""))&&values.customer_code!=="C001"){
-      setMessage("เลข CV ต้องเป็นตัวเลข 10 หลัก");return;
-    }
     if(!String(values.customer_name??"").trim()){setMessage("กรุณากรอกชื่อร้าน");return;}
     setSaving(true);setMessage("");
     try {
@@ -178,16 +173,12 @@ export default function SalesmanCustomerEditor() {
       </header>
       <section className="rounded-2xl border border-[#D9EAE4] bg-white p-4">
         <h2 className="text-lg font-black">แก้ไขข้อมูลลูกค้า</h2>
-        <label className="mt-3 flex items-center gap-2 text-sm font-bold">
-          <input type="checkbox" checked={Boolean(values.has_no_cv)}
-            onChange={e=>setValues(p=>({...p,has_no_cv:e.target.checked}))}/>
-          ไม่มีเลข CV (ใช้รหัสภายในเดิม)
-        </label>
+        <p className="mt-2 text-sm text-[#69887C]">รหัสร้าน: {customer.customer_code} · บัญชี CV จัดการแยกในเมนู บัญชี CV</p>
+        <Link href="/customers/shops" className="mt-1 inline-block text-sm font-bold text-[#008F8D]">เชื่อมบัญชี CV ของร้านค้า</Link>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {FIELDS.map(field=><label key={field.key} className="block text-sm">
             <span className="mb-1 block font-bold">{field.label}</span>
             <input value={String(values[field.key]??"")}
-              disabled={field.key==="customer_code"&&Boolean(values.has_no_cv)}
               onChange={e=>setValues(p=>({...p,[field.key]:e.target.value}))}
               className="min-h-11 w-full rounded-xl border border-[#D5E8E2] bg-white px-3 text-sm outline-none focus:border-[#02B0AF] disabled:bg-[#F3F5F4]"
             />
