@@ -355,6 +355,7 @@ test("No CV customer profiles use internal IDs and default billing to B2B Barcod
   assert.match(create, /"SHOP-" \+ crypto\.randomUUID\(\)/);
   assert.match(create, /has_no_cv:true/);
   assert.match(migration, /UPDATE public\.customers c SET cv_account_id/);
+  assert.match(edit, /CV Card สำหรับออกบิล/);
   assert.match(billing, /setBillingMode\(loadedOrder\.customers\?\.has_no_cv \? "no_cv" : "normal"\)/);
 });
 

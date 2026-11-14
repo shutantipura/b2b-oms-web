@@ -115,13 +115,14 @@ export default function ShopsPage(){
             </div>
             <span className={"rounded-full px-3 py-1 text-xs font-black "+(shop.cvAccount?
               "bg-[#E4F7F2] text-[#008F8D]":"bg-[#FFF3D5] text-[#946B00]")}>
-              {shop.cvAccount?"CV "+shop.cvAccount.cv_number:"ไม่มี CV"}
+              {shop.cvAccount?(shop.cvAccount.status==="approved"?"CV ":"CV ระงับ · ")+shop.cvAccount.cv_number:"ไม่มี CV"}
             </span>
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <label className="text-xs font-bold text-[#57776D]">บัญชี CV ที่อนุมัติแล้ว
               <select value={shop.cv_account_id??""} onChange={e=>void link(shop,e.target.value)} disabled={busy} className={"mt-1 "+field}>
                 <option value="">ไม่มี CV</option>
+                {shop.cvAccount?.status==="deactivated"&&<option value={shop.cvAccount.id} disabled>{shop.cvAccount.cv_number} (ระงับ)</option>}
                 {cvs.map(c=><option key={c.id} value={c.id}>{c.cv_number}</option>)}
               </select>
             </label>

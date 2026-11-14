@@ -109,7 +109,14 @@ BEGIN
   END IF;
   -- A deactivation does not invalidate an existing shop's historical link;
   -- it only blocks newly linking or changing it to that inactive account.
-  NEW.has_no_cv := (NEW.cv_account_id IS NULL);
+  -- Deactivated CV accounts remain linked for audit, but are not usable
+  -- for new billing, so such shops temporarily behave as No CV.
+  IF NEW.cv_account_id IS NULL THEN
+    NEW.has_no_cv := true;
+  ELSE
+    SELECT status INTO v_status FROM public.cv_accounts WHERE id=NEW.cv_account_id;
+    NEW.has_no_cv := (v_status IS DISTINCT FROM 'approved');
+  END IF;
   RETURN NEW;
 END $$;
 DROP TRIGGER IF EXISTS enforce_shop_cv_integrity_trg ON public.customers;
@@ -178,6 +185,8 @@ BEGIN
     deactivated_at=CASE WHEN p_active THEN NULL ELSE now() END,
     updated_at=now() WHERE id=p_cv_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'CV account not found'; END IF;
+  -- Refresh legacy OMS billing-mode mirror while keeping CV associations.
+  UPDATE public.customers SET cv_account_id=cv_account_id WHERE cv_account_id=p_cv_id;
   INSERT INTO public.cv_account_events(cv_account_id,actor_staff_id,action)
     VALUES(p_cv_id,p_manager_id,CASE WHEN p_active THEN 'reactivated' ELSE 'deactivated' END);
 END $$;

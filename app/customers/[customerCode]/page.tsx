@@ -2162,6 +2162,45 @@ export default function CustomerDetailPage() {
           <Link href="/customers/cv-accounts" className="mt-3 inline-flex min-h-10 items-center rounded-xl bg-[#E8F8F5] px-4 text-sm font-black text-[#008F8D]">เปิดเมนูบัญชี CV</Link>
         </section>
 
+        {/* Legacy billing CV Card - distinct from the new approved CV account documents. */}
+        <section className="bg-white border rounded-2xl p-6 mb-6">
+          <h2 className="font-bold text-lg">CV Card สำหรับออกบิล (ไม่ใช่เอกสารบัญชี CV)</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            รูปนี้จะถูกใช้แทน QR ในงานออกบิลเมื่อเลือก “บัญชีลูกค้าถูกระงับ”
+          </p>
+          {cvCardUrl ? (
+            <a href={cvCardUrl} target="_blank" rel="noreferrer"
+              className="mt-4 block max-w-sm rounded-xl border bg-gray-50 p-3">
+              <Image unoptimized src={cvCardUrl} alt="CV card ของลูกค้า" width={640} height={480} className="max-h-64 w-full object-contain" />
+            </a>
+          ) : (
+            <p className="mt-4 text-sm text-gray-500">
+              {customer.cv_card_storage_path ? "มีไฟล์บันทึกแล้ว แต่ไม่สามารถแสดงตัวอย่างได้" : "ยังไม่ได้อัปโหลด CV card"}
+            </p>
+          )}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className={`inline-flex min-h-11 cursor-pointer items-center rounded-xl bg-[#00BCB4] px-4 py-2 text-sm font-bold text-[#173F3C] ${cvCardUploading ? "pointer-events-none opacity-50" : ""}`}>
+              {cvCardUploading ? "กำลังอัปโหลด..." : customer.cv_card_storage_path ? "เปลี่ยนรูป CV card" : "อัปโหลดรูป CV card"}
+              <input type="file" accept="image/jpeg,image/png,image/webp" disabled={cvCardUploading}
+                className="sr-only" onChange={(event) => {
+                  const selected = event.currentTarget.files?.[0];
+                  if (selected) void uploadCvCard(selected);
+                  event.currentTarget.value = "";
+                }} />
+            </label>
+            {customer.cv_card_storage_path && (
+              <button type="button" onClick={() => void removeCvCard()}
+                disabled={cvCardUploading}
+                className="min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50">
+                นำรูปออก
+              </button>
+            )}
+          </div>
+          <p className="mt-3 text-xs text-gray-500">
+            รองรับ JPG, PNG, WebP ไม่เกิน 10 MB · การเปลี่ยนรูปจะไม่แก้ไขภาพที่ใช้ในคำสั่งซื้อเก่า
+          </p>
+        </section>
+
         {/* LINE ACCOUNTS */}
 
 
