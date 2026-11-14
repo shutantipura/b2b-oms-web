@@ -86,7 +86,7 @@ export default function AccountantPage(){
     const liffId=process.env.NEXT_PUBLIC_LINE_LIFF_ID;
     if(!liffId)throw new Error("LINE LIFF configuration missing");
     await liff.init({liffId,withLoginOnExternalBrowser:true});
-    if(!liff.isLoggedIn()){liff.login({redirectUri:window.location.origin+"/accountant"});return;}
+    if(!liff.isLoggedIn()){liff.login({redirectUri:window.location.origin+"/miniapp/accountant"});return;}
     const next=liff.getIDToken();
     if(!next)throw new Error("กรุณาเข้าสู่ระบบ LINE ใหม่");
     if(disposed)return;

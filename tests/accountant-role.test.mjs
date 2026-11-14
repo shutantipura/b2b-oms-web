@@ -7,7 +7,7 @@ const customer=readFileSync("app/api/line/customer/route.ts","utf8");
 const mini=readFileSync("app/miniapp/page.tsx","utf8");
 const home=readFileSync("app/login/page.tsx","utf8");
 const api=readFileSync("app/api/line/accountant/route.ts","utf8");
-const page=readFileSync("app/accountant/page.tsx","utf8");
+const page=readFileSync("app/miniapp/accountant/page.tsx","utf8");
 const sql=readFileSync("sql/accountant_role_and_historical_costs.sql","utf8");
 
 test("LINE roles include Accountant, renamed Account & Access menu",()=>{
@@ -19,7 +19,7 @@ test("LINE roles include Accountant, renamed Account & Access menu",()=>{
  assert.match(customer,/accountRole: lineUser.assigned_role/);
  assert.match(customer,/lineUser.assigned_role === "accountant"/);
  assert.match(mini,/data.accountRole === "accountant"/);
- assert.match(mini,/router.replace\("\/accountant"\)/);
+ assert.match(mini,/router.replace\("\/miniapp\/accountant"\)/);
 });
 
 test("Accountant cannot obtain staff task sessions or customer ordering",()=>{

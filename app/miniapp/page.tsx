@@ -742,7 +742,7 @@ export default function MiniAppHomePage() {
         // they never create an operational staff session.
         if (data.accountRole === "accountant" ||
             (requestedPortal === "accountant" && data.accountRole === "manager")) {
-          router.replace("/accountant");
+          router.replace("/miniapp/accountant");
           return;
         }
 
