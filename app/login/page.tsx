@@ -47,6 +47,12 @@ const SALESMAN_NAVIGATION: NavigationItem[] = [
   { name: "คำสั่งซื้อ", href: "/orders", description: "ดูสถานะคำสั่งซื้อและการส่งมอบ" },
 ];
 
+// Used only if no authenticated staff session exists; LINE will route the
+// user automatically by their assigned role, never through an account chooser.
+function goToLineLogin() {
+  window.location.assign(new URL("/miniapp", window.location.origin).toString());
+}
+
 export default function OmsHomePage() {
   const [staff, setStaff] = useState<StaffProfile | null>(null);
   const [activeOrderCount, setActiveOrderCount] = useState(0);
