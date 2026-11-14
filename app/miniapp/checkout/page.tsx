@@ -7,13 +7,15 @@ import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
 import { lineApiFetch } from "../../../lib/lineSession";
 import { chooseAutomaticMerge } from "../../../lib/automaticOrderMerge";
+import { isGoogleMapsUrl, MAX_DELIVERY_LOCATIONS, type DeliveryLocation } from "../../../lib/deliveryLocations";
 
 type Customer = {
   id: string;
   customerCode: string;
   customerName: string;
   deliveryAddress: string;
-  deliveryLocations?: { label: string; url: string }[];
+  deliveryLocations?: DeliveryLocation[];
+  locationsVersion: string;
 };
 
 type CheckoutItem = {
@@ -109,6 +111,11 @@ export default function MiniAppCheckoutPage() {
   const [deliverySlot, setDeliverySlot] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [locationEditIndex, setLocationEditIndex] = useState<number | null>(null);
+  const [locationName, setLocationName] = useState("");
+  const [locationLink, setLocationLink] = useState("");
+  const [savingLocations, setSavingLocations] = useState(false);
+  const [locationError, setLocationError] = useState("");
   const [idToken, setIdToken] = useState("");
   const [cart, setCart] = useState<Cart>({});
   const [pieceProductIds, setPieceProductIds] = useState<string[]>([]);
@@ -331,6 +338,82 @@ export default function MiniAppCheckoutPage() {
     setDeliverySlot(option?.slots[0]?.value ?? "");
   }
 
+
+  function openLocationEditor(index: number) {
+    if (!customer || submitting || savingLocations) return;
+    const saved = customer.deliveryLocations ?? [];
+    if (index < 0 || index > saved.length || index >= MAX_DELIVERY_LOCATIONS) return;
+    setLocationEditIndex(index);
+    setLocationName(saved[index]?.label ?? "จุดส่ง " + (index + 1));
+    setLocationLink(saved[index]?.url ?? "");
+    setLocationError("");
+  }
+
+  async function persistLocations(next: DeliveryLocation[], preferredUrl: string) {
+    if (!customer || !idToken || savingLocations || submitting) return;
+    setSavingLocations(true);
+    setLocationError("");
+    try {
+      const response = await lineApiFetch("/api/line/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save-locations", idToken,
+          customerCode: customer.customerCode,
+          locations: next, expectedLocationsVersion: customer.locationsVersion,
+        }),
+      });
+      const data = (await response.json()) as CheckoutResponse;
+      if (!response.ok || !data.customer) throw new Error(data.error ?? "บันทึกจุดส่งไม่สำเร็จ");
+      const locations = data.customer.deliveryLocations ?? [];
+      setCustomer(data.customer);
+      setDeliveryAddress(locations.find((item) => item.url === preferredUrl)?.url ?? locations[0]?.url ?? "");
+      setLocationEditIndex(null);
+      setMergeCandidates([]);
+      setMergeRefreshTick((value) => value + 1);
+      setMessage("");
+    } catch (error) {
+      setLocationError(error instanceof Error ? error.message : "บันทึกจุดส่งไม่สำเร็จ");
+    } finally {
+      setSavingLocations(false);
+    }
+  }
+
+  async function saveLocation() {
+    if (!customer || locationEditIndex === null) return;
+    const name = locationName.trim();
+    const url = locationLink.trim();
+    if (!name || name.length > 60) {
+      setLocationError("กรุณาระบุชื่อจุดส่ง ไม่เกิน 60 ตัวอักษร");
+      return;
+    }
+    if (url.length > 2048 || !isGoogleMapsUrl(url)) {
+      setLocationError("กรุณาวางลิงก์ Google Maps ที่ถูกต้อง เช่น https://maps.app.goo.gl/...");
+      return;
+    }
+    const saved = customer.deliveryLocations ?? [];
+    if (saved.some((item, index) => index !== locationEditIndex && item.url === url)) {
+      setLocationError("ลิงก์นี้ถูกบันทึกไว้แล้ว");
+      return;
+    }
+    const oldUrl = saved[locationEditIndex]?.url;
+    const next = saved.slice();
+    if (locationEditIndex === saved.length) next.push({ label: name, url });
+    else next[locationEditIndex] = { label: name, url };
+    const preferred = oldUrl === deliveryAddress || !deliveryAddress ? url : deliveryAddress;
+    await persistLocations(next, preferred);
+  }
+
+  async function deleteLocation(index: number) {
+    if (!customer || submitting || savingLocations) return;
+    const saved = customer.deliveryLocations ?? [];
+    if (!saved[index]) return;
+    if (!window.confirm("ลบจุดส่ง " + saved[index].label + " หรือไม่? คำสั่งซื้อเดิมจะไม่เปลี่ยนแปลง")) return;
+    const next = saved.filter((_, i) => i !== index);
+    setLocationEditIndex(null);
+    await persistLocations(next, saved[index].url === deliveryAddress ? next[0]?.url ?? "" : deliveryAddress);
+  }
+
   function goShop() {
     if (!customer) {
       router.push("/miniapp?portal=customer");
@@ -340,7 +423,7 @@ export default function MiniAppCheckoutPage() {
   }
 
   async function submitOrder() {
-    if (!customer || !idToken || submitting) return;
+    if (!customer || !idToken || submitting || savingLocations) return;
     setMessage("");
     if (!deliveryDate) {
       setMessage(fulfillmentMethod === "pickup" ? "กรุณาเลือกวันที่รับสินค้าที่สาขา" : "กรุณาเลือกวันที่จัดส่ง");
@@ -352,7 +435,7 @@ export default function MiniAppCheckoutPage() {
     }
     if (fulfillmentMethod === "delivery" && (!isWebUrl(deliveryAddress.trim()) ||
       !(customer.deliveryLocations ?? [{ label: "จุดส่ง 1", url: customer.deliveryAddress }]).some(location => location.url === deliveryAddress))) {
-      setMessage("ยังไม่ได้ตั้งค่าลิงก์ Google Maps สำหรับลูกค้ารายนี้ กรุณาติดต่อผู้จัดการ");
+      setMessage("กรุณาเพิ่มหรือเลือกจุดส่งด้วยลิงก์ Google Maps ก่อนยืนยันคำสั่งซื้อ");
       return;
     }
 
@@ -638,23 +721,68 @@ export default function MiniAppCheckoutPage() {
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#E4F8F6] text-lg">📍</span>
             <h2 className="text-base font-extrabold">ตำแหน่งจัดส่ง</h2>
           </div>
-          <p className="mt-2 text-xs leading-5 text-[#82968D]">เลือกจุดจัดส่งสำหรับคำสั่งซื้อนี้ (ทีมงานบันทึกไว้)</p>
+
+          <p className="mt-2 text-xs leading-5 text-[#82968D]">เลือก เพิ่ม เปลี่ยนชื่อ หรือลบจุดส่งได้ที่นี่ โดยข้อมูลจะอัปเดตถึงทีมงานทันที</p>
           <div className="mt-3 grid gap-2">
-            {(customer.deliveryLocations ?? [{ label: "จุดส่ง 1", url: customer.deliveryAddress }]).map((location, index) => (
-              <button key={index} type="button" aria-pressed={deliveryAddress === location.url}
-                onClick={() => { setDeliveryAddress(location.url); setMessage(""); }}
-                className={`flex min-h-14 items-center justify-between gap-2 rounded-xl border-2 px-3 py-3 text-left text-sm font-bold transition ${deliveryAddress === location.url
-                  ? "border-[#02B0AF] bg-[#E5F9F5] text-[#007A75]"
-                  : "border-[#D5E8E2] bg-white text-[#57786E]"}`}>
-                <span className="min-w-0 truncate">📍 {location.label}</span>
-                <span className="shrink-0">{deliveryAddress === location.url ? "✓ เลือกแล้ว" : "เลือก"}</span>
-              </button>
+            {(customer.deliveryLocations ?? []).map((location, index) => (
+              <div key={location.url} className="rounded-xl border border-[#D5E8E2] p-2">
+                <button type="button" aria-pressed={deliveryAddress === location.url}
+                  disabled={savingLocations}
+                  onClick={() => { setDeliveryAddress(location.url); setMessage(""); }}
+                  className={"flex min-h-14 w-full items-center justify-between gap-2 rounded-xl border-2 px-3 py-3 text-left text-sm font-bold transition " +
+                    (deliveryAddress === location.url
+                      ? "border-[#02B0AF] bg-[#E5F9F5] text-[#007A75]"
+                      : "border-[#D5E8E2] bg-white text-[#57786E]")}>
+                  <span className="min-w-0 truncate">📍 {location.label}</span>
+                  <span className="shrink-0">{deliveryAddress === location.url ? "✓ เลือกแล้ว" : "เลือก"}</span>
+                </button>
+                <div className="mt-1 flex justify-end gap-1">
+                  <button type="button" disabled={submitting || savingLocations} onClick={() => openLocationEditor(index)}
+                    className="min-h-10 px-3 text-xs font-bold text-[#008F8D] disabled:opacity-40">✎ แก้ไข</button>
+                  <button type="button" disabled={submitting || savingLocations} onClick={() => void deleteLocation(index)}
+                    className="min-h-10 px-3 text-xs font-bold text-red-600 disabled:opacity-40">ลบ</button>
+                </div>
+              </div>
             ))}
           </div>
+          {(customer.deliveryLocations ?? []).length < MAX_DELIVERY_LOCATIONS && locationEditIndex === null && (
+            <button type="button" disabled={savingLocations || submitting}
+              onClick={() => openLocationEditor((customer.deliveryLocations ?? []).length)}
+              className="mt-3 min-h-12 w-full rounded-xl border-2 border-dashed border-[#02B0AF] px-3 text-sm font-bold text-[#008F8D] disabled:opacity-40">
+              + เพิ่มจุดส่ง ({(customer.deliveryLocations ?? []).length}/{MAX_DELIVERY_LOCATIONS})
+            </button>
+          )}
+          {locationEditIndex !== null && (
+            <div className="mt-3 space-y-3 rounded-xl border border-[#B9E9E3] bg-[#F0FAF8] p-3">
+              <h3 className="text-sm font-extrabold">{locationEditIndex === (customer.deliveryLocations ?? []).length ? "เพิ่มจุดส่ง" : "แก้ไขจุดส่ง"}</h3>
+              <label className="block">
+                <span className="text-xs font-bold text-[#537566]">ชื่อจุดส่ง</span>
+                <input className={field} maxLength={60} value={locationName}
+                  onChange={(event) => setLocationName(event.target.value)}
+                  placeholder="เช่น หน้าร้าน หรือ คลังสินค้า" />
+              </label>
+              <label className="block">
+                <span className="text-xs font-bold text-[#537566]">ลิงก์ Google Maps</span>
+                <input className={field} type="url" inputMode="url" autoCapitalize="none"
+                  value={locationLink} onChange={(event) => setLocationLink(event.target.value)}
+                  placeholder="วาง https://maps.app.goo.gl/... หรือ https://www.google.com/maps/..." />
+              </label>
+              <div className="flex gap-2">
+                <button type="button" disabled={savingLocations} onClick={() => void saveLocation()}
+                  className="min-h-11 flex-1 rounded-xl bg-[#02B0AF] px-3 text-sm font-bold text-white disabled:opacity-40">
+                  {savingLocations ? "กำลังบันทึก..." : "บันทึกจุดส่ง"}
+                </button>
+                <button type="button" disabled={savingLocations} onClick={() => { setLocationEditIndex(null); setLocationError(""); }}
+                  className="min-h-11 rounded-xl border border-[#D5E8E2] bg-white px-4 text-sm font-bold text-[#537566]">ยกเลิก</button>
+              </div>
+            </div>
+          )}
+          {locationError && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-600">{locationError}</p>}
           {isWebUrl(deliveryAddress) ? (
-            <a href={deliveryAddress} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-11 items-center rounded-xl border-2 border-[#B9E9E3] bg-[#EFFAF8] px-4 py-2 text-sm font-extrabold text-[#008F8D]">ดูจุดส่งที่เลือกใน Google Maps ↗</a>
+            <a href={deliveryAddress} target="_blank" rel="noopener noreferrer"
+              className="mt-4 inline-flex min-h-11 items-center rounded-xl border-2 border-[#B9E9E3] bg-[#EFFAF8] px-4 py-2 text-sm font-extrabold text-[#008F8D]">ดูจุดส่งที่เลือกใน Google Maps ↗</a>
           ) : (
-            <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-600">ยังไม่ได้ตั้งค่าลิงก์ Google Maps กรุณาติดต่อผู้จัดการ</p>
+            <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-800">ยังไม่มีจุดส่ง กรุณาเพิ่มลิงก์ Google Maps ก่อนสั่งจัดส่ง</p>
           )}
         </section>}
 
@@ -672,7 +800,7 @@ export default function MiniAppCheckoutPage() {
           <button
             type="button"
             onClick={() => void submitOrder()}
-            disabled={submitting || loadingMergeOptions || !deliveryDate || !selectedDeliverySlot || items.length === 0}
+            disabled={submitting || savingLocations || locationEditIndex !== null || loadingMergeOptions || !deliveryDate || !selectedDeliverySlot || items.length === 0 || (fulfillmentMethod === "delivery" && !deliveryAddress)}
             className="miniapp-bottom-cta flex min-h-16 w-full items-center justify-between gap-2 rounded-2xl bg-[#02B0AF] px-3 py-3 text-left text-white shadow-lg shadow-[#007E61]/15 disabled:cursor-not-allowed disabled:opacity-40 sm:gap-3 sm:px-5"
           >
             <span>

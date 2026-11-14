@@ -13,6 +13,7 @@ import {
   validateDeliverySelection,
 } from "../../../../lib/deliveryRules";
 import { chooseAutomaticMerge } from "../../../../lib/automaticOrderMerge";
+import { validateDeliveryLocations } from "@/lib/deliveryLocations";
 
 // =====================================================
 // TYPES
@@ -59,6 +60,7 @@ type CustomerRow = {
   delivery_map_url_2: string | null;
   delivery_location_1_name: string | null;
   delivery_location_2_name: string | null;
+  updated_at: string;
   is_active: boolean;
 };
 
@@ -320,6 +322,16 @@ async function verifyLineAndCustomer(
     customer: selectedCustomer,
     verifiedLineUserId: lineUser.id,
   };
+}
+
+function savedDeliveryLocations(customer: CustomerRow) {
+  return [
+    { label: customer.delivery_location_1_name?.trim() || "จุดส่ง 1",
+      url: customer.delivery_map_url ?? customer.delivery_address ?? "" },
+    ...(customer.delivery_map_url_2
+      ? [{ label: customer.delivery_location_2_name?.trim() || "จุดส่ง 2",
+           url: customer.delivery_map_url_2 }] : []),
+  ].filter((location) => location.url);
 }
 
 // =====================================================
@@ -756,10 +768,11 @@ export async function POST(
     // ACTION
     // -------------------------------------------------
 
-    const action: "load" | "submit" | "merge-options" =
+    const action: "load" | "submit" | "merge-options" | "save-locations" =
       body.action === "submit" ? "submit"
         : body.action === "merge-options" ? "merge-options"
-          : "load";
+          : body.action === "save-locations" ? "save-locations"
+            : "load";
 
     // -------------------------------------------------
     // LINE TOKEN
@@ -862,6 +875,67 @@ export async function POST(
       );
 
     // -------------------------------------------------
+    // AUTHORIZED CUSTOMER LOCATION EDIT
+    // All edits are scoped to the LINE-authorized customer record.
+    // Existing orders keep their original delivery_address snapshots.
+    // -------------------------------------------------
+    if (action === "save-locations") {
+      let locations;
+      try {
+        locations = validateDeliveryLocations(body.locations);
+      } catch (error) {
+        return NextResponse.json(
+          { error: error instanceof Error ? error.message : "ข้อมูลจุดส่งไม่ถูกต้อง" },
+          { status: 400 }
+        );
+      }
+
+      if (typeof body.expectedLocationsVersion !== "string" ||
+          body.expectedLocationsVersion !== customer.updated_at) {
+        return NextResponse.json(
+          { error: "ข้อมูลจุดส่งเปลี่ยนไปแล้ว กรุณาโหลดหน้านี้ใหม่" },
+          { status: 409 }
+        );
+      }
+
+      const { data: updated, error: saveError } = await supabase
+        .from("customers")
+        .update({
+          delivery_address: locations[0]?.url ?? null,
+          delivery_map_url: locations[0]?.url ?? null,
+          delivery_location_1_name: locations[0]?.label ?? "จุดส่ง 1",
+          delivery_map_url_2: locations[1]?.url ?? null,
+          delivery_location_2_name: locations[1]?.label ?? "จุดส่ง 2",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", customer.id)
+        .eq("is_active", true)
+        .eq("updated_at", customer.updated_at)
+        .select("updated_at")
+        .maybeSingle();
+      if (saveError) {
+        console.error("Save customer delivery locations:", saveError);
+        return NextResponse.json({ error: "ไม่สามารถบันทึกจุดส่งได้" }, { status: 500 });
+      }
+      if (!updated) {
+        return NextResponse.json(
+          { error: "มีการแก้ไขข้อมูลลูกค้าระหว่างบันทึก กรุณาโหลดหน้าใหม่" },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json({
+        customer: {
+          id: customer.id,
+          customerCode: customer.customer_code,
+          customerName: customer.customer_name,
+          deliveryAddress: locations[0]?.url ?? "",
+          deliveryLocations: locations,
+          locationsVersion: updated.updated_at,
+        },
+      });
+    }
+
+    // -------------------------------------------------
     // CART DATA
     // -------------------------------------------------
 
@@ -897,13 +971,8 @@ export async function POST(
             customer.customer_name,
 
           deliveryAddress: customer.delivery_map_url ?? customer.delivery_address ?? "",
-          deliveryLocations: [
-            { label: customer.delivery_location_1_name?.trim() || "จุดส่ง 1",
-              url: customer.delivery_map_url ?? customer.delivery_address ?? "" },
-            ...(customer.delivery_map_url_2
-              ? [{ label: customer.delivery_location_2_name?.trim() || "จุดส่ง 2",
-                   url: customer.delivery_map_url_2 }] : []),
-          ].filter(location => location.url),
+          deliveryLocations: savedDeliveryLocations(customer),
+          locationsVersion: customer.updated_at,
         },
 
         items,
@@ -922,8 +991,7 @@ export async function POST(
       // Pickup is a separate flow: never offer a rider-delivery order as a merge candidate.
       if (body.fulfillmentMethod === "pickup") return NextResponse.json({ mergeCandidates: [] });
       const chosenAddress = typeof body.deliveryAddress === "string" ? body.deliveryAddress.trim() : "";
-      const allowedAddresses = [customer.delivery_map_url ?? customer.delivery_address, customer.delivery_map_url_2]
-        .filter((url): url is string => Boolean(url));
+      const allowedAddresses = savedDeliveryLocations(customer).map((location) => location.url);
       if (!allowedAddresses.includes(chosenAddress))
         return NextResponse.json({ error: "กรุณาเลือกตำแหน่งจัดส่งที่บันทึกไว้" }, { status: 400 });
       const mergeCandidates = await findMergeCandidates(supabase, customer.id, date, chosenAddress);
@@ -987,8 +1055,7 @@ export async function POST(
     // Validate the selected map against this customer's saved locations,
     // rather than accepting an arbitrary address supplied by the browser.
     if (fulfillmentMethod === "delivery") {
-      const allowedAddresses = [customer.delivery_map_url ?? customer.delivery_address, customer.delivery_map_url_2]
-        .filter((url): url is string => Boolean(url));
+      const allowedAddresses = savedDeliveryLocations(customer).map((location) => location.url);
       if (!allowedAddresses.includes(deliveryAddress)) {
         return NextResponse.json({ error: "ตำแหน่งจัดส่งไม่ถูกต้อง กรุณาเลือกใหม่" }, { status: 400 });
       }

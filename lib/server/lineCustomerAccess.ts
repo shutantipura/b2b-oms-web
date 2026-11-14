@@ -39,6 +39,7 @@ export type LineCustomerAccessRow = {
   delivery_map_url_2: string | null;
   delivery_location_1_name: string;
   delivery_location_2_name: string;
+  updated_at: string;
 };
 
 export type LineCustomerAccessLink = {
@@ -50,7 +51,7 @@ export type LineCustomerAccessLink = {
 const CUSTOMER_FIELDS = [
   "id", "customer_code", "customer_name", "has_no_cv", "is_active",
   "delivery_address", "delivery_map_url", "delivery_map_url_2",
-  "delivery_location_1_name", "delivery_location_2_name",
+  "delivery_location_1_name", "delivery_location_2_name", "updated_at",
 ].join(",");
 
 export async function loadAuthorizedLineCustomerLinks(
@@ -59,7 +60,7 @@ export async function loadAuthorizedLineCustomerLinks(
   try {
     if (await hasAutomaticLineCustomerAccess(admin, verifiedLineUserId)) {
       const { data, error } = await admin.from("customers")
-        .select("id,customer_code,customer_name,has_no_cv,is_active,delivery_address,delivery_map_url,delivery_map_url_2,delivery_location_1_name,delivery_location_2_name").eq("is_active", true)
+        .select("id,customer_code,customer_name,has_no_cv,is_active,delivery_address,delivery_map_url,delivery_map_url_2,delivery_location_1_name,delivery_location_2_name,updated_at").eq("is_active", true)
         .order("customer_name", { ascending: true });
       if (error) throw error;
       return {
