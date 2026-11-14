@@ -391,16 +391,15 @@ export default function MiniAppHomePage() {
 
   function showAccessChooser() {
     setSelectedCustomer(null);
-    if (access?.staff?.accountType === "manager" && access.hasStaffAccess) {
-      // The Manager has a permanent customer-order shortcut on the OMS home.
-      // Return to that home directly instead of reopening account selection.
+    if (access?.hasStaffAccess) {
+      // Return directly to the correct OMS role home; customer-order shortcuts
+      // stay available in both Manager and Salesman dashboards.
       setPortal("staff");
       router.replace("/miniapp?portal=staff");
       return;
     }
-    // Salesmen retain their choice between the two workspaces.
-    setPortal("choose");
-    router.replace("/miniapp");
+    setPortal("customer");
+    router.replace("/miniapp?portal=customer");
   }
 
   function changeCustomer() {
@@ -897,10 +896,9 @@ export default function MiniAppHomePage() {
 
         // ===============================================
 
-        // Managers enter the operational OMS home automatically, even though
-        // they are authorized to order for all customers. The customer portal
-        // remains available explicitly through the Manager home shortcut.
-        // Mixed-role Salesmen still choose; Customer and Staff stay unchanged.
+        // Each staff role enters its OMS dashboard without a login card.
+        // Customer-only identities still enter the customer portal; explicit
+        // customer-order links continue to work for Managers and Salesmen.
         const destination = defaultLinePortal(data);
         setPortal(destination);
         if (destination === "customer" && customers.length === 1) {
@@ -966,8 +964,8 @@ export default function MiniAppHomePage() {
 
   }, [router]);
 
-  // Managers and Staff enter OMS automatically; mixed Salesmen continue
-  // using the account-type chooser. A failed login is never auto-retried.
+  // Manager, Salesman and Staff enter OMS automatically. A failed login
+  // is never retried without a new user action.
   const openCurrentStaffOms = useEffectEvent(() => { void openStaffOms(); });
 
   useEffect(() => {
@@ -1148,6 +1146,12 @@ export default function MiniAppHomePage() {
   // =====================================================
   // CHOOSE ACCESS — mobile-first Lotus's B2B account-type selection
   // =====================================================
+
+  // Never render the intermediate staff card while the authenticated
+  // role's Supabase session is being created. Keep genuine auth errors visible.
+  if (portal === "staff" && access.hasStaffAccess && access.staff) {
+    return <LotusLoading message={staffLoginStep || "กำลังเปิดหน้าหลักตามสิทธิ์ของคุณ..."} />;
+  }
 
   if (portal === "choose") {
     return (
@@ -1397,7 +1401,7 @@ export default function MiniAppHomePage() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="m15 18-6-6 6-6" />
               </svg>
-              {access.staff?.accountType === "manager" ? "กลับหน้าผู้จัดการ" : "เลือกประเภทการใช้งาน"}
+              {access.staff?.accountType === "manager" ? "กลับหน้าผู้จัดการ" : access.staff?.accountType === "salesman" ? "กลับหน้าฝ่ายขาย" : "กลับหน้าพนักงาน"}
             </button>
           )}
 
@@ -1573,7 +1577,7 @@ export default function MiniAppHomePage() {
 
               >
 
-                {access.staff?.accountType === "manager" ? "กลับหน้าผู้จัดการ" : "กลับหน้าพนักงาน"}
+                {access.staff?.accountType === "manager" ? "กลับหน้าผู้จัดการ" : access.staff?.accountType === "salesman" ? "กลับหน้าฝ่ายขาย" : "กลับหน้าพนักงาน"}
 
               </button>
 
