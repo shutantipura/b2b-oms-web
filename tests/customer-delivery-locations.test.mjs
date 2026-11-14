@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { isGoogleMapsUrl, validateDeliveryLocations } from "../lib/deliveryLocations.ts";
 
 const api = readFileSync("app/api/line/checkout/route.ts", "utf8");
 const page = readFileSync("app/miniapp/checkout/page.tsx", "utf8");
@@ -33,4 +34,33 @@ test("checkout can add rename and delete; existing orders remain separate", () =
   assert.match(page, /action: "save-locations"/);
   assert.match(api, /p_delivery_address: deliveryAddress/);
   assert.match(access, /updated_at/);
+});
+
+test("accepts real Google Maps formats but blocks lookalike or insecure hosts", () => {
+  assert.equal(isGoogleMapsUrl("https://maps.app.goo.gl/ExampleLocation?g_st=ic"), true);
+  assert.equal(isGoogleMapsUrl("https://www.google.com/maps/place/Example"), true);
+  assert.equal(isGoogleMapsUrl("https://maps.google.co.th/?q=13.5,100.6"), true);
+  assert.equal(isGoogleMapsUrl("https://goo.gl/maps/Example"), true);
+  assert.equal(isGoogleMapsUrl("https://google.com.evil.test/maps/place/Example"), false);
+  assert.equal(isGoogleMapsUrl("http://maps.app.goo.gl/Example"), false);
+  assert.equal(isGoogleMapsUrl("https://example.com/maps/place/Example"), false);
+});
+
+test("allows removal of all locations and rejects invalid batches", () => {
+  assert.deepEqual(validateDeliveryLocations([]), []);
+  assert.deepEqual(
+    validateDeliveryLocations([{label:" หน้าร้าน ",url:" https://maps.app.goo.gl/Test1 "}]),
+    [{label:"หน้าร้าน",url:"https://maps.app.goo.gl/Test1"}]
+  );
+  assert.throws(() => validateDeliveryLocations([{label:"",url:"https://maps.app.goo.gl/Test1"}]));
+  assert.throws(() => validateDeliveryLocations([{label:"A",url:"https://phishing.example/maps"}]));
+  assert.throws(() => validateDeliveryLocations([
+    {label:"A",url:"https://maps.app.goo.gl/Test1"},
+    {label:"B",url:"https://maps.app.goo.gl/Test1"},
+  ]));
+  assert.throws(() => validateDeliveryLocations([
+    {label:"A",url:"https://maps.app.goo.gl/Test1"},
+    {label:"B",url:"https://maps.app.goo.gl/Test2"},
+    {label:"C",url:"https://maps.app.goo.gl/Test3"},
+  ]));
 });
