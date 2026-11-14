@@ -41,4 +41,6 @@ test("explicit Manager customer-order portal and Manager home shortcut remain av
   assert.match(page, /router.replace\("\/miniapp\?portal=staff"\)/);
   assert.match(home, /name: "สั่งสินค้าแทนลูกค้า", href: "\/miniapp\?portal=customer"/);
   assert.match(home, /const navigation = isManager \? MANAGER_NAVIGATION/);
+  assert.match(home, /!fixedTerminal && !isManager/);
+  assert.match(page, /"กลับหน้าผู้จัดการ"/);
 });

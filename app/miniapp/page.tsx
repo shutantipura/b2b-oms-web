@@ -1397,7 +1397,7 @@ export default function MiniAppHomePage() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="m15 18-6-6 6-6" />
               </svg>
-              เลือกประเภทการใช้งาน
+              {access.staff?.accountType === "manager" ? "กลับหน้าผู้จัดการ" : "เลือกประเภทการใช้งาน"}
             </button>
           )}
 
@@ -1573,7 +1573,7 @@ export default function MiniAppHomePage() {
 
               >
 
-                กลับหน้าพนักงาน
+                {access.staff?.accountType === "manager" ? "กลับหน้าผู้จัดการ" : "กลับหน้าพนักงาน"}
 
               </button>
 
