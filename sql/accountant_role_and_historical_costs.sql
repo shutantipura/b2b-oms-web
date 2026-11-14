@@ -45,8 +45,7 @@ CREATE OR REPLACE FUNCTION public.accountant_fill_missing_costs(
 AS $fn$
 DECLARE
  v_count integer;
- v_product uuid;
- v_unit text;
+
  v_row record;
  v_batch uuid := gen_random_uuid();
 BEGIN
@@ -66,8 +65,7 @@ BEGIN
  -- Serialize overlapping batch attempts and preserve original snapshots.
  PERFORM 1 FROM public.order_items WHERE id=ANY(p_order_item_ids)
  ORDER BY id FOR UPDATE;
- SELECT count(*),min(oi.product_id),min(oi.unit_snapshot)
-   INTO v_count,v_product,v_unit
+ SELECT count(*) INTO v_count
  FROM public.order_items oi
  JOIN public.orders o ON o.id=oi.order_id
  WHERE oi.id=ANY(p_order_item_ids) AND o.status='completed'
