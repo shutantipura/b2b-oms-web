@@ -36,7 +36,8 @@ const MANAGER_NAVIGATION: NavigationItem[] = [
   { name: "สินค้าและราคา", href: "/catalog", description: "สินค้า รูปภาพ และราคาพิเศษ" },
   { name: "จัดการสต็อก", href: "/stock-management", description: "ดาวน์โหลดรายงานปริมาณขายสินค้า 14 วัน" },
   { name: "อุปกรณ์หน้าร้าน", href: "/terminals", description: "ลงทะเบียนอุปกรณ์ จัดการบัญชี และดูสถานะ" },
-  { name: "สิทธิ์ LINE", href: "/line-access", description: "เพิ่มบัญชี กำหนดบทบาทพนักงานและลูกค้า และสิทธิ์การใช้งาน" },
+  { name: "จัดการบัญชีและสิทธิ์", href: "/line-access", description: "ดูและกำหนดบทบาท LINE รวมถึงสิทธิ์ Manager, Staff, Customer และ Accountant" },
+  { name: "การเงินและบัญชี", href: "/miniapp?portal=accountant", description: "ดูยอดขาย บิล สลิป ต้นทุนและ GP" },
   { name: "KPI", href: "/kpi", description: "ติดตามผลการดำเนินงาน" },
 ];
 

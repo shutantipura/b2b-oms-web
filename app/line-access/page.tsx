@@ -5,7 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import LotusLoading from "@/components/LotusLoading";
 
-type Role = "manager" | "salesman" | "staff" | "customer";
+type Role = "manager" | "salesman" | "staff" | "customer" | "accountant";
 type LineAccount = {
   id: string;
   lineId: string;
@@ -33,6 +33,7 @@ const ROLES: Array<{id:Role; label:string; detail:string}> = [
   { id:"salesman",label:"Salesman",detail:"ดูแลลูกค้าและราคา เข้าถึงลูกค้าทุกคน" },
   { id:"staff",label:"Staff",detail:"ทำงานปฏิบัติการตามที่เลือก" },
   { id:"customer",label:"Customer",detail:"เข้าถึงเฉพาะร้านที่ผู้จัดการอนุญาต" },
+  { id:"accountant",label:"Accountant · บัญชี",detail:"ดูออเดอร์ การเงิน ต้นทุนและสลิปทุกลูกค้า · กรอกต้นทุนที่ขาดย้อนหลังเท่านั้น" },
 ];
 function draftFor(user:LineAccount):Draft {
   return { name:user.name??user.displayName??"",role:user.role??"",
@@ -145,9 +146,9 @@ export default function LineAccessPage(){
       <header className="rounded-[22px] border border-[#CBE5DC] bg-gradient-to-br from-[#E0F8F3] to-white p-5">
         <Link href="/login" className="text-sm font-bold text-[#008E88]">← กลับหน้าหลัก</Link>
         <p className="mt-3 text-xs font-black tracking-wide text-[#008E88]">LOTUS’S B2B · ADMIN</p>
-        <h1 className="mt-1 text-2xl font-black">สิทธิ์บัญชี LINE</h1>
+        <h1 className="mt-1 text-2xl font-black">จัดการบัญชีและสิทธิ์</h1>
         <p className="mt-2 text-sm leading-6 text-[#627D73]">
-          บัญชี LINE หนึ่งบัญชีเลือกได้เพียงหนึ่งประเภท · ระบบจะสร้างรหัสพนักงานและเชื่อม LINE อัตโนมัติ
+          เลือกหนึ่งบทบาทต่อบัญชี LINE · Manager, Staff และ Salesman ใช้พื้นที่ปฏิบัติการ ส่วน Accountant ใช้พื้นที่การเงินโดยไม่มีสิทธิ์งานปฏิบัติการ
         </p>
         <div className="mt-4 grid grid-cols-3 gap-2">
           <div className="rounded-xl bg-white/85 p-3 text-center">
@@ -258,9 +259,9 @@ export default function LineAccessPage(){
               </div>
             </section>}
 
-            {(selectedRole==="manager"||selectedRole==="salesman")&&
+            {(selectedRole==="manager"||selectedRole==="salesman"||selectedRole==="accountant")&&
               <div className="rounded-xl border border-[#CBE9E0] bg-[#EBFAF5] p-3 text-sm font-semibold text-[#007C76]">
-                ✓ เข้าถึงลูกค้าทุกรายโดยอัตโนมัติ · ไม่ต้องติ๊กสิทธิ์รายร้าน
+                ✓ {selectedRole==="accountant"?"ดูข้อมูลการเงินลูกค้าทุกราย · กรอกเฉพาะต้นทุนที่ขาด ไม่มีสิทธิ์เปลี่ยนบิลหรือยืนยันการชำระเงิน":"เข้าถึงลูกค้าทุกรายโดยอัตโนมัติ · ไม่ต้องติ๊กสิทธิ์รายร้าน"}
               </div>}
             <div className="grid grid-cols-[1fr_auto] gap-2">
               <button onClick={()=>void save(user)} disabled={!user.active||isBusy}

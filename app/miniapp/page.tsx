@@ -69,6 +69,8 @@ type AccessResponse = {
 
   hasStaffAccess?: boolean;
 
+  accountRole?: string | null;
+
   customers?: Customer[];
 
   staff?: StaffAccess | null;
@@ -736,6 +738,13 @@ export default function MiniAppHomePage() {
           data
 
         );
+        // Accountants have a separate, financially scoped workspace;
+        // they never create an operational staff session.
+        if (data.accountRole === "accountant" ||
+            (requestedPortal === "accountant" && data.accountRole === "manager")) {
+          router.replace("/accountant");
+          return;
+        }
 
         const customers =
 
