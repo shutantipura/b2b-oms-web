@@ -31,7 +31,9 @@ test("server only groups an explicitly chosen order and rejects stale choices", 
   assert.match(api,/rawMerge !== null && rawMerge !== undefined/);
   assert.match(api,/chosenMerge = requestedMergeNumber !== null/);
   assert.match(api,/findChosenMerge\(/);
-  assert.match(api,/requestedMergeNumber !== null && \(!chosenMerge \|\| chosenMerge.deliverySlot !== deliverySlot\)/);
+  assert.match(api,/requestedMergeNumber !== null && !chosenMerge/);
+  assert.doesNotMatch(api,/chosenMerge.deliverySlot !== deliverySlot/);
+  assert.match(api,/const effectiveDeliverySlot = chosenMerge\?\.deliverySlot \?\? deliverySlot/);
   assert.match(api,/mergeIntoOrderNumber = chosenMerge\?\.orderNumber \?\? null/);
   assert.match(api,/p_primary_order_number: mergeIntoOrderNumber/);
   assert.match(api,/p_delivery_slot: effectiveDeliverySlot/);
