@@ -478,7 +478,29 @@ export default function MiniAppCheckoutPage() {
         ? `สร้างคำสั่งซื้อใหม่มูลค่าประมาณ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} เพื่อจัดส่งร่วมกับกลุ่ม #${chosenMerge.orderNumber} รอบ ${selectedDeliverySlot} ใช่หรือไม่?\nสินค้าใหม่จะผ่านการเช็คสต็อกและจัดสินค้าแยกต่างหาก แล้วออกบิลและจัดส่งรวมครั้งเดียว${isMergeWindowOverdue(chosenMerge) ? "\nหมายเหตุ: รอบเดิมเลยเวลาจัดส่งแล้ว เวลาจัดส่งจริงอาจล่าช้า" : ""}`
         : `ยืนยันคำสั่งซื้อยอดประมาณการ ฿${estimatedTotal.toFixed(2)}${hasPieceOrders ? " (ยังไม่รวมสินค้าสั่งเป็นชิ้น)" : ""} หรือไม่?`;
     if (!window.confirm(confirmation)) return;
-    if (chosenMerge && !mergeRequestIdRef.current) mergeRequestIdRef.current = crypto.randomUUID();
+    // Keep the same request key across retries and page reloads after a lost
+    // response; different cart, address, date or merge choice rotates the key.
+    const attemptKey = `b2b-checkout-attempt-${customer.customerCode}`;
+    const attemptIntent = JSON.stringify({
+      cart: Object.entries(cart).sort(([a],[b]) => a.localeCompare(b)),
+      pieceProductIds: [...pieceProductIds].sort(),
+      deliveryDate, deliverySlot: selectedDeliverySlot,
+      fulfillmentMethod, deliveryAddress: fulfillmentMethod === "pickup" ? "" : deliveryAddress.trim(),
+      notes: notes.trim(), mergeTarget: chosenMerge?.orderNumber ?? null,
+    });
+    let requestId: string;
+    try {
+      const saved = JSON.parse(localStorage.getItem(attemptKey) ?? "null") as {
+        intent?: string; requestId?: string
+      } | null;
+      requestId = saved?.intent === attemptIntent &&
+        /^[0-9a-f-]{36}$/i.test(saved.requestId ?? "")
+        ? saved!.requestId! : crypto.randomUUID();
+      localStorage.setItem(attemptKey, JSON.stringify({intent:attemptIntent,requestId}));
+    } catch {
+      requestId = mergeRequestIdRef.current ?? crypto.randomUUID();
+    }
+    mergeRequestIdRef.current = requestId;
     setSubmitting(true);
 
     try {
@@ -498,13 +520,14 @@ export default function MiniAppCheckoutPage() {
           notes: notes.trim(),
           mergeIntoOrderNumber: chosenMerge?.orderNumber ?? null,
           mergeConsent: chosenMerge !== null,
-          requestId: chosenMerge ? mergeRequestIdRef.current : null,
+          requestId,
         }),
       });
       const data = (await response.json()) as CheckoutResponse;
       if (!response.ok) {
         if (response.status === 409) {
           mergeRequestIdRef.current = null;
+          try { localStorage.removeItem(attemptKey); } catch { /* storage unavailable */ }
           setSelectedMergeOrderNumber(null);
           setMergeRefreshTick(tick => tick + 1);
         }
@@ -527,6 +550,9 @@ export default function MiniAppCheckoutPage() {
         throw new Error("ส่งคำสั่งซื้อสำเร็จ แต่ไม่สามารถอ่านหมายเลขคำสั่งซื้อได้");
       }
 
+      // Consume the retry key only after confirmed success.
+      try { localStorage.removeItem(attemptKey); } catch { /* optional storage */ }
+      mergeRequestIdRef.current = null;
       // Preserve the existing behavior: clear the basket only after success.
       localStorage.removeItem(`b2b-cart-${customer.customerCode}`);
       localStorage.removeItem(`b2b-cart-pieces-${customer.customerCode}`);
