@@ -349,6 +349,7 @@ test("unpairing revokes the old station and clears the Android OMS session", () 
 test("No CV customer profiles use internal IDs and default billing to B2B Barcode", () => {
   const legacy = readFileSync(new URL("../app/customers/new/page.tsx", import.meta.url), "utf8");
   const create = readFileSync(new URL("../app/api/customer-registry/shops/route.ts", import.meta.url), "utf8");
+  const edit = readFileSync(new URL("../app/customers/[customerCode]/page.tsx", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../sql/shop_cv_account_registry.sql", import.meta.url), "utf8");
   const billing = readFileSync(new URL("../app/tasks/billing/[orderNumber]/page.tsx", import.meta.url), "utf8");
   assert.match(legacy, /redirect\("\/customers\/shops"\)/);
