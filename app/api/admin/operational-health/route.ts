@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { classifyAlarmStation } from "@/lib/alarmStationHealth";
 
 // Manager-only monitoring. No passwords, device pairing tokens, personal
 // customer details or document URLs are returned by this endpoint.
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
     if (staffError || !profile) {
       return NextResponse.json({ error: "Manager login required" }, { status: 403 });
     }
-    const [devices, orders] = await Promise.all([
+    const [devices, orders, recentOrders] = await Promise.all([
       db.from("alarm_stations")
         .select("label,last_seen_at,last_success_at,monitor_active")
         .is("revoked_at", null).limit(100),
@@ -40,21 +41,24 @@ export async function GET(request: NextRequest) {
         .select("order_number,completed_at", { count: "exact" })
         .eq("status", "completed").is("group_root_order_id", null)
         .is("final_amount", null).order("completed_at", { ascending: false }).limit(15),
+      db.from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "completed").is("group_root_order_id", null)
+        .is("final_amount", null)
+        .gte("completed_at", new Date(Date.now() - 14 * 86_400_000).toISOString()),
     ]);
-    if (devices.error || orders.error) {
-      throw devices.error ?? orders.error;
+    if (devices.error || orders.error || recentOrders.error) {
+      throw devices.error ?? orders.error ?? recentOrders.error;
     }
 
     const now = Date.now();
     const unhealthyStations = (devices.data ?? []).flatMap(station => {
+      const status = classifyAlarmStation(station, now);
+      if (status === "healthy" || status === "revoked") return [];
       const seen = station.last_seen_at ? Date.parse(station.last_seen_at) : NaN;
-      const success = station.last_success_at ? Date.parse(station.last_success_at) : NaN;
-      const offline = !Number.isFinite(seen) || now - seen > 90_000;
-      const degraded = !offline && (!Number.isFinite(success) || now - success > 120_000);
-      if (!offline && !degraded) return [];
       return [{
         label: station.label,
-        status: offline ? "offline" : "degraded",
+        status,
         minutesSinceSeen: Number.isFinite(seen) ? Math.max(0, Math.floor((now - seen) / 60_000)) : null,
       }];
     });
@@ -62,6 +66,7 @@ export async function GET(request: NextRequest) {
       checkedAt: new Date(now).toISOString(),
       unhealthyStations,
       missingBillCount: orders.count ?? 0,
+      recentMissingBillCount: recentOrders.count ?? 0,
       missingBillOrders: (orders.data ?? []).map(order => ({
         orderNumber: order.order_number, completedAt: order.completed_at,
       })),

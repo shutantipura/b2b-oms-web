@@ -37,8 +37,8 @@ test("manager-only health reports offline devices and missing bills without modi
   assert.match(health,/\.is\("revoked_at", null\)/);
   assert.match(health,/\.is\("final_amount", null\)/);
   assert.match(health,/\.eq\("status", "completed"\)/);
-  assert.match(health,/90_000/);
-  assert.match(health,/120_000/);
+  assert.match(health,/classifyAlarmStation/);
+  assert.match(health,/recentMissingBillCount/);
   assert.doesNotMatch(health,/\.update\(|\.delete\(|\.insert\(/);
   assert.match(manager,/staff\?\.account_type !== "manager"/);
   assert.match(manager,/\/api\/admin\/operational-health/);
