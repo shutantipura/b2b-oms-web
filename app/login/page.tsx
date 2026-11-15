@@ -40,6 +40,7 @@ const TASK_STATUS_MAP: Record<string, string[]> = {
 const MANAGER_NAVIGATION: NavigationItem[] = [
   { name: "งาน", href: "/tasks", description: "คิวงานปฏิบัติการ" },
   { name: "คำสั่งซื้อ", href: "/orders", description: "ดูและติดตามคำสั่งซื้อ" },
+  { name: "รายการที่ต้องตรวจสอบ", href: "/manager/warnings", description: "ตรวจสอบอุปกรณ์แจ้งเตือนและรายการที่ยังต้องติดตาม" },
   { name: "สั่งสินค้าแทนลูกค้า", href: "/miniapp?portal=customer", description: "เลือกบัญชีลูกค้าที่ต้องการเพื่อสั่งสินค้าและดูราคา" },
   { name: "ลูกค้า", href: "/customers", description: "จัดการบัญชีลูกค้า B2B" },
   { name: "สินค้าและราคา", href: "/catalog", description: "สินค้า รูปภาพ และราคาพิเศษ" },
@@ -222,6 +223,9 @@ export default function OmsHomePage() {
     ...navigation.filter((item) => item.href === "/orders"),
     ...navigation.filter((item) => item.href !== "/tasks" && item.href !== "/orders"),
   ];
+  const warningsToCheck = operationalHealth
+    ? operationalHealth.unhealthyStations.length + operationalHealth.missingBillCount
+    : 0;
 
   return (
     <main className="min-h-screen bg-[#F3F8F7] px-4 pb-24 pt-5 sm:px-7 sm:py-8">
@@ -241,57 +245,6 @@ export default function OmsHomePage() {
 
           </div>
         </section>
-
-        {isManager && (healthError || (operationalHealth &&
-            (operationalHealth.unhealthyStations.length > 0 || operationalHealth.missingBillCount > 0 || operationalHealth.manualClosedWithoutBillCount > 0))) && (
-          <section aria-label="การแจ้งเตือนการปฏิบัติงาน" className={`mt-4 rounded-2xl border p-4 sm:p-5 ${operationalHealth && operationalHealth.unhealthyStations.length === 0 && operationalHealth.missingBillCount === 0 ? "border-[#D5E8E1] bg-white text-[#466F65]" : "border-[#F1D99E] bg-[#FFFBF0] text-[#624B19]"}`}>
-            <h2 className="text-sm font-black">{operationalHealth && operationalHealth.unhealthyStations.length === 0 && operationalHealth.missingBillCount === 0 ? "ประวัติการบังคับปิดงานของ Manager" : "รายการที่ผู้จัดการควรตรวจสอบ"}</h2>
-            {healthError && <p role="status" className="mt-2 text-sm">{healthError}</p>}
-            {operationalHealth && (
-              <div className="mt-3 space-y-3 text-sm">
-                {operationalHealth.unhealthyStations.length > 0 && (
-                  <div>
-                    <p className="font-extrabold">อุปกรณ์แจ้งเตือนมีปัญหา ({operationalHealth.unhealthyStations.length})</p>
-                    <p className="mt-1 leading-6">
-                      {operationalHealth.unhealthyStations.map(device =>
-                        `${device.label}: ${device.status === "offline" ? "ไม่ออนไลน์" : device.status === "disabled" ? "หยุดเฝ้าระวังออเดอร์" : device.status === "awaiting" ? "ยังไม่เคยเชื่อมต่อ" : "เชื่อม OMS ไม่สำเร็จ"}${device.minutesSinceSeen === null ? "" : ` (${device.minutesSinceSeen} นาที)`}`
-                      ).join(" · ")}
-                    </p>
-                    <Link href="/alarm-stations" className="mt-1 inline-block font-extrabold underline underline-offset-4">ตรวจสอบสถานะเครื่อง</Link>
-                  </div>
-                )}
-                {operationalHealth.manualClosedWithoutBillCount > 0 && (
-                  <div className="rounded-xl border border-[#D8E8E2] bg-white p-3 text-[#426D62]">
-                    <p className="font-extrabold">Manager บังคับปิดงานก่อนมีบิล ({operationalHealth.manualClosedWithoutBillCount})</p>
-                    <p className="mt-1 text-xs">เป็นการปิดงานด้วยสิทธิ์ Manager ไม่ใช่ยอดขายที่ยืนยันแล้ว · ไม่รวมใน KPI การเงิน</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {operationalHealth.manualClosedWithoutBillOrders.map(order => (
-                        <Link key={order.orderNumber} href={`/orders/${order.orderNumber}`}
-                          className="rounded-lg border border-[#CEE4DB] bg-[#F6FAF9] px-2.5 py-1 text-xs font-black">
-                          #{order.orderNumber}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {operationalHealth.missingBillCount > 0 && (
-                  <div>
-                    <p className="font-extrabold">คำสั่งซื้อที่ปิดงานแล้วแต่ไม่มีข้อมูลยอดบิล ({operationalHealth.missingBillCount})</p>
-                    <p className="mt-1 text-xs">{operationalHealth.recentMissingBillCount > 0 ? `มี ${operationalHealth.recentMissingBillCount} คำสั่งซื้อใน 14 วันที่ผ่านมา · ` : "เป็นข้อมูลย้อนหลัง · "}ตรวจสอบหลักฐานก่อนดำเนินการ ไม่แก้ยอดอัตโนมัติ</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {operationalHealth.missingBillOrders.map(order => (
-                        <Link key={order.orderNumber} href={`/orders/${order.orderNumber}`}
-                          className="rounded-lg border border-[#EAD7A4] bg-white px-2.5 py-1 text-xs font-black">
-                          #{order.orderNumber}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-        )}
 
         <Link
           href={isSalesman ? "/salesman" : "/tasks"}
@@ -329,6 +282,14 @@ export default function OmsHomePage() {
                 </span>
               </div>
               <span className="pr-5 text-base font-black leading-snug text-[#17453F]">{item.name}</span>
+              {item.href === "/manager/warnings" && warningsToCheck > 0 && (
+                <span className="mb-1 inline-flex w-fit items-center rounded-full bg-[#FFF3D6] px-2.5 py-1 text-xs font-extrabold text-[#8E6108]">
+                  {warningsToCheck} รายการต้องตรวจสอบ
+                </span>
+              )}
+              {item.href === "/manager/warnings" && healthError && (
+                <span className="mb-1 text-xs font-bold text-[#8E6108]">ตรวจสอบสถานะไม่สำเร็จ</span>
+              )}
               <span className="mt-2 pr-9 text-xs leading-5 text-[#77918A]">{item.description}</span>
               <span
                 aria-hidden="true"

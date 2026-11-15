@@ -11,6 +11,10 @@ const icons: Record<string, ReactNode> = {
     <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" />
     <path d="M9 8h6M9 12h6M9 16h3" />
   </>,
+  "/manager/warnings": <>
+    <path d="M10.3 3.9 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+    <path d="M12 9v4M12 17h.01" />
+  </>,
   "/miniapp?portal=customer": <>
     <circle cx="9" cy="20" r="1" />
     <circle cx="19" cy="20" r="1" />

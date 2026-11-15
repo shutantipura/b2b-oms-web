@@ -7,7 +7,7 @@ const icon = readFileSync("components/HomeMenuIcon.tsx", "utf8");
 
 test("All role shortcuts get a meaningful decorative icon without altering their routes", () => {
   const hrefs = [
-    "/tasks", "/orders", "/miniapp?portal=customer", "/customers", "/catalog",
+    "/tasks", "/orders", "/manager/warnings", "/miniapp?portal=customer", "/customers", "/catalog",
     "/stock-management", "/salesman/reviews", "/kpi", "/line-access", "/terminals",
     "/salesman", "/miniapp?portal=accountant",
   ];

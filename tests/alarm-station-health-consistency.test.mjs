@@ -27,10 +27,10 @@ test("stale terminal and never-paired terminal are distinct, including during qu
 test("Manager health and station detail share the same status function",()=>{
   const health=readFileSync(new URL("../app/api/admin/operational-health/route.ts",import.meta.url),"utf8");
   const station=readFileSync(new URL("../app/alarm-stations/page.tsx",import.meta.url),"utf8");
-  const manager=readFileSync(new URL("../app/login/page.tsx",import.meta.url),"utf8");
+  const warnings=readFileSync(new URL("../app/manager/warnings/page.tsx",import.meta.url),"utf8");
   assert.match(health,/classifyAlarmStation\(station, now\)/);
   assert.match(station,/classifyAlarmStation\(station, now\)/);
-  assert.match(manager,/status === "disabled"/);
+  assert.match(warnings,/case "disabled": return/);
   assert.match(station,/ต้องจับคู่เครื่องด้วยรหัส 6 หลัก/);
   assert.doesNotMatch(station,/การจับคู่เป็นทางเลือกเท่านั้น/);
   assert.doesNotMatch(station,/เสียงเตือน OMS ยังทำงานบนเครื่องได้เหมือนเดิม/);
