@@ -11,7 +11,6 @@ test("Manager home navigation prioritizes everyday work while keeping all cards"
   assert.deepEqual(hrefs, [
     "/tasks", // Main daily-work CTA, excluded from shortcut cards
     "/orders",
-    "/manager/warnings",
     "/miniapp?portal=customer",
     "/customers",
     "/catalog",

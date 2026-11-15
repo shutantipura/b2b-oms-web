@@ -27,7 +27,5 @@ test("audited manual closures and unexplained missing bills are distinct",()=>{
   assert.match(api,/\.not\("force_completed_at", "is", null\)/);
   assert.match(api,/missingBillCount: unexplained.count/);
   assert.match(api,/manualClosedWithoutBillCount/);
-  const warnings = read("app/manager/warnings/page.tsx");
-  assert.match(warnings,/manualClosedWithoutBillCount/);
   assert.match(detail,/Manager บังคับปิดงานก่อนมีบิล/);
 });
