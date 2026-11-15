@@ -14,15 +14,6 @@ type StaffProfile = {
   is_active: boolean;
 };
 
-type OperationalHealth = {
-  unhealthyStations: { label: string; status: "offline" | "degraded" | "disabled" | "awaiting"; minutesSinceSeen: number | null }[];
-  missingBillCount: number;
-  recentMissingBillCount: number;
-  missingBillOrders: { orderNumber: number; completedAt: string | null }[];
-  manualClosedWithoutBillCount: number;
-  manualClosedWithoutBillOrders: { orderNumber: number; completedAt: string | null }[];
-};
-
 type NavigationItem = {
   name: string;
   href: string;
@@ -40,7 +31,6 @@ const TASK_STATUS_MAP: Record<string, string[]> = {
 const MANAGER_NAVIGATION: NavigationItem[] = [
   { name: "งาน", href: "/tasks", description: "คิวงานปฏิบัติการ" },
   { name: "คำสั่งซื้อ", href: "/orders", description: "ดูและติดตามคำสั่งซื้อ" },
-  { name: "รายการที่ต้องตรวจสอบ", href: "/manager/warnings", description: "ตรวจสอบอุปกรณ์แจ้งเตือนและรายการที่ยังต้องติดตาม" },
   { name: "สั่งสินค้าแทนลูกค้า", href: "/miniapp?portal=customer", description: "เลือกบัญชีลูกค้าที่ต้องการเพื่อสั่งสินค้าและดูราคา" },
   { name: "ลูกค้า", href: "/customers", description: "จัดการบัญชีลูกค้า B2B" },
   { name: "สินค้าและราคา", href: "/catalog", description: "สินค้า รูปภาพ และราคาพิเศษ" },
@@ -68,8 +58,6 @@ export default function OmsHomePage() {
   const [activeOrderCount, setActiveOrderCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [operationalHealth, setOperationalHealth] = useState<OperationalHealth | null>(null);
-  const [healthError, setHealthError] = useState("");
 
   const loadStaff = useCallback(async () => {
     setLoading(true);
@@ -148,31 +136,6 @@ export default function OmsHomePage() {
     return () => window.clearTimeout(initial);
   }, [loadStaff]);
 
-  const loadOperationalHealth = useCallback(async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Missing Manager session");
-      const response = await fetch("/api/admin/operational-health", {
-        headers: { Authorization: "Bearer " + session.access_token },
-        cache: "no-store",
-      });
-      if (!response.ok) throw new Error("Health check unavailable");
-      const summary = await response.json() as OperationalHealth;
-      setOperationalHealth(summary);
-      setHealthError("");
-    } catch {
-      setOperationalHealth(null);
-      setHealthError("ไม่สามารถตรวจสอบสถานะอุปกรณ์และบิลได้");
-    }
-  }, []);
-
-  useEffect(() => {
-    if (staff?.account_type !== "manager") return;
-    const initial = window.setTimeout(() => void loadOperationalHealth(), 0);
-    const interval = window.setInterval(() => void loadOperationalHealth(), 60_000);
-    return () => { window.clearTimeout(initial); window.clearInterval(interval); };
-  }, [staff?.account_type, loadOperationalHealth]);
-
   if (loading) {
     return <LotusLoading message="กำลังเปิดระบบจัดการคำสั่งซื้อ..." />;
   }
@@ -223,9 +186,6 @@ export default function OmsHomePage() {
     ...navigation.filter((item) => item.href === "/orders"),
     ...navigation.filter((item) => item.href !== "/tasks" && item.href !== "/orders"),
   ];
-  const warningsToCheck = operationalHealth
-    ? operationalHealth.unhealthyStations.length + operationalHealth.missingBillCount
-    : 0;
 
   return (
     <main className="min-h-screen bg-[#F3F8F7] px-4 pb-24 pt-5 sm:px-7 sm:py-8">
@@ -282,14 +242,6 @@ export default function OmsHomePage() {
                 </span>
               </div>
               <span className="pr-5 text-base font-black leading-snug text-[#17453F]">{item.name}</span>
-              {item.href === "/manager/warnings" && warningsToCheck > 0 && (
-                <span className="mb-1 inline-flex w-fit items-center rounded-full bg-[#FFF3D6] px-2.5 py-1 text-xs font-extrabold text-[#8E6108]">
-                  {warningsToCheck} รายการต้องตรวจสอบ
-                </span>
-              )}
-              {item.href === "/manager/warnings" && healthError && (
-                <span className="mb-1 text-xs font-bold text-[#8E6108]">ตรวจสอบสถานะไม่สำเร็จ</span>
-              )}
               <span className="mt-2 pr-9 text-xs leading-5 text-[#77918A]">{item.description}</span>
               <span
                 aria-hidden="true"

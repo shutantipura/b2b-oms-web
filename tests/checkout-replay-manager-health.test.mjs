@@ -40,9 +40,6 @@ test("manager-only health reports offline devices and missing bills without modi
   assert.match(health,/classifyAlarmStation/);
   assert.match(health,/recentMissingBillCount/);
   assert.doesNotMatch(health,/\.update\(|\.delete\(|\.insert\(/);
-  const warnings = read("app/manager/warnings/page.tsx");
-  assert.match(warnings,/staff\?\.account_type !== "manager"/);
-  assert.match(manager,/\/api\/admin\/operational-health/);
-  assert.match(warnings,/href="\/alarm-stations"/);
-  assert.match(warnings,/\/orders\//);
+  assert.match(manager,/const navigation = isManager \? MANAGER_NAVIGATION/);
+  assert.doesNotMatch(manager,/\/manager\/warnings/);
 });
