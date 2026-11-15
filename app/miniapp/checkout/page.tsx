@@ -9,6 +9,7 @@ import { lineApiFetch } from "../../../lib/lineSession";
 import { isMergeWindowOverdue, listEligibleMergeChoices } from "../../../lib/orderMergeChoices";
 import { isGoogleMapsUrl, MAX_DELIVERY_LOCATIONS, type DeliveryLocation } from "../../../lib/deliveryLocations";
 import { cartHasPositiveQuantity } from "../../../lib/customerCart";
+import { checkoutReceiptKey, parseCheckoutReceipt, type CheckoutReceipt } from "../../../lib/checkoutReceipt";
 
 type Customer = {
   id: string;
@@ -145,6 +146,22 @@ export default function MiniAppCheckoutPage() {
         ).trim().toUpperCase();
         if (!customerCode) throw new Error("ไม่ได้เลือกลูกค้า");
         if (!cancelled) setCheckoutCustomerCode(customerCode);
+
+        // LINE may remount the checkout page after the successful response.
+        // The cart has already been cleared, so recover the receipt FIRST.
+        // Do not reinitialize LIFF or create another order just to show success.
+        const receiptKey = checkoutReceiptKey(customerCode);
+        const receipt = parseCheckoutReceipt(sessionStorage.getItem(receiptKey), customerCode)
+          ?? parseCheckoutReceipt(localStorage.getItem(receiptKey), customerCode);
+        if (receipt) {
+          if (!cancelled) {
+            setCreatedOrderNumber(receipt.orderNumber);
+            setCreatedDisplayNumber(receipt.displayNumber);
+            setWasMerged(receipt.grouped);
+            setEmptyCart(false);
+          }
+          return;
+        }
 
         const stored = localStorage.getItem(`b2b-cart-${customerCode}`);
         // Visiting checkout with an empty basket is normal (e.g. revisiting a
@@ -550,15 +567,43 @@ export default function MiniAppCheckoutPage() {
         throw new Error("ส่งคำสั่งซื้อสำเร็จ แต่ไม่สามารถอ่านหมายเลขคำสั่งซื้อได้");
       }
 
-      // Consume the retry key only after confirmed success.
-      try { localStorage.removeItem(attemptKey); } catch { /* optional storage */ }
+      // Persist acknowledgement BEFORE removing the basket. Otherwise LINE
+      // WebView reloads can reopen checkout with an empty cart and lose the
+      // successful order number. Store only non-sensitive confirmation fields.
+      const receipt: CheckoutReceipt = {
+        customerCode: customer.customerCode.trim().toUpperCase(),
+        orderNumber: data.orderNumber,
+        displayNumber: data.displayNumber ?? String(data.orderNumber),
+        grouped: Boolean(data.grouped),
+        savedAt: Date.now(),
+      };
+      const receiptKey = checkoutReceiptKey(customer.customerCode);
+      let savedReceipt = false;
+      try {
+        localStorage.setItem(receiptKey, JSON.stringify(receipt));
+        savedReceipt = true;
+      } catch { /* session storage is a second chance on restricted browsers */ }
+      try {
+        sessionStorage.setItem(receiptKey, JSON.stringify(receipt));
+        savedReceipt = true;
+      } catch { /* local storage may already have saved it */ }
+
+      // Only clear the cart and retry key once the receipt is durable.
+      // If both stores fail, retain the original idempotency key rather than
+      // risk a duplicate order after a reload.
+      if (savedReceipt) {
+        try {
+          localStorage.removeItem(attemptKey);
+          localStorage.removeItem(`b2b-cart-${customer.customerCode}`);
+          localStorage.removeItem(`b2b-cart-pieces-${customer.customerCode}`);
+        } catch (storageError) {
+          console.warn("Checkout cart cleanup failed:", storageError);
+        }
+      }
       mergeRequestIdRef.current = null;
-      // Preserve the existing behavior: clear the basket only after success.
-      localStorage.removeItem(`b2b-cart-${customer.customerCode}`);
-      localStorage.removeItem(`b2b-cart-pieces-${customer.customerCode}`);
-      setWasMerged(Boolean(data.grouped));
-      setCreatedDisplayNumber(data.displayNumber ?? String(data.orderNumber));
-      setCreatedOrderNumber(data.orderNumber);
+      setWasMerged(receipt.grouped);
+      setCreatedDisplayNumber(receipt.displayNumber);
+      setCreatedOrderNumber(receipt.orderNumber);
     } catch (error) {
       console.error("Submit order:", error);
       setMessage(error instanceof Error ? error.message : "ไม่สามารถส่งคำสั่งซื้อได้");
@@ -573,6 +618,36 @@ export default function MiniAppCheckoutPage() {
   if (loading) {
     return <LotusLoading message="กำลังตรวจสอบรายการสินค้า..." />;
   }
+
+  if (createdOrderNumber !== null) {
+    return (
+      <main className="min-h-screen bg-[#F7FAFA] px-4 py-8 text-[#173E31]">
+        <div className="mx-auto max-w-md">
+          <div className={`${card} p-6 text-center sm:p-8`}>
+            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#E1F8F1] text-5xl font-black text-[#009F9D]">✓</div>
+            <h1 className="mt-5 text-2xl font-extrabold">{wasMerged ? "สร้างคำสั่งซื้อร่วมจัดส่งเรียบร้อยแล้ว!" : "ได้รับคำสั่งซื้อแล้ว!"}</h1>
+            <p className="mt-2 text-sm leading-6 text-[#748C80]">
+              {wasMerged
+                ? "สร้างคำสั่งซื้อย่อยสำเร็จแล้ว ทีมงานจะเช็คสต็อกและจัดสินค้าแยกจากคำสั่งซื้อเดิม เมื่อทุกคำสั่งซื้อจัดครบแล้วจึงออกบิลรวมและจัดส่งพร้อมกัน"
+                : "ทีมงานได้รับคำสั่งซื้อแล้ว และจะเช็คสต็อกก่อนจัดสินค้า"}
+            </p>
+            <div className="mt-6 rounded-2xl border border-[#BDEAE3] bg-[#EDFAF8] p-5">
+              <p className="text-xs font-semibold text-[#668B81]">หมายเลขคำสั่งซื้อ</p>
+              <p className="mt-1 text-4xl font-black text-[#008F8D]">#{createdDisplayNumber ?? createdOrderNumber}</p>
+              <span className="mt-3 inline-block rounded-full bg-[#FFF2C9] px-3 py-1 text-xs font-bold text-[#906300]">
+                {wasMerged ? "รอเช็คสต็อกคำสั่งซื้อย่อย" : "รอทีมงานเช็คสต็อก"}
+              </span>
+            </div>
+            <p className="mt-5 text-xs leading-5 text-[#82968D]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการเช็คสต็อกและการจัดสินค้า</p>
+            <button type="button" onClick={() => router.push(`/miniapp/orders?customer=${encodeURIComponent(customer?.customerCode ?? checkoutCustomerCode)}&view=active`)} className="mt-6 min-h-12 w-full rounded-xl bg-[#02B0AF] px-5 py-3 font-extrabold text-white">ติดตามคำสั่งซื้อ →</button>
+            <button type="button" onClick={goShop} className="mt-3 min-h-12 w-full rounded-xl border-2 border-[#BDE5DF] bg-white px-5 py-3 font-bold text-[#008F8D]">สั่งสินค้าเพิ่ม</button>
+            <button type="button" onClick={() => router.push("/miniapp")} className="mt-4 px-3 py-2 text-sm font-semibold text-[#789186]">กลับหน้าหลัก</button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
 
   if (emptyCart) {
     return (
@@ -617,34 +692,6 @@ export default function MiniAppCheckoutPage() {
     );
   }
 
-  if (createdOrderNumber !== null) {
-    return (
-      <main className="min-h-screen bg-[#F7FAFA] px-4 py-8 text-[#173E31]">
-        <div className="mx-auto max-w-md">
-          <div className={`${card} p-6 text-center sm:p-8`}>
-            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#E1F8F1] text-5xl font-black text-[#009F9D]">✓</div>
-            <h1 className="mt-5 text-2xl font-extrabold">{wasMerged ? "สร้างคำสั่งซื้อร่วมจัดส่งเรียบร้อยแล้ว!" : "ได้รับคำสั่งซื้อแล้ว!"}</h1>
-            <p className="mt-2 text-sm leading-6 text-[#748C80]">
-              {wasMerged
-                ? "สร้างคำสั่งซื้อย่อยสำเร็จแล้ว ทีมงานจะเช็คสต็อกและจัดสินค้าแยกจากคำสั่งซื้อเดิม เมื่อทุกคำสั่งซื้อจัดครบแล้วจึงออกบิลรวมและจัดส่งพร้อมกัน"
-                : "ทีมงานได้รับคำสั่งซื้อแล้ว และจะเช็คสต็อกก่อนจัดสินค้า"}
-            </p>
-            <div className="mt-6 rounded-2xl border border-[#BDEAE3] bg-[#EDFAF8] p-5">
-              <p className="text-xs font-semibold text-[#668B81]">หมายเลขคำสั่งซื้อ</p>
-              <p className="mt-1 text-4xl font-black text-[#008F8D]">#{createdDisplayNumber ?? createdOrderNumber}</p>
-              <span className="mt-3 inline-block rounded-full bg-[#FFF2C9] px-3 py-1 text-xs font-bold text-[#906300]">
-                {wasMerged ? "รอเช็คสต็อกคำสั่งซื้อย่อย" : "รอทีมงานเช็คสต็อก"}
-              </span>
-            </div>
-            <p className="mt-5 text-xs leading-5 text-[#82968D]">จำนวนสินค้าและยอดสุทธิอาจเปลี่ยนแปลงหลังการเช็คสต็อกและการจัดสินค้า</p>
-            <button type="button" onClick={() => router.push(`/miniapp/orders?customer=${encodeURIComponent(customer.customerCode)}&view=active`)} className="mt-6 min-h-12 w-full rounded-xl bg-[#02B0AF] px-5 py-3 font-extrabold text-white">ติดตามคำสั่งซื้อ →</button>
-            <button type="button" onClick={goShop} className="mt-3 min-h-12 w-full rounded-xl border-2 border-[#BDE5DF] bg-white px-5 py-3 font-bold text-[#008F8D]">สั่งสินค้าเพิ่ม</button>
-            <button type="button" onClick={() => router.push("/miniapp")} className="mt-4 px-3 py-2 text-sm font-semibold text-[#789186]">กลับหน้าหลัก</button>
-          </div>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="min-h-screen bg-[#F7FAFA] pb-32 text-[#173E31]">

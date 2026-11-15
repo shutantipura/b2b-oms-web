@@ -28,6 +28,8 @@ import Image from "next/image";
 import LotusLoading from "../../../components/LotusLoading";
 import LotusBrand from "@/components/LotusBrand";
 import { lineApiFetch } from "../../../lib/lineSession";
+import { checkoutReceiptKey } from "../../../lib/checkoutReceipt";
+import { cartHasPositiveQuantity } from "../../../lib/customerCart";
 
 
 
@@ -2234,7 +2236,14 @@ export default function MiniAppShopPage() {
 
     }
 
-
+    // A genuinely new shopping basket supersedes the previous confirmation.
+    // Clearing on cart edits (not on page load) preserves a submitted order's
+    // receipt when customers simply navigate back and forth.
+    if (cartHasPositiveQuantity(newCart)) {
+      const receiptKey = checkoutReceiptKey(customer.customerCode);
+      try { localStorage.removeItem(receiptKey); } catch { /* optional storage */ }
+      try { sessionStorage.removeItem(receiptKey); } catch { /* optional storage */ }
+    }
 
     localStorage.setItem(
 
