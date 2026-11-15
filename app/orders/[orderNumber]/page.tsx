@@ -41,6 +41,8 @@ type OrderDetails = {
   customer_notes: string | null;
 
   final_amount: number | string | null;
+  force_completed_at: string | null;
+  force_complete_reason: string | null;
   billing_account_suspended: boolean;
   billing_no_cv: boolean;
   cv_card_resolved_at: string | null;
@@ -372,6 +374,8 @@ export default function OrderDetailsPage() {
         customer_notes,
 
         final_amount,
+        force_completed_at,
+        force_complete_reason,
         billing_account_suspended,
         billing_no_cv,
         cv_card_resolved_at,
@@ -1375,6 +1379,15 @@ export default function OrderDetailsPage() {
 
 
 
+            {order.status === "completed" && order.final_amount === null &&
+              order.force_completed_at && (
+              <p className="mt-2 rounded-lg border border-[#C7E5DC] bg-[#EFF9F5] px-3 py-2 text-sm text-[#216A5D]">
+                Manager บังคับปิดงานก่อนมีบิล · ไม่รวมใน KPI การเงิน
+                {order.force_complete_reason && (
+                  <span className="mt-1 block text-xs">เหตุผล: {order.force_complete_reason}</span>
+                )}
+              </p>
+            )}
             {order.final_amount !== null && (
 
               <p className="text-2xl font-bold mt-3">
