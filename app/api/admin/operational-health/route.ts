@@ -33,22 +33,30 @@ export async function GET(request: NextRequest) {
     if (staffError || !profile) {
       return NextResponse.json({ error: "Manager login required" }, { status: 403 });
     }
-    const [devices, orders, recentOrders] = await Promise.all([
+    const [devices, orders, recentOrders, unexplained, manualClosures] = await Promise.all([
       db.from("alarm_stations")
         .select("label,last_seen_at,last_success_at,monitor_active")
         .is("revoked_at", null).limit(100),
       db.from("orders")
-        .select("order_number,completed_at", { count: "exact" })
+        .select("order_number,completed_at,force_completed_at", { count: "exact" })
         .eq("status", "completed").is("group_root_order_id", null)
         .is("final_amount", null).order("completed_at", { ascending: false }).limit(15),
       db.from("orders")
         .select("id", { count: "exact", head: true })
         .eq("status", "completed").is("group_root_order_id", null)
-        .is("final_amount", null)
+        .is("final_amount", null).is("force_completed_at", null)
         .gte("completed_at", new Date(Date.now() - 14 * 86_400_000).toISOString()),
+      db.from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "completed").is("group_root_order_id", null)
+        .is("final_amount", null).is("force_completed_at", null),
+      db.from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "completed").is("group_root_order_id", null)
+        .is("final_amount", null).not("force_completed_at", "is", null),
     ]);
-    if (devices.error || orders.error || recentOrders.error) {
-      throw devices.error ?? orders.error ?? recentOrders.error;
+    if (devices.error || orders.error || recentOrders.error || unexplained.error || manualClosures.error) {
+      throw devices.error ?? orders.error ?? recentOrders.error ?? unexplained.error ?? manualClosures.error;
     }
 
     const now = Date.now();
@@ -65,11 +73,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       checkedAt: new Date(now).toISOString(),
       unhealthyStations,
-      missingBillCount: orders.count ?? 0,
+      missingBillCount: unexplained.count ?? 0,
       recentMissingBillCount: recentOrders.count ?? 0,
-      missingBillOrders: (orders.data ?? []).map(order => ({
-        orderNumber: order.order_number, completedAt: order.completed_at,
-      })),
+      missingBillOrders: (orders.data ?? []).filter(order => !order.force_completed_at)
+        .map(order => ({ orderNumber: order.order_number, completedAt: order.completed_at })),
+      manualClosedWithoutBillCount: manualClosures.count ?? 0,
+      manualClosedWithoutBillOrders: (orders.data ?? []).filter(order => !!order.force_completed_at)
+        .map(order => ({ orderNumber: order.order_number, completedAt: order.completed_at })),
     }, { headers: noCache });
   } catch (error) {
     console.error("[operational-health] Load failed:", error instanceof Error ? error.message : "unknown");

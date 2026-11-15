@@ -581,14 +581,18 @@ export default function OrdersPage() {
   async function forceCompleteOrder(
     orderNumber: number
   ) {
-    const confirmed =
-      window.confirm(
-        `ยืนยันบังคับให้คำสั่งซื้อ #${orderNumber} เสร็จสิ้นทันทีหรือไม่?\n\nระบบจะปิดงานที่กำลังดำเนินการอยู่และเปลี่ยนสถานะเป็นเสร็จสิ้น`
-      );
-
-    if (!confirmed) {
+    const suppliedReason = window.prompt(
+      `ระบุเหตุผลที่ต้องบังคับปิดคำสั่งซื้อ #${orderNumber}\n(อย่างน้อย 8 ตัวอักษร)\nหากยังไม่ออกบิล จะไม่นับเป็นยอดขายใน KPI`, "",
+    );
+    if (suppliedReason === null) return;
+    const reason = suppliedReason.trim();
+    if (reason.length < 8) {
+      setMessage("กรุณาระบุเหตุผลในการบังคับปิดงานอย่างน้อย 8 ตัวอักษร");
       return;
     }
+    if (!window.confirm(
+      `ยืนยันบังคับปิดคำสั่งซื้อ #${orderNumber}?\nเหตุผล: ${reason}\n\nหากไม่มีบิล จะไม่รวมในยอดขาย`
+    )) return;
 
     setManagerActionOrder(
       orderNumber
@@ -599,10 +603,10 @@ export default function OrdersPage() {
       error,
     } =
       await supabase.rpc(
-        "manager_force_complete_order",
+        "force_complete_as_manager",
         {
-          p_order_number:
-            orderNumber,
+          p_order_number: orderNumber,
+          p_reason: reason,
         }
       );
 

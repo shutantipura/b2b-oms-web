@@ -19,6 +19,8 @@ type OperationalHealth = {
   missingBillCount: number;
   recentMissingBillCount: number;
   missingBillOrders: { orderNumber: number; completedAt: string | null }[];
+  manualClosedWithoutBillCount: number;
+  manualClosedWithoutBillOrders: { orderNumber: number; completedAt: string | null }[];
 };
 
 type NavigationItem = {
@@ -241,9 +243,9 @@ export default function OmsHomePage() {
         </section>
 
         {isManager && (healthError || (operationalHealth &&
-            (operationalHealth.unhealthyStations.length > 0 || operationalHealth.missingBillCount > 0))) && (
-          <section aria-label="การแจ้งเตือนการปฏิบัติงาน" className={`mt-4 rounded-2xl border p-4 sm:p-5 ${operationalHealth && operationalHealth.unhealthyStations.length === 0 && operationalHealth.recentMissingBillCount === 0 ? "border-[#D5E8E1] bg-white text-[#466F65]" : "border-[#F1D99E] bg-[#FFFBF0] text-[#624B19]"}`}>
-            <h2 className="text-sm font-black">{operationalHealth && operationalHealth.unhealthyStations.length === 0 && operationalHealth.recentMissingBillCount === 0 ? "บิลย้อนหลังที่ควรตรวจสอบ" : "รายการที่ผู้จัดการควรตรวจสอบ"}</h2>
+            (operationalHealth.unhealthyStations.length > 0 || operationalHealth.missingBillCount > 0 || operationalHealth.manualClosedWithoutBillCount > 0))) && (
+          <section aria-label="การแจ้งเตือนการปฏิบัติงาน" className={`mt-4 rounded-2xl border p-4 sm:p-5 ${operationalHealth && operationalHealth.unhealthyStations.length === 0 && operationalHealth.missingBillCount === 0 ? "border-[#D5E8E1] bg-white text-[#466F65]" : "border-[#F1D99E] bg-[#FFFBF0] text-[#624B19]"}`}>
+            <h2 className="text-sm font-black">{operationalHealth && operationalHealth.unhealthyStations.length === 0 && operationalHealth.missingBillCount === 0 ? "ประวัติการบังคับปิดงานของ Manager" : "รายการที่ผู้จัดการควรตรวจสอบ"}</h2>
             {healthError && <p role="status" className="mt-2 text-sm">{healthError}</p>}
             {operationalHealth && (
               <div className="mt-3 space-y-3 text-sm">
@@ -256,6 +258,20 @@ export default function OmsHomePage() {
                       ).join(" · ")}
                     </p>
                     <Link href="/alarm-stations" className="mt-1 inline-block font-extrabold underline underline-offset-4">ตรวจสอบสถานะเครื่อง</Link>
+                  </div>
+                )}
+                {operationalHealth.manualClosedWithoutBillCount > 0 && (
+                  <div className="rounded-xl border border-[#D8E8E2] bg-white p-3 text-[#426D62]">
+                    <p className="font-extrabold">Manager บังคับปิดงานก่อนมีบิล ({operationalHealth.manualClosedWithoutBillCount})</p>
+                    <p className="mt-1 text-xs">เป็นการปิดงานด้วยสิทธิ์ Manager ไม่ใช่ยอดขายที่ยืนยันแล้ว · ไม่รวมใน KPI การเงิน</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {operationalHealth.manualClosedWithoutBillOrders.map(order => (
+                        <Link key={order.orderNumber} href={`/orders/${order.orderNumber}`}
+                          className="rounded-lg border border-[#CEE4DB] bg-[#F6FAF9] px-2.5 py-1 text-xs font-black">
+                          #{order.orderNumber}
+                        </Link>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {operationalHealth.missingBillCount > 0 && (
