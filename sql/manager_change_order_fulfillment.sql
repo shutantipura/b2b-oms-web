@@ -134,8 +134,8 @@ BEGIN
       RAISE EXCEPTION 'Delivery address is too long';
     END IF;
 
-    -- Manager rescheduling enforces a two-hour lead time. Reuse that policy
-    -- if a pickup becomes a delivery, even when the original slot is stale.
+    -- Managers may convert to delivery within an active two-hour window.
+    -- A window remains available until its end (11:00 for a 09:00–11:00 slot).
     v_slot_start_text := left(btrim(COALESCE(v_order.delivery_slot,'')),5);
     IF v_order.delivery_date IS NULL
        OR v_slot_start_text !~ '^[0-2][0-9]:[0-5][0-9]$' THEN
@@ -143,8 +143,8 @@ BEGIN
     END IF;
     v_delivery_start := v_order.delivery_date + v_slot_start_text::time;
     v_now_bangkok := transaction_timestamp() AT TIME ZONE 'Asia/Bangkok';
-    IF v_delivery_start < v_now_bangkok + interval '2 hours' THEN
-      RAISE EXCEPTION 'Reschedule to a delivery slot at least two hours from now first';
+    IF v_delivery_start + interval '2 hours' <= v_now_bangkok THEN
+      RAISE EXCEPTION 'The selected delivery window has already ended; choose another slot';
     END IF;
   END IF;
 
