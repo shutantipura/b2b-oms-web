@@ -32,9 +32,9 @@ BEGIN
     RAISE EXCEPTION 'Choose a valid delivery date and window';
   END IF;
   v_start := p_delivery_date::timestamp + left(p_delivery_slot,5)::time;
-  IF v_start < (transaction_timestamp() AT TIME ZONE 'Asia/Bangkok')
-                   + interval '2 hours' THEN
-    RAISE EXCEPTION 'Choose a delivery window starting at least two hours from now';
+  -- Match Manager rescheduling: the current slot is valid until its END.
+  IF v_start + interval '2 hours' <= (transaction_timestamp() AT TIME ZONE 'Asia/Bangkok') THEN
+    RAISE EXCEPTION 'The selected delivery window has already ended';
   END IF;
 
   -- Both RPCs, and their audit writes, commit or roll back together.
