@@ -125,13 +125,12 @@ export function validateDeliverySelection(
 }
 
 /**
- * Manager rescheduling keeps a two-hour preparation lead from submission.
- * A window remains selectable while there is some time left after that lead:
- * at 10:04, 11:00–13:00 is available with delivery no earlier than 12:04.
- * Customer ordering continues to use the separate start-of-window rule.
+ * Managers may choose the window currently in progress until its END.
+ * At 10:26, 09:00–11:00 remains available; at 11:00 it is excluded.
+ * Customer checkout still uses getAvailableSlots (start-of-window cutoff).
  */
 export function getManagerDeliveryOptions(now = new Date()) {
-  const cutoffMs = bangkokWallClockMs(now) + 2 * 60 * 60_000;
+  const cutoffMs = bangkokWallClockMs(now);
   const today = bangkokToday(now);
   const eligibleSlots = (date: string) => {
     const dayMs = dateStartWallClockMs(date);
@@ -148,23 +147,11 @@ export function getManagerDeliveryOptions(now = new Date()) {
 }
 
 /**
- * Pickup -> delivery needs the entire two-hour preparation lead BEFORE
- * the delivery window starts (stricter than ordinary Manager rescheduling).
- * Never silently reuse an already-started pickup window.
+ * Pickup-to-delivery conversions follow the same Manager rule.
+ * Allow the current delivery window until it ends, not only future starts.
  */
 export function getPickupToDeliveryOptions(now = new Date()) {
-  const cutoffMs = bangkokWallClockMs(now) + 2 * 60 * 60_000;
-  return getManagerDeliveryOptions(now)
-    .map((date) => ({
-      ...date,
-      slots: date.slots.filter((slot) => {
-        const match = DELIVERY_RULES.slots.find((item) => item.value === slot.value);
-        const dayStart = dateStartWallClockMs(date.date);
-        return match !== undefined && dayStart !== null &&
-          dayStart + match.startMinutes * 60_000 >= cutoffMs;
-      }),
-    }))
-    .filter((date) => date.slots.length > 0);
+  return getManagerDeliveryOptions(now);
 }
 
 /**
