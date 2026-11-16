@@ -121,8 +121,7 @@ BEGIN
     'orders_updated',v_count
   );
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.validate_delivery_schedule()
  RETURNS trigger
@@ -175,5 +174,4 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
-
+$function$;
