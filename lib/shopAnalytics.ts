@@ -169,7 +169,9 @@ export function buildShopAnalytics(
       if (shortage !== null) { stockMeasured++; if (shortage) stockHit++; }
     }
 
-    const due = slotEndAt(order.delivery_date, order.delivery_slot);
+    // Store pickup skips out_for_delivery, so DOT does not apply to it.
+    const due = order.fulfillment_method === "pickup" ? null
+      : slotEndAt(order.delivery_date, order.delivery_slot);
     if (due) {
       const deliveredAt = firstEvent(order.id,
         h => h.from_status === "out_for_delivery" && h.to_status === "awaiting_payment");

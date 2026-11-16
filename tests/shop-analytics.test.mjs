@@ -70,6 +70,12 @@ test("builds frequency, basket, DOT, payment and product stats for one shop", ()
   assert.ok(!a.topProducts.some(p => p.name === "Cancelled item"));
 });
 
+test("store pickup orders are not scored for delivery on time", () => {
+  const a = buildShopAnalytics([order("p", 9, "2026-11-10", { fulfillment_method: "pickup" })], [], [],
+    new Date("2026-11-16T08:00:00Z"), "2026-11-16");
+  assert.deepEqual(a.deliveryOnTime, { hit: 0, measured: 0, rate: null });
+});
+
 test("shops list links each shop to its analytics page; API is Manager/Salesman only", () => {
   const read = p => readFileSync(new URL("../" + p, import.meta.url), "utf8");
   assert.match(read("app/customers/shops/page.tsx"), /href=\{`\/customers\/shops\/\$\{shop\.id\}\/analytics`\}/);
