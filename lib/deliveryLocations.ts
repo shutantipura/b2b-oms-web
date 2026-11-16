@@ -1,6 +1,34 @@
 export type DeliveryLocation = { label: string; url: string };
 export const MAX_DELIVERY_LOCATIONS = 2;
 
+/** The saved shop locations shown in customer checkout and Manager fulfillment.
+ * Only an actual saved URL is selectable; an empty secondary location is omitted.
+ * The first location defaults to the shop name, consistent with customer checkout.
+ */
+export function getSavedCustomerDeliveryLocations(customer: {
+  customer_name: string;
+  delivery_address?: string | null;
+  delivery_map_url: string | null;
+  delivery_map_url_2: string | null;
+  delivery_location_1_name: string | null;
+  delivery_location_2_name: string | null;
+}): DeliveryLocation[] {
+  const firstLabel = customer.delivery_location_1_name?.trim();
+  const firstUrl = customer.delivery_map_url?.trim() || customer.delivery_address?.trim() || "";
+  const secondUrl = customer.delivery_map_url_2?.trim() || "";
+  return [
+    ...(firstUrl ? [{
+      label: firstLabel && firstLabel !== "จุดส่ง 1" ? firstLabel : customer.customer_name,
+      url: firstUrl,
+    }] : []),
+    ...(secondUrl && secondUrl !== firstUrl ? [{
+      label: customer.delivery_location_2_name?.trim() || "จุดส่ง 2",
+      url: secondUrl,
+    }] : []),
+  ];
+}
+
+
 export function isGoogleMapsUrl(input: string): boolean {
   try {
     const url = new URL(input.trim());

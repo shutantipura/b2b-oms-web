@@ -24,6 +24,19 @@ BEGIN
      ) THEN
     RAISE EXCEPTION 'Pickup-to-delivery change is not allowed at this stage';
   END IF;
+  -- Only the shop's existing saved delivery points may be selected.
+  -- Revalidate within the transaction: client options may be stale.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.customers c
+    WHERE c.id = v_order.customer_id
+      AND btrim(COALESCE(p_delivery_address,'')) = ANY(ARRAY[
+        COALESCE(NULLIF(btrim(c.delivery_map_url),''),
+                 NULLIF(btrim(c.delivery_address),'')),
+        NULLIF(btrim(c.delivery_map_url_2),'')
+      ])
+  ) THEN
+    RAISE EXCEPTION 'Select a delivery location saved on this shop first';
+  END IF;
   IF p_delivery_date IS NULL OR p_delivery_slot IS NULL
      OR p_delivery_slot NOT IN (
        '07:00–09:00','09:00–11:00','11:00–13:00','13:00–15:00',

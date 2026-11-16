@@ -12,6 +12,7 @@ import {
 } from "../lib/billingVariance.ts";
 import { formatActiveTaskDuration } from "../lib/taskElapsed.ts";
 import { compareOrderFiles } from "../lib/orderFileSort.ts";
+import { getSavedCustomerDeliveryLocations } from "../lib/deliveryLocations.ts";
 import { isFreshPaymentDraft, paymentDraftKey } from "../lib/pendingPaymentDraft.ts";
 import {
   DELIVERY_RULES,
@@ -216,6 +217,45 @@ test("manager order details can switch pickup and delivery only through manager 
 const day = "2026-10-26";
 const bangkokTime = (hour, minute = 0) =>
   new Date(Date.UTC(2026, 9, 26, hour - 7, minute));
+
+test("Manager fulfillment chooses only the shop's saved delivery locations", () => {
+  const shop = {
+    customer_name: "Example Shop",
+    delivery_address: "https://maps.app.goo.gl/Example123",
+    delivery_map_url: "https://maps.app.goo.gl/Example123",
+    delivery_map_url_2: null,
+    delivery_location_1_name: "จุดส่ง 1",
+    delivery_location_2_name: "จุดส่ง 2",
+  };
+  assert.deepEqual(getSavedCustomerDeliveryLocations(shop), [
+    { label: "Example Shop", url: "https://maps.app.goo.gl/Example123" },
+  ]);
+  assert.deepEqual(getSavedCustomerDeliveryLocations({
+    ...shop,
+    delivery_location_1_name: "หน้าร้าน",
+    delivery_location_2_name: "คลังสินค้า",
+    delivery_map_url_2: "https://maps.app.goo.gl/Example456",
+  }), [
+    { label: "หน้าร้าน", url: "https://maps.app.goo.gl/Example123" },
+    { label: "คลังสินค้า", url: "https://maps.app.goo.gl/Example456" },
+  ]);
+  assert.deepEqual(getSavedCustomerDeliveryLocations({
+    ...shop, delivery_map_url: null, delivery_address: null,
+  }), []);
+
+  const page = readFileSync(new URL("../app/orders/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../sql/manager_change_pickup_to_delivery_with_schedule.sql", import.meta.url), "utf8");
+  assert.match(page, /delivery_location_1_name/);
+  assert.match(page, /delivery_map_url_2/);
+  assert.match(page, /getSavedCustomerDeliveryLocations\(loadedOrder\.customers\)/);
+  assert.match(page, /<select id="manager-fulfillment-address"/);
+  assert.match(page, /savedLocations\.some\(\(location\) => location\.url === address\)/);
+  assert.match(page, /savedLocations\.map\(\(location, index\) =>/);
+  assert.doesNotMatch(page, /<textarea id="manager-fulfillment-address"/);
+  assert.match(sql, /c\.id = v_order\.customer_id/);
+  assert.match(sql, /c\.delivery_map_url_2/);
+  assert.match(sql, /Select a delivery location saved on this shop first/);
+});
 
 test("pickup-to-delivery conversion offers the active slot until its end", () => {
   const now = new Date("2026-11-16T03:26:00.000Z"); // 10:26 Bangkok
