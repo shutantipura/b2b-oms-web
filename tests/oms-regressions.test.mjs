@@ -217,14 +217,16 @@ const day = "2026-10-26";
 const bangkokTime = (hour, minute = 0) =>
   new Date(Date.UTC(2026, 9, 26, hour - 7, minute));
 
-test("pickup-to-delivery conversion never reuses a stale or too-soon slot", () => {
-  const now = new Date("2026-11-16T02:25:00.000Z"); // 09:25 Bangkok
+test("pickup-to-delivery conversion offers the active slot until its end", () => {
+  const now = new Date("2026-11-16T03:26:00.000Z"); // 10:26 Bangkok
   const options = getPickupToDeliveryOptions(now);
   const today = options.find((entry) => entry.date === "2026-11-16");
   assert.ok(today);
-  assert.equal(today.slots.some((slot) => slot.value === "09:00–11:00"), false);
-  assert.equal(today.slots.some((slot) => slot.value === "11:00–13:00"), false);
-  assert.equal(today.slots.some((slot) => slot.value === "13:00–15:00"), true);
+  assert.equal(today.slots.some((slot) => slot.value === "07:00–09:00"), false);
+  assert.equal(today.slots[0]?.value, "09:00–11:00");
+  assert.equal(today.slots.some((slot) => slot.value === "11:00–13:00"), true);
+  const afterEnd = getPickupToDeliveryOptions(new Date("2026-11-16T04:00:00.000Z"));
+  assert.equal(afterEnd[0].slots.some((slot) => slot.value === "09:00–11:00"), false);
 
   const page = readFileSync(new URL("../app/orders/[orderNumber]/page.tsx", import.meta.url), "utf8");
   const sql = readFileSync(new URL("../sql/manager_change_pickup_to_delivery_with_schedule.sql", import.meta.url), "utf8");
@@ -245,12 +247,38 @@ test("customer sees 11:00–13:00 at 10:00 Bangkok time", () => {
   assert.equal(validateDeliverySelection(day, "09:00–11:00", bangkokTime(10)).valid, false);
 });
 
-test("manager rescheduling observes two-hour lead and all seven windows", () => {
+test("manager rescheduling includes the current window but not an expired window", () => {
   assert.equal(DELIVERY_RULES.slots.length, 7);
   assert.ok(DELIVERY_RULES.slots.some((slot) => slot.value === "19:00–21:00"));
-  const today = getManagerDeliveryOptions(bangkokTime(10, 4))[0];
-  assert.equal(today.date, day);
-  assert.ok(today.slots.some((slot) => slot.value === "11:00–13:00"));
+  const at830 = getManagerDeliveryOptions(bangkokTime(8, 30))[0];
+  assert.equal(at830.slots[0]?.value, "07:00–09:00");
+  const at1026 = getManagerDeliveryOptions(bangkokTime(10, 26))[0];
+  assert.equal(at1026.date, day);
+  assert.equal(at1026.slots[0]?.value, "09:00–11:00");
+  const at1059 = getManagerDeliveryOptions(bangkokTime(10, 59))[0];
+  assert.equal(at1059.slots[0]?.value, "09:00–11:00");
+  const at1100 = getManagerDeliveryOptions(bangkokTime(11))[0];
+  assert.equal(at1100.slots[0]?.value, "11:00–13:00");
+  assert.equal(getManagerDeliveryOptions(bangkokTime(14, 30))[0].slots[0]?.value, "13:00–15:00");
+  assert.equal(getManagerDeliveryOptions(bangkokTime(20, 30))[0].slots[0]?.value, "19:00–21:00");
+  const afterClose = getManagerDeliveryOptions(bangkokTime(21))[0];
+  assert.notEqual(afterClose.date, day);
+  assert.equal(afterClose.slots[0]?.value, "07:00–09:00");
+  // Manager override does not alter checkout's start-of-window restrictions.
+  assert.equal(validateDeliverySelection(day, "09:00–11:00", bangkokTime(10, 26)).valid, false);
+});
+
+test("database guards allow only manager updates in a still-open slot", () => {
+  const sql = readFileSync(new URL("../sql/manager_current_delivery_window.sql", import.meta.url), "utf8");
+  const fulfillment = readFileSync(new URL("../sql/manager_change_order_fulfillment.sql", import.meta.url), "utf8");
+  const conversion = readFileSync(new URL("../sql/manager_change_pickup_to_delivery_with_schedule.sql", import.meta.url), "utf8");
+  assert.match(sql, /v_cutoff := v_now_bkk;/);
+  assert.match(sql, /v_slot_end <= v_cutoff/);
+  assert.match(sql, /TG_OP = 'UPDATE'/);
+  assert.match(sql, /account_type = 'manager'/);
+  assert.match(sql, /v_slot_start \+ interval '2 hours'/);
+  assert.match(fulfillment, /v_delivery_start \+ interval '2 hours' <= v_now_bangkok/);
+  assert.match(conversion, /v_start \+ interval '2 hours' <=/);
 });
 
 test("completed delivery never displays an overdue alarm", () => {
