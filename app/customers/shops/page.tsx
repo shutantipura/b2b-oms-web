@@ -275,10 +275,20 @@ export default function ShopsPage(){
               </div>
               <p className="mt-2 text-xs text-[#789388]">บัญชี LINE ที่เชื่อมแล้ว: {shop.lineAccounts.length?
                 shop.lineAccounts.map(a=>a.name).join(", "):"ไม่มี"}</p>
-              <Link href={`/customers/${encodeURIComponent(shop.customer_code)}`}
-                className="mt-3 inline-flex min-h-10 items-center rounded-xl bg-[#EAF8F5] px-4 text-xs font-bold text-[#008F8D]">
-                ประวัติคำสั่งซื้อและข้อมูลเพิ่มเติม
-              </Link>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link href={`/customers/shops/${shop.id}/analytics`}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#02B0AF] px-4 text-xs font-bold text-white">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                    strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>
+                  </svg>
+                  ดูข้อมูลวิเคราะห์
+                </Link>
+                <Link href={`/customers/${encodeURIComponent(shop.customer_code)}`}
+                  className="inline-flex min-h-10 items-center rounded-xl bg-[#EAF8F5] px-4 text-xs font-bold text-[#008F8D]">
+                  ประวัติคำสั่งซื้อและข้อมูลเพิ่มเติม
+                </Link>
+              </div>
             </div>}
           </article>;
         })}
