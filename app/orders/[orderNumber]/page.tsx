@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { supabase } from "../../../lib/supabase";
-import { getManagerDeliveryOptions } from "../../../lib/deliveryRules";
+import { getManagerDeliveryOptions, getPickupToDeliveryOptions } from "../../../lib/deliveryRules";
 import TaskFilePicker from "../../../components/TaskFilePicker";
 import { prepareOrderPhoto } from "../../../lib/orderPhotoUpload";
 import { isConsolidatedGroup } from "../../../lib/groupOrderDisplay";
@@ -321,6 +321,8 @@ export default function OrderDetailsPage() {
   const [deliveryMessage, setDeliveryMessage] = useState("");
   const [editedFulfillmentMethod, setEditedFulfillmentMethod] = useState<"delivery" | "pickup">("delivery");
   const [editedFulfillmentAddress, setEditedFulfillmentAddress] = useState("");
+  const [editedFulfillmentDate, setEditedFulfillmentDate] = useState("");
+  const [editedFulfillmentSlot, setEditedFulfillmentSlot] = useState("");
   const [savingFulfillment, setSavingFulfillment] = useState(false);
   const [fulfillmentMessage, setFulfillmentMessage] = useState("");
 
@@ -440,6 +442,15 @@ export default function OrderDetailsPage() {
     setEditedFulfillmentMethod(loadedOrder.fulfillment_method);
     setEditedFulfillmentAddress(loadedOrder.delivery_address === "รับสินค้าที่สาขา"
       ? "" : (loadedOrder.delivery_address ?? ""));
+    const conversionOptions = getPickupToDeliveryOptions(new Date());
+    const currentConversionDate = conversionOptions.find((entry) => entry.date === loadedOrder.delivery_date);
+    const currentlyEligible = currentConversionDate?.slots.some((slot) => slot.value === loadedOrder.delivery_slot);
+    const defaultConversion = currentConversionDate && currentlyEligible
+      ? currentConversionDate : conversionOptions[0];
+    setEditedFulfillmentDate(defaultConversion?.date ?? "");
+    setEditedFulfillmentSlot(currentlyEligible
+      ? (loadedOrder.delivery_slot ?? "")
+      : (defaultConversion?.slots[0]?.value ?? ""));
     const options = getManagerDeliveryOptions(new Date());
     const selectedDate = options.find((item) => item.date === loadedOrder.delivery_date) ?? options[0];
     setEditedDeliveryDate(selectedDate?.date ?? "");
@@ -1220,18 +1231,37 @@ export default function OrderDetailsPage() {
       setFulfillmentMessage("กรุณากรอกที่อยู่จัดส่งจริงก่อนเปลี่ยนเป็นจัดส่ง");
       return;
     }
+    const convertingPickupToDelivery =
+      order.fulfillment_method === "pickup" && editedFulfillmentMethod === "delivery";
+    if (convertingPickupToDelivery) {
+      const allowed = getPickupToDeliveryOptions(new Date());
+      if (!allowed.some((entry) => entry.date === editedFulfillmentDate &&
+          entry.slots.some((slot) => slot.value === editedFulfillmentSlot))) {
+        setFulfillmentMessage("รอบจัดส่งที่เลือกไม่ทันเวลาเตรียมสินค้า 2 ชั่วโมง กรุณาเลือกรอบใหม่");
+        return;
+      }
+    }
     const nextLabel = editedFulfillmentMethod === "pickup" ? "รับที่สาขา" : "จัดส่ง";
-    if (!window.confirm("ยืนยันเปลี่ยนวิธีรับสินค้าเป็น " + nextLabel +
-      "?\nหลังออกบิล ระบบอาจย้ายงานไปยังขั้นตอนจัดส่งหรือชำระเงินตามวิธีใหม่")) return;
+    const timeDetails = convertingPickupToDelivery
+      ? "\nเวลาจัดส่งใหม่: " + editedFulfillmentDate + " " + editedFulfillmentSlot : "";
+    if (!window.confirm("ยืนยันเปลี่ยนวิธีรับสินค้าเป็น " + nextLabel + "?" +
+      timeDetails + "\nระบบจะเก็บบิลเดิมไว้และเปลี่ยนขั้นตอนงานตามวิธีรับสินค้า")) return;
 
     setSavingFulfillment(true);
     setFulfillmentMessage("");
     try {
-      const { error } = await supabase.rpc("manager_change_order_fulfillment", {
-        p_order_number: orderNumber,
-        p_fulfillment_method: editedFulfillmentMethod,
-        p_delivery_address: editedFulfillmentMethod === "delivery" ? address : null,
-      });
+      const { error } = convertingPickupToDelivery
+        ? await supabase.rpc("manager_change_pickup_to_delivery_with_schedule", {
+            p_order_number: orderNumber,
+            p_delivery_address: address,
+            p_delivery_date: editedFulfillmentDate,
+            p_delivery_slot: editedFulfillmentSlot,
+          })
+        : await supabase.rpc("manager_change_order_fulfillment", {
+            p_order_number: orderNumber,
+            p_fulfillment_method: editedFulfillmentMethod,
+            p_delivery_address: editedFulfillmentMethod === "delivery" ? address : null,
+          });
       if (error) {
         setFulfillmentMessage("ไม่สามารถเปลี่ยนวิธีรับสินค้าได้: " + error.message);
       } else {
@@ -2371,10 +2401,44 @@ export default function OrderDetailsPage() {
                           className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2 text-sm" />
                       </>
                     )}
+                    {order.fulfillment_method === "pickup" && editedFulfillmentMethod === "delivery" && (
+                      <div className="rounded-xl border border-[#E6D7A6] bg-[#FFF9E8] p-3 space-y-2">
+                        <p className="text-xs font-semibold text-[#8A6000]">
+                          เลือกรอบจัดส่งใหม่ (ต้องเริ่มหลังจากนี้อย่างน้อย 2 ชั่วโมง)
+                        </p>
+                        <p className="text-[11px] text-[#8A6000]">
+                          รอบรับสินค้าที่สาขาเดิม: {order.delivery_date ?? "—"} · {order.delivery_slot ?? "—"}
+                          {" "}จะไม่ถูกนำไปใช้จัดส่งอัตโนมัติ
+                        </p>
+                        <label htmlFor="manager-conversion-date" className="block text-xs font-semibold">วันที่จัดส่ง</label>
+                        <select id="manager-conversion-date" value={editedFulfillmentDate}
+                          onChange={(event) => {
+                            const date = event.target.value;
+                            setEditedFulfillmentDate(date);
+                            setEditedFulfillmentSlot(getPickupToDeliveryOptions(new Date())
+                              .find((entry) => entry.date === date)?.slots[0]?.value ?? "");
+                            setFulfillmentMessage("");
+                          }}
+                          className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2 text-sm">
+                          {getPickupToDeliveryOptions(new Date()).map((entry) => (
+                            <option key={entry.date} value={entry.date}>{entry.date}</option>
+                          ))}
+                        </select>
+                        <label htmlFor="manager-conversion-slot" className="block text-xs font-semibold">ช่วงเวลาจัดส่ง</label>
+                        <select id="manager-conversion-slot" value={editedFulfillmentSlot}
+                          onChange={(event) => { setEditedFulfillmentSlot(event.target.value); setFulfillmentMessage(""); }}
+                          className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2 text-sm">
+                          {(getPickupToDeliveryOptions(new Date())
+                            .find((entry) => entry.date === editedFulfillmentDate)?.slots ?? []).map((slot) => (
+                            <option key={slot.value} value={slot.value}>{slot.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <p className="text-[11px] leading-relaxed text-[#8A6000]">
                       เปลี่ยนได้ก่อนเริ่มจัดส่งหรือส่งหลักฐานชำระเงิน
-                      หากเปลี่ยนเป็นจัดส่ง ต้องมีที่อยู่จริงและรอบจัดส่งที่เริ่มหลังจากนี้อย่างน้อย 2 ชั่วโมง
-                      (เปลี่ยนเวลาได้ในเมนูข้างล่าง)
+                      หากเปลี่ยนเป็นจัดส่ง ต้องระบุที่อยู่จริง
+                      ระบบจะบันทึกเวลาจัดส่งและวิธีรับสินค้าในขั้นตอนเดียว โดยเก็บบิลเดิมไว้
                     </p>
                     {fulfillmentMessage && <p role="status" className="text-xs">{fulfillmentMessage}</p>}
                     <button type="button" onClick={() => void saveFulfillmentMethod()}
