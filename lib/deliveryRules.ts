@@ -148,6 +148,26 @@ export function getManagerDeliveryOptions(now = new Date()) {
 }
 
 /**
+ * Pickup -> delivery needs the entire two-hour preparation lead BEFORE
+ * the delivery window starts (stricter than ordinary Manager rescheduling).
+ * Never silently reuse an already-started pickup window.
+ */
+export function getPickupToDeliveryOptions(now = new Date()) {
+  const cutoffMs = bangkokWallClockMs(now) + 2 * 60 * 60_000;
+  return getManagerDeliveryOptions(now)
+    .map((date) => ({
+      ...date,
+      slots: date.slots.filter((slot) => {
+        const match = DELIVERY_RULES.slots.find((item) => item.value === slot.value);
+        const dayStart = dateStartWallClockMs(date.date);
+        return match !== undefined && dayStart !== null &&
+          dayStart + match.startMinutes * 60_000 >= cutoffMs;
+      }),
+    }))
+    .filter((date) => date.slots.length > 0);
+}
+
+/**
  * One delivery-window colour policy for Orders and Tasks.
  * All uncompleted, non-cancelled orders use their requested slot regardless of
  * operational stage. The clock is measured in Bangkok local wall-clock time.
