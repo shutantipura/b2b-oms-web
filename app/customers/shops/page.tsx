@@ -3,6 +3,7 @@
 import {useCallback,useEffect,useMemo,useState,type FormEvent} from "react";
 import Link from "next/link";
 import {supabase} from "@/lib/supabase";
+import type {ShopWarningKind} from "@/lib/shopWarnings";
 
 type CV={id:string;cv_number:string;status:string};
 type LinkedLine={id:string;name:string};
@@ -13,12 +14,30 @@ type Shop={
   delivery_map_url:string|null;delivery_map_url_2:string|null;
   delivery_location_1_name:string|null;delivery_location_2_name:string|null;
   rider_note:string|null;notes:string|null;customer_type:string|null;
+  overdueOrders:number[];warnings:ShopWarningKind[];
 };
 type LineCustomer={id:string;display_name:string|null;internal_name:string|null};
 type EditFields=Pick<Shop,"customer_name"|"phone"|"contact_name"|"delivery_map_url"|
   "delivery_map_url_2"|"delivery_location_1_name"|"delivery_location_2_name"|"rider_note">;
 const inputClass="min-h-11 w-full rounded-xl border border-[#CFE5DE] bg-white px-3 py-2 text-sm outline-none focus:border-[#02B0AF]";
 const badge="rounded-full px-2.5 py-1 text-xs font-extrabold";
+const warningBadge="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-extrabold";
+const warningTone:Record<ShopWarningKind,string>={
+  no_cv:"border-[#F5D48A] bg-[#FFF6E0] text-[#8A5A00]",
+  no_line:"border-[#F5D48A] bg-[#FFF6E0] text-[#8A5A00]",
+  overdue_payment:"border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]",
+};
+function WarningIcon(){
+  return <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+    strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17.5h.01"/>
+  </svg>;
+}
+function warningLabel(kind:ShopWarningKind,shop:Shop){
+  if(kind==="no_cv")return shop.cvAccount?"CV ระงับ":"ไม่มี CV";
+  if(kind==="no_line")return "ยังไม่เชื่อม LINE";
+  return `ค้างชำระเกินกำหนด ${shop.overdueOrders.length} บิล`;
+}
 const editKeys=[
   ["customer_name","ชื่อร้าน"],["contact_name","ชื่อผู้ติดต่อ"],["phone","เบอร์โทร"],
   ["delivery_location_1_name","ชื่อจุดส่ง 1"],["delivery_map_url","Google Maps จุดส่ง 1"],
@@ -54,6 +73,7 @@ export default function ShopsPage(){
   const [draft,setDraft]=useState<EditFields|null>(null);
   const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
   const [message,setMessage]=useState(""),[showNew,setShowNew]=useState(false);
+  const [warningsOnly,setWarningsOnly]=useState(false);
   const [form,setForm]=useState({shopName:"",phone:"",contactName:"",deliveryMapUrl:"",
     deliveryMapUrl2:"",customerType:"restaurant",lineUserId:""});
 
@@ -65,11 +85,13 @@ export default function ShopsPage(){
     finally{setLoading(false);}
   },[]);
   useEffect(()=>{void reload();},[reload]);
+  const warningCount=useMemo(()=>shops.filter(shop=>shop.warnings?.length).length,[shops]);
   const visible=useMemo(()=>shops.filter(shop=>
+    (!warningsOnly||shop.warnings?.length)&&
     [shop.customer_name,shop.customer_code,shop.cvAccount?.cv_number??"",
       shop.contact_name??"",shop.phone??""]
     .some(s=>s.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
-  ),[shops,search]);
+  ),[shops,search,warningsOnly]);
 
   async function perform(body:unknown,success:string){
     setBusy(true);setMessage("");
@@ -99,8 +121,6 @@ export default function ShopsPage(){
     if(editing===shopId){setEditing(null);setDraft(null);}
     setExpanded(current=>current===shopId?null:shopId);
   }
-  const shopStatus=(shop:Shop)=>
-    shop.cvAccount?.status==="approved"?"เชื่อม CV แล้ว":shop.cvAccount?"CV ระงับ":"ไม่มี CV";
 
   return <main className="min-h-screen bg-[#F3F8F7] px-3 py-5 pb-28 text-[#17453F] sm:px-6">
     <div className="mx-auto max-w-4xl space-y-4">
@@ -151,10 +171,16 @@ export default function ShopsPage(){
       <input aria-label="ค้นหาร้านค้า" type="search" value={search}
         onChange={e=>setSearch(e.target.value)} className={inputClass}
         placeholder="ค้นหาชื่อร้าน รหัสร้าน ผู้ติดต่อ หรือ CV"/>
+      {!loading&&warningCount>0&&<button type="button" aria-pressed={warningsOnly}
+        onClick={()=>setWarningsOnly(x=>!x)}
+        className={"inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-sm font-extrabold "+
+          (warningsOnly?"border-[#E0A800] bg-[#FFF6E0] text-[#8A5A00]":"border-[#D5E8E1] bg-white text-[#58776D]")}>
+        <WarningIcon/>{warningsOnly?"แสดงทุกร้าน":`แสดงเฉพาะร้านที่มีคำเตือน (${warningCount})`}
+      </button>}
       <section className="space-y-2" aria-label="รายชื่อร้านค้า">
         {visible.map(shop=>{
           const open=expanded===shop.id,beingEdited=editing===shop.id;
-          const status=shopStatus(shop);
+          const warnings=shop.warnings??[];
           return <article key={shop.id} className="overflow-hidden rounded-2xl border border-[#D5E8E1] bg-white">
             <button type="button" aria-expanded={open} aria-controls={`shop-detail-${shop.id}`}
               onClick={()=>toggle(shop.id)}
@@ -162,14 +188,15 @@ export default function ShopsPage(){
               <div className="min-w-0 flex-1">
                 <h2 className="truncate text-base font-black text-[#17453F]">{shop.customer_name}</h2>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className={badge+" "+(shop.cvAccount?.status==="approved"
-                    ?"bg-[#E2F7F1] text-[#008F8D]":"bg-[#FFF2DB] text-[#916400]")}>
-                    {status}
-                  </span>
-                  <span className={badge+" "+(shop.lineLinked
-                    ?"bg-[#E2F7F1] text-[#008F8D]":"bg-[#F0F2F3] text-[#71818A]")}>
-                    {shop.lineLinked?"เชื่อม LINE แล้ว":"ยังไม่เชื่อม LINE"}
-                  </span>
+                  {shop.cvAccount?.status==="approved"&&<span className={badge+" bg-[#E2F7F1] text-[#008F8D]"}>
+                    เชื่อม CV แล้ว
+                  </span>}
+                  {shop.lineLinked&&<span className={badge+" bg-[#E2F7F1] text-[#008F8D]"}>
+                    เชื่อม LINE แล้ว
+                  </span>}
+                  {warnings.map(kind=><span key={kind} className={warningBadge+" "+warningTone[kind]}>
+                    <WarningIcon/>{warningLabel(kind,shop)}
+                  </span>)}
                 </div>
               </div>
               <svg className={"h-5 w-5 shrink-0 text-[#58867D] transition-transform "+(open?"rotate-180":"")}
@@ -178,6 +205,15 @@ export default function ShopsPage(){
               </svg>
             </button>
             {open&&<div id={`shop-detail-${shop.id}`} className="border-t border-[#E1EEE9] px-4 pb-4 pt-3">
+              {shop.overdueOrders?.length>0&&<div className="mb-3 rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-3 text-sm text-[#B91C1C]">
+                <p className="font-extrabold">ค้างชำระเกินกำหนด (หลัง 21:00 ของวันจัดส่ง)</p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {shop.overdueOrders.map(n=><Link key={n} href={`/orders/${n}`}
+                    className="rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-[#B91C1C] underline-offset-2 hover:underline">
+                    #{n}
+                  </Link>)}
+                </div>
+              </div>}
               <div className="mb-3 flex justify-end">
                 <button type="button" aria-label={`แก้ไขร้าน ${shop.customer_name}`} disabled={busy}
                   onClick={()=>{setEditing(beingEdited?null:shop.id);setDraft(beingEdited?null:fields(shop));}}

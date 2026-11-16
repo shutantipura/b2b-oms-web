@@ -122,3 +122,12 @@ test("CV Card replacements are compressed and manager-approved, never directly u
   assert.match(migration,/length\(nullif\(cv_card_storage_path,''\)\)>0/);
   assert.match(upload,/\.webp\(\{quality:75/);
 });
+
+test("shops list warns about missing CV, missing LINE access and overdue payments",()=>{
+  assert.match(shop,/\.eq\("status","awaiting_payment"\)/);
+  assert.match(shop,/overdueOrderNumbers\(/);
+  assert.match(shop,/warnings: shopWarnings\(/);
+  assert.match(shopUI,/ค้างชำระเกินกำหนด/);
+  assert.match(shopUI,/แสดงเฉพาะร้านที่มีคำเตือน/);
+  assert.match(shopUI,/href=\{`\/orders\/\$\{n\}`\}/);
+});

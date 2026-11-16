@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireSalesRole, salesApiError } from "@/lib/server/salesAuth";
+import { bangkokToday, overdueOrderNumbers, shopWarnings, type OverduePaymentOrder } from "@/lib/shopWarnings";
 
 export const runtime = "nodejs";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -12,7 +13,8 @@ const validMap = (value: string) => {
 export async function GET(request: NextRequest) {
   try {
     const { admin } = await requireSalesRole(request, ["manager","salesman"]);
-    const [shops, accounts, owners, links] = await Promise.all([
+    const now = new Date();
+    const [shops, accounts, owners, links, unpaid] = await Promise.all([
       admin.from("customers").select("id,customer_code,customer_name,contact_name,phone,has_no_cv,is_active,cv_account_id,delivery_map_url,delivery_map_url_2,delivery_location_1_name,delivery_location_2_name,delivery_address,customer_type,rider_note,notes,created_at")
         .order("customer_name", { ascending: true }).limit(2000),
       admin.from("cv_accounts").select("id,cv_number,status").order("cv_number"),
@@ -20,9 +22,18 @@ export async function GET(request: NextRequest) {
         .eq("assigned_role","customer").eq("is_active",true).limit(2000),
       admin.from("customer_line_users").select("customer_id,line_user_id,can_order")
         .eq("can_order",true).limit(5000),
+      admin.from("orders").select("customer_id,order_number,delivery_date,group_sequence")
+        .eq("status","awaiting_payment").lte("delivery_date",bangkokToday(now)).limit(5000),
     ]);
-    if (shops.error || accounts.error || owners.error || links.error)
-      throw shops.error ?? accounts.error ?? owners.error ?? links.error;
+    if (shops.error || accounts.error || owners.error || links.error || unpaid.error)
+      throw shops.error ?? accounts.error ?? owners.error ?? links.error ?? unpaid.error;
+    const unpaidByShop = new Map<string,OverduePaymentOrder[]>();
+    for (const order of unpaid.data ?? []) {
+      if (!order.customer_id || !order.delivery_date) continue;
+      const list = unpaidByShop.get(order.customer_id) ?? [];
+      list.push(order);
+      unpaidByShop.set(order.customer_id,list);
+    }
     const cvById = new Map((accounts.data ?? []).map(c => [c.id,c]));
     const ownerById = new Map((owners.data??[]).map(o=>[o.id,o]));
     const linkedByShop = new Map<string,{id:string;name:string}[]>();
@@ -34,11 +45,16 @@ export async function GET(request: NextRequest) {
       linkedByShop.set(row.customer_id,assigned);
     }
     return Response.json({
-      shops: (shops.data ?? []).map(shop => ({
-        ...shop, cvAccount: shop.cv_account_id ? cvById.get(shop.cv_account_id) ?? null : null,
-        lineAccounts: linkedByShop.get(shop.id) ?? [],
-        lineLinked: (linkedByShop.get(shop.id)?.length ?? 0) > 0,
-      })),
+      shops: (shops.data ?? []).map(shop => {
+        const cvAccount = shop.cv_account_id ? cvById.get(shop.cv_account_id) ?? null : null;
+        const lineAccounts = linkedByShop.get(shop.id) ?? [];
+        const overdueOrders = overdueOrderNumbers(unpaidByShop.get(shop.id) ?? [], now);
+        const lineLinked = lineAccounts.length > 0;
+        return {
+          ...shop, cvAccount, lineAccounts: lineAccounts, lineLinked: lineLinked, overdueOrders,
+          warnings: shopWarnings({cvAccount,lineLinked,overdueOrders}),
+        };
+      }),
       approvedCV: (accounts.data??[]).filter(c=>c.status==="approved"), customers: owners.data ?? [],
     },{ headers: {"Cache-Control":"no-store"}});
   } catch (error) { return salesApiError(error); }
