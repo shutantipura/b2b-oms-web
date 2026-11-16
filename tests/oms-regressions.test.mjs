@@ -17,6 +17,7 @@ import {
   DELIVERY_RULES,
   getAvailableSlots,
   getManagerDeliveryOptions,
+  getPickupToDeliveryOptions,
   validateDeliverySelection,
   getOrderDeliveryUrgency,
 } from "../lib/deliveryRules.ts";
@@ -215,6 +216,27 @@ test("manager order details can switch pickup and delivery only through manager 
 const day = "2026-10-26";
 const bangkokTime = (hour, minute = 0) =>
   new Date(Date.UTC(2026, 9, 26, hour - 7, minute));
+
+test("pickup-to-delivery conversion never reuses a stale or too-soon slot", () => {
+  const now = new Date("2026-11-16T02:25:00.000Z"); // 09:25 Bangkok
+  const options = getPickupToDeliveryOptions(now);
+  const today = options.find((entry) => entry.date === "2026-11-16");
+  assert.ok(today);
+  assert.equal(today.slots.some((slot) => slot.value === "09:00–11:00"), false);
+  assert.equal(today.slots.some((slot) => slot.value === "11:00–13:00"), false);
+  assert.equal(today.slots.some((slot) => slot.value === "13:00–15:00"), true);
+
+  const page = readFileSync(new URL("../app/orders/[orderNumber]/page.tsx", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../sql/manager_change_pickup_to_delivery_with_schedule.sql", import.meta.url), "utf8");
+  assert.match(page, /manager_change_pickup_to_delivery_with_schedule/);
+  assert.match(page, /p_delivery_date: editedFulfillmentDate/);
+  assert.match(page, /p_delivery_slot: editedFulfillmentSlot/);
+  assert.match(sql, /public.manager_reschedule_delivery/);
+  assert.match(sql, /public.manager_change_order_fulfillment/);
+  assert.match(sql, /v_order.status='awaiting_payment'/);
+  assert.match(sql, /'ready_for_delivery'/);
+  assert.match(sql, /GRANT EXECUTE/);
+});
 
 test("customer sees 11:00–13:00 at 10:00 Bangkok time", () => {
   const options = getAvailableSlots(day, bangkokTime(10));
