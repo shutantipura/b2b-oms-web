@@ -1192,7 +1192,7 @@ export default function OrderDetailsPage() {
     const validOptions = getManagerDeliveryOptions(new Date());
     if (!validOptions.some((option) => option.date === editedDeliveryDate &&
       option.slots.some((slot) => slot.value === editedDeliverySlot))) {
-      setDeliveryMessage("รอบจัดส่งนี้ต้องยังมีเวลาจัดส่งหลังครบ 2 ชั่วโมงจากเวลาที่บันทึก กรุณาเลือกรอบใหม่");
+      setDeliveryMessage("รอบจัดส่งนี้สิ้นสุดไปแล้ว กรุณาเลือกรอบที่ยังไม่หมดเวลา");
       return;
     }
     if (!window.confirm(`ยืนยันเปลี่ยนเวลาจัดส่งเป็น ${editedDeliveryDate} ${editedDeliverySlot}?`)) return;
@@ -1237,7 +1237,7 @@ export default function OrderDetailsPage() {
       const allowed = getPickupToDeliveryOptions(new Date());
       if (!allowed.some((entry) => entry.date === editedFulfillmentDate &&
           entry.slots.some((slot) => slot.value === editedFulfillmentSlot))) {
-        setFulfillmentMessage("รอบจัดส่งที่เลือกไม่ทันเวลาเตรียมสินค้า 2 ชั่วโมง กรุณาเลือกรอบใหม่");
+        setFulfillmentMessage("รอบจัดส่งที่เลือกสิ้นสุดไปแล้ว กรุณาเลือกรอบใหม่");
         return;
       }
     }
@@ -2404,11 +2404,11 @@ export default function OrderDetailsPage() {
                     {order.fulfillment_method === "pickup" && editedFulfillmentMethod === "delivery" && (
                       <div className="rounded-xl border border-[#E6D7A6] bg-[#FFF9E8] p-3 space-y-2">
                         <p className="text-xs font-semibold text-[#8A6000]">
-                          เลือกรอบจัดส่งใหม่ (ต้องเริ่มหลังจากนี้อย่างน้อย 2 ชั่วโมง)
+                          เลือกรอบจัดส่งใหม่ (เลือกช่วงเวลาปัจจุบันได้จนกว่ารอบจะสิ้นสุด)
                         </p>
                         <p className="text-[11px] text-[#8A6000]">
                           รอบรับสินค้าที่สาขาเดิม: {order.delivery_date ?? "—"} · {order.delivery_slot ?? "—"}
-                          {" "}จะไม่ถูกนำไปใช้จัดส่งอัตโนมัติ
+                          {" "}กรุณายืนยันรอบจัดส่งที่ต้องการ
                         </p>
                         <label htmlFor="manager-conversion-date" className="block text-xs font-semibold">วันที่จัดส่ง</label>
                         <select id="manager-conversion-date" value={editedFulfillmentDate}
@@ -2467,7 +2467,7 @@ export default function OrderDetailsPage() {
                       เวลาเดิม: {order.delivery_date ?? "—"} · {order.delivery_slot ?? "—"}
                     </p>
                     <p className="text-[11px] text-[#8A6000]">
-                      เลือกรอบที่ยังมีเวลาจัดส่งหลังครบ 2 ชั่วโมงจากที่กดบันทึก เช่น 10:04 เลือก 11:00–13:00 ได้ แต่จัดส่งไม่ก่อน 12:04
+                      เลือกได้จนกว่าช่วงเวลาจัดส่งจะสิ้นสุด เช่น เวลา 10:26 ยังเลือก 09:00–11:00 ได้ (สำหรับผู้จัดการเท่านั้น)
                     </p>
                     <label className="block text-xs font-semibold" htmlFor="manager-delivery-date">{order.fulfillment_method === "pickup" ? "วันที่รับสินค้าใหม่" : "วันที่จัดส่งใหม่"}</label>
                     <select id="manager-delivery-date" value={editedDeliveryDate}
