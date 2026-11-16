@@ -11,6 +11,7 @@ import { useParams } from "next/navigation";
 
 import { supabase } from "../../../lib/supabase";
 import { getManagerDeliveryOptions, getPickupToDeliveryOptions } from "../../../lib/deliveryRules";
+import { getSavedCustomerDeliveryLocations, isGoogleMapsUrl } from "../../../lib/deliveryLocations";
 import TaskFilePicker from "../../../components/TaskFilePicker";
 import { prepareOrderPhoto } from "../../../lib/orderPhotoUpload";
 import { isConsolidatedGroup } from "../../../lib/groupOrderDisplay";
@@ -60,6 +61,11 @@ type OrderDetails = {
     contact_name: string | null;
 
     phone: string | null;
+    delivery_address: string | null;
+    delivery_map_url: string | null;
+    delivery_map_url_2: string | null;
+    delivery_location_1_name: string | null;
+    delivery_location_2_name: string | null;
 
   } | null;
 
@@ -392,7 +398,12 @@ export default function OrderDetailsPage() {
 
           contact_name,
 
-          phone
+          phone,
+          delivery_address,
+          delivery_map_url,
+          delivery_map_url_2,
+          delivery_location_1_name,
+          delivery_location_2_name
 
         )
 
@@ -440,8 +451,13 @@ export default function OrderDetailsPage() {
     }
     setEditedFinalAmount(loadedOrder.final_amount === null ? "" : String(loadedOrder.final_amount));
     setEditedFulfillmentMethod(loadedOrder.fulfillment_method);
-    setEditedFulfillmentAddress(loadedOrder.delivery_address === "รับสินค้าที่สาขา"
-      ? "" : (loadedOrder.delivery_address ?? ""));
+    const savedLocations = loadedOrder.customers
+      ? getSavedCustomerDeliveryLocations(loadedOrder.customers) : [];
+    const currentAddress = loadedOrder.delivery_address?.trim() ?? "";
+    setEditedFulfillmentAddress(
+      savedLocations.find((location) => location.url === currentAddress)?.url
+      ?? savedLocations[0]?.url ?? ""
+    );
     const conversionOptions = getPickupToDeliveryOptions(new Date());
     const currentConversionDate = conversionOptions.find((entry) => entry.date === loadedOrder.delivery_date);
     const currentlyEligible = currentConversionDate?.slots.some((slot) => slot.value === loadedOrder.delivery_slot);
@@ -1226,9 +1242,11 @@ export default function OrderDetailsPage() {
       return;
     }
     const address = editedFulfillmentAddress.trim();
+    const savedLocations = order.customers
+      ? getSavedCustomerDeliveryLocations(order.customers) : [];
     if (editedFulfillmentMethod === "delivery" &&
-        (!address || address === "รับสินค้าที่สาขา")) {
-      setFulfillmentMessage("กรุณากรอกที่อยู่จัดส่งจริงก่อนเปลี่ยนเป็นจัดส่ง");
+        !savedLocations.some((location) => location.url === address)) {
+      setFulfillmentMessage("กรุณาเลือกจุดส่งที่ลูกค้าบันทึกไว้ หากไม่มีจุดส่งให้เพิ่มในข้อมูลร้านก่อน");
       return;
     }
     const convertingPickupToDelivery =
@@ -2389,18 +2407,55 @@ export default function OrderDetailsPage() {
                       <option value="delivery">🚚 จัดส่งถึงลูกค้า</option>
                       <option value="pickup">🏬 ลูกค้ารับที่สาขา</option>
                     </select>
-                    {editedFulfillmentMethod === "delivery" && (
-                      <>
-                        <label className="block text-xs font-semibold" htmlFor="manager-fulfillment-address">
-                          ที่อยู่หรือจุดจัดส่ง
-                        </label>
-                        <textarea id="manager-fulfillment-address" rows={2} maxLength={1000}
-                          value={editedFulfillmentAddress}
-                          onChange={(event) => setEditedFulfillmentAddress(event.target.value)}
-                          placeholder="ระบุที่อยู่จัดส่งหรือ Google Maps"
-                          className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2 text-sm" />
-                      </>
-                    )}
+                    {editedFulfillmentMethod === "delivery" && (() => {
+                      const savedLocations = order.customers
+                        ? getSavedCustomerDeliveryLocations(order.customers) : [];
+                      const selectedLocation = savedLocations.find((location) => location.url === editedFulfillmentAddress);
+                      return (
+                        <div className="space-y-2">
+                          <label className="block text-xs font-semibold" htmlFor="manager-fulfillment-address">
+                            จุดจัดส่งที่ลูกค้าบันทึกไว้
+                          </label>
+                          {savedLocations.length > 0 ? (
+                            <>
+                              <select id="manager-fulfillment-address" value={selectedLocation?.url ?? ""}
+                                onChange={(event) => {
+                                  setEditedFulfillmentAddress(event.target.value);
+                                  setFulfillmentMessage("");
+                                }}
+                                className="w-full rounded-lg border border-[#C8DED8] bg-white px-3 py-2.5 text-sm">
+                                <option value="" disabled>— เลือกจุดจัดส่ง —</option>
+                                {savedLocations.map((location, index) => (
+                                  <option key={location.url} value={location.url}>
+                                    {index + 1}. {location.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {selectedLocation && (
+                                <div className="rounded-lg border border-[#DCEAE5] bg-white px-3 py-2 text-xs">
+                                  <p className="font-semibold text-[#007F79]">{selectedLocation.label}</p>
+                                  {isGoogleMapsUrl(selectedLocation.url) ? (
+                                    <a href={selectedLocation.url} target="_blank" rel="noopener noreferrer"
+                                      className="mt-1 inline-block break-all text-[#007F79] underline">
+                                      ดูจุดจัดส่งใน Google Maps
+                                    </a>
+                                  ) : (
+                                    <p className="mt-1 break-all text-gray-600">{selectedLocation.url}</p>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <p role="status" className="rounded-lg border border-[#F1D598] bg-[#FFF9E8] px-3 py-2 text-xs text-[#8A6000]">
+                              ร้านนี้ยังไม่มีจุดจัดส่งที่บันทึกไว้ กรุณาเพิ่มจุดส่งในเมนู Shops ก่อนเปลี่ยนเป็นจัดส่ง
+                            </p>
+                          )}
+                          <p className="text-[11px] text-gray-500">
+                            เลือกได้เฉพาะจุดส่งที่บันทึกไว้ในข้อมูลร้าน (สูงสุด 2 จุด)
+                          </p>
+                        </div>
+                      );
+                    })()}
                     {order.fulfillment_method === "pickup" && editedFulfillmentMethod === "delivery" && (
                       <div className="rounded-xl border border-[#E6D7A6] bg-[#FFF9E8] p-3 space-y-2">
                         <p className="text-xs font-semibold text-[#8A6000]">
@@ -2437,7 +2492,7 @@ export default function OrderDetailsPage() {
                     )}
                     <p className="text-[11px] leading-relaxed text-[#8A6000]">
                       เปลี่ยนได้ก่อนเริ่มจัดส่งหรือส่งหลักฐานชำระเงิน
-                      หากเปลี่ยนเป็นจัดส่ง ต้องระบุที่อยู่จริง
+                      หากเปลี่ยนเป็นจัดส่ง ต้องเลือกจุดส่งที่ลูกค้าบันทึกไว้
                       ระบบจะบันทึกเวลาจัดส่งและวิธีรับสินค้าในขั้นตอนเดียว โดยเก็บบิลเดิมไว้
                     </p>
                     {fulfillmentMessage && <p role="status" className="text-xs">{fulfillmentMessage}</p>}
