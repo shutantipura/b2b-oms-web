@@ -19,7 +19,7 @@ type LineCustomer={id:string;display_name:string|null;internal_name:string|null}
 type EditFields=Pick<Shop,"customer_name"|"phone"|"contact_name"|"delivery_map_url"|
   "delivery_map_url_2"|"delivery_location_1_name"|"delivery_location_2_name"|"rider_note">;
 const inputClass="min-h-11 w-full rounded-xl border border-[#CFE5DE] bg-white px-3 py-2 text-sm outline-none focus:border-[#02B0AF]";
-const badge="rounded-full px-2.5 py-1 text-xs font-extrabold";
+const badge="inline-flex h-[20px] shrink-0 items-center whitespace-nowrap rounded-full px-2 text-[11px] leading-none font-extrabold";
 const editKeys=[
   ["customer_name","ชื่อร้าน"],["contact_name","ชื่อผู้ติดต่อ"],["phone","เบอร์โทร"],
   ["delivery_location_1_name","ชื่อจุดส่ง 1"],["delivery_map_url","Google Maps จุดส่ง 1"],
@@ -153,38 +153,44 @@ export default function ShopsPage(){
       <input aria-label="ค้นหาร้านค้า" type="search" value={search}
         onChange={e=>setSearch(e.target.value)} className={inputClass}
         placeholder="ค้นหาชื่อร้าน รหัสร้าน ผู้ติดต่อ หรือ CV"/>
-      <section className="space-y-2" aria-label="รายชื่อร้านค้า">
+      <section className="space-y-1.5" aria-label="รายชื่อร้านค้า">
         {visible.map(shop=>{
           const open=expanded===shop.id,beingEdited=editing===shop.id;
           const status=shopStatus(shop);
-          return <article key={shop.id} className="overflow-hidden rounded-2xl border border-[#D5E8E1] bg-white">
-            <div className="flex items-stretch">
-            <button type="button" aria-expanded={open} aria-controls={`shop-detail-${shop.id}`}
-              onClick={()=>toggle(shop.id)}
-              className="flex min-h-[84px] min-w-0 flex-1 items-center justify-between gap-2 px-4 py-3 text-left">
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-base font-black text-[#17453F]">{shop.customer_name}</h2>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className={badge+" "+(shop.cvAccount?.status==="approved"
-                    ?"bg-[#E2F7F1] text-[#008F8D]":"bg-[#FFF2DB] text-[#916400]")}>
-                    {status}
-                  </span>
-                  <span className={badge+" "+(shop.lineLinked
-                    ?"bg-[#E2F7F1] text-[#008F8D]":"bg-[#F0F2F3] text-[#71818A]")}>
-                    {shop.lineLinked?"บัญชี LINE ลูกค้า: เชื่อมแล้ว":"บัญชี LINE ลูกค้า: ยังไม่เชื่อม"}
-                  </span>
+          return <article key={shop.id} className="overflow-hidden rounded-xl border border-[#D5E8E1] bg-white">
+            <div className="flex min-h-[68px] items-center gap-1.5 px-2.5 py-2 sm:px-3">
+              <button type="button" aria-expanded={open} aria-controls={`shop-detail-${shop.id}`}
+                aria-label={shop.customer_name+" · ดูรายละเอียดร้าน"}
+                onClick={()=>toggle(shop.id)}
+                className="flex min-h-12 min-w-0 flex-1 items-center gap-1.5 text-left">
+                <div className="min-w-0 flex-1">
+                  <h2 title={shop.customer_name} className="truncate text-[15px] leading-5 font-extrabold text-[#17453F]">
+                    {shop.customer_name}
+                  </h2>
+                  <div className="mt-1 flex items-center gap-1">
+                    <span title={status} aria-label={"สถานะ CV: "+status}
+                      className={badge+" "+(shop.cvAccount?.status==="approved"
+                        ?"bg-[#E2F7F1] text-[#008F8D]":"bg-[#FFF2DB] text-[#916400]")}>
+                      {shop.cvAccount?.status==="approved"?"CV ✓":shop.cvAccount?"CV ระงับ":"ไม่มี CV"}
+                    </span>
+                    <span title={shop.lineLinked?"บัญชี LINE ลูกค้า: เชื่อมแล้ว":"บัญชี LINE ลูกค้า: ยังไม่เชื่อม"}
+                      aria-label={shop.lineLinked?"บัญชี LINE ลูกค้า: เชื่อมแล้ว":"บัญชี LINE ลูกค้า: ยังไม่เชื่อม"}
+                      className={badge+" "+(shop.lineLinked
+                        ?"bg-[#E2F7F1] text-[#008F8D]":"bg-[#F0F2F3] text-[#71818A]")}>
+                      {shop.lineLinked?"LINE ลูกค้า ✓":"LINE ลูกค้า —"}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <svg className={"h-5 w-5 shrink-0 text-[#58867D] transition-transform "+(open?"rotate-180":"")}
-                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
-                <path d="m6 9 6 6 6-6"/>
-              </svg>
-            </button>
-            <button type="button" aria-label={"วิเคราะห์ลูกค้า "+shop.customer_name}
-              onClick={()=>setAnalyticsShop({id:shop.id,name:shop.customer_name})}
-              className="my-3 mr-3 flex shrink-0 items-center justify-center gap-1 rounded-xl border border-[#CDE8DF] bg-[#EAF8F5] px-3 text-xs font-black text-[#008F8D]">
-              <span aria-hidden="true">📊</span><span>วิเคราะห์</span>
-            </button>
+                <svg className={"h-4 w-4 shrink-0 text-[#58867D] transition-transform "+(open?"rotate-180":"")}
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+              </button>
+              <button type="button" aria-label={"วิเคราะห์ลูกค้า "+shop.customer_name}
+                onClick={()=>setAnalyticsShop({id:shop.id,name:shop.customer_name})}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-1 rounded-lg border border-[#CDE8DF] bg-[#EAF8F5] px-2.5 text-[11px] font-extrabold text-[#008F8D]">
+                <span aria-hidden="true">📊</span><span>วิเคราะห์</span>
+              </button>
             </div>
             {open&&<div id={`shop-detail-${shop.id}`} className="border-t border-[#E1EEE9] px-4 pb-4 pt-3">
               <div className="mb-3 flex justify-end">
