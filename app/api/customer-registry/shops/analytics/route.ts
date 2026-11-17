@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
     const { admin } = await requireSalesRole(request, ["manager", "salesman"]);
     const shopId = request.nextUrl.searchParams.get("shopId") ?? "";
     const weeks = Number(request.nextUrl.searchParams.get("weeks") ?? 4);
-    if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(shopId) || ![4, 8, 12].includes(weeks))
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shopId) || ![4, 8, 12].includes(weeks))
       return Response.json({ error: "Invalid shop or period" }, { status: 400 });
 
     const { data: shop, error: shopError } = await admin.from("customers")
@@ -153,7 +153,6 @@ export async function GET(request: NextRequest) {
       const rows = itemsByOrder.get(line.order_id) ?? [];
       rows.push(line); itemsByOrder.set(line.order_id, rows);
     }
-    const byId = new Map(orderRows.map(order => [order.id, order]));
     const groupId = (order: Order) => order.group_root_order_id ?? order.id;
     const membersByRoot = new Map<string, Order[]>();
     for (const order of orderRows) {
@@ -227,14 +226,15 @@ export async function GET(request: NextRequest) {
         order.delivery_date < startDay) continue;
       const stages = historyByOrder.get(order.id) ?? [];
       const lines = itemsByOrder.get(order.id) ?? [];
+      // Match OMS operational KPIs: measure only after picking has finished.
       if (stages.some(h => h.to_status === "awaiting_billing")) {
-        const result = compareShortPick(lines);
-        if (result !== null) { shortPickMeasured++; if (result) shortPickHits++; }
-      }
-      if (stages.some(h => h.from_status === "awaiting_confirmation" &&
-        h.to_status === "awaiting_picking")) {
-        const result = compareShortStock(lines);
-        if (result !== null) { stockMeasured++; if (result) stockHits++; }
+        const pickedShort = compareShortPick(lines);
+        const confirmedShort = compareShortStock(lines);
+        if (pickedShort !== null) { shortPickMeasured++; if (pickedShort) shortPickHits++; }
+        // "Short Stock" combines the stock-check shortage and short-picked lines.
+        const stockShort = pickedShort === true || confirmedShort === true ? true
+          : pickedShort === null || confirmedShort === null ? null : false;
+        if (stockShort !== null) { stockMeasured++; if (stockShort) stockHits++; }
       }
     }
 
