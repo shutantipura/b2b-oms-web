@@ -3,6 +3,7 @@
 import {useCallback,useEffect,useMemo,useState,type FormEvent} from "react";
 import Link from "next/link";
 import {supabase} from "@/lib/supabase";
+import ShopAnalytics from "./ShopAnalytics";
 
 type CV={id:string;cv_number:string;status:string};
 type LinkedLine={id:string;name:string};
@@ -51,6 +52,7 @@ export default function ShopsPage(){
   const [owners,setOwners]=useState<LineCustomer[]>([]);
   const [search,setSearch]=useState(""),[expanded,setExpanded]=useState<string|null>(null);
   const [editing,setEditing]=useState<string|null>(null);
+  const [analyticsShop,setAnalyticsShop]=useState<{id:string;name:string}|null>(null);
   const [draft,setDraft]=useState<EditFields|null>(null);
   const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
   const [message,setMessage]=useState(""),[showNew,setShowNew]=useState(false);
@@ -156,9 +158,10 @@ export default function ShopsPage(){
           const open=expanded===shop.id,beingEdited=editing===shop.id;
           const status=shopStatus(shop);
           return <article key={shop.id} className="overflow-hidden rounded-2xl border border-[#D5E8E1] bg-white">
+            <div className="flex items-stretch">
             <button type="button" aria-expanded={open} aria-controls={`shop-detail-${shop.id}`}
               onClick={()=>toggle(shop.id)}
-              className="flex min-h-[84px] w-full items-center justify-between gap-2 px-4 py-3 text-left">
+              className="flex min-h-[84px] min-w-0 flex-1 items-center justify-between gap-2 px-4 py-3 text-left">
               <div className="min-w-0 flex-1">
                 <h2 className="truncate text-base font-black text-[#17453F]">{shop.customer_name}</h2>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -168,7 +171,7 @@ export default function ShopsPage(){
                   </span>
                   <span className={badge+" "+(shop.lineLinked
                     ?"bg-[#E2F7F1] text-[#008F8D]":"bg-[#F0F2F3] text-[#71818A]")}>
-                    {shop.lineLinked?"เชื่อม LINE แล้ว":"ยังไม่เชื่อม LINE"}
+                    {shop.lineLinked?"บัญชี LINE ลูกค้า: เชื่อมแล้ว":"บัญชี LINE ลูกค้า: ยังไม่เชื่อม"}
                   </span>
                 </div>
               </div>
@@ -177,6 +180,12 @@ export default function ShopsPage(){
                 <path d="m6 9 6 6 6-6"/>
               </svg>
             </button>
+            <button type="button" aria-label={"วิเคราะห์ลูกค้า "+shop.customer_name}
+              onClick={()=>setAnalyticsShop({id:shop.id,name:shop.customer_name})}
+              className="my-3 mr-3 flex shrink-0 items-center justify-center gap-1 rounded-xl border border-[#CDE8DF] bg-[#EAF8F5] px-3 text-xs font-black text-[#008F8D]">
+              <span aria-hidden="true">📊</span><span>วิเคราะห์</span>
+            </button>
+            </div>
             {open&&<div id={`shop-detail-${shop.id}`} className="border-t border-[#E1EEE9] px-4 pb-4 pt-3">
               <div className="mb-3 flex justify-end">
                 <button type="button" aria-label={`แก้ไขร้าน ${shop.customer_name}`} disabled={busy}
@@ -237,7 +246,7 @@ export default function ShopsPage(){
                   </select>
                 </label>
               </div>
-              <p className="mt-2 text-xs text-[#789388]">บัญชี LINE ที่เชื่อมแล้ว: {shop.lineAccounts.length?
+              <p className="mt-2 text-xs text-[#789388]">บัญชี LINE ลูกค้าที่เชื่อมแล้ว: {shop.lineAccounts.length?
                 shop.lineAccounts.map(a=>a.name).join(", "):"ไม่มี"}</p>
               <Link href={`/customers/${encodeURIComponent(shop.customer_code)}`}
                 className="mt-3 inline-flex min-h-10 items-center rounded-xl bg-[#EAF8F5] px-4 text-xs font-bold text-[#008F8D]">
@@ -248,6 +257,7 @@ export default function ShopsPage(){
         })}
         {!loading&&!visible.length&&<p className="py-10 text-center text-sm text-[#718A80]">ไม่พบร้านค้าที่ค้นหา</p>}
       </section>
+      {analyticsShop&&<ShopAnalytics shop={analyticsShop} onClose={()=>setAnalyticsShop(null)}/>}
     </div>
   </main>;
 }
