@@ -136,7 +136,7 @@ test("shop analytics is manager/salesman protected and matches OMS bill, group a
   assert.match(analytics,/from_status === "out_for_delivery"/);
   assert.match(analytics,/pickedShort === true \|\| confirmedShort === true/);
   assert.match(analyticsUI,/ยอดขายรายสัปดาห์/);
-  assert.match(analyticsUI,/สินค้าหลักที่ลูกค้าซื้อ/);
+  assert.match(analyticsUI,/สินค้าทั้งหมดที่ลูกค้าเคยสั่ง/);
   assert.match(analyticsUI,/Short Pick/);
   assert.match(analyticsUI,/Short Stock/);
 });
@@ -153,4 +153,46 @@ test("shop list stays compact on mobile without hiding CV, customer LINE status 
   assert.match(shopUI,/onClick=\{\(\)=>setAnalyticsShop/);
   assert.doesNotMatch(shopUI,/min-h-\[84px\]/);
   assert.doesNotMatch(shopUI,/flex-wrap items-center gap-1\.5/);
+});
+
+test("customer analytics periods include rolling week, rolling month and entire OMS history",()=>{
+  assert.match(analytics,/type Period = "week" \| "month" \| "all"/);
+  assert.match(analytics,/request\.nextUrl\.searchParams\.get\("period"\)/);
+  assert.match(analytics,/todayMs - 6 \* DAY/);
+  assert.match(analytics,/todayMs - 29 \* DAY/);
+  assert.match(analytics,/fixedStart \?\? firstOrderDay/);
+  assert.match(analytics,/Read whole order history/);
+  assert.match(analytics,/bucketIndex\(selectedPeriod, date, startDay\)/);
+  assert.match(analytics,/makeBuckets\(selectedPeriod, startDay, today\)/);
+  assert.match(analyticsUI,/1 สัปดาห์ล่าสุด/);
+  assert.match(analyticsUI,/1 เดือนล่าสุด/);
+  assert.match(analyticsUI,/ทั้งหมด/);
+  assert.match(analyticsUI,/&period=/);
+  assert.doesNotMatch(analyticsUI,/&weeks=/);
+});
+test("all demanded products are included regardless of picking, completion or cancellation",()=>{
+  assert.match(analytics,/for \(const order of orderRows\) \{\s*if \(!orderIsInPeriod\(order\)\) continue;\s*for \(const line of itemsByOrder/);
+  assert.match(analytics,/numeric\(line\.requested_qty\)/);
+  assert.match(analytics,/line\.unit_snapshot \|\| "หน่วย"/);
+  assert.match(analytics,/line\.product_id \+ "\|" \+ unit/);
+  assert.match(analytics,/entry\.requestedQty \+= requested/);
+  assert.match(analytics,/piece_price_per_kg_snapshot !== null\s*\? line\.actual_piece_qty : line\.actual_qty/);
+  assert.match(analytics,/order\.status === "completed" && actual === 0/);
+  assert.doesNotMatch(analytics,/\.slice\(0, 8\)/);
+  assert.match(analyticsUI,/สินค้าทั้งหมดที่ลูกค้าเคยสั่ง/);
+  assert.match(analyticsUI,/summary\.demandProducts\.length/);
+  assert.match(analyticsUI,/decimal\.format\(product\.requestedQty\)/);
+  assert.match(analyticsUI,/ค้นหาสินค้าที่ลูกค้าเคยสั่ง/);
+});
+test("customer report identifies evidence-based shortages, delivery problems and opportunities",()=>{
+  assert.match(analytics,/const insights: Insight\[\] = \[\]/);
+  assert.match(analytics,/stockMeasured >= 2 && stockHits > 0/);
+  assert.match(analytics,/dotMeasured >= 2 && dotOnTime < dotMeasured/);
+  assert.match(analytics,/unfilledCompletedLines/);
+  assert.match(analytics,/products\[0\]\.orderCount >= 2/);
+  assert.match(analytics,/periodDays >= 14/);
+  assert.match(analytics,/kind: "observation"/);
+  assert.match(analyticsUI,/สรุปปัญหาและโอกาสของลูกค้า/);
+  assert.match(analyticsUI,/summary\.insights\.map/);
+  assert.match(analyticsUI,/ไม่ใช่ความคิดเห็นของลูกค้าที่ให้โดยตรง/);
 });
