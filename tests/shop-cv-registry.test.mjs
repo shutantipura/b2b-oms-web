@@ -8,6 +8,8 @@ const shop=read("app/api/customer-registry/shops/route.ts");
 const cv=read("app/api/customer-registry/cv-accounts/route.ts");
 const upload=read("app/api/customer-registry/cv-accounts/upload/route.ts");
 const shopUI=read("app/customers/shops/page.tsx");
+const analytics=read("app/api/customer-registry/shops/analytics/route.ts");
+const analyticsUI=read("app/customers/shops/ShopAnalytics.tsx");
 const cvUI=read("app/customers/cv-accounts/page.tsx");
 const manager=read("app/customers/page.tsx");
 const salesman=read("app/salesman/page.tsx");
@@ -83,12 +85,12 @@ test("deactivation blocks new CV links, preserves audit and uses No CV billing m
 });
 
 
-test("shop rows are collapsed by default with only name, CV status and LINE status",()=>{
+test("shop rows show name, CV status, customer LINE status and analytics shortcut",()=>{
   assert.match(shopUI,/aria-expanded=\{open\}/);
   assert.match(shopUI,/expanded===shop.id/);
   assert.match(shopUI,/เชื่อม CV แล้ว/);
-  assert.match(shopUI,/เชื่อม LINE แล้ว/);
-  assert.match(shopUI,/ยังไม่เชื่อม LINE/);
+  assert.match(shopUI,/บัญชี LINE ลูกค้า: เชื่อมแล้ว/);
+  assert.match(shopUI,/บัญชี LINE ลูกค้า: ยังไม่เชื่อม/);
   assert.match(shopUI,/beingEdited&&draft\?/);
   assert.match(shopUI,/aria-label=\{`แก้ไขร้าน/);
   assert.match(shop,/lineLinked:/);
@@ -121,4 +123,20 @@ test("CV Card replacements are compressed and manager-approved, never directly u
   assert.match(migration,/p_manager_id AND account_type='manager' AND is_active/);
   assert.match(migration,/length\(nullif\(cv_card_storage_path,''\)\)>0/);
   assert.match(upload,/\.webp\(\{quality:75/);
+});
+
+test("shop analytics is manager/salesman protected and matches OMS bill, group and shortage rules",()=>{
+  assert.match(shopUI,/setAnalyticsShop/);
+  assert.match(shopUI,/ShopAnalytics shop=/);
+  assert.match(analytics,/requireSalesRole\(request, \["manager", "salesman"\]\)/);
+  assert.match(analytics,/is_test_customer/);
+  assert.match(analytics,/action === "billing_completed"/);
+  assert.match(analytics,/group_root_order_id/);
+  assert.match(analytics,/piece_price_per_kg_snapshot/);
+  assert.match(analytics,/from_status === "out_for_delivery"/);
+  assert.match(analytics,/pickedShort === true \|\| confirmedShort === true/);
+  assert.match(analyticsUI,/ยอดขายรายสัปดาห์/);
+  assert.match(analyticsUI,/สินค้าหลักที่ลูกค้าซื้อ/);
+  assert.match(analyticsUI,/Short Pick/);
+  assert.match(analyticsUI,/Short Stock/);
 });
