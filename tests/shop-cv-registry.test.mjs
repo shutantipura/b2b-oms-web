@@ -140,3 +140,17 @@ test("shop analytics is manager/salesman protected and matches OMS bill, group a
   assert.match(analyticsUI,/Short Pick/);
   assert.match(analyticsUI,/Short Stock/);
 });
+
+test("shop list stays compact on mobile without hiding CV, customer LINE status or analytics",()=>{
+  assert.match(shopUI,/min-h-\[68px\]/);
+  assert.match(shopUI,/space-y-1\.5" aria-label="รายชื่อร้านค้า"/);
+  assert.match(shopUI,/truncate text-\[15px\]/);
+  assert.match(shopUI,/whitespace-nowrap rounded-full px-2/);
+  assert.match(shopUI,/LINE ลูกค้า ✓/);
+  assert.match(shopUI,/LINE ลูกค้า —/);
+  assert.match(shopUI,/aria-label=\{shop\.lineLinked\?"บัญชี LINE ลูกค้า:/);
+  assert.match(shopUI,/h-10 shrink-0 items-center justify-center gap-1 rounded-lg/);
+  assert.match(shopUI,/onClick=\{\(\)=>setAnalyticsShop/);
+  assert.doesNotMatch(shopUI,/min-h-\[84px\]/);
+  assert.doesNotMatch(shopUI,/flex-wrap items-center gap-1\.5/);
+});
