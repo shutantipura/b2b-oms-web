@@ -135,7 +135,7 @@ export default function ShopAnalytics({ shop, onClose }: {
               note={summary.shortPick.affected + "/" + summary.shortPick.measured + " ออเดอร์หยิบขาด"}
               warning={summary.shortPick.percent !== null && summary.shortPick.percent > 0} />
             <Metric title="Short Stock" value={pct(summary.shortStock)}
-              note={summary.shortStock.affected + "/" + summary.shortStock.measured + " ออเดอร์เช็คสต็อกขาด"}
+              note={summary.shortStock.affected + "/" + summary.shortStock.measured + " ออเดอร์สต็อก/หยิบขาด"}
               warning={summary.shortStock.percent !== null && summary.shortStock.percent > 0} />
           </div>
           <section className="mt-4 rounded-2xl border border-[#D8EAE3] bg-white p-4">
@@ -187,7 +187,7 @@ export default function ShopAnalytics({ shop, onClose }: {
             วิธีนับ: ยอดขายอิงบิลที่เสร็จสมบูรณ์และเวลาออกบิล (นับออเดอร์ /x เพียงครั้งเดียว)
             · DOT วัดเวลาส่งถึงเทียบกับเวลาสิ้นสุดช่องจัดส่ง โดยไม่รวมรับที่ร้าน
             · Short Pick คือสัดส่วนออเดอร์ที่หยิบขาดจากยอดยืนยันหลังจบ Picking
-            · Short Stock คือสัดส่วนออเดอร์ที่เช็คสต็อกยืนยันได้น้อยกว่าที่ลูกค้าสั่ง
+            · Short Stock รวมออเดอร์ที่เช็คสต็อกไม่ครบหรือหยิบขาดจากยอดยืนยัน
             · ข้อมูลที่ยังไม่ถึงขั้นวัดหรือไม่มีข้อมูลจะไม่เข้าตัวหาร
           </p>
         </>}
