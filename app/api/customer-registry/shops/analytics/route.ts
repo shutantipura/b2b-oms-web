@@ -271,8 +271,11 @@ export async function GET(request: NextRequest) {
         affected: stockHits, measured: stockMeasured },
       dot: { percent: percent(dotOnTime, dotMeasured),
         onTime: dotOnTime, measured: dotMeasured },
-      weeklySales, topProducts: top.map(({ billIds: _billIds, ...data }) =>
-        ({ ...data, quantity: Math.round(data.quantity * 1000) / 1000 })),
+      weeklySales, topProducts: top.map(product => ({
+        productId: product.productId, name: product.name, sku: product.sku,
+        unit: product.unit, bills: product.bills,
+        quantity: Math.round(product.quantity * 1000) / 1000,
+      })),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return salesApiError(error);
