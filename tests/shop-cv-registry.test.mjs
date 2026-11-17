@@ -136,7 +136,7 @@ test("shop analytics is manager/salesman protected and matches OMS bill, group a
   assert.match(analytics,/from_status === "out_for_delivery"/);
   assert.match(analytics,/pickedShort === true \|\| confirmedShort === true/);
   assert.match(analyticsUI,/ยอดขายรายสัปดาห์/);
-  assert.match(analyticsUI,/สินค้าหลักที่ลูกค้าซื้อ/);
+  assert.match(analyticsUI,/สินค้าทั้งหมดที่ลูกค้าเคยสั่ง/);
   assert.match(analyticsUI,/Short Pick/);
   assert.match(analyticsUI,/Short Stock/);
 });
