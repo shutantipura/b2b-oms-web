@@ -70,6 +70,8 @@ type AccessResponse = {
 
   hasStaffAccess?: boolean;
 
+  accountRole?: string | null;
+
   customers?: Customer[];
 
   staff?: StaffAccess | null;
@@ -643,7 +645,7 @@ export default function MiniAppHomePage() {
             // Preserve the explicit customer-order shortcut when a new LINE
             // login or a desktop reauthentication round trip is required.
             redirectUri: window.location.origin + "/miniapp" +
-              (requestedPortal === "customer" ? window.location.search : ""),
+              (requestedPortal === "customer" || requestedPortal === "accountant" ? window.location.search : ""),
           });
           return;
         }
@@ -711,7 +713,7 @@ export default function MiniAppHomePage() {
             // Preserve the explicit customer-order shortcut when a new LINE
             // login or a desktop reauthentication round trip is required.
             redirectUri: window.location.origin + "/miniapp" +
-              (requestedPortal === "customer" ? window.location.search : ""),
+              (requestedPortal === "customer" || requestedPortal === "accountant" ? window.location.search : ""),
           });
             return;
           }
@@ -753,6 +755,14 @@ export default function MiniAppHomePage() {
           data
 
         );
+
+        // Accountants use the restricted financial workspace, never staff tasks.
+        // Managers may enter the same reports through their Accounting shortcut.
+        if (data.accountRole === "accountant" ||
+            (requestedPortal === "accountant" && data.accountRole === "manager")) {
+          router.replace("/miniapp/accountant");
+          return;
+        }
 
         const customers =
 
